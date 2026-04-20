@@ -1,0 +1,134 @@
+#!/bin/bash -l
+#PBS -l select=1:system=polaris
+#PBS -l walltime=00:30:00
+#PBS -l filesystems=home
+#PBS -q debug
+#PBS -A IMPROVE_Aim1
+#PBS -N pvmol-stage3-author
+#PBS -o /home/stevens/pvmol-gen/logs/stage3_author.out
+#PBS -e /home/stevens/pvmol-gen/logs/stage3_author.err
+
+source /soft/applications/conda/2025-09-28/mconda3/setup.sh
+export OPENBLAS_NUM_THREADS=32
+
+cd /home/stevens/pvmol-gen
+mkdir -p results logs
+
+echo "═══ Stage 3 on Author's Data ═══"
+echo "Host: $(hostname), $(date)"
+
+python -u -c "
+import sys, logging
+sys.path.insert(0, 'src')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
+
+import numpy as np
+import pandas as pd
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from sklearn.cluster import AgglomerativeClustering
+from config import SA_MAX, HBD_RANGE, HBA_RANGE, TPSA_RANGE, GAP_RANGE, DIPOLE_RANGE, NUM_CLUSTERS
+from utils import morgan_fingerprint, fp_to_array
+
+# Load author's pre-computed data
+df = pd.read_csv('data/G_class1.csv')
+logger.info(f'Loaded author G_class1: {len(df)} molecules')
+logger.info(f'Columns: {list(df.columns)}')
+
+# Stats before filtering
+for col in ['SA', 'HBD', 'HBA', 'TPSA', 'Gap', 'Dipole']:
+    if col in df.columns:
+        logger.info(f'  {col}: min={df[col].min():.2f}, max={df[col].max():.2f}, mean={df[col].mean():.2f}, missing={df[col].isna().sum()}')
+
+# Apply seven filters
+n_start = len(df)
+logger.info(f'\\n=== Applying Seven Physicochemical Filters ===')
+
+# Filter 1: SA <= 6
+mask_sa = df['SA'] <= SA_MAX
+logger.info(f'1. SA <= {SA_MAX}: {mask_sa.sum()} pass ({mask_sa.sum()/n_start*100:.1f}%)')
+
+# Filter 2: No PAINS
+mask_pains = df['PAINS'] == False
+logger.info(f'2. No PAINS: {mask_pains.sum()} pass ({mask_pains.sum()/n_start*100:.1f}%)')
+
+# Filter 3: HBD 0-2
+mask_hbd = df['HBD'].between(*HBD_RANGE)
+logger.info(f'3. HBD {HBD_RANGE}: {mask_hbd.sum()} pass ({mask_hbd.sum()/n_start*100:.1f}%)')
+
+# Filter 4: HBA 2-5
+mask_hba = df['HBA'].between(*HBA_RANGE)
+logger.info(f'4. HBA {HBA_RANGE}: {mask_hba.sum()} pass ({mask_hba.sum()/n_start*100:.1f}%)')
+
+# Filter 5: TPSA 50-120
+mask_tpsa = df['TPSA'].between(*TPSA_RANGE)
+logger.info(f'5. TPSA {TPSA_RANGE}: {mask_tpsa.sum()} pass ({mask_tpsa.sum()/n_start*100:.1f}%)')
+
+# Filter 6: Gap 1.5-5.0 eV
+mask_gap = df['Gap'].between(*GAP_RANGE)
+logger.info(f'6. Gap {GAP_RANGE}: {mask_gap.sum()} pass ({mask_gap.sum()/n_start*100:.1f}%)')
+
+# Filter 7: Dipole 1.5-4.0 D
+mask_dip = df['Dipole'].between(*DIPOLE_RANGE)
+logger.info(f'7. Dipole {DIPOLE_RANGE}: {mask_dip.sum()} pass ({mask_dip.sum()/n_start*100:.1f}%)')
+
+# Combined
+filtered = df[mask_sa & mask_pains & mask_hbd & mask_hba & mask_tpsa & mask_gap & mask_dip].copy()
+logger.info(f'\\nCombined: {n_start} → {len(filtered)} molecules ({len(filtered)/n_start*100:.1f}%)')
+logger.info(f'Paper reports ~8,000 after filtering')
+
+filtered.to_csv('results/author_filtered.csv', index=False)
+
+# Clustering into 10 groups
+if len(filtered) >= NUM_CLUSTERS:
+    logger.info(f'\\n=== Clustering {len(filtered)} molecules into {NUM_CLUSTERS} groups ===')
+    fps = []
+    valid_idx = []
+    for i, smi in enumerate(filtered['SMILES']):
+        fp = morgan_fingerprint(smi)
+        if fp is not None:
+            fps.append(fp_to_array(fp))
+            valid_idx.append(i)
+    
+    X = np.array(fps)
+    logger.info(f'Valid fingerprints: {len(fps)}')
+    
+    clustering = AgglomerativeClustering(n_clusters=NUM_CLUSTERS)
+    labels = clustering.fit_predict(X)
+    
+    cluster_df = filtered.iloc[valid_idx].copy()
+    cluster_df['Cluster'] = labels
+    
+    # Select one per cluster (closest to centroid)
+    selected_rows = []
+    for c in range(NUM_CLUSTERS):
+        mask = cluster_df['Cluster'] == c
+        cluster_members = cluster_df[mask]
+        cluster_fps = X[labels == c]
+        centroid = cluster_fps.mean(axis=0)
+        distances = np.linalg.norm(cluster_fps - centroid, axis=1)
+        best_idx = distances.argmin()
+        selected_rows.append(cluster_members.iloc[best_idx])
+        logger.info(f'  Cluster {c}: {mask.sum()} members')
+    
+    selected = pd.DataFrame(selected_rows)
+    selected.to_csv('results/author_selected_10.csv', index=False)
+    
+    logger.info(f'\\n=== Selected 10 Representative Molecules ===')
+    for _, row in selected.iterrows():
+        logger.info(f\"  Cluster {int(row['Cluster'])}: {row['SMILES']}\")
+        logger.info(f\"    SA={row['SA']:.2f}, HBD={int(row['HBD'])}, HBA={int(row['HBA'])}, TPSA={row['TPSA']:.1f}, Gap={row['Gap']:.2f}eV, Dipole={row['Dipole']:.2f}D\")
+
+# Also compare with author's Rep10
+logger.info(f'\\n=== Author Rep10 (from paper) ===')
+rep10 = pd.read_csv('data/Rep10.csv')
+logger.info(f'{len(rep10)} molecules:')
+for _, row in rep10.iterrows():
+    cols_str = ', '.join([f'{c}={row[c]}' for c in rep10.columns if c != 'SMILES'])
+    logger.info(f'  {row.get(\"SMILES\", row.iloc[0])}: {cols_str}')
+
+logger.info('\\nStage 3 analysis complete.')
+" 2>&1
+
+echo "=== Done: $(date) ==="

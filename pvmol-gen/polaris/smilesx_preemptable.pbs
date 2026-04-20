@@ -1,0 +1,76 @@
+#!/bin/bash -l
+#PBS -l select=1:system=polaris
+#PBS -l place=scatter
+#PBS -l walltime=02:00:00
+#PBS -q preemptable
+#PBS -l filesystems=home:eagle
+#PBS -A IMPROVE_Aim1
+#PBS -N smilesx-ckpt
+#PBS -o /home/stevens/pvmol-gen/logs/smilesx_ckpt.out
+#PBS -e /home/stevens/pvmol-gen/logs/smilesx_ckpt.err
+#PBS -r y
+# ^^^ -r y = job is rerunnable (PBS can requeue on preemption)
+
+cd /home/stevens/pvmol-gen
+
+source /soft/applications/conda/2025-09-28/mconda3/setup.sh
+conda activate smilesx
+
+export http_proxy=http://proxy.alcf.anl.gov:3128
+export https_proxy=http://proxy.alcf.anl.gov:3128
+export XLA_FLAGS="--xla_gpu_cuda_data_dir=/soft/compilers/cudatoolkit/cuda-12.3.2"
+export TF_XLA_FLAGS="--tf_xla_auto_jit=0"
+
+OUTDIR="./results/smilesx_checkpoint"
+
+echo "═══════════════════════════════════════════════════════════════"
+echo "  SMILES-X Checkpoint-Restart Pipeline"
+echo "  Host: $(hostname), $(date)"
+echo "  Job: ${PBS_JOBID}"
+echo "═══════════════════════════════════════════════════════════════"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null
+
+# Show checkpoint status if resuming
+if [ -f "${OUTDIR}/checkpoint.json" ]; then
+    echo ""
+    echo "RESUMING from checkpoint:"
+    python3 -c "
+import json
+ckpt = json.load(open('${OUTDIR}/checkpoint.json'))
+done = len(ckpt.get('training_progress', {}))
+print(f\"  Phase: {ckpt['phase']}\")
+print(f\"  Fold×runs done: {done}/15\")
+print(f\"  BayOpt cached: {ckpt.get('bayopt_done', False)}\")
+print(f\"  GeomOpt cached: {ckpt.get('geomopt_done', False)}\")
+"
+    echo ""
+fi
+
+# Run with checkpoint-restart support
+# Best params from earlier BayOpt: bs=16, lr=3.5
+python3 -u src/run_smilesx_checkpoint.py \
+    --outdir "${OUTDIR}" \
+    --skip-bayopt \
+    --skip-geomopt \
+    --bs 16 \
+    --lr 3.5 \
+    --k-folds 5 \
+    --n-runs 3 \
+    --n-epochs 100 \
+    --patience 5 \
+    2>&1 | tee "${OUTDIR}/run_${PBS_JOBID%%.*}.log"
+
+EXIT_CODE=$?
+
+echo ""
+echo "═══ Exit code: ${EXIT_CODE}, $(date) ═══"
+
+# If preempted (exit 271 on Polaris) or timed out, the checkpoint.json 
+# preserves state. Resubmit with: qsub polaris/smilesx_preemptable.pbs
+if [ ${EXIT_CODE} -ne 0 ]; then
+    echo "Non-zero exit. Check checkpoint.json for resume state."
+    if [ -f "${OUTDIR}/checkpoint.json" ]; then
+        echo "Checkpoint state:"
+        cat "${OUTDIR}/checkpoint.json"
+    fi
+fi

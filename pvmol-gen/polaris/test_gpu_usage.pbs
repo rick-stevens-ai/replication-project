@@ -1,0 +1,140 @@
+#!/bin/bash -l
+#PBS -l select=1:system=polaris
+#PBS -l walltime=00:30:00
+#PBS -l filesystems=home
+#PBS -q debug
+#PBS -A IMPROVE_Aim1
+#PBS -N gpu-usage-test
+#PBS -o /home/stevens/pvmol-gen/logs/gpu_usage_test.out
+#PBS -e /home/stevens/pvmol-gen/logs/gpu_usage_test.err
+
+source /soft/applications/conda/2025-09-28/mconda3/setup.sh
+export OPENBLAS_NUM_THREADS=32
+
+cd /home/stevens/pvmol-gen
+
+echo "=== GPU Usage Test ==="
+echo "Host: $(hostname)"
+echo "Date: $(date)"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+
+# Start GPU monitoring in background
+bash polaris/gpu_monitor.sh logs/gpu_util_test.log &
+GPU_MON_PID=$!
+
+python -u -c "
+import time, sys, os
+import torch
+import numpy as np
+import pandas as pd
+from rdkit import Chem, RDLogger
+RDLogger.DisableLog('rdApp.*')
+
+sys.path.insert(0, 'src')
+from stage1_classifier import (
+    SmilesTokenizer, SmilesXClassifier, SmilesDataset,
+    augment_smiles_exhaustive, load_t0_data, train_one_epoch, evaluate
+)
+from config import CLASSIFICATION_THRESHOLD
+from torch.utils.data import DataLoader
+from sklearn.model_selection import StratifiedKFold
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f'Device: {device}')
+if device.type == 'cuda':
+    print(f'GPU: {torch.cuda.get_device_name(0)}')
+    print(f'Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB')
+
+# Load data
+t0 = time.time()
+smiles_raw, labels_raw = load_t0_data()
+print(f'Load data: {time.time()-t0:.2f}s — {len(smiles_raw)} molecules')
+
+# Time the augmentation
+t0 = time.time()
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+train_idx, test_idx = next(iter(skf.split(smiles_raw, labels_raw)))
+train_smiles = [smiles_raw[i] for i in train_idx]
+train_labels = [labels_raw[i] for i in train_idx]
+test_smiles = [smiles_raw[i] for i in test_idx]
+test_labels = [labels_raw[i] for i in test_idx]
+
+aug_smiles, aug_labels = [], []
+for smi, lab in zip(train_smiles, train_labels):
+    variants = augment_smiles_exhaustive(smi)
+    aug_smiles.extend(variants)
+    aug_labels.extend([lab] * len(variants))
+print(f'Augmentation: {time.time()-t0:.2f}s — {len(train_smiles)} → {len(aug_smiles)} samples')
+
+# Build tokenizer
+tokenizer = SmilesTokenizer(max_len=128)
+tokenizer.fit(aug_smiles + test_smiles)
+
+# Create loaders
+train_ds = SmilesDataset(aug_smiles, aug_labels, tokenizer)
+test_ds = SmilesDataset(test_smiles, test_labels, tokenizer)
+train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
+test_loader = DataLoader(test_ds, batch_size=64, num_workers=2, pin_memory=True)
+
+# Model
+model = SmilesXClassifier(
+    vocab_size=tokenizer.vocab_size, max_len=128,
+    embed_dim=128, lstm_units=64, tdense_units=64
+).to(device)
+
+param_count = sum(p.numel() for p in model.parameters())
+print(f'Model parameters: {param_count:,}')
+
+optimizer = torch.optim.Adam(model.parameters(), lr=1.26e-4)
+criterion = torch.nn.BCEWithLogitsLoss()
+
+# Time 10 epochs
+print(f'\\n=== Training 10 epochs (batch_size=64, {len(aug_smiles)} samples) ===')
+for epoch in range(10):
+    t0 = time.time()
+    loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
+    elapsed = time.time() - t0
+    
+    if device.type == 'cuda':
+        mem_alloc = torch.cuda.memory_allocated() / 1e6
+        mem_reserved = torch.cuda.memory_reserved() / 1e6
+        gpu_info = f'GPU mem: {mem_alloc:.0f}/{mem_reserved:.0f} MB'
+    else:
+        gpu_info = 'CPU only'
+    
+    print(f'  Epoch {epoch+1}: loss={loss:.4f}, time={elapsed:.2f}s, {gpu_info}')
+
+# Quick eval
+f1, auc, _, _, _ = evaluate(model, test_loader, device)
+print(f'\\nAfter 10 epochs: F1={f1:.4f}, AUC={auc:.4f}')
+
+# Time the test-time augmentation (the expensive part)
+t0 = time.time()
+model.eval()
+count = 0
+with torch.no_grad():
+    for smi, lab in zip(test_smiles[:10], test_labels[:10]):
+        variants = augment_smiles_exhaustive(smi)
+        count += len(variants)
+        for v in variants:
+            ids = torch.tensor([tokenizer.encode(v)], dtype=torch.long).to(device)
+            _ = model(ids)
+tta_time = time.time() - t0
+print(f'\\nTest-time augmentation: {tta_time:.2f}s for 10 molecules ({count} variants)')
+print(f'Estimated full TTA for 63 test mols: {tta_time/10*63:.0f}s')
+
+print(f'\\n=== SUMMARY ===')
+print(f'Main bottleneck is likely: augmentation + 100 epochs + per-molecule TTA')
+print(f'GPU utilization will be low because model is tiny (~{param_count:,} params)')
+print(f'Consider: larger batch size, fewer epochs with early stopping, batch TTA')
+" 2>&1
+
+kill $GPU_MON_PID 2>/dev/null
+
+echo ""
+echo "=== GPU Utilization Log ==="
+cat logs/gpu_util_test.log | head -50
+
+echo ""
+echo "=== Done ==="
+echo "Finished at: $(date)"

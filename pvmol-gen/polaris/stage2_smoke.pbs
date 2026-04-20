@@ -1,0 +1,176 @@
+#!/bin/bash -l
+#PBS -l select=1:system=polaris
+#PBS -l walltime=00:30:00
+#PBS -l filesystems=home
+#PBS -q debug
+#PBS -A IMPROVE_Aim1
+#PBS -N pvmol-s2-smoke
+#PBS -o /home/stevens/pvmol-gen/logs/stage2_smoke.out
+#PBS -e /home/stevens/pvmol-gen/logs/stage2_smoke.err
+
+source /soft/applications/conda/2025-09-28/mconda3/setup.sh
+export OPENBLAS_NUM_THREADS=32
+export TRANSFORMERS_OFFLINE=1
+
+cd /home/stevens/pvmol-gen
+mkdir -p logs results models/gpt2_finetuned
+
+echo "═══ Stage 2 Smoke Test (pure PyTorch, no HF Trainer) ═══"
+echo "Host: $(hostname), $(date)"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+
+python -u -c "
+import sys, os, time, logging
+sys.path.insert(0, 'src')
+os.environ['TRANSFORMERS_OFFLINE'] = '1'
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
+
+import torch
+import numpy as np
+import pandas as pd
+from pathlib import Path
+from torch.utils.data import Dataset, DataLoader, random_split
+from torch.cuda.amp import autocast, GradScaler
+from transformers import GPT2Tokenizer, GPT2LMHeadModel
+from rdkit import Chem
+
+from config import T1_FILE, GEN_MAX_LENGTH, GEN_TEMPERATURE, GPT2_BATCH_SIZE
+from utils import validate_smiles, augment_smiles
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+logger.info(f'Device: {device}')
+
+# Load T1
+t1 = pd.read_csv(T1_FILE)
+smi_col = [c for c in t1.columns if 'smiles' in c.lower()][0]
+smiles_list = t1[smi_col].dropna().tolist()[:1000]  # small sample
+logger.info(f'Sample: {len(smiles_list)} SMILES')
+
+# Augment
+augmented = []
+for smi in smiles_list:
+    augmented.extend(augment_smiles(smi, n=3))
+augmented = list(set(augmented))
+logger.info(f'Augmented: {len(augmented)}')
+
+# Load GPT-2
+cache_dir = 'models/gpt2_pretrained'
+tokenizer = GPT2Tokenizer.from_pretrained(cache_dir)
+if tokenizer.pad_token is None:
+    tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+
+encoded = tokenizer(augmented, padding=True, truncation=True,
+                    max_length=GEN_MAX_LENGTH, return_tensors='pt')
+
+class SmilesGPTDataset(Dataset):
+    def __init__(self, enc):
+        self.input_ids = enc['input_ids']
+        self.attention_mask = enc['attention_mask']
+    def __len__(self):
+        return len(self.input_ids)
+    def __getitem__(self, idx):
+        return {'input_ids': self.input_ids[idx],
+                'attention_mask': self.attention_mask[idx],
+                'labels': self.input_ids[idx]}
+
+def collate_fn(batch):
+    return {k: torch.stack([b[k] for b in batch]) for k in batch[0]}
+
+dataset = SmilesGPTDataset(encoded)
+train_size = int(0.8 * len(dataset))
+test_size = len(dataset) - train_size
+train_ds, test_ds = random_split(dataset, [train_size, test_size])
+
+train_loader = DataLoader(train_ds, batch_size=GPT2_BATCH_SIZE, shuffle=True,
+                          collate_fn=collate_fn, num_workers=4, pin_memory=True)
+test_loader = DataLoader(test_ds, batch_size=GPT2_BATCH_SIZE,
+                         collate_fn=collate_fn, num_workers=2, pin_memory=True)
+
+model = GPT2LMHeadModel.from_pretrained(cache_dir).to(device)
+model.resize_token_embeddings(len(tokenizer))
+
+optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
+scaler = GradScaler() if device.type == 'cuda' else None
+
+# Train 5 epochs
+logger.info(f'Training 5 epochs, batch_size={GPT2_BATCH_SIZE}, {len(train_ds)} train samples...')
+for epoch in range(5):
+    t0 = time.time()
+    model.train()
+    total_loss = 0
+    for batch in train_loader:
+        input_ids = batch['input_ids'].to(device)
+        attn = batch['attention_mask'].to(device)
+        labels = batch['labels'].to(device)
+        optimizer.zero_grad()
+        if scaler:
+            with autocast(dtype=torch.float16):
+                out = model(input_ids=input_ids, attention_mask=attn, labels=labels)
+            scaler.scale(out.loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            out = model(input_ids=input_ids, attention_mask=attn, labels=labels)
+            out.loss.backward()
+            optimizer.step()
+        total_loss += out.loss.item()
+    
+    model.eval()
+    val_loss = 0
+    with torch.no_grad():
+        for batch in test_loader:
+            out = model(input_ids=batch['input_ids'].to(device),
+                        attention_mask=batch['attention_mask'].to(device),
+                        labels=batch['labels'].to(device))
+            val_loss += out.loss.item()
+    
+    elapsed = time.time() - t0
+    logger.info(f'  Epoch {epoch+1}: train={total_loss/len(train_loader):.4f} val={val_loss/len(test_loader):.4f} ({elapsed:.1f}s)')
+
+# Generate 500 molecules
+logger.info(f'\\nGenerating molecules...')
+model.eval()
+pad_id = tokenizer.encode('[PAD]', add_special_tokens=False)
+input_ids = torch.tensor([pad_id]).to(device)
+
+generated = set()
+attempts = 0
+t0 = time.time()
+
+while len(generated) < 500 and attempts < 25000:
+    batch_input = input_ids.repeat(64, 1)
+    attn = torch.ones_like(batch_input)
+    with torch.no_grad():
+        outputs = model.generate(
+            batch_input, attention_mask=attn,
+            max_length=GEN_MAX_LENGTH, num_return_sequences=64,
+            temperature=GEN_TEMPERATURE, do_sample=True,
+            pad_token_id=tokenizer.pad_token_id)
+    for seq in outputs:
+        smi = tokenizer.decode(seq, skip_special_tokens=True).strip()
+        canon = validate_smiles(smi)
+        if canon:
+            generated.add(canon)
+        attempts += 1
+
+gen_time = time.time() - t0
+valid_pct = len(generated) / max(attempts, 1) * 100
+logger.info(f'Generated {len(generated)} valid molecules from {attempts} attempts in {gen_time:.1f}s ({valid_pct:.1f}% valid)')
+logger.info(f'Rate: {len(generated)/gen_time:.0f} mol/s')
+logger.info(f'Estimated 100K: {gen_time/max(len(generated),1)*100000/60:.0f} min')
+
+# Show samples
+from rdkit.Chem import Descriptors
+for i, smi in enumerate(list(generated)[:10]):
+    mol = Chem.MolFromSmiles(smi)
+    mw = Descriptors.MolWt(mol) if mol else 0
+    logger.info(f'  {i}: {smi} (MW={mw:.0f})')
+
+if device.type == 'cuda':
+    logger.info(f'GPU peak memory: {torch.cuda.max_memory_allocated()/1e9:.2f} GB')
+
+logger.info('Stage 2 smoke test PASSED.')
+" 2>&1
+
+echo "=== Done: $(date) ==="

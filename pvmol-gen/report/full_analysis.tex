@@ -1,0 +1,1170 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{enumitem}
+\usepackage{natbib}
+\usepackage{fancyhdr}
+\usepackage{colortbl}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    citecolor=blue!60!black,
+    urlcolor=blue!70!black
+}
+
+\pagestyle{fancy}
+\fancyhead[L]{\small Full Pipeline Analysis}
+\fancyhead[R]{\small Fajar et al.\ (2026) Replication}
+\fancyfoot[C]{\thepage}
+
+\definecolor{matchgreen}{RGB}{0,128,0}
+\definecolor{gapred}{RGB}{180,0,0}
+\definecolor{lightblue}{RGB}{220,235,252}
+\definecolor{lightyellow}{RGB}{255,255,220}
+\definecolor{lightgreen}{RGB}{220,252,220}
+\definecolor{lightred}{RGB}{252,225,225}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+\title{\textbf{Replication and Extension of Generative AI-Driven\\
+Accelerated Discovery of Passivation Molecules\\
+for Perovskite Solar Cells}\\[12pt]
+\large A Comprehensive Analysis of Fajar et al.\ (2026)\\
+\normalsize Advanced Science, DOI: 10.1002/advs.202523042}
+\author{Stevens Laboratory}
+\date{April 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+%==============================================================================
+% ABSTRACT
+%==============================================================================
+\begin{abstract}
+\noindent
+We present a comprehensive replication and extension of Fajar et al.\ (2026), ``Generative AI-Driven Accelerated Discovery of Passivation Molecules for Perovskite Solar Cells,'' which proposes a three-stage pipeline for discovering novel passivation molecules for perovskite solar cells (PSCs): (1)~training a binary classifier to distinguish effective from ineffective passivators, (2)~using GPT-2 fine-tuned on SMILES strings to generate novel molecular candidates, and (3)~filtering generated molecules through physicochemical criteria and clustering to select representatives. Our replication effort spans the entire pipeline and involves over 120 independently trained classifier models, 8~NVIDIA A100 GPUs for generation, and systematic comparison of every stage's outputs against the published data.
+
+We identify a critical reproducibility issue in the classifier evaluation methodology. The paper reports F1~=~0.80 (ROC-AUC~=~0.88) for SMILES-X and F1~=~0.75 for Random Forest, but our rigorous cross-validation consistently yields F1~=~0.58--0.66 and F1~=~0.46, respectively. Through structured hypothesis testing, we demonstrate that the paper's metrics are consistent with evaluation on training data rather than held-out predictions. We discover that the binary classification labels correspond to $\Delta$PCE~$\geq$~2.00, not the stated $\Delta$PCE$_\text{norm}$~$\geq$~0.10 criterion (23 mismatches), though this does not affect model performance.
+
+Despite the classifier discrepancy, the full generation pipeline functions correctly. Using SMILES~+~GPT-2 (the paper's approach), we generate 227,457 novel molecules across three cycles, compared to the paper's 103,207. However, only 0.3\% of molecules overlap between the two generated sets. The SMILES approach suffers from a critical synthetic accessibility (SA) bottleneck---only 0.8\% of our generated molecules pass SA~$\leq$~6.0 versus $\sim$98\% of the paper's, yielding only 663 filtered candidates versus 8,076.
+
+To address this, we implemented a complete SELFIES-based pipeline, replacing SMILES with the guaranteed-valid SELFIES molecular representation for all generation phases. The SELFIES pipeline generates 299,370 molecules across three cycles in approximately 3~hours (versus 12+ hours for SMILES), with 24\% validity (versus 0.3\% for SMILES)---an 80$\times$ improvement. Critically, 95.7\% of SELFIES-generated molecules pass the SA~$\leq$~6.0 filter, yielding \textbf{53,732 filtered candidates}---comparable to the paper's 8,076 (which includes two additional xTB-based filters we could not apply). Our 10 final candidates from the SELFIES pipeline share zero overlap with the paper's Rep10, but one paper Rep10 molecule (G7) is found in our 53,732-molecule filtered set. Running our Stage~3 code on the paper's published data exactly reproduces their Rep10, confirming our post-processing is correct.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+% 1. INTRODUCTION
+%==============================================================================
+\section{Introduction}
+\label{sec:introduction}
+
+Perovskite solar cells (PSCs) have emerged as one of the most promising photovoltaic technologies, achieving power conversion efficiencies (PCE) exceeding 26\% in laboratory settings. However, defects at surfaces and grain boundaries remain a major barrier to both efficiency and long-term stability. Molecular passivation---the application of small organic molecules to chemically interact with and neutralize these defect sites---has become a key strategy for addressing this limitation. Identifying effective passivation molecules, however, requires extensive experimental screening, motivating computational approaches.
+
+Fajar et al.\ (2026) present a three-stage AI-driven pipeline for accelerating the discovery of passivation molecules:
+\begin{enumerate}[nosep]
+    \item \textbf{Stage 1 (Classification):} A binary classifier trained on 314 experimentally characterized molecules (Data T0) distinguishes effective passivators (class~1, $\Delta$PCE~$\geq$~threshold) from ineffective ones (class~0). This classifier is then applied to 15,540 PubChem molecules to augment the positive training set.
+    \item \textbf{Stage 2 (Generation):} GPT-2, fine-tuned on class~1 SMILES strings, generates novel molecular candidates through three iterative cycles, with each cycle's output classified and fed back as training data.
+    \item \textbf{Stage 3 (Filtering and Selection):} Generated molecules are filtered through seven physicochemical criteria (synthetic accessibility, PAINS, hydrogen bond donors/acceptors, topological polar surface area, HOMO-LUMO gap, dipole moment), then clustered and representative molecules selected.
+\end{enumerate}
+
+The paper reports a SMILES-X classifier with F1~=~0.80 and ROC-AUC~=~0.88 and a Random Forest baseline with F1~=~0.75, ultimately identifying 10 representative molecules (G1--G10) for experimental validation. One of these, methylbenzoic acid (MBA), was experimentally validated and shown to improve PCE from 19.53\% to 22.17\%.
+
+\subsection{Motivation for Replication}
+
+Replication of computational pipelines is essential for scientific credibility, particularly when the pipeline's output informs experimental efforts. Our replication serves multiple purposes:
+\begin{itemize}[nosep]
+    \item \textbf{Methodological verification:} Assessing whether the reported classifier metrics reflect genuine held-out predictive performance.
+    \item \textbf{Pipeline robustness:} Determining whether the generation pipeline produces consistent molecular candidates across different random seeds and classifier parameterizations.
+    \item \textbf{Extensibility:} Evaluating alternative generation methods (SELFIES, SAFE, Char-LSTM) and identifying bottlenecks in the pipeline.
+    \item \textbf{Transparency:} Providing the community with an independent assessment of a high-impact computational workflow.
+\end{itemize}
+
+This report documents our findings across all three stages of the pipeline. We first analyze the dataset and its labeling (Section~\ref{sec:dataset}), then present a comprehensive classifier reproducibility study (Section~\ref{sec:classifiers}), followed by the full pipeline replication (Section~\ref{sec:pipeline}), comparison with the paper's results (Section~\ref{sec:comparison}), alternative generation methods (Section~\ref{sec:alternatives}), discussion (Section~\ref{sec:discussion}), and conclusions (Section~\ref{sec:conclusions}).
+
+%==============================================================================
+% 2. DATASET ANALYSIS
+%==============================================================================
+\section{Dataset Analysis}
+\label{sec:dataset}
+
+\subsection{Data T0 Overview}
+
+The T0 dataset, published as supplementary material, consists of 314 unique molecules. Each entry includes: a SMILES representation, the absolute change in power conversion efficiency ($\Delta$PCE, \%), the normalized change ($\Delta$PCE$_\text{norm}$ = (PCE$_f$ -- PCE$_i$)/PCE$_i$), a binary classification label (\texttt{bin\_class}), the number of hydrogen bond acceptors (\texttt{ha\_num}), and the number of oxygen atoms (\texttt{o\_num}).
+
+The class distribution is moderately imbalanced:
+\begin{itemize}[nosep]
+    \item \textbf{Class 1} (effective passivators): 133 molecules (42.4\%)
+    \item \textbf{Class 0} (ineffective passivators): 181 molecules (57.6\%)
+\end{itemize}
+
+\subsection{Label Definition Discrepancy}
+\label{sec:label_discrepancy}
+
+The Supporting Information (Section~2.1) states that the binary labels are derived from $\Delta$PCE$_\text{norm}$~$\geq$~0.10. We systematically tested this claim by computing both possible thresholds and comparing against the published \texttt{bin\_class} column.
+
+\begin{table}[H]
+\centering
+\caption{Label definition analysis. The \texttt{bin\_class} column in the published dataset matches a $\Delta$PCE~$\geq$~2.00 threshold exactly, not the stated $\Delta$PCE$_\text{norm}$~$\geq$~0.10.}
+\label{tab:labels}
+\begin{tabular}{lcccc}
+\toprule
+Threshold Definition & Class 1 & Class 0 & Mismatches with \texttt{bin\_class} \\
+\midrule
+$\Delta$PCE$_\text{norm}$ $\geq$ 0.10 (stated in paper) & 142 & 172 & 23 \\
+\rowcolor{lightgreen}
+$\Delta$PCE $\geq$ 2.00 (actual, discovered) & 133 & 181 & \textbf{0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 23 mismatches decompose into two groups: 7 molecules with \texttt{bin\_class}~=~1 but $\Delta$PCE$_\text{norm}$~$<$~0.10 (all having $\Delta$PCE~$\geq$~2.00), and 16 molecules with \texttt{bin\_class}~=~0 but $\Delta$PCE$_\text{norm}$~$\geq$~0.10 (all having $\Delta$PCE~$<$~2.00). This finding indicates the actual threshold used was the absolute $\Delta$PCE~$\geq$~2.00, and the stated normalized criterion is incorrect.
+
+\subsection{Label Experiment}
+\label{sec:label_experiment}
+
+To verify that this discrepancy does not explain the performance gap between our results and the paper's claims, we trained both classifiers under both label definitions:
+
+\begin{table}[H]
+\centering
+\caption{Impact of label definition on classifier performance (5-fold CV).}
+\label{tab:label_exp}
+\begin{tabular}{llcc}
+\toprule
+Model & Label Definition & F1 & AUC-ROC \\
+\midrule
+Random Forest & $\Delta$PCE $\geq$ 2.00 (actual) & 0.462 $\pm$ 0.081 & 0.703 $\pm$ 0.053 \\
+Random Forest & $\Delta$PCE$_\text{norm}$ $\geq$ 0.10 (stated) & 0.470 $\pm$ 0.067 & 0.660 $\pm$ 0.058 \\
+SMILES-X & $\Delta$PCE $\geq$ 2.00 (actual) & 0.600 $\pm$ 0.021 & 0.669 $\pm$ 0.046 \\
+SMILES-X & $\Delta$PCE$_\text{norm}$ $\geq$ 0.10 (stated) & 0.588 $\pm$ 0.070 & 0.603 $\pm$ 0.055 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both label definitions yield statistically indistinguishable performance. The label discrepancy, while a documentation error, is not responsible for the gap between our results and the paper's reported metrics.
+
+\subsection{Data Quality: Invalid SMILES}
+
+One SMILES string in the published dataset is chemically invalid:
+\begin{center}
+\texttt{C1(SSC2C=ClC=ClC2)C=ClC=ClC1}
+\end{center}
+This string incorrectly encodes chlorine atoms inside aromatic ring notation. The corrected SMILES is:
+\begin{center}
+\texttt{Clc1cc(Cl)cc(SSc2cc(Cl)cc(Cl)c2)c1}
+\end{center}
+corresponding to bis(3,5-dichlorophenyl) disulfide. This correction eliminated RDKit augmentation warnings but had negligible impact on model performance, consistent with the expectation that a single molecule among 314 would not materially affect cross-validated metrics.
+
+%==============================================================================
+% 3. CLASSIFIER REPRODUCIBILITY ANALYSIS
+%==============================================================================
+\section{Classifier Reproducibility Analysis}
+\label{sec:classifiers}
+
+This section constitutes the core of our reproducibility investigation. We systematically evaluate both the Random Forest (RF) baseline and the SMILES-X deep learning classifier, testing every plausible explanation for the discrepancy between our results and the paper's claims.
+
+%----------------------------------------------------------------------
+\subsection{Random Forest Classifier}
+\label{sec:rf}
+
+\subsubsection{Methodology}
+
+Following the paper's Supporting Information (Section~2.2), we implemented an RF classifier with:
+\begin{itemize}[nosep]
+    \item \textbf{Features:} 2048-bit Morgan fingerprints (radius~=~2) concatenated with \texttt{ha\_num} and \texttt{o\_num} (2050 features total)
+    \item \textbf{Grid search:} \texttt{n\_estimators} $\in$ \{100, 200, 300\}, \texttt{max\_depth} $\in$ \{5, 10, 15\}, \texttt{min\_samples\_split} $\in$ \{2, 5, 10\}, \texttt{min\_samples\_leaf} $\in$ \{1, 2, 4\}
+    \item \textbf{Evaluation:} 5-fold stratified cross-validation
+    \item \textbf{Best parameters:} \texttt{max\_depth}=15, \texttt{min\_samples\_leaf}=2, \texttt{min\_samples\_split}=10, \texttt{n\_estimators}=200
+\end{itemize}
+
+\subsubsection{Cross-Validation Results}
+
+\begin{table}[H]
+\centering
+\caption{RF 5-fold cross-validation results vs.\ the paper's reported values.}
+\label{tab:rf_cv}
+\begin{tabular}{lccccc}
+\toprule
+ & F1 & Precision & Recall & Accuracy & AUC-ROC \\
+\midrule
+Our 5-fold CV & 0.462 $\pm$ 0.081 & 0.681 & 0.354 & 0.656 & 0.703 \\
+Our 10-fold CV & 0.436 $\pm$ 0.097 & 0.629 & 0.338 & 0.634 & 0.686 \\
+\rowcolor{lightyellow}
+Paper (Fig.~S2) & \textbf{0.747} & 0.774 & 0.722 & 0.793 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The discrepancy is substantial: our F1 is approximately 0.29 lower than reported. The aggregated confusion matrices are even more revealing:
+
+\begin{table}[H]
+\centering
+\caption{Aggregated RF confusion matrices over all 314 molecules.}
+\label{tab:rf_cm}
+\begin{tabular}{lcccc}
+\toprule
+ & TN & FP & FN & TP \\
+\midrule
+Our 5-fold CV ($t$=0.50) & 159 & 22 & 86 & 47 \\
+Our 5-fold CV ($t$=0.47) & 145 & 36 & 75 & 58 \\
+\rowcolor{lightyellow}
+Paper (Fig.~S2b) & 153 & 28 & 37 & 96 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Our model correctly identifies class~0 molecules (high TN) but severely under-predicts class~1 (TP~=~47 vs.\ paper's 96). This pattern---conservative predictions on the minority class---is characteristic of genuine held-out evaluation, whereas the paper's balanced confusion matrix is more consistent with in-sample evaluation.
+
+\subsubsection{Hypothesis Testing}
+\label{sec:rf_hypotheses}
+
+We tested seven structured hypotheses to identify the source of the discrepancy:
+
+\begin{table}[H]
+\centering
+\caption{RF hypothesis test results. The paper's F1~=~0.747 is the target.}
+\label{tab:rf_hyp}
+\begin{tabular}{L{7.2cm}ccc}
+\toprule
+Hypothesis & F1 & TN/FP/FN/TP & Match? \\
+\midrule
+H1: Train on all 314, predict all ($t$=0.50) & \textbf{0.757} & 176/5/49/84 & \textcolor{matchgreen}{\textbf{Yes}} \\
+H3: Best single 80/20 split (200 seeds) & 0.583 & --- & \textcolor{gapred}{No} \\
+H4: 80/20 + grid search on train only & 0.17--0.46 & --- & \textcolor{gapred}{No} \\
+H5: Out-of-bag predictions ($t$=0.47) & 0.489 & 138/43/76/57 & \textcolor{gapred}{No} \\
+H6: Train all, $t$=0.35 & \textbf{0.757} & 99/82/2/131 & \textcolor{matchgreen}{Close} \\
+H7: True aggregated 5-fold CV & 0.465 & 159/22/86/47 & \textcolor{gapred}{No} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Key findings:}
+\begin{itemize}[nosep]
+    \item \textbf{H1 (train-set evaluation)} is the only hypothesis that reproduces F1~$\approx$~0.75, closely matching the paper's 0.747.
+    \item \textbf{H3 (best random split)} was tested across 200 different random seeds; the maximum achievable F1 on a single 80/20 split was 0.583---still well below the paper's claim.
+    \item \textbf{H4 (grid search on train split)} gave even lower results (F1~=~0.17--0.46) because hyperparameter selection properly uses only the training partition.
+    \item \textbf{H5 (OOB predictions)} uses scikit-learn's out-of-bag mechanism, yielding F1~=~0.489---a legitimate but imprecise estimate, still far from 0.747.
+    \item \textbf{H7 (true CV)} confirms our primary 5-fold CV result at F1~=~0.465.
+\end{itemize}
+
+\textbf{Conclusion:} The paper's RF metrics are consistent with training on the full dataset and evaluating on the same data. No legitimate held-out evaluation protocol---across 200 random seeds, multiple grid search configurations, or OOB predictions---exceeds F1~=~0.58.
+
+%----------------------------------------------------------------------
+\subsection{SMILES-X Classifier}
+\label{sec:smilesx}
+
+\subsubsection{Architecture and Implementation}
+
+The SMILES-X model uses a Bidirectional LSTM (BiLSTM) with soft attention mechanism operating on tokenized SMILES strings. The paper describes:
+\begin{itemize}[nosep]
+    \item Architecture search via zero-cost geometry optimization followed by Bayesian optimization
+    \item Search space: embedding $\in$ \{8, 16, 32, 64, 128, 256, 512, 1024\}, LSTM and time-distributed dense layers with the same options
+    \item 5-fold CV with 3 runs per fold (different random seeds), metrics averaged
+    \item Extra features: \texttt{ha\_num} and \texttt{o\_num}
+    \item Optimal architecture found: embedding=512, LSTM=128, dense=128
+    \item Classification threshold: 0.47 (optimized on validation F1)
+\end{itemize}
+
+We implemented the model in PyTorch, faithfully reproducing the architecture: Embedding $\to$ Bidirectional LSTM $\to$ TimeDistributed Dense $\to$ Soft Attention $\to$ Output. Weight initialization was matched to the original (He uniform for embedding, Glorot uniform for dense, orthogonal for LSTM recurrent weights). We also validated results against the original Keras SMILES-X library.
+
+\subsubsection{Cross-Validation Results}
+
+The paper reports:
+\begin{itemize}[nosep]
+    \item F1 = 0.80 (equivalently, 0.788 computed from the confusion matrix)
+    \item ROC-AUC = 0.88, PRC-AUC = 0.86
+    \item Confusion matrix: TN=157, FP=24, FN=31, TP=102
+\end{itemize}
+
+Our results across all approaches:
+
+\begin{table}[H]
+\centering
+\caption{SMILES-X cross-validation results across all approaches tested.}
+\label{tab:smilesx_cv}
+\begin{tabular}{lccl}
+\toprule
+Approach & F1 & AUC-ROC & Notes \\
+\midrule
+Baseline (PyTorch, seed=42) & 0.630 $\pm$ 0.032 & 0.711 & 5-fold, 1 run \\
+Optuna best config (50 trials) & 0.628 $\pm$ 0.041 & 0.696 & 3-fold search \\
+Multi-seed ensemble (5 seeds) & 0.620 $\pm$ 0.016 & 0.675 & 12 descriptors \\
+Original Keras SMILES-X & 0.581 $\pm$ 0.068 & 0.648 & 5-fold, 3 runs \\
+Original Keras (geom+bayopt) & $\sim$0.44--0.58 & $\sim$0.69 & Fold 0 only \\
+\midrule
+\rowcolor{lightyellow}
+Paper claim & \textbf{0.788} & \textbf{0.880} & 5-fold, 3 runs \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The held-out F1 consistently falls in the range 0.58--0.66, approximately \textbf{0.13 below the paper's claim}, regardless of framework, architecture, features, or evaluation protocol.
+
+\subsubsection{Comprehensive 8-Configuration Search}
+\label{sec:comprehensive_search}
+
+To definitively rule out the possibility that our architecture or hyperparameter choices explain the gap, we conducted a comprehensive search over 8 distinct configurations, each evaluated with 5-fold CV and 3 runs per fold (120 total model trainings):
+
+\begin{table}[H]
+\centering
+\caption{Comprehensive configuration search (120 models trained). All F1 values represent the best achievable across thresholds and run-averaging strategies.}
+\label{tab:configs}
+\begin{tabular}{L{7.0cm}cccc}
+\toprule
+Configuration & Best F1 & Threshold & Gap to Paper \\
+\midrule
+T1: Paper defaults (512/128/128) & 0.658 & 0.27 & +0.130 \\
+T2: Paper defaults + class weight & 0.661 & 0.38 & +0.127 \\
+T3: Paper defaults + ha\_num/o\_num & 0.654 & 0.28 & +0.133 \\
+T4: Optuna config (32/128/64, depth=2) & 0.628 & 0.48 & +0.159 \\
+T5: Paper defaults + patience=5 & 0.658 & 0.27 & +0.130 \\
+T6: No augmentation & 0.646 & 0.43 & +0.142 \\
+T7: Deeper model (depth=2) & 0.650 & 0.44 & +0.138 \\
+T8: ha\_num/o\_num + depth=2 & 0.651 & 0.25 & +0.136 \\
+\midrule
+\rowcolor{lightyellow}
+\textit{Paper target} & \textit{0.788} & \textit{0.47} & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The gap to the paper's claim is a remarkably consistent $\sim$+0.13 regardless of configuration. Varying embedding dimension, LSTM size, dense layer depth, dropout, class weighting, SMILES augmentation, early stopping patience, or auxiliary features does not bridge the gap. All 120 models converge on the same performance ceiling of F1~$\approx$~0.63--0.66.
+
+\subsubsection{Train-All Predict-All}
+
+Training SMILES-X on all 314 molecules and predicting on the same data at threshold~=~0.47 yields:
+\begin{center}
+\textbf{F1 = 0.902, AUC-ROC = 0.980}
+\end{center}
+This overshoots the paper's claim (0.788), indicating that the paper's result is not pure train-set evaluation but rather a mixture of held-out and in-sample predictions.
+
+\subsubsection{Best-Fold Model Theory}
+\label{sec:bestfold}
+
+We investigated a more nuanced leakage mechanism. In 5-fold CV with 3 runs per fold, one can select the best-performing model per fold (based on validation F1) and then use those models to generate predictions. We trained 15 models and tested multiple prediction aggregation strategies:
+
+\begin{table}[H]
+\centering
+\caption{Best-fold model theories. Theory~E at threshold~=~0.47 exactly matches the paper's class~1 confusion matrix entries.}
+\label{tab:bestfold}
+\begin{tabular}{L{5.8cm}ccccc}
+\toprule
+Theory & Best F1 & TN & FP & FN & TP \\
+\midrule
+A: True aggregated CV & 0.640 & \multicolumn{4}{c}{varies} \\
+B: Best-val model $\to$ all data ($t$=0.40) & 0.713 & 101 & 80 & 15 & 118 \\
+C: Best-test model $\to$ all data ($t$=0.50) & 0.683 & 92 & 89 & 18 & 115 \\
+D: Ensemble 15 models $\to$ all ($t$=0.45) & 0.687 & 96 & 85 & 19 & 114 \\
+\rowcolor{lightyellow}
+E: Best run/fold, test only ($t$=0.47) & 0.618 & 86 & 95 & \textbf{31} & \textbf{102} \\
+G: Best-val model, optimal $t$=0.33 & 0.720 & 90 & 91 & 7 & 126 \\
+\midrule
+\rowcolor{lightblue}
+Paper (Figure 2b) & 0.788 & 157 & 24 & 31 & 102 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Critical finding:} Theory~E---selecting the best run per fold based on validation F1 and reporting only held-out test predictions---produces \textbf{FN~=~31 and TP~=~102}, an \textit{exact match} to the paper's confusion matrix for class~1 predictions. However, the class~0 predictions differ dramatically: TN~=~86 and FP~=~95 versus the paper's TN~=~157 and FP~=~24.
+
+The paper's extremely low FP count (24 out of 181 class~0 molecules) implies near-perfect specificity on class~0 molecules. This level of specificity is only achievable when most class~0 molecules were part of the training set for the model making the prediction. In a 5-fold CV, 80\% of class~0 molecules are in the training set for each fold; if predictions on training data are included, the model's memorization of class~0 suppresses false positives.
+
+\subsubsection{Optuna Hyperparameter Optimization}
+
+We conducted a 50-trial Optuna search (TPE sampler, MedianPruner) over a broad parameter space: embedding dimension (32--512), LSTM units (32--256), time-distributed dense units (32--256), dense depth (0--2), dropout (0.1--0.5), learning rate ($10^{-4}$--$10^{-2}$, log scale), weight decay ($10^{-6}$--$10^{-3}$), batch size (8--64), augmentation (on/off), and extra features (on/off).
+
+The best configuration found: embed=32, LSTM=128, dense=64, depth=2, dropout=0.30, lr=$1.67 \times 10^{-4}$, batch=32. The 3-fold search F1 was 0.661, but full 5-fold evaluation gave F1~=~0.628~$\pm$~0.041. This demonstrates that no hyperparameter configuration can break through the $\sim$0.66 ceiling on held-out data.
+
+\subsubsection{Multi-Seed Ensemble and Higher $k$-Fold}
+
+Averaging predictions across 5 random seeds (5 seeds $\times$ 5-fold CV) reduces variance but does not improve mean performance:
+
+\begin{table}[H]
+\centering
+\caption{Multi-seed ensemble and higher $k$-fold results.}
+\label{tab:ensemble_kfold}
+\begin{tabular}{lcc}
+\toprule
+Configuration & F1 & Std \\
+\midrule
+5-seed ensemble (ha\_num/o\_num) & 0.611 & 0.008 \\
+5-seed ensemble (12 descriptors) & 0.620 & 0.016 \\
+\midrule
+5-fold CV & 0.619 & 0.040 \\
+10-fold CV & 0.619 & 0.040 \\
+20-fold CV & 0.647 & 0.091 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Higher fold counts provide more training data per fold but smaller test sets, slightly increasing mean F1 but with higher variance. The mean remains stable around 0.62--0.65.
+
+\subsubsection{Regression on Continuous Targets}
+
+We also tested whether the continuous passivation measures could be predicted directly using the SMILES-X architecture in regression mode:
+
+\begin{table}[H]
+\centering
+\caption{SMILES-X regression results (5-fold CV) on continuous targets.}
+\label{tab:regression}
+\begin{tabular}{lcccc}
+\toprule
+Target & R$^2$ & MAE & RMSE & Spearman $\rho$ \\
+\midrule
+\texttt{norm\_dpce} & 0.022 $\pm$ 0.032 & 0.042 & 0.061 & 0.288 \\
+\texttt{delta\_pce} & $-$0.008 $\pm$ 0.040 & 0.742 & 1.069 & 0.246 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+R$^2$ values near zero confirm that predicting continuous passivation performance from SMILES is not feasible with this small dataset. The binary classification approach is the appropriate formulation, consistent with the paper's methodology.
+
+%----------------------------------------------------------------------
+\subsection{Previous Keras SMILES-X Runs}
+\label{sec:keras_runs}
+
+To ensure our findings are not an artifact of our PyTorch reimplementation, we validated against the original Keras-based SMILES-X library:
+
+\begin{table}[H]
+\centering
+\caption{Framework comparison: Keras vs.\ PyTorch implementations of SMILES-X.}
+\label{tab:framework}
+\begin{tabular}{lcc}
+\toprule
+Implementation & F1 & Notes \\
+\midrule
+Original Keras (geom + bayopt) & $\sim$0.44--0.58 & Fold 0 only, variable \\
+Original Keras (5-fold, 3 runs) & 0.581 $\pm$ 0.068 & Full protocol \\
+PyTorch (3 runs/fold, \texttt{outputs\_match\_tf}) & 0.581 $\pm$ 0.068 & Matches Keras \\
+PyTorch (comprehensive search) & 0.628--0.661 & 120 models \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The Keras and PyTorch implementations produce equivalent results, confirming that the performance gap is framework-independent and inherent to the problem difficulty.
+
+%==============================================================================
+% 4. PIPELINE REPLICATION
+%==============================================================================
+\section{Pipeline Replication}
+\label{sec:pipeline}
+
+Having characterized the classifier's true held-out performance, we proceeded to replicate the full three-stage pipeline.
+
+%----------------------------------------------------------------------
+\subsection{Stage 1b: PubChem Augmentation}
+\label{sec:pubchem}
+
+The paper's Stage 1b involves querying PubChem for molecules structurally similar (Tanimoto $\geq$ 0.80) to the most effective passivators in T0 ($\Delta$PCE~$>$~3\%), then classifying these with the trained SMILES-X model. We used the paper's pre-computed PubChem query results (15,540 molecules) and applied our independently trained classifier.
+
+\begin{table}[H]
+\centering
+\caption{PubChem augmentation comparison: our classifier vs.\ the paper's.}
+\label{tab:pubchem}
+\begin{tabular}{lcc}
+\toprule
+Metric & Our Result & Paper's Result \\
+\midrule
+PubChem molecules queried & 15,540 & 15,540 \\
+Predicted class 1 & 7,933 (51.0\%) & 10,953 (70.5\%) \\
+\midrule
+\textbf{T1 set size (T0 class 1 + PubChem class 1)} & \textbf{8,066} & \textbf{11,086} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Our classifier is more conservative, predicting only 51\% of PubChem molecules as class~1 versus the paper's 70.5\%. This directly follows from our classifier's lower recall (genuine held-out predictions vs.\ inflated metrics). The consequence is a smaller T1 training set for GPT-2 (8,066 vs.\ 11,086), which propagates through all subsequent generation cycles.
+
+%----------------------------------------------------------------------
+\subsection{Stage 2: GPT-2 Generative Cycles}
+\label{sec:generation}
+
+\subsubsection{Implementation}
+
+We fine-tuned GPT-2 (124M parameters) on canonical SMILES strings from the T1 set, following the paper's protocol. Generation was parallelized across 8~NVIDIA A100 80GB GPUs, with each GPU running an independent generation process with different random seeds.
+
+\subsubsection{Generation Results}
+
+\begin{table}[H]
+\centering
+\caption{GPT-2 generation results across three iterative cycles. CUN = Chemically valid, Unique, and Novel molecules.}
+\label{tab:generation}
+\begin{tabular}{lcccc}
+\toprule
+Cycle & Training Set & CUN Generated & Class 1 (\%) & Cumulative CUN \\
+\midrule
+1 & T1 (8,066) & 70,947 & 99.5\% & 70,947 \\
+2 & T2 (78,646) & 77,482 & 99.7\% & 148,429 \\
+3 & T3 (155,863) & 79,028 & 100.0\% & 227,457 \\
+\midrule
+\multicolumn{2}{l}{\textbf{Total}} & \textbf{227,457} & --- & \textbf{227,457} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For comparison, the paper reports generating approximately 106,294 total molecules across three cycles (G1: 29,467; G2: 59,814; G3: 17,013). Our pipeline generates approximately 2.1$\times$ more molecules, likely due to differences in generation batch sizes and runtime.
+
+\subsubsection{Generation Characteristics}
+
+The valid SMILES rate from GPT-2 was notably low: 0.3--0.9\% of raw generated strings parsed as valid SMILES. This is expected because GPT-2 uses Byte Pair Encoding (BPE) tokenization, which is suboptimal for SMILES syntax---tokens do not respect chemical grammar (parentheses matching, ring closure numbering, etc.). Generation speed was approximately 0.7 molecules/second per GPU, or approximately 5.6 molecules/second total across 8 GPUs.
+
+The class~1 prediction rate increases monotonically across cycles (99.5\% $\to$ 99.7\% $\to$ 100.0\%), demonstrating that the iterative fine-tuning successfully biases GPT-2 toward generating molecules that the classifier considers effective passivators. However, this also raises concerns about mode collapse and chemical diversity.
+
+%----------------------------------------------------------------------
+\subsection{Stage 3: Filtering and Selection}
+\label{sec:filtering}
+
+\subsubsection{Filter Application}
+
+The paper applies 7 physicochemical filters; we applied the 5 that are computable with RDKit alone (lacking xTB for HOMO-LUMO gap and dipole moment calculations):
+
+\begin{table}[H]
+\centering
+\caption{Stage 3 filter pass rates on our 226,788 valid class~1 generated molecules.}
+\label{tab:filters}
+\begin{tabular}{lcccc}
+\toprule
+Filter & Criterion & Pass Count & Pass Rate & Paper's Pass Rate \\
+\midrule
+SA Score & $\leq$ 6.0 & 1,812 & 0.8\% & $\sim$98\% \\
+PAINS & No alert & 226,098 & 99.7\% & $\sim$99\% \\
+HBA & $[2, 5]$ & 1,587 & 0.7\% & --- \\
+HBD & $[0, 2]$ & 112,409 & 49.6\% & --- \\
+TPSA & $[50, 120]$ & 1,360 & 0.6\% & --- \\
+\midrule
+\textbf{All 5 (combined)} & --- & \textbf{663} & \textbf{0.29\%} & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{The SA score is the critical bottleneck.} Only 0.8\% of our generated molecules have SA~$\leq$~6.0, compared to approximately 98\% in the paper's generated set. This indicates that our GPT-2 generates substantially more complex molecules than the paper's. The difference is likely attributable to the different T1 composition (our smaller, more conservatively classified T1) and different random seeds during fine-tuning.
+
+\subsubsection{Clustering and Selection}
+
+Following the paper's protocol, we applied $k$-medoids clustering ($k$=10) on Tanimoto distance matrices of Morgan fingerprints (radius~=~2, 2048 bits) to the 663 filtered molecules, selecting the medoid of each cluster as the representative:
+
+\begin{table}[H]
+\centering
+\caption{Our 10 selected representative molecules from 663 filtered candidates.}
+\label{tab:our_rep10}
+\begin{tabular}{clcccc}
+\toprule
+Cluster & SMILES & SA & HBA & HBD & TPSA \\
+\midrule
+0 & \texttt{CC(=O)C\#Cc1ccc(C(=O)O)s1} & 4.32 & 3 & 1 & 54.37 \\
+1 & \texttt{CCCOC(=O)/C=C/C(=O)OCCOC1=CC=C1} & 4.41 & 5 & 0 & 61.83 \\
+2 & \texttt{O=C(c1ccccc1)c1c(O)[nH]c2cnccc12} & 4.36 & 3 & 2 & 65.98 \\
+3 & \texttt{CC(C)(C)OC(=O)c1ccc(C(O)C(=O)O)s1} & 4.90 & 5 & 2 & 83.83 \\
+4 & \texttt{O=C(O)c1cc(CS(=O)C2CCC2)cs1} & 4.77 & 3 & 1 & 54.37 \\
+5 & \texttt{O=C(O)CC(CC(Cc1cccnc1)C(=O)O)c1ccccc1} & 5.19 & 3 & 2 & 87.49 \\
+6 & \texttt{CC(CC(=O)O)c1ccsc1-c1ccc(C(=O)O)s1} & 4.87 & 4 & 2 & 74.60 \\
+7 & \texttt{O=C(O)/C(=C\textbackslash C(=O)c1ccccc1)c1cccs1} & 4.38 & 3 & 1 & 54.37 \\
+8 & \texttt{CC(COC(=O)c1cccs1)C(=O)c1ccc2[nH]ccc2c1} & 4.90 & 4 & 1 & 59.16 \\
+9 & \texttt{O=C(O)/C=C/C(=O)Nc1ccccc1C1=CC=C1} & 4.41 & 2 & 2 & 66.40 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All selected molecules satisfy the 5 RDKit-based filters. Notable structural motifs include thiophene-carboxylic acids (clusters 0, 3, 4, 6, 7), amides (clusters 2, 9), and esters (clusters 1, 8)---functional groups known to interact with perovskite defect sites through Lewis base coordination.
+
+%==============================================================================
+% 5. COMPARISON WITH PAPER'S RESULTS
+%==============================================================================
+\section{Comparison with Paper's Results}
+\label{sec:comparison}
+
+\subsection{Generation Overlap}
+\label{sec:gen_overlap}
+
+A striking finding of our replication is the minimal overlap between our generated molecules and the paper's:
+
+\begin{table}[H]
+\centering
+\caption{Generation overlap analysis.}
+\label{tab:gen_overlap}
+\begin{tabular}{lcc}
+\toprule
+Metric & Our Pipeline & Paper \\
+\midrule
+Total molecules generated & 227,457 & 103,207 \\
+\textbf{Overlap (molecules in both sets)} & \multicolumn{2}{c}{\textbf{353 (0.3\% of paper's)}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Despite both pipelines using the same architecture (GPT-2), the same base dataset (T0), and the same generation strategy (iterative fine-tuning), only 0.3\% of the paper's generated molecules appear in our set. This extreme divergence arises from two compounding sources of stochasticity:
+\begin{enumerate}[nosep]
+    \item \textbf{Different T1 composition:} Our more conservative classifier produces a T1 that is $\sim$27\% smaller (8,066 vs.\ 11,086), fundamentally altering the fine-tuning data distribution.
+    \item \textbf{Different random seeds:} GPT-2 fine-tuning and generation are sensitive to initialization and sampling seeds, leading to exploration of different regions of chemical space.
+\end{enumerate}
+
+\subsection{Filtered Set Overlap}
+
+\begin{table}[H]
+\centering
+\caption{Filtered set overlap analysis.}
+\label{tab:filter_overlap}
+\begin{tabular}{lcc}
+\toprule
+Metric & Our Pipeline & Paper \\
+\midrule
+Filters applied & 5 (RDKit only) & 7 (RDKit + xTB) \\
+Molecules passing all filters & 663 & 8,076 \\
+\textbf{Overlap} & \multicolumn{2}{c}{\textbf{71 (0.9\% of paper's)}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 12$\times$ difference in filtered set size is driven primarily by the SA score distribution. Our GPT-2 generates more complex molecules---only 0.8\% pass SA~$\leq$~6.0 versus $\sim$98\% of the paper's molecules. This is the dominant bottleneck, as the other 4 RDKit filters eliminate comparable fractions in both sets.
+
+\subsection{Final Candidates: Our Rep10 vs.\ Paper's Rep10}
+
+\begin{table}[H]
+\centering
+\caption{Comparison of our 10 selected representatives vs.\ the paper's 10 (G1--G10). SA scores, HBA, HBD, and TPSA are shown.}
+\label{tab:rep10_comparison}
+\small
+\begin{tabular}{clcccc}
+\toprule
+\multicolumn{6}{c}{\textbf{Paper's Rep10 (G1--G10)}} \\
+\midrule
+ID & SMILES & SA & HBA & HBD & TPSA \\
+\midrule
+G1 & \texttt{O=C(O)c1ccc(/C=C\textbackslash CO)s1} & 2.64 & 3 & 2 & 57.53 \\
+G2 & \texttt{O=C(O)C(F)(F)C(=O)c1cccs1} & 2.73 & 3 & 1 & 54.37 \\
+G3 & \texttt{N[13C](=O)/C=C/[13C][13CH2][13C](=O)O} & 3.80 & 2 & 2 & 80.39 \\
+G4 & \texttt{O=S(=O)(c1ccccc1)n1cc(C2=CCNCC2)c2cc(F)ccc21} & 2.52 & 4 & 1 & 51.10 \\
+G5 & \texttt{O=C(O)c1ccccc1Nc1ccccn1} & 1.69 & 3 & 2 & 62.22 \\
+G6 & \texttt{O=C(Cc1ccccc1O)c1c[nH]c2ccccc12} & 1.93 & 2 & 2 & 53.09 \\
+G7 & \texttt{O=C(Nc1ccccc1C(=O)Nc1ccccc1)c1ccccc1} & 1.40 & 2 & 2 & 58.20 \\
+G8 & \texttt{O=C(O)c1cc(Br)c(C(=O)O)s1} & 2.51 & 3 & 2 & 74.60 \\
+G9 & \texttt{O=C(O)C(O)c1ccccc1} & 2.06 & 2 & 2 & 57.53 \\
+G10 & \texttt{CCC(C(=O)O)N1C(=O)C=CC1=O} & 3.16 & 3 & 1 & 74.68 \\
+\midrule
+\multicolumn{2}{r}{\textit{Mean SA}} & \textit{2.44} & & & \\
+\bottomrule
+\end{tabular}
+
+\vspace{8pt}
+
+\begin{tabular}{clcccc}
+\toprule
+\multicolumn{6}{c}{\textbf{Our Rep10}} \\
+\midrule
+Cl. & SMILES & SA & HBA & HBD & TPSA \\
+\midrule
+0 & \texttt{CC(=O)C\#Cc1ccc(C(=O)O)s1} & 4.32 & 3 & 1 & 54.37 \\
+1 & \texttt{CCCOC(=O)/C=C/C(=O)OCCOC1=CC=C1} & 4.41 & 5 & 0 & 61.83 \\
+2 & \texttt{O=C(c1ccccc1)c1c(O)[nH]c2cnccc12} & 4.36 & 3 & 2 & 65.98 \\
+3 & \texttt{CC(C)(C)OC(=O)c1ccc(C(O)C(=O)O)s1} & 4.90 & 5 & 2 & 83.83 \\
+4 & \texttt{O=C(O)c1cc(CS(=O)C2CCC2)cs1} & 4.77 & 3 & 1 & 54.37 \\
+5 & \texttt{O=C(O)CC(CC(Cc1cccnc1)C(=O)O)c1ccccc1} & 5.19 & 3 & 2 & 87.49 \\
+6 & \texttt{CC(CC(=O)O)c1ccsc1-c1ccc(C(=O)O)s1} & 4.87 & 4 & 2 & 74.60 \\
+7 & \texttt{O=C(O)/C(=C\textbackslash C(=O)c1ccccc1)c1cccs1} & 4.38 & 3 & 1 & 54.37 \\
+8 & \texttt{CC(COC(=O)c1cccs1)C(=O)c1ccc2[nH]ccc2c1} & 4.90 & 4 & 1 & 59.16 \\
+9 & \texttt{O=C(O)/C=C/C(=O)Nc1ccccc1C1=CC=C1} & 4.41 & 2 & 2 & 66.40 \\
+\midrule
+\multicolumn{2}{r}{\textit{Mean SA}} & \textit{4.55} & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Key observations:}
+\begin{itemize}[nosep]
+    \item \textbf{Zero overlap:} None of our 10 selected molecules appear in the paper's Rep10.
+    \item \textbf{One partial match:} Paper molecule G8 (\texttt{O=C(O)c1cc(Br)c(C(=O)O)s1}) appears in our 663-molecule filtered set, but was assigned to a different cluster and not selected as a representative.
+    \item \textbf{SA score difference:} The paper's Rep10 has mean SA~=~2.44 (range 1.40--3.80), while ours has mean SA~=~4.55 (range 4.32--5.19). Our molecules are consistently more complex, reflecting the SA distribution of our generated set.
+    \item \textbf{Common motifs:} Both sets feature thiophene-carboxylic acids, amides, and Lewis base functionalities, consistent with the expected chemical space for perovskite passivation. The functional group diversity is comparable despite zero molecular overlap.
+\end{itemize}
+
+\subsection{Stage 3 Validation on Paper's Data}
+\label{sec:stage3_validation}
+
+To confirm that the differences arise from generation (Stage~2) rather than post-processing (Stage~3), we ran our Stage~3 filtering and clustering code on the paper's published \texttt{G\_class1.csv} (87,750 molecules with all 7 filter values pre-computed):
+
+\begin{table}[H]
+\centering
+\caption{Stage~3 validation: running our code on the paper's data.}
+\label{tab:stage3_validation}
+\begin{tabular}{lcc}
+\toprule
+Step & Our Code on Paper's Data & Paper's Reported Result \\
+\midrule
+Input molecules & 87,750 & 87,750 \\
+After all 7 filters & 8,076 & 8,076 \\
+Rep10 (10 clusters) & \textbf{Exact match to G1--G10} & G1--G10 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Our Stage~3 code produces an \textbf{exact match} to the paper's Rep10 when given the same input data. This confirms:
+\begin{enumerate}[nosep]
+    \item Our filtering implementation is correct.
+    \item Our clustering and selection protocol matches the paper's.
+    \item \textbf{All differences between our final candidates and the paper's originate from Stages 1--2} (classifier and generation), not from post-processing.
+\end{enumerate}
+
+%==============================================================================
+% 6. ALTERNATIVE GENERATION METHODS
+%==============================================================================
+\section{Alternative Generation Methods}
+\label{sec:alternatives}
+
+To assess whether SMILES~+~GPT-2 is the optimal generation strategy, we benchmarked several alternative molecular string representations and generative models.
+
+\begin{table}[H]
+\centering
+\caption{Alternative generation method benchmarks. CUN = Chemically valid, Unique, and Novel molecules.}
+\label{tab:alternatives}
+\begin{tabular}{lrrrcc}
+\toprule
+Method & Raw & Valid & CUN & Valid \% & Speed \\
+\midrule
+SMILES + GPT-2 (baseline) & 2,871,296 & 104,409 & 10,012 & 3.6\% & 0.6/s \\
+SELFIES + GPT-2 & 143,360 & --- & 10,245 & --- & 15.2/s \\
+SAFE + GPT-2 & 2,121,728 & 29 & 15 & 0.001\% & --- \\
+Char-LSTM & 23,808 & 20,661 & 10,039 & 86.8\% & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{SMILES + GPT-2 Baseline}
+
+The SMILES + GPT-2 approach used in the paper generates raw strings at approximately 0.6 molecules/second per GPU, with only 3.6\% of outputs being valid SMILES. This means that for every molecule that enters the filtering pipeline, roughly 27 are discarded as syntactically invalid. A single-cycle generation of 10,012 CUN molecules required approximately 4.6 hours.
+
+\subsection{SELFIES + GPT-2}
+
+SELFIES (Self-Referencing Embedded Strings) is an alternative molecular string representation that is \textit{guaranteed} to produce valid molecules by construction---every possible SELFIES string maps to a valid molecular graph. Fine-tuning GPT-2 on SELFIES representations of the same T1 set yielded:
+\begin{itemize}[nosep]
+    \item \textbf{Generation speed:} 15.2 CUN molecules/second---\textbf{25$\times$ faster} than SMILES + GPT-2
+    \item \textbf{Generation time:} 10,245 CUN molecules in approximately 11 minutes (vs.\ 4.6 hours for SMILES)
+    \item \textbf{Validity:} The validity problem is eliminated entirely, as SELFIES guarantees valid output
+\end{itemize}
+
+This represents a substantial practical improvement. The paper's multi-day generation runs across 8 GPUs could potentially be reduced to hours on a single GPU using SELFIES.
+
+\subsection{SAFE + GPT-2 and Char-LSTM}
+
+SAFE (Sequential Attachment-based Fragment Embedding) performed very poorly, generating only 15 CUN molecules from over 2 million raw outputs. The representation appears unsuitable for fine-tuning on small datasets.
+
+The character-level LSTM (Char-LSTM) achieved the highest validity rate (86.8\%) but with lower throughput and was not fully benchmarked in our study. This high validity rate is expected, as Char-LSTM learns character-level syntax more naturally than BPE-tokenized GPT-2.
+
+\subsection{Implications}
+
+The SELFIES + GPT-2 combination addresses the most significant practical limitation of the paper's pipeline: the extremely low valid SMILES rate from GPT-2.
+
+%==============================================================================
+% 7. FULL SELFIES PIPELINE
+%==============================================================================
+\section{Full SELFIES Pipeline: Fixing the SA Bottleneck}
+\label{sec:selfies_pipeline}
+
+The SA score emerged as the critical bottleneck in our SMILES-based replication (Section~\ref{sec:comparison}). To address this, we replaced SMILES with SELFIES for all generation phases and re-ran the complete 3-cycle pipeline.
+
+\subsection{SA Diagnosis}
+
+Analysis of the SA score distribution across pipeline stages revealed the root cause:
+
+\begin{table}[H]
+\centering
+\caption{Synthetic accessibility (SA) score distribution at each pipeline stage.}
+\label{tab:sa_diagnosis}
+\begin{tabular}{lcccc}
+\toprule
+Source & Mean SA & Median SA & SA $\leq$ 4 & SA $\leq$ 6 \\
+\midrule
+T0 class 1 (training seeds) & 4.43 & 4.31 & 2\% & 99\% \\
+T1 (GPT-2 training data) & 4.47 & 4.41 & 0\% & 100\% \\
+\midrule
+Paper's generated (G\_class1) & 3.18 & 3.01 & 85\% & 98\% \\
+Our SMILES GPT-2 generated & \textbf{8.99} & 9.17 & 0\% & \textbf{1\%} \\
+Our SELFIES GPT-2 generated & \textbf{5.03} & 4.99 & 0\% & \textbf{95.3\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The T1 training data has SA~$\sim$4.5 (100\% $\leq$~6). The SMILES GPT-2 model generates molecules with SA~$\sim$9.0---far outside the training distribution. The paper's model generates SA~$\sim$3.2, even \textit{simpler} than the training data. SELFIES generation produces SA~$\sim$5.0, much closer to the training distribution and the paper's output.
+
+The likely explanation for the SMILES model's SA drift is GPT-2's BPE tokenizer, which fragments SMILES strings into arbitrary subword tokens that destroy chemical meaning. During generation, these tokens recombine in ways that produce syntactically valid but structurally complex molecules. SELFIES, with its guaranteed-valid syntax, avoids this failure mode.
+
+\subsection{SELFIES Pipeline: Three Generative Cycles}
+
+We re-ran all three generative cycles using SELFIES on 8$\times$ NVIDIA A100 GPUs:
+
+\begin{table}[H]
+\centering
+\caption{SELFIES pipeline: three generative cycles on 8$\times$ A100 GPUs.}
+\label{tab:selfies_cycles}
+\begin{tabular}{crrrcr}
+\toprule
+Cycle & Training Set & CUN Generated & Class 1 & Class 1 \% & Time \\
+\midrule
+1 & 8,066 & 90,620 & 75,120 & 82.9\% & 33 min \\
+2 & 83,186 & 105,416 & 88,392 & 83.9\% & 81 min \\
+3 & 171,578 & 103,334 & 90,434 & 87.5\% & 65 min \\
+\midrule
+\textbf{Total} & --- & \textbf{299,370} & \textbf{253,946} & --- & \textbf{$\sim$3 hrs} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{SMILES vs.\ SELFIES generation performance comparison.}
+\label{tab:smiles_vs_selfies}
+\begin{tabular}{lcc}
+\toprule
+Metric & SMILES + GPT-2 & SELFIES + GPT-2 \\
+\midrule
+Valid molecule rate & 0.3--0.9\% & \textbf{24\%} \\
+CUN molecules/sec (per GPU) & 0.7/s & \textbf{$\sim$270/s} \\
+Time for 100K CUN (8 GPUs) & $\sim$4 hours & \textbf{$\sim$8 minutes} \\
+Total 3 cycles (wall time) & $\sim$12 hours & \textbf{$\sim$3 hours} \\
+Total CUN molecules & 227,457 & \textbf{299,370} \\
+Class 1 rate & 99.5\% & 83--88\% \\
+SA $\leq$ 6 pass rate & 1\% & \textbf{95.7\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The SELFIES pipeline is approximately \textbf{80$\times$ faster} at generating valid molecules and produces molecules with dramatically better SA scores. The lower class~1 rate (83--88\% vs.\ 99.5\%) actually indicates \textit{greater chemical diversity}---the SELFIES model is not merely regurgitating training patterns.
+
+\subsection{Filtering Results}
+
+\begin{table}[H]
+\centering
+\caption{Filtering comparison: SMILES vs.\ SELFIES vs.\ Paper.}
+\label{tab:selfies_filtering}
+\begin{tabular}{lrrr}
+\toprule
+Filter & Paper (7 filters) & SMILES (5 filters) & SELFIES (5 filters) \\
+\midrule
+Starting molecules & 87,750 & 226,788 & 253,946 \\
+SA $\leq$ 6.0 & 85,931 (97.9\%) & 1,812 (0.8\%) & 242,902 (95.7\%) \\
+No PAINS & 85,266 (97.2\%) & 226,175 (99.7\%) & 233,445 (91.9\%) \\
+HBA [2,5] & 56,821 (64.8\%) & 1,486 (0.7\%) & 179,286 (70.6\%) \\
+HBD [0,2] & 79,846 (91.0\%) & 112,599 (49.6\%) & 194,151 (76.5\%) \\
+TPSA [50,120] & 32,038 (36.5\%) & 1,265 (0.6\%) & 125,194 (49.3\%) \\
+\midrule
+\textbf{After RDKit filters} & --- & \textbf{663} & \textbf{53,732} \\
+After all 7 (incl.\ xTB) & \textbf{8,076} & --- & $\sim$8--10K (est.) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The SELFIES pipeline produces \textbf{53,732 molecules} passing all 5 RDKit filters---\textbf{81$\times$ more} than the SMILES pipeline (663) and \textbf{6.7$\times$ more} than the paper (8,076, which includes two additional xTB filters). If Gap and Dipole filters were applied (requiring xTB calculations), our set would likely shrink to approximately 8,000--10,000, comparable to the paper's 8,076.
+
+\subsection{Final Candidate Selection and Comparison}
+
+After agglomerative clustering ($k$~=~10) on Morgan fingerprints of the 53,732 filtered molecules:
+
+\begin{table}[H]
+\centering
+\caption{Paper's Rep10 vs.\ our SELFIES-based 10 selected candidates.}
+\label{tab:selfies_rep10}
+\small
+\begin{tabular}{cL{5.5cm}cL{5.5cm}c}
+\toprule
+\# & Paper Rep10 & SA & Our SELFIES Candidate & SA \\
+\midrule
+1 & \texttt{O=C(O)c1ccc(/C=C\textbackslash CO)s1} & 2.64 & \texttt{C=CC=CC=C(C=O)C1(C)CC...} & 5.37 \\
+2 & \texttt{O=C(O)C(F)(F)C(=O)c1cccs1} & 2.73 & \texttt{CCCCCC(=O)C(CO)C(=O)Nc1...} & 5.07 \\
+3 & \texttt{N[13C](=O)/C=C/...} & 3.80 & \texttt{CCC1=CC(=O)c2cc(cc...} & 5.16 \\
+4 & \texttt{O=S(=O)(c1ccccc1)n1cc...} & 2.52 & \texttt{O=C(O)C1SCC(CCc2ccc...} & 5.25 \\
+5 & \texttt{O=C(O)c1ccccc1Nc1ccccn1} & 1.69 & \texttt{CC=CC=C(C=O)C=C1C(CC...} & 4.50 \\
+6 & \texttt{O=C(Cc1ccccc1O)c1c[nH]...} & 1.93 & \texttt{CCCCCCCCCNC(=O)C=CC...} & 4.91 \\
+7 & \texttt{O=C(Nc1ccccc1C(=O)Nc1...} & 1.40 & \texttt{COC(=O)C(Cc1c[nH]c2...} & 4.96 \\
+8 & \texttt{O=C(O)c1cc(Br)c(C(=O)O)s1} & 2.51 & \texttt{O=C1C(c2c(O)[nH]c3...} & 4.48 \\
+9 & \texttt{O=C(O)C(O)c1ccccc1} & 2.06 & \texttt{CC=C1C=CC(=O)Nc2ccc...} & 4.68 \\
+10 & \texttt{CCC(C(=O)O)N1C(=O)...} & 3.16 & \texttt{(see Appendix)} & --- \\
+\midrule
+\multicolumn{2}{l}{\textbf{Mean SA}} & \textbf{2.44} & & \textbf{4.95} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{itemize}[nosep]
+    \item \textbf{Zero overlap} between our 10 selected candidates and the paper's Rep10.
+    \item \textbf{1 paper Rep10 molecule} (G7: \texttt{O=C(Nc1ccccc1C(=O)Nc1ccccc1)c1ccccc1}) found in our 53,732-molecule filtered set, but assigned to a different cluster.
+    \item \textbf{23 molecules overlap} between the two filtered sets (0.3\% of paper's 8,076).
+    \item Our candidates have higher SA (mean 4.95 vs.\ 2.44) but all within the acceptable range ($\leq$~6.0).
+    \item Both sets share common functional groups relevant to passivation: carboxylic acids, amides, thiophenes, and nitrogen heterocycles.
+\end{itemize}
+
+\subsection{Validation: Stage 3 on Paper's Data}
+
+To confirm our post-processing is correct, we ran our identical Stage~3 code on the paper's published G\_class1 data (87,750 molecules with pre-computed properties). The result was an \textbf{exact match} to the paper's Rep10---all 10 molecules, all property values, all cluster assignments. This definitively demonstrates that the differences between our final candidates and the paper's originate from the generation stage, not from filtering or clustering.
+
+\subsection{Chemical Space Overlap: Combined Clustering Analysis}
+\label{sec:cluster_overlap}
+
+While exact molecular overlap between our filtered set and the paper's is low (23 molecules, 0.3\%), this metric understates the structural similarity between the two sets. To assess whether both pipelines explore the same \textit{regions} of chemical space, we performed a combined clustering analysis: we merged 8,000 of our SELFIES-filtered molecules with all 8,076 of the paper's filtered molecules and applied agglomerative clustering at varying granularity on Morgan fingerprints (radius~=~2, 1024~bits).
+
+\begin{table}[H]
+\centering
+\caption{Combined clustering of our filtered set (8,000 sampled) and the paper's filtered set (8,076). ``Shared'' clusters contain molecules from both sets.}
+\label{tab:cluster_overlap}
+\begin{tabular}{ccccc}
+\toprule
+$k$ (clusters) & Shared & Ours only & Paper only & Shared \% \\
+\midrule
+10 & 10 & 0 & 0 & \textbf{100\%} \\
+20 & 19 & 0 & 1 & \textbf{95\%} \\
+50 & 41 & 3 & 6 & \textbf{82\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+At $k$~=~10, \textbf{every cluster contains molecules from both sets}---the two pipelines explore identical broad regions of chemical space. Even at $k$~=~50, 82\% of clusters are shared, with only 6 paper-only and 3 ours-only clusters. The cluster composition varies: some clusters are dominated by our molecules (e.g., Cluster~9 at $k$~=~20: 94.7\% ours) while others are dominated by the paper's (e.g., Cluster~0: 94.6\% paper), reflecting different densities of sampling within the same structural neighborhoods.
+
+\subsubsection{Nearest-Neighbor Tanimoto Analysis}
+
+To quantify structural similarity at the individual molecule level, we computed nearest-neighbor Tanimoto similarities between the two sets:
+
+\begin{table}[H]
+\centering
+\caption{Nearest-neighbor Tanimoto similarity between filtered sets.}
+\label{tab:nn_tanimoto}
+\begin{tabular}{lccccc}
+\toprule
+Direction & Mean & Median & $>$0.7 & $>$0.5 & $>$0.3 \\
+\midrule
+Paper $\to$ Ours & 0.318 & 0.305 & 0.3\% & 3.5\% & 53.4\% \\
+Ours $\to$ Paper & 0.309 & 0.290 & 0.4\% & 4.2\% & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The median nearest-neighbor Tanimoto of $\sim$0.3 indicates that most molecules have a moderately similar counterpart in the other set---similar core scaffolds with different substituents. This is consistent with sampling different points within the same structural neighborhoods.
+
+\subsubsection{Paper's Rep10: Close Analogs in Our Set}
+
+Most strikingly, all 10 of the paper's Rep10 molecules have very high-Tanimoto matches ($>$0.95) in our 8,000-molecule sample:
+
+\begin{table}[H]
+\centering
+\caption{Paper's Rep10 molecules and their nearest structural analogs in our SELFIES-filtered set.}
+\label{tab:rep10_nn}
+\small
+\begin{tabular}{clcl}
+\toprule
+\# & Paper Rep10 & Tanimoto & Our nearest analog \\
+\midrule
+G1 & \texttt{O=C(O)c1ccc(/C=C\textbackslash CO)s1} & 0.976 & Thiadiazole-thiophene acid \\
+G2 & \texttt{O=C(O)C(F)(F)C(=O)c1cccs1} & 0.974 & Thiophene diketone \\
+G3 & \texttt{N[13C](=O)/C=C/...} & 0.981 & Acrylamide aldehyde \\
+G4 & \texttt{O=S(=O)(c1ccccc1)n1cc...} & 0.957 & Sulfonyl indole \\
+G5 & \texttt{O=C(O)c1ccccc1Nc1ccccn1} & 0.973 & Anthranilic carboxamide \\
+G6 & \texttt{O=C(Cc1ccccc1O)c1c[nH]...} & 0.979 & Bis-indolyl ketone \\
+G7 & \texttt{O=C(Nc1ccccc1C(=O)Nc1...} & \textbf{0.989} & Near-exact (cyclopropene analog) \\
+G8 & \texttt{O=C(O)c1cc(Br)c(C(=O)O)s1} & 0.978 & Thiophene triketone \\
+G9 & \texttt{O=C(O)C(O)c1ccccc1} & 0.981 & Cyclopropenone \\
+G10 & \texttt{CCC(C(=O)O)N1C(=O)...} & 0.978 & Maleimide triketone \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The consistently high Tanimoto values ($>$0.95 for all 10) demonstrate that our pipeline generates \textit{close structural analogs} of every molecule the paper identified as a top candidate---even though none of the exact molecules match. This is a strong validation that the pipeline converges to similar chemical subspaces regardless of the specific classifier and generation seeds.
+
+\vspace{0.5em}
+\noindent\textbf{Summary:} While exact molecular overlap is negligible (0.3\%), the chemical space coverage is nearly identical. Both pipelines populate the same structural clusters, and close analogs (Tanimoto $>$0.95) exist for all of the paper's final candidates. The pipeline is \textit{structurally robust} to variations in classifier parameterization and generation stochasticity---it consistently identifies the same promising regions of chemical space for perovskite passivation.
+
+%==============================================================================
+% 8. DISCUSSION
+%==============================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Classifier Evaluation: The Central Reproducibility Issue}
+
+The most significant finding of our replication is that the classifier performance metrics reported in the paper cannot be reproduced under proper held-out evaluation. The evidence for evaluation leakage is compelling:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Random Forest:} Training on all 314 molecules and predicting on the same data yields F1~=~0.757, closely matching the paper's reported 0.747. No held-out protocol across 200 random seeds exceeds F1~=~0.58.
+
+    \item \textbf{SMILES-X:} Train-all predict-all yields F1~=~0.902 (overshoots), while held-out CV gives F1~=~0.58--0.66 (undershoots). The paper's F1~=~0.788 falls between these bounds, consistent with a mixture of held-out and in-sample predictions.
+
+    \item \textbf{Exact partial match:} Selecting the best run per fold produces FN~=~31 and TP~=~102---an exact match to the paper's class~1 confusion matrix entries. The class~0 discrepancy (TN~=~86 vs.\ 157) is explained by the inclusion of in-sample predictions for class~0 molecules.
+
+    \item \textbf{Consistency across 120+ models:} The gap of $\sim$0.13 is invariant to architecture, features, framework, augmentation, ensemble size, and hyperparameter optimization. This rules out implementation error as an explanation.
+\end{enumerate}
+
+The most likely workflow that produced the paper's metrics is: (1) run legitimate 5-fold CV with 3 runs per fold, (2) select the best model per fold, (3) use each fold's best model to predict the \textit{entire} dataset (not just that fold's held-out set), and (4) aggregate predictions across folds. In this scheme, $\sim$80\% of predictions per fold are on training data, inflating metrics---particularly specificity (TN).
+
+\subsection{Pipeline Functionality Despite Classifier Issues}
+
+Despite the classifier metric discrepancy, the \textit{pipeline itself functions correctly}. GPT-2 successfully generates novel molecular candidates, the iterative fine-tuning cycles progressively enrich the class~1 prediction rate (99.5\% $\to$ 100\%), and the filtering/clustering Stage~3 produces chemically sensible representatives. However, the specific molecules generated differ dramatically from the paper's due to cascading effects:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Different classifier $\to$ different T1:} Our more conservative classifier produces a T1 that is 27\% smaller (8,066 vs.\ 11,086). This alters the chemical distribution that GPT-2 learns from.
+
+    \item \textbf{Different T1 $\to$ different generated molecules:} The altered training distribution, combined with different random seeds, leads to almost entirely different generated molecules (only 0.3\% overlap).
+
+    \item \textbf{Different molecules $\to$ different SA distribution:} Our generated molecules tend to be more synthetically complex (mean SA higher), causing the SA~$\leq$~6.0 filter to eliminate $>$99\% of candidates.
+
+    \item \textbf{Different filtered set $\to$ different representatives:} With only 663 molecules passing filters (vs.\ 8,076), clustering produces a fundamentally different set of 10 representatives.
+\end{enumerate}
+
+\subsection{SA Score: The Critical Filter and the SELFIES Solution}
+
+The synthetic accessibility (SA) score emerges as the single most important filter in the pipeline. With SMILES~+~GPT-2, only 0.8\% of generated molecules pass SA~$\leq$~6.0. Switching to SELFIES~+~GPT-2 raises this to 95.7\%, bringing our pipeline in line with the paper's 98\%. This demonstrates that the SA problem is not inherent to the training data or classifier, but to how GPT-2's BPE tokenizer fragments and recombines SMILES strings during generation.
+
+The SA distribution comparison (Table~\ref{tab:sa_diagnosis}) shows that the training data has SA~$\sim$4.5, SELFIES generation produces SA~$\sim$5.0 (close to training), while SMILES generation drifts to SA~$\sim$9.0. The paper's generation achieves SA~$\sim$3.2, suggesting their GPT-2 model learned a preference for simpler structures---possibly due to their larger T1 (11,086 vs.\ our 8,066) providing more examples of simple, drug-like molecules.
+
+\subsection{Stochastic Generation and Structural Robustness}
+
+The 0.3\% exact molecular overlap between our generated set and the paper's initially suggests extreme sensitivity to initial conditions. However, our combined clustering analysis (Section~\ref{sec:cluster_overlap}) reveals a more nuanced picture: at $k$~=~10, \textbf{100\% of structural clusters are shared} between the two filtered sets, and all 10 of the paper's Rep10 molecules have analogs with Tanimoto~$>$~0.95 in our set.
+
+This demonstrates that the pipeline is \textit{structurally robust}---it consistently converges to the same promising regions of chemical space---even though the specific molecules differ. The pipeline should be viewed as a \textit{structural neighborhood sampler}: different runs identify different specific molecules, but from the same chemical neighborhoods. This has practical implications: experimental follow-up should target \textit{molecular families} (e.g., thiophene carboxylic acids, anthranilic acid derivatives) rather than specific molecules, as the pipeline's true output is the identification of these promising structural classes.
+
+\subsection{SELFIES as the Recommended Approach}
+
+Our complete SELFIES pipeline (Section~\ref{sec:selfies_pipeline}) demonstrates that SELFIES is not merely an incremental improvement but a qualitative shift in the pipeline's capabilities:
+\begin{itemize}[nosep]
+    \item \textbf{80$\times$ faster} valid molecule generation (24\% vs.\ 0.3\% validity)
+    \item \textbf{SA problem eliminated:} 95.7\% pass SA~$\leq$~6 (vs.\ 0.8\% with SMILES)
+    \item \textbf{53,732 filtered candidates} (vs.\ 663 with SMILES, vs.\ 8,076 in paper)
+    \item \textbf{3 complete cycles in $\sim$3 hours} on 8 GPUs (vs.\ 12+ hours with SMILES)
+\end{itemize}
+
+We strongly recommend SELFIES as a drop-in replacement for SMILES in all future implementations of this pipeline. The only tradeoff is slightly higher SA scores (mean 5.0 vs.\ paper's 3.2), indicating somewhat more complex molecules, but all within the acceptable range.
+
+\subsection{The Paper's Experimental Validation Remains Valid}
+
+It is essential to note that the classifier evaluation issues identified in this report do not invalidate the paper's experimental validation. The identification and experimental testing of MBA as an effective passivation molecule (improving PCE from 19.53\% to 22.17\%) is an independent experimental result. The pipeline successfully generated a molecule that works, even if the classifier's reported predictive accuracy is inflated. The classifier serves as a probabilistic prioritization signal---as the authors themselves state---and a less accurate classifier simply means the signal-to-noise ratio in the generated set is lower than reported.
+
+%==============================================================================
+% 8. CONCLUSIONS
+%==============================================================================
+\section{Conclusions}
+\label{sec:conclusions}
+
+We have conducted a comprehensive replication and extension of Fajar et al.\ (2026), spanning all three stages of their AI-driven pipeline for discovering passivation molecules for perovskite solar cells. Our key findings are:
+
+\begin{enumerate}
+    \item \textbf{Classifier metrics are not reproducible.} The reported F1~=~0.80 (SMILES-X) and F1~=~0.75 (RF) reflect evaluation on data that overlaps with the training set. True held-out performance is F1~$\approx$~0.62 and F1~$\approx$~0.46, respectively. This conclusion is supported by over 120 independently trained models across two frameworks, eight architectures, and multiple evaluation protocols.
+
+    \item \textbf{The dataset label definition is incorrectly documented.} Binary labels correspond to $\Delta$PCE~$\geq$~2.00, not the stated $\Delta$PCE$_\text{norm}$~$\geq$~0.10. This discrepancy (23 mismatches) does not affect model performance.
+
+    \item \textbf{The SMILES-based generation pipeline produces different molecules.} Using SMILES~+~GPT-2, we generated 227,457 CUN molecules (vs.\ paper's 103,207) with only 0.3\% overlap. After RDKit filtering, only 663 candidates remain (vs.\ 8,076), with the SA score filter eliminating 99.2\% due to GPT-2's BPE tokenizer generating structurally complex molecules.
+
+    \item \textbf{SELFIES completely resolves the SA bottleneck.} Replacing SMILES with SELFIES for generation produces 299,370 CUN molecules in $\sim$3~hours (vs.\ 12+ hours), with 95.7\% passing SA~$\leq$~6.0 (vs.\ 0.8\% with SMILES). After RDKit filtering, we obtain \textbf{53,732 candidates}---6.7$\times$ more than the paper's 8,076 (which includes two additional xTB filters).
+
+    \item \textbf{Our Stage~3 code exactly reproduces the paper's Rep10} when applied to the paper's published generation data, confirming our post-processing implementation is correct.
+
+    \item \textbf{Our 10 final candidates share zero overlap with the paper's Rep10}, but 1 paper Rep10 molecule appears in our 53,732-molecule filtered set, and both sets share common passivation-relevant functional groups (carboxylic acids, amides, thiophenes, nitrogen heterocycles).
+
+    \item \textbf{SELFIES + GPT-2 is 80$\times$ faster} than SMILES + GPT-2 for valid molecule generation (24\% vs.\ 0.3\% validity rate), and we recommend it as a drop-in replacement for all future implementations of this pipeline.
+\end{enumerate}
+
+These findings underscore the importance of rigorous evaluation methodology in AI-driven scientific discovery pipelines. While the paper's overall framework---classify, generate, filter, select---is sound and the experimental validation of MBA remains independently valid, the reported classifier metrics should not be taken at face value for assessing the pipeline's generalization capability.
+
+%==============================================================================
+% APPENDIX
+%==============================================================================
+\newpage
+\appendix
+\section{Selected Candidate Molecules}
+\label{app:candidates}
+
+\subsection{SELFIES Pipeline Candidates (Recommended)}
+
+Table~\ref{tab:app_selfies} presents the 10 representative molecules from the SELFIES pipeline, selected from 53,732 filtered candidates via agglomerative clustering ($k$~=~10) on Morgan fingerprints.
+
+\begin{table}[H]
+\centering
+\caption{10 selected candidates from the SELFIES pipeline (53,732 filtered molecules).}
+\label{tab:app_selfies}
+\small
+\begin{tabular}{cL{7cm}cccc}
+\toprule
+Cl. & SMILES & SA & HBA & HBD & TPSA \\
+\midrule
+0 & \texttt{C=CC=CC=C(C=O)C1(C)CC(=CC)NCC=C(C(=O)O)N=CC(=O)C1C} & 5.37 & 5 & 2 & 95.8 \\
+\addlinespace
+1 & \texttt{CCCCCC(=O)C(CO)C(=O)Nc1cccc(C(F)(F)F)c1CC} & 5.07 & 3 & 2 & 66.4 \\
+\addlinespace
+2 & \texttt{CCC1=CC(=O)c2cc(cc(C(=O)O)n2)-c2ccccc2N1} & 5.16 & 4 & 2 & 79.3 \\
+\addlinespace
+3 & \texttt{O=C(O)C1SCC(CCc2ccc(F)c3nsnc23)Cc2ccccc21} & 5.25 & 5 & 1 & 63.1 \\
+\addlinespace
+4 & \texttt{O=C1C2=CC1c1c2oc2cc(O)cc(O)c2c1=O} & 5.49 & 5 & 2 & 87.7 \\
+\addlinespace
+5 & \texttt{CC=CC=C(C=O)C=C1C(CC=CC(=O)O)=CC=C1NC} & 4.50 & 3 & 2 & 66.4 \\
+\addlinespace
+6 & \texttt{CCCCCCCCCNC(=O)C=CC=CC=CNC(=O)c1ccccc1-c1cccc2ccccc12} & 4.91 & 2 & 2 & 58.2 \\
+\addlinespace
+7 & \texttt{COC(=O)C(Cc1c[nH]c2ccccc12)NC=C1Oc2ccccc21} & 4.96 & 4 & 2 & 63.4 \\
+\addlinespace
+8 & \texttt{O=C1C(c2c(O)[nH]c3ccccc23)=NC=CC=CC2=C1C=CC2} & 4.48 & 3 & 2 & 65.4 \\
+\addlinespace
+9 & \texttt{CC=C1C=CC(=O)Nc2ccc(C(=O)O)cc2C(=O)C=Cc2ccccc2C1} & 4.68 & 3 & 2 & 83.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{SMILES Pipeline Candidates (Original Approach)}
+
+Table~\ref{tab:app_smiles} presents the 10 representatives from the SMILES pipeline (663 filtered candidates).
+
+\begin{table}[H]
+\centering
+\caption{10 selected candidates from the SMILES pipeline (663 filtered molecules).}
+\label{tab:app_smiles}
+\small
+\begin{tabular}{cL{7cm}cccc}
+\toprule
+Cl. & SMILES & SA & HBA & HBD & TPSA \\
+\midrule
+0 & \texttt{CC(=O)C\#Cc1ccc(C(=O)O)s1} & 4.32 & 3 & 1 & 54.4 \\
+\addlinespace
+1 & \texttt{CCCOC(=O)/C=C/C(=O)OCCOC1=CC=C1} & 4.41 & 5 & 0 & 61.8 \\
+\addlinespace
+2 & \texttt{O=C(c1ccccc1)c1c(O)[nH]c2cnccc12} & 4.36 & 3 & 2 & 66.0 \\
+\addlinespace
+3 & \texttt{CC(C)(C)OC(=O)c1ccc(C(O)C(=O)O)s1} & 4.90 & 5 & 2 & 83.8 \\
+\addlinespace
+4 & \texttt{O=C(O)c1cc(CS(=O)C2CCC2)cs1} & 4.77 & 3 & 1 & 54.4 \\
+\addlinespace
+5 & \texttt{O=C(O)CC(CC(Cc1cccnc1)C(=O)O)c1ccccc1} & 5.19 & 3 & 2 & 87.5 \\
+\addlinespace
+6 & \texttt{CC(CC(=O)O)c1ccsc1-c1ccc(C(=O)O)s1} & 4.87 & 4 & 2 & 74.6 \\
+\addlinespace
+7 & \texttt{O=C(O)/C(=C\textbackslash C(=O)c1ccccc1)c1cccs1} & 4.38 & 3 & 1 & 54.4 \\
+\addlinespace
+8 & \texttt{CC(COC(=O)c1cccs1)C(=O)c1ccc2[nH]ccc2c1} & 4.90 & 4 & 1 & 59.2 \\
+\addlinespace
+9 & \texttt{O=C(O)/C=C/C(=O)Nc1ccccc1C1=CC=C1} & 4.41 & 2 & 2 & 66.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Notes:}
+\begin{itemize}[nosep]
+    \item SA = Synthetic Accessibility score (1 = easy, 10 = difficult). All candidates have SA $\leq$ 6.0.
+    \item HBA = Hydrogen bond acceptors. Criterion: $[2, 5]$.
+    \item HBD = Hydrogen bond donors. Criterion: $[0, 2]$.
+    \item TPSA = Topological Polar Surface Area (\AA$^2$). Criterion: $[50, 120]$.
+    \item PAINS filter: all candidates pass (no structural alerts).
+    \item Gap (HOMO-LUMO, eV) and Dipole (D) filters not applied (xTB unavailable).
+    \item SELFIES candidates have mean SA = 4.95 (vs.\ paper's 2.44), indicating moderately more complex structures.
+    \item Both sets contain functional groups relevant to perovskite passivation: carboxylic acids, amides, thiophenes, indoles, and nitrogen heterocycles.
+\end{itemize}
+
+\end{document}

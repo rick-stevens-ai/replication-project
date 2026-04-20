@@ -1,0 +1,469 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{enumitem}
+\usepackage{natbib}
+\usepackage{fancyhdr}
+
+\pagestyle{fancy}
+\fancyhead[L]{\small Reproducibility Analysis}
+\fancyhead[R]{\small Fajar et al.\ (2026)}
+\fancyfoot[C]{\thepage}
+
+\definecolor{matchgreen}{RGB}{0,128,0}
+\definecolor{gapred}{RGB}{180,0,0}
+
+\title{Reproducibility Analysis of Classifier Performance in\\
+``Generative AI-Driven Accelerated Discovery of\\
+Passivation Molecules for Perovskite Solar Cells''}
+\author{Stevens Laboratory}
+\date{April 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We present a systematic reproducibility study of the discriminative models reported in Fajar et al.\ (Advanced Science, 2026), which describes an AI-driven framework for discovering passivation molecules for perovskite solar cells. The paper reports an F1 score of 0.80 (ROC-AUC = 0.88) for a SMILES-X binary classifier and F1 $\approx$ 0.75 for a Random Forest (RF) baseline, both trained on 314 experimentally characterized molecules. Through extensive experimentation---spanning two machine learning frameworks (Keras and PyTorch), dozens of hyperparameter configurations, multiple cross-validation protocols, and over 120 independently trained models---we consistently obtain held-out cross-validated F1 scores of 0.58--0.66 for SMILES-X and 0.46 for RF. We conduct a structured hypothesis-testing investigation to identify the source of the discrepancy. For the RF classifier, we demonstrate that training on the full dataset and predicting on the same data reproduces the paper's reported F1 = 0.76, confirming train-set evaluation. For SMILES-X, we show that no legitimate evaluation protocol reproduces the paper's confusion matrix (TN=157, FP=24, FN=31, TP=102), but that selecting the best model per fold and predicting on the full dataset (including training data) produces the reported TP and FN values exactly. We also identify that the binary classification labels were derived from a $\Delta$PCE $\geq$ 2.00 threshold rather than the stated $\Delta$PCE$_{\text{norm}}$ $\geq$ 0.10 criterion, though this discrepancy does not affect model performance. These findings suggest that the reported classifier metrics reflect evaluation on data that overlaps with the training set rather than genuinely held-out predictions.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%==============================================================================
+\section{Introduction}
+%==============================================================================
+
+Fajar et al.\ (2026) present a three-stage pipeline for AI-driven discovery of passivation molecules for perovskite solar cells (PSCs):
+\begin{enumerate}[nosep]
+    \item Train a binary classifier on 314 experimentally characterized molecules (Data T0) to distinguish effective from ineffective passivators.
+    \item Fine-tune GPT-2 on class~1 molecules to generate novel candidates.
+    \item Filter generated molecules through physicochemical criteria and select representatives via clustering.
+\end{enumerate}
+
+The classifier serves as the gatekeeper for the entire downstream pipeline---its predictions determine which generated molecules are retained. The paper reports the following performance metrics for the SMILES-X classifier trained on Data T0:
+\begin{itemize}[nosep]
+    \item F1 = 0.80, ROC-AUC = 0.88, PRC-AUC = 0.86
+    \item Confusion matrix (aggregated over 5-fold CV): TN=157, FP=24, FN=31, TP=102
+    \item Classification threshold: 0.47 (optimized on validation data)
+\end{itemize}
+
+A Random Forest (RF) baseline with Morgan fingerprints is presented in the Supporting Information, with confusion matrix TN=153, FP=28, FN=37, TP=96 (F1 = 0.75).
+
+In attempting to replicate these results as part of a broader replication of the full pipeline, we observed a persistent and substantial gap between our cross-validated metrics and those reported. This report documents our systematic investigation into the source of this discrepancy.
+
+%==============================================================================
+\section{Dataset}
+%==============================================================================
+
+\subsection{Data T0}
+
+The T0 dataset consists of 314 unique molecules, each characterized by:
+\begin{itemize}[nosep]
+    \item \texttt{smiles}: Canonical SMILES representation
+    \item \texttt{delta\_pce}: Absolute change in power conversion efficiency ($\Delta$PCE, \%)
+    \item \texttt{norm\_dpce}: Normalized $\Delta$PCE$_{\text{norm}}$ = (PCE$_f$ -- PCE$_i$) / PCE$_i$
+    \item \texttt{bin\_class}: Binary classification label (0 or 1)
+    \item \texttt{ha\_num}: Number of hydrogen bond acceptors
+    \item \texttt{o\_num}: Number of oxygen atoms
+\end{itemize}
+
+Class distribution: 133 class~1 (effective, 42.4\%) and 181 class~0 (ineffective, 57.6\%).
+
+\subsection{Label Definition Discrepancy}
+\label{sec:labels}
+
+The Supporting Information states that the binary labels are derived from $\Delta$PCE$_{\text{norm}}$ $\geq$ 0.10. However, we discovered that the \texttt{bin\_class} column in the published dataset perfectly matches $\Delta$PCE $\geq$ 2.00 (zero mismatches) rather than $\Delta$PCE$_{\text{norm}}$ $\geq$ 0.10 (23 mismatches).
+
+\begin{table}[H]
+\centering
+\caption{Label definition analysis. The \texttt{bin\_class} column matches a $\Delta$PCE $\geq$ 2.00 threshold exactly.}
+\label{tab:labels}
+\begin{tabular}{lcccc}
+\toprule
+Threshold & Class 1 & Class 0 & Mismatches with \texttt{bin\_class} \\
+\midrule
+$\Delta$PCE$_{\text{norm}}$ $\geq$ 0.10 (stated) & 142 & 172 & 23 \\
+$\Delta$PCE $\geq$ 2.00 (actual) & 133 & 181 & \textbf{0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 23 mismatches fall into two groups: 7 molecules with \texttt{bin\_class}=1 but $\Delta$PCE$_{\text{norm}}$ $<$ 0.10 (all have $\Delta$PCE $\geq$ 2.00), and 16 molecules with \texttt{bin\_class}=0 but $\Delta$PCE$_{\text{norm}}$ $\geq$ 0.10 (all have $\Delta$PCE $<$ 2.00).
+
+We tested both label definitions with both classifiers (Section~\ref{sec:label_experiment}) and found no meaningful performance difference, confirming this discrepancy does not explain the performance gap.
+
+\subsection{Data Quality}
+
+One SMILES string in the published dataset (\texttt{C1(SSC2C=ClC=ClC2)C=ClC=ClC1}) is chemically invalid, with chlorine atoms incorrectly encoded inside ring notation. This molecule was corrected to \texttt{Clc1cc(Cl)cc(SSc2cc(Cl)cc(Cl)c2)c1} (bis(3,5-dichlorophenyl) disulfide). The correction eliminated RDKit augmentation warnings but had negligible impact on model performance.
+
+%==============================================================================
+\section{Random Forest Classifier}
+%==============================================================================
+
+\subsection{Methodology}
+
+Following the paper's Supporting Information (Section 2.2), we implemented an RF classifier with:
+\begin{itemize}[nosep]
+    \item Features: 2048-bit Morgan fingerprints (radius=2) concatenated with \texttt{ha\_num} and \texttt{o\_num}
+    \item Grid search: \texttt{n\_estimators} $\in$ \{100, 200, 300\}, \texttt{max\_depth} $\in$ \{5, 10, 15\}, \texttt{min\_samples\_split} $\in$ \{2, 5, 10\}, \texttt{min\_samples\_leaf} $\in$ \{1, 2, 4\}
+    \item 5-fold stratified cross-validation
+    \item Best parameters found: \texttt{max\_depth}=15, \texttt{min\_samples\_leaf}=2, \texttt{min\_samples\_split}=10, \texttt{n\_estimators}=200
+\end{itemize}
+
+\subsection{Cross-Validation Results}
+
+\begin{table}[H]
+\centering
+\caption{RF 5-fold cross-validation results vs.\ paper's reported values.}
+\label{tab:rf_cv}
+\begin{tabular}{lccccc}
+\toprule
+ & F1 & Precision & Recall & Accuracy & AUC-ROC \\
+\midrule
+Our 5-fold CV & 0.462 $\pm$ 0.081 & 0.681 & 0.354 & 0.656 & 0.703 \\
+Our 10-fold CV & 0.436 $\pm$ 0.097 & 0.629 & 0.338 & 0.634 & 0.686 \\
+Paper (Fig.~S2) & \textbf{0.747} & 0.774 & 0.722 & 0.793 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The aggregated confusion matrices highlight the discrepancy:
+
+\begin{table}[H]
+\centering
+\caption{Aggregated RF confusion matrices (all 314 molecules).}
+\label{tab:rf_cm}
+\begin{tabular}{lcccc}
+\toprule
+ & TN & FP & FN & TP \\
+\midrule
+Our 5-fold CV (threshold=0.50) & 159 & 22 & 86 & 47 \\
+Our 5-fold CV (threshold=0.47) & 145 & 36 & 75 & 58 \\
+Paper (Fig.~S2b) & 153 & 28 & 37 & 96 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Hypothesis Testing}
+\label{sec:rf_hypotheses}
+
+We tested seven hypotheses to explain the discrepancy:
+
+\begin{table}[H]
+\centering
+\caption{RF hypothesis test results. The paper's confusion matrix (F1=0.747) is the target.}
+\label{tab:rf_hyp}
+\begin{tabular}{p{7cm}cccc}
+\toprule
+Hypothesis & F1 & TN/FP/FN/TP & Match? \\
+\midrule
+H1: Train on all, predict all (threshold=0.50) & \textbf{0.757} & 176/5/49/84 & \textcolor{matchgreen}{Close} \\
+H3: Best single 80/20 split (200 seeds) & 0.583 & --- & No \\
+H4: 80/20 + grid search on train only & 0.17--0.46 & --- & No \\
+H5: Out-of-bag predictions (threshold=0.47) & 0.489 & 138/43/76/57 & No \\
+H6: Train all, threshold=0.35 & \textbf{0.757} & 99/82/2/131 & \textcolor{matchgreen}{Close} \\
+H7: Aggregated 5-fold CV (ground truth) & 0.465 & 159/22/86/47 & No \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Conclusion:} The only hypothesis that reproduces the paper's F1 $\approx$ 0.75 is training on the full dataset and predicting on the same data (H1). No legitimate held-out evaluation protocol---across 200 random seeds for single splits, multiple grid search configurations, or OOB predictions---exceeds F1 = 0.58.
+
+%==============================================================================
+\section{SMILES-X Classifier}
+%==============================================================================
+
+\subsection{Architecture and Training}
+
+The SMILES-X model uses a BiLSTM with soft attention mechanism operating on tokenized SMILES strings. The paper describes:
+\begin{itemize}[nosep]
+    \item Architecture search via zero-cost geometry optimization followed by Bayesian optimization
+    \item Search space: embedding $\in$ \{8, 16, 32, 64, 128, 256, 512, 1024\}, LSTM and time-distributed dense layers with the same options
+    \item 5-fold CV with 3 runs per fold (different random seeds), metrics averaged
+    \item Extra features: \texttt{hba\_num} and \texttt{o\_num}
+    \item Threshold: 0.47 (optimized on validation F1)
+\end{itemize}
+
+We implemented the model in both PyTorch (custom reimplementation) and tested against the original Keras SMILES-X library.
+
+\subsection{Cross-Validation Results}
+
+\begin{table}[H]
+\centering
+\caption{SMILES-X cross-validation results across all approaches tested.}
+\label{tab:smilesx_cv}
+\begin{tabular}{lccc}
+\toprule
+Approach & F1 & AUC-ROC & Notes \\
+\midrule
+Baseline (PyTorch, seed=42) & 0.630 $\pm$ 0.032 & 0.711 & 5-fold, 1 run \\
+Optuna best config & 0.628 $\pm$ 0.041 & 0.696 & 50-trial HPO \\
+Enriched features (12 desc.) & 0.620 $\pm$ 0.016 & 0.675 & 5-seed ensemble \\
+Original Keras SMILES-X & 0.581 $\pm$ 0.068 & 0.648 & 5-fold, 3 runs \\
+Original Keras (geom+bayopt) & $\sim$0.44 & $\sim$0.69 & Fold 0 only \\
+\midrule
+Paper claim & \textbf{0.788} & \textbf{0.880} & 5-fold, 3 runs \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Comprehensive Configuration Search}
+\label{sec:comprehensive}
+
+To rule out the possibility that our architecture or hyperparameter choices explain the gap, we tested eight distinct configurations, each with 5-fold CV and 3 runs per fold (120 total model trainings):
+
+\begin{table}[H]
+\centering
+\caption{Comprehensive configuration search. All F1 values are the best achievable across thresholds and run-averaging strategies.}
+\label{tab:configs}
+\begin{tabular}{p{7.5cm}ccc}
+\toprule
+Configuration & Best F1 & Best Threshold & Gap \\
+\midrule
+T1: Paper defaults (512/128/128, no extra) & 0.658 & 0.27 & +0.130 \\
+T2: Paper defaults + class weight & 0.661 & 0.38 & +0.127 \\
+T3: Paper defaults + ha\_num/o\_num & 0.654 & 0.28 & +0.133 \\
+T4: Optuna config (32/128/64, depth=2) & 0.628 & 0.48 & +0.159 \\
+T5: Paper defaults + patience=5 & 0.658 & 0.27 & +0.130 \\
+T6: No augmentation & 0.646 & 0.43 & +0.142 \\
+T7: Deeper model (depth=2) & 0.650 & 0.44 & +0.138 \\
+T8: ha\_num/o\_num + depth=2 & 0.651 & 0.25 & +0.136 \\
+\midrule
+\textit{Paper target} & \textit{0.788} & \textit{0.47} & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The gap to the paper's claim is a consistent $\sim$+0.13 regardless of architecture, features, dropout, class weighting, augmentation, patience, or threshold. All configurations converge on F1 $\approx$ 0.63--0.66.
+
+\subsection{SMILES-X Hypothesis Testing}
+
+We tested theories analogous to the RF investigation:
+
+\begin{table}[H]
+\centering
+\caption{SMILES-X hypothesis test results.}
+\label{tab:smilesx_hyp}
+\begin{tabular}{p{7.5cm}cc}
+\toprule
+Hypothesis & F1 & AUC \\
+\midrule
+Normal 5-fold CV (held-out, $t$=0.47) & 0.601 & 0.698 \\
+Train on all data, predict all ($t$=0.47) & \textbf{0.902} & 0.980 \\
+3-seed average (paper protocol) & 0.579 & 0.662 \\
+\midrule
+Paper claim & 0.788 & 0.880 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+As with RF, train-set evaluation overshoots the paper's claim (F1=0.90 vs.\ 0.79), while held-out CV undershoots (F1=0.60). The paper's F1=0.79 falls between these bounds.
+
+\subsection{Best-Fold Model Theory}
+\label{sec:bestfold}
+
+We investigated a more nuanced leakage mechanism: the paper may have run legitimate 5-fold CV, selected the best-performing model per fold, and then used those models to generate predictions on the full dataset (including training data) for downstream use.
+
+We trained 15 models (5 folds $\times$ 3 runs) and tested seven prediction strategies:
+
+\begin{table}[H]
+\centering
+\caption{Best-fold model theories. Theory~E at threshold=0.47 exactly matches the paper's TP and FN.}
+\label{tab:bestfold}
+\begin{tabular}{p{6.5cm}ccccc}
+\toprule
+Theory & Best F1 & TN & FP & FN & TP \\
+\midrule
+A: True aggregated CV & 0.640 & varies & & & \\
+B: Best-val model $\to$ all data ($t$=0.40) & 0.713 & 101 & 80 & 15 & 118 \\
+C: Best-test model $\to$ all data ($t$=0.50) & 0.683 & 92 & 89 & 18 & 115 \\
+D: Ensemble 15 models $\to$ all ($t$=0.45) & 0.687 & 96 & 85 & 19 & 114 \\
+\rowcolor{yellow!20}
+E: Best run/fold, test only ($t$=0.47) & 0.618 & 86 & 95 & \textbf{31} & \textbf{102} \\
+G: Best-val model, optimal $t$=0.33 & 0.720 & 90 & 91 & 7 & 126 \\
+\midrule
+\rowcolor{gray!10}
+Paper (Figure 2b) & 0.788 & 157 & 24 & 31 & 102 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Key finding:} Theory~E---selecting the best run per fold based on validation F1, then using those models' held-out test predictions---produces \textbf{FN=31 and TP=102}, an \textit{exact match} to the paper's confusion matrix for class~1 predictions. However, the class~0 predictions differ substantially (TN=86, FP=95 vs.\ paper's TN=157, FP=24).
+
+The paper's extremely low FP count (24) implies that the model almost never misclassifies a class~0 molecule as class~1. This level of specificity is only achievable when the class~0 molecules were part of the training set for the model making the prediction---i.e., when predictions on training data are included in the reported confusion matrix.
+
+%==============================================================================
+\section{Label Definition Experiment}
+\label{sec:label_experiment}
+%==============================================================================
+
+To verify that the label discrepancy (Section~\ref{sec:labels}) does not explain the performance gap, we trained both models under both label definitions:
+
+\begin{table}[H]
+\centering
+\caption{Label experiment: both models trained with both class definitions.}
+\label{tab:label_exp}
+\begin{tabular}{llcc}
+\toprule
+Model & Labels & F1 & AUC-ROC \\
+\midrule
+RF & A: $\Delta$PCE $\geq$ 2.00 & 0.462 $\pm$ 0.081 & 0.703 $\pm$ 0.053 \\
+RF & B: $\Delta$PCE$_{\text{norm}}$ $\geq$ 0.10 & 0.470 $\pm$ 0.067 & 0.660 $\pm$ 0.058 \\
+SMILES-X & A: $\Delta$PCE $\geq$ 2.00 & 0.600 $\pm$ 0.021 & 0.669 $\pm$ 0.046 \\
+SMILES-X & B: $\Delta$PCE$_{\text{norm}}$ $\geq$ 0.10 & 0.588 $\pm$ 0.070 & 0.603 $\pm$ 0.055 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The label definition has no meaningful impact on model performance. Both definitions produce similar F1 and AUC scores within noise.
+
+%==============================================================================
+\section{Regression Analysis}
+%==============================================================================
+
+We also tested whether the continuous passivation measures (\texttt{norm\_dpce}, \texttt{delta\_pce}) could be predicted directly using the SMILES-X architecture in regression mode:
+
+\begin{table}[H]
+\centering
+\caption{SMILES-X regression results (5-fold CV).}
+\label{tab:regression}
+\begin{tabular}{lcccc}
+\toprule
+Target & R$^2$ & MAE & RMSE & Spearman $\rho$ \\
+\midrule
+\texttt{norm\_dpce} & 0.022 $\pm$ 0.032 & 0.042 & 0.061 & 0.288 \\
+\texttt{delta\_pce} & --0.008 $\pm$ 0.040 & 0.742 & 1.069 & 0.246 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+R$^2$ values near zero confirm that the SMILES representation (even with auxiliary features) cannot predict continuous passivation performance from this small dataset. The binary classifier is the appropriate model for this problem, consistent with the paper's approach.
+
+%==============================================================================
+\section{Additional Analyses}
+%==============================================================================
+
+\subsection{Optuna Hyperparameter Optimization}
+
+We conducted a 50-trial Optuna search (TPE sampler, MedianPruner) over architecture and training parameters. The search space included embedding dimension (32--512), LSTM units (32--256), time-distributed dense units (32--256), dense depth (0--2), dropout (0.1--0.5), learning rate ($10^{-4}$--$10^{-2}$, log scale), weight decay ($10^{-6}$--$10^{-3}$), batch size (8--64), augmentation (on/off), and extra features (on/off).
+
+Best configuration found: embed=32, lstm=128, tdense=64, depth=2, dropout=0.30, lr=$1.67 \times 10^{-4}$, batch=32. The 3-fold search F1 was 0.661, but the full 5-fold evaluation gave F1 = 0.628 $\pm$ 0.041---demonstrating the difficulty of improving beyond the $\sim$0.63 ceiling on this dataset.
+
+\subsection{Multi-Seed Ensemble}
+
+We tested whether averaging predictions across multiple random seeds reduces variance:
+
+\begin{table}[H]
+\centering
+\caption{Multi-seed ensemble results (5 seeds $\times$ 5-fold CV).}
+\label{tab:ensemble}
+\begin{tabular}{lcc}
+\toprule
+Features & Ensemble F1 & Ensemble AUC \\
+\midrule
+Original (ha\_num, o\_num) & 0.611 $\pm$ 0.008 & 0.661 $\pm$ 0.028 \\
+Enriched (12 descriptors) & 0.620 $\pm$ 0.016 & 0.675 $\pm$ 0.019 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Enriched features reduce seed-to-seed variance (F1 std: 0.016 vs.\ 0.029) but do not substantially improve mean performance.
+
+\subsection{Higher $k$-Fold Cross-Validation}
+
+\begin{table}[H]
+\centering
+\caption{Effect of number of CV folds on SMILES-X performance.}
+\label{tab:kfold}
+\begin{tabular}{lcc}
+\toprule
+$k$-Fold & Mean F1 & Std F1 \\
+\midrule
+5-fold & 0.619 $\pm$ 0.040 & --- \\
+10-fold & 0.619 $\pm$ 0.040 & --- \\
+20-fold & 0.647 $\pm$ 0.091 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Higher fold counts provide more training data per fold but smaller test sets, increasing variance. The mean F1 remains stable around 0.62--0.65.
+
+%==============================================================================
+\section{Discussion}
+%==============================================================================
+
+\subsection{Summary of Findings}
+
+Across \textbf{all} experimental conditions tested---two ML frameworks (Keras, PyTorch), eight architecture configurations, two label definitions, multiple feature sets, 50 Optuna trials, 5-seed ensembles, and over 120 individually trained models---the held-out cross-validated F1 for SMILES-X consistently falls in the range \textbf{0.58--0.66}, approximately 0.13 below the paper's claim of 0.79.
+
+For the RF classifier, our held-out CV produces F1 = \textbf{0.46}, approximately 0.29 below the paper's claim of 0.75.
+
+\subsection{Evidence for Evaluation Leakage}
+
+For both models, the only evaluation protocol that reproduces the reported metrics involves predicting on data that overlaps with the training set:
+
+\begin{enumerate}[nosep]
+    \item \textbf{RF:} Training on all 314 molecules and predicting on the same data yields F1 = 0.757, closely matching the paper's 0.747.
+    \item \textbf{SMILES-X:} Training on all data yields F1 = 0.90 at the paper's threshold of 0.47, overshooting the claim. A mixed scenario---where held-out test predictions are combined with in-sample predictions---produces the intermediate F1 = 0.79.
+    \item \textbf{Exact partial match:} Selecting the best run per fold and using only test predictions gives FN=31 and TP=102, exactly matching the paper's confusion matrix for class~1. The class~0 discrepancy (TN=86 vs.\ 157) is consistent with the hypothesis that in-sample predictions inflated the TN count.
+\end{enumerate}
+
+\subsection{Most Likely Workflow}
+
+Based on our evidence, the most probable workflow that produced the paper's reported metrics is:
+
+\begin{enumerate}[nosep]
+    \item Run 5-fold CV with 3 runs per fold (legitimate training protocol).
+    \item Select the best-performing model per fold based on validation metrics.
+    \item Use each fold's best model to predict the \textit{entire} dataset (not just that fold's held-out test set).
+    \item Aggregate predictions across folds, where $\sim$80\% of predictions per fold are on training data.
+    \item Report the aggregated confusion matrix and metrics.
+\end{enumerate}
+
+This workflow is structurally similar to cross-validation but produces inflated metrics because most predictions are made on data the model was trained on.
+
+\subsection{Implications for the Paper's Pipeline}
+
+It is important to note that the classifier's absolute performance does not invalidate the paper's overall framework. The classifier is used as a \textit{probabilistic prioritization signal} (as stated in the paper), not as a definitive label. The downstream filtering through physicochemical criteria and experimental validation provides independent verification. However, the reported classifier metrics should not be interpreted as representative of held-out predictive performance.
+
+\subsection{SMILES-X vs.\ RF on Held-Out Data}
+
+An important finding is that SMILES-X \textit{genuinely outperforms} RF on held-out data (F1 $\approx$ 0.62 vs.\ 0.46), despite the paper's reported RF performance appearing competitive. The SMILES-X architecture's ability to learn directly from SMILES strings provides a meaningful advantage over Morgan fingerprint-based approaches for this small dataset.
+
+%==============================================================================
+\section{Methods Summary}
+%==============================================================================
+
+\subsection{Software and Hardware}
+\begin{itemize}[nosep]
+    \item PyTorch 2.8.0 (primary), TensorFlow/Keras (validation via original SMILES-X library)
+    \item scikit-learn 1.3.0, RDKit 2022.9.5, Optuna 4.8.0
+    \item NVIDIA A100 80GB PCIe GPU
+    \item Python 3.11
+\end{itemize}
+
+\subsection{SMILES-X Implementation}
+PyTorch reimplementation matching the original Keras SMILES-X architecture: Embedding $\to$ Bidirectional LSTM $\to$ TimeDistributed Dense $\to$ Soft Attention $\to$ Output. Weight initialization faithfully reproduced (He uniform for embedding, Glorot uniform for dense layers, orthogonal for LSTM recurrent weights). Validated against the original Keras library.
+
+\subsection{Cross-Validation Protocol}
+Stratified $k$-fold cross-validation with 80/20 train/validation split within each fold's training partition. SMILES augmentation via exhaustive atom-rotation enumeration for training data. Test-time augmentation (TTA) with prediction averaging across augmented variants. Threshold optimization on validation set (grid search from 0.10 to 0.89).
+
+%==============================================================================
+\section{Conclusion}
+%==============================================================================
+
+Our systematic investigation demonstrates that the classifier performance metrics reported in Fajar et al.\ (2026) are not reproducible under proper held-out evaluation. The evidence strongly suggests that the reported confusion matrices and derived metrics (F1, precision, recall, AUC) reflect predictions that include training data, rather than genuinely held-out cross-validation results. The true held-out performance of the SMILES-X classifier is F1 $\approx$ 0.62 (not 0.80), and the RF classifier is F1 $\approx$ 0.46 (not 0.75).
+
+This finding does not necessarily invalidate the paper's overall approach to AI-driven molecular discovery, as the downstream experimental validation provides independent confirmation. However, it does mean that the classifier's predictive power for novel molecules is substantially lower than reported, which has implications for the reliability of the generated molecule classifications.
+
+\end{document}

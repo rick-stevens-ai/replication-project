@@ -1,0 +1,180 @@
+#!/bin/bash -l
+#PBS -l select=1:system=polaris
+#PBS -l walltime=00:30:00
+#PBS -l filesystems=home
+#PBS -q debug
+#PBS -A IMPROVE_Aim1
+#PBS -N pvmol-stage2-test
+#PBS -o /home/stevens/pvmol-gen/logs/stage2_test.out
+#PBS -e /home/stevens/pvmol-gen/logs/stage2_test.err
+
+source /soft/applications/conda/2025-09-28/mconda3/setup.sh
+export OPENBLAS_NUM_THREADS=32
+export TRANSFORMERS_OFFLINE=1
+
+cd /home/stevens/pvmol-gen
+mkdir -p logs results models/gpt2_finetuned
+
+echo "═══ Stage 2 Quick Test ═══"
+echo "Host: $(hostname), $(date)"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+
+python -u -c "
+import sys, os, time, logging
+sys.path.insert(0, 'src')
+os.environ['TRANSFORMERS_OFFLINE'] = '1'
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
+
+import torch
+import numpy as np
+import pandas as pd
+from pathlib import Path
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, TrainingArguments, Trainer, EarlyStoppingCallback
+from torch.utils.data import Dataset, random_split
+from rdkit import Chem
+from tqdm import tqdm
+
+from config import (T1_FILE, GPT2_TRAIN_EPOCHS, GPT2_BATCH_SIZE, GPT2_WARMUP_STEPS,
+                    GPT2_WEIGHT_DECAY, GPT2_EARLY_STOPPING_PATIENCE, GEN_MAX_LENGTH,
+                    GEN_TEMPERATURE, CLASSIFICATION_THRESHOLD, DEVICE)
+from utils import validate_smiles, augment_smiles
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+logger.info(f'Device: {device}')
+
+# Load T1
+t1 = pd.read_csv(T1_FILE)
+smi_col = [c for c in t1.columns if 'smiles' in c.lower()][0]
+smiles_list = t1[smi_col].dropna().tolist()
+logger.info(f'T1: {len(smiles_list)} SMILES')
+
+# Take a small sample for testing
+sample = smiles_list[:500]
+
+# Augment (small n for test)
+t0 = time.time()
+augmented = []
+for smi in sample:
+    augmented.extend(augment_smiles(smi, n=3))
+augmented = list(set(augmented))
+logger.info(f'Augmented {len(sample)} → {len(augmented)} SMILES in {time.time()-t0:.1f}s')
+
+# Load GPT-2
+cache_dir = 'models/gpt2_pretrained'
+logger.info(f'Loading GPT-2 from {cache_dir}...')
+tokenizer = GPT2Tokenizer.from_pretrained(cache_dir)
+if tokenizer.pad_token is None:
+    tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+
+# Tokenize
+t0 = time.time()
+encoded = tokenizer(augmented, padding=True, truncation=True,
+                    max_length=GEN_MAX_LENGTH, return_tensors='pt')
+logger.info(f'Tokenized in {time.time()-t0:.1f}s, shape: {encoded[\"input_ids\"].shape}')
+
+# Dataset
+class SmilesGPTDataset(Dataset):
+    def __init__(self, encoded_inputs):
+        self.input_ids = encoded_inputs['input_ids']
+        self.attention_mask = encoded_inputs['attention_mask']
+    def __len__(self):
+        return len(self.input_ids)
+    def __getitem__(self, idx):
+        return {'input_ids': self.input_ids[idx],
+                'attention_mask': self.attention_mask[idx],
+                'labels': self.input_ids[idx]}
+
+dataset = SmilesGPTDataset(encoded)
+train_size = int(0.8 * len(dataset))
+test_size = len(dataset) - train_size
+train_ds, test_ds = random_split(dataset, [train_size, test_size])
+
+model = GPT2LMHeadModel.from_pretrained(cache_dir)
+model.resize_token_embeddings(len(tokenizer))
+
+out_dir = 'models/gpt2_finetuned/test_cycle'
+os.makedirs(out_dir, exist_ok=True)
+
+# Train just 3 epochs to time it
+training_args = TrainingArguments(
+    output_dir=f'{out_dir}/checkpoints',
+    num_train_epochs=3,
+    per_device_train_batch_size=GPT2_BATCH_SIZE,
+    per_device_eval_batch_size=GPT2_BATCH_SIZE,
+    warmup_steps=50,
+    weight_decay=GPT2_WEIGHT_DECAY,
+    logging_dir=f'{out_dir}/logs',
+    eval_strategy='epoch',
+    save_strategy='epoch',
+    load_best_model_at_end=True,
+    save_total_limit=2,
+    report_to='none',
+    fp16=torch.cuda.is_available(),
+)
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_ds,
+    eval_dataset=test_ds,
+    processing_class=tokenizer,
+    callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
+)
+
+t0 = time.time()
+trainer.train()
+train_time = time.time() - t0
+logger.info(f'Fine-tuning 3 epochs on {len(train_ds)} samples: {train_time:.1f}s')
+logger.info(f'Estimated 100 epochs: {train_time/3*100:.0f}s = {train_time/3*100/60:.1f}min')
+
+# Test generation
+model.to(device)
+model.eval()
+pad_id = tokenizer.encode('[PAD]', add_special_tokens=False)
+input_ids = torch.tensor([pad_id]).to(device)
+
+t0 = time.time()
+generated = set()
+batch_size = 32
+attempts = 0
+target = 1000
+
+while len(generated) < target and attempts < target * 50:
+    batch_input = input_ids.repeat(batch_size, 1)
+    attention_mask = torch.ones_like(batch_input)
+    with torch.no_grad():
+        outputs = model.generate(
+            batch_input,
+            attention_mask=attention_mask,
+            max_length=GEN_MAX_LENGTH,
+            num_return_sequences=batch_size,
+            temperature=GEN_TEMPERATURE,
+            do_sample=True,
+            pad_token_id=tokenizer.pad_token_id,
+        )
+    for seq in outputs:
+        smiles = tokenizer.decode(seq, skip_special_tokens=True).strip()
+        canon = validate_smiles(smiles)
+        if canon:
+            generated.add(canon)
+        attempts += 1
+
+gen_time = time.time() - t0
+valid_pct = len(generated) / max(attempts, 1) * 100
+logger.info(f'Generated {len(generated)} valid from {attempts} attempts in {gen_time:.1f}s ({valid_pct:.1f}% valid)')
+logger.info(f'Estimated time for 100K: {gen_time/max(len(generated),1)*100000/60:.0f}min')
+
+# Show some samples
+for i, smi in enumerate(list(generated)[:10]):
+    mol = Chem.MolFromSmiles(smi)
+    mw = Chem.Descriptors.MolWt(mol) if mol else 0
+    logger.info(f'  {i}: {smi} (MW={mw:.0f})')
+
+if device.type == 'cuda':
+    logger.info(f'GPU memory: {torch.cuda.max_memory_allocated()/1e9:.2f} GB peak')
+
+logger.info('Stage 2 test complete.')
+" 2>&1
+
+echo "=== Done: $(date) ==="

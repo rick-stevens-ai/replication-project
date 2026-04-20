@@ -1,0 +1,140 @@
+#!/bin/bash -l
+#PBS -l select=1:system=polaris
+#PBS -l walltime=06:00:00
+#PBS -l filesystems=home
+#PBS -q preemptable
+#PBS -A IMPROVE_Aim1
+#PBS -N pvmol-overnight
+#PBS -o /home/stevens/pvmol-gen/logs/overnight_pipeline.out
+#PBS -e /home/stevens/pvmol-gen/logs/overnight_pipeline.err
+
+source /soft/applications/conda/2025-09-28/mconda3/setup.sh
+export OPENBLAS_NUM_THREADS=32
+export TRANSFORMERS_OFFLINE=1
+export HF_DATASETS_OFFLINE=1
+
+cd /home/stevens/pvmol-gen
+mkdir -p logs results data/gen_cycles models/gpt2_finetuned
+
+echo "════════════════════════════════════════════════════════════"
+echo "PVMol-Gen Overnight Pipeline — $(date)"
+echo "Host: $(hostname)"
+echo "════════════════════════════════════════════════════════════"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, GPUs: {torch.cuda.device_count()}')"
+
+PIPELINE_START=$(date +%s)
+
+# ── STAGE 2: GPT-2 Iterative Generation (3 cycles) ──
+echo ""
+echo "═══ STAGE 2: GPT-2 Iterative Generation ═══"
+echo "Started: $(date)"
+echo "Using T1 from: data/t1_class1.csv ($(wc -l < data/t1_class1.csv) lines)"
+
+python -u src/stage2_generator.py 2>&1 | tee logs/stage2_overnight_$(date +%Y%m%d_%H%M%S).log
+STAGE2_EXIT=$?
+
+STAGE2_END=$(date +%s)
+echo "Stage 2 took $((STAGE2_END - PIPELINE_START)) seconds (exit: $STAGE2_EXIT)"
+
+if [ $STAGE2_EXIT -ne 0 ]; then
+    echo "WARNING: Stage 2 failed! Attempting Stage 3 on author's data anyway."
+fi
+
+# ── STAGE 3: Physicochemical Filtering ──
+echo ""
+echo "═══ STAGE 3: Physicochemical Filtering ═══"
+echo "Started: $(date)"
+
+# Run stage 3 on our generated data (if exists) AND on author's data
+python -u src/stage3_filter.py --no-xtb 2>&1 | tee logs/stage3_overnight_$(date +%Y%m%d_%H%M%S).log
+
+STAGE3_END=$(date +%s)
+echo "Stage 3 took $((STAGE3_END - STAGE2_END)) seconds"
+
+# ── BONUS: Run Stage 3 on author's G_class1 for comparison ──
+echo ""
+echo "═══ BONUS: Stage 3 on Author's G_class1 ═══"
+python -u -c "
+import sys, logging, numpy as np, pandas as pd
+sys.path.insert(0, 'src')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
+from rdkit import Chem
+from rdkit.Chem import Descriptors, AllChem, FilterCatalog
+from config import SA_MAX, HBD_RANGE, HBA_RANGE, TPSA_RANGE
+
+# Load author's generated class 1
+df = pd.read_csv('data/G_class1.csv')
+logger.info(f'Author G_class1: {len(df)} molecules')
+
+# Apply RDKit-computable filters (SA, HBD, HBA, TPSA, PAINS)
+# Gap and Dipole would need xTB — skip those for now
+from sascorer import calculateScore
+import rdkit.Chem.FilterCatalog as fc
+
+params = fc.FilterCatalogParams()
+params.AddCatalog(fc.FilterCatalogParams.FilterCatalogs.PAINS_A)
+params.AddCatalog(fc.FilterCatalogParams.FilterCatalogs.PAINS_B)
+params.AddCatalog(fc.FilterCatalogParams.FilterCatalogs.PAINS_C)
+pains_catalog = fc.FilterCatalog(params)
+
+results = []
+for _, row in df.iterrows():
+    smi = row.get('SMILES', row.iloc[0])
+    mol = Chem.MolFromSmiles(smi)
+    if mol is None:
+        continue
+    sa = calculateScore(mol)
+    hbd = Descriptors.NumHDonors(mol)
+    hba = Descriptors.NumHAcceptors(mol)
+    tpsa = Descriptors.TPSA(mol)
+    has_pains = pains_catalog.HasMatch(mol)
+    results.append({
+        'smiles': smi, 'SA': sa, 'HBD': hbd, 'HBA': hba,
+        'TPSA': tpsa, 'PAINS': has_pains
+    })
+
+rdf = pd.DataFrame(results)
+n = len(rdf)
+logger.info(f'Valid molecules: {n}')
+
+# Apply filters
+f1 = rdf['SA'] <= SA_MAX
+f2 = ~rdf['PAINS']
+f3 = rdf['HBD'].between(*HBD_RANGE)
+f4 = rdf['HBA'].between(*HBA_RANGE)
+f5 = rdf['TPSA'].between(*TPSA_RANGE)
+
+logger.info(f'SA <= {SA_MAX}: {f1.sum()} ({f1.sum()/n*100:.1f}%)')
+logger.info(f'No PAINS: {f2.sum()} ({f2.sum()/n*100:.1f}%)')
+logger.info(f'HBD {HBD_RANGE}: {f3.sum()} ({f3.sum()/n*100:.1f}%)')
+logger.info(f'HBA {HBA_RANGE}: {f4.sum()} ({f4.sum()/n*100:.1f}%)')
+logger.info(f'TPSA {TPSA_RANGE}: {f5.sum()} ({f5.sum()/n*100:.1f}%)')
+
+combined = f1 & f2 & f3 & f4 & f5
+logger.info(f'Combined (5 of 7 filters): {combined.sum()} ({combined.sum()/n*100:.1f}%)')
+logger.info(f'Paper reports ~8K from 87K with all 7 filters')
+
+filtered = rdf[combined]
+filtered.to_csv('results/author_filtered_5of7.csv', index=False)
+logger.info(f'Saved to results/author_filtered_5of7.csv')
+" 2>&1
+
+# ── SUMMARY ──
+TOTAL_END=$(date +%s)
+echo ""
+echo "════════════════════════════════════════════════════════════"
+echo "OVERNIGHT PIPELINE COMPLETE — $(date)"
+echo "Total time: $((TOTAL_END - PIPELINE_START)) seconds"
+echo "════════════════════════════════════════════════════════════"
+echo ""
+echo "=== Results ==="
+for f in results/*.csv; do
+    [ -f "$f" ] && echo "  $f: $(wc -l < $f) lines"
+done
+echo ""
+echo "=== Generated data ==="
+for f in data/gen_cycles/*.csv; do
+    [ -f "$f" ] && echo "  $f: $(wc -l < $f) lines"
+done

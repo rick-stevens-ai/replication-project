@@ -1,0 +1,55 @@
+#!/bin/bash -l
+#PBS -l select=1:system=polaris
+#PBS -l walltime=00:10:00
+#PBS -l filesystems=home
+#PBS -q debug
+#PBS -A IMPROVE_Aim1
+#PBS -N precache-gpt2
+#PBS -o /home/stevens/pvmol-gen/logs/precache_gpt2.out
+#PBS -e /home/stevens/pvmol-gen/logs/precache_gpt2.err
+
+source /soft/applications/conda/2025-09-28/mconda3/setup.sh
+export OPENBLAS_NUM_THREADS=32
+export TRANSFORMERS_OFFLINE=0
+
+cd /home/stevens/pvmol-gen
+mkdir -p models/gpt2_pretrained logs
+
+echo "=== Pre-caching GPT-2 on compute node ==="
+echo "Host: $(hostname), $(date)"
+
+# Compute nodes should have network for model download via HuggingFace cache
+python -u -c "
+import os, sys
+os.environ['TRANSFORMERS_CACHE'] = os.path.expanduser('~/.cache/huggingface')
+
+from transformers import GPT2Tokenizer, GPT2LMHeadModel
+print('Loading GPT-2 from HuggingFace...')
+t = GPT2Tokenizer.from_pretrained('gpt2')
+m = GPT2LMHeadModel.from_pretrained('gpt2')
+print(f'Params: {sum(p.numel() for p in m.parameters()):,}')
+
+# Save local copy for offline use
+cache_dir = 'models/gpt2_pretrained'
+t.add_special_tokens({'pad_token': '[PAD]'})
+m.resize_token_embeddings(len(t))
+t.save_pretrained(cache_dir)
+m.save_pretrained(cache_dir)
+print(f'Saved to {cache_dir}')
+
+# Quick test
+import torch
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+m = m.to(device)
+pad_id = t.encode('[PAD]', add_special_tokens=False)
+input_ids = torch.tensor([pad_id]).to(device)
+with torch.no_grad():
+    out = m.generate(input_ids, max_length=50, num_return_sequences=3,
+                     temperature=0.9, do_sample=True, pad_token_id=t.pad_token_id)
+for i, seq in enumerate(out):
+    smi = t.decode(seq, skip_special_tokens=True).strip()
+    print(f'  Sample {i}: {smi}')
+print('GPT-2 pre-cache complete!')
+" 2>&1
+
+echo "=== Done: $(date) ==="
