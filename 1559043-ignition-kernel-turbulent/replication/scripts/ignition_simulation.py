@@ -280,7 +280,7 @@ def run_simulation(phi, realization=0):
                     u_n = max(u_n, 0)
                     
                     rho_ker = P_amb * 0.028 / (R_u * T_ker)
-                    frac = min(dt * rho_ker * u_n / (dz * np.maximum(rho[ii, :3], 0.1)), 0.3)
+                    frac = np.minimum(dt * rho_ker * u_n / (dz * np.maximum(rho[ii, :3], 0.1)), 0.3)
                     
                     w[ii, :3] += frac * u_n
                     T[ii, :3] = (1 - frac) * T[ii, :3] + frac * T_ker
