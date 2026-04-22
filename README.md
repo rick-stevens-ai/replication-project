@@ -27,7 +27,20 @@ This project contains independent replications of published computational scienc
 | 10 | 1842593 | Motion Tomography | Signal Processing | ✅ Complete |
 | 11 | 2217719 | SCALE MSRE Depletion | Nuclear Engineering | ✅ Complete |
 | 12 | 3014512 | Dark Matter SD Scattering | Particle Physics | ✅ Complete |
-| 13 | 1609039 | Metallic Glass Formation | Materials Science | ⏳ Running |
+| 13 | 1609039 | Metallic Glass Formation | Materials Science | ⏳ Running (76%) |
+| 14 | 1484740 | Electronic/Optical Properties of 2D GaN | DFT/Materials | ⏳ Running |
+| 15 | 1559043 | Ignition Kernel in Turbulent Flow | CFD/Combustion | ⏳ Running |
+| 16 | 1275503 | Cosmic Reionization on Computers | Astrophysics | ⏳ Running |
+| 17 | 1868518 | Graph-RL for Grid Restoration | ML/Power Systems | ⏳ Running |
+| 18 | 3003857 | Chaotic Dynamics via Multi-Step Penalty Neural ODEs | ML/Math | ⏳ Running |
+
+## OSTI Publication Analysis
+
+Analysis of Argonne's full OSTI publication record (2016-2025, ~30,000 papers) shows:
+- **~400 papers/year** are computationally replicable without experimental facilities
+- **~3,500 papers** over the last 10 years form the replicable corpus
+- 70% discovery science, 23% applied science/engineering, 6% facility/methods
+- This project has replicated papers spanning 15 of Argonne's OSTI subject categories
 
 ## Methodology
 
