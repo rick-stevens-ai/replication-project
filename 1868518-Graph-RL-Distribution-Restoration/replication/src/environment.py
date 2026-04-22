@@ -3,6 +3,26 @@ import os
 os.environ['NUMBA_DISABLE_JIT'] = '1'
 import warnings
 warnings.filterwarnings('ignore')
+import logging
+logging.disable(logging.WARNING)
+
+# Monkey-patch pandapower to suppress numba check
+import importlib
+import sys
+# Create a fake numba module
+class _FakeNumba:
+    __version__ = '0.0.0'
+    def jit(self, *a, **kw):
+        def decorator(func):
+            return func
+        if a and callable(a[0]):
+            return a[0]
+        return decorator
+    def __getattr__(self, name):
+        return lambda *a, **kw: None
+sys.modules['numba'] = _FakeNumba()
+sys.modules['numba.core'] = _FakeNumba()
+sys.modules['numba.core.types'] = _FakeNumba()
 
 """
 Distribution System Restoration Environment
