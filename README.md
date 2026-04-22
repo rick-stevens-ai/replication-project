@@ -31,7 +31,7 @@ This project contains independent replications of published computational scienc
 | 14 | 1484740 | Electronic/Optical Properties of 2D GaN | DFT/Materials | ✅ Complete |
 | 15 | 1559043 | Ignition Kernel in Turbulent Flow | CFD/Combustion | ⚠️ Partial (2/5) |
 | 16 | 1275503 | Cosmic Reionization on Computers | Astrophysics | ✅ Complete |
-| 17 | 1868518 | Graph-RL for Grid Restoration | ML/Power Systems | ⏳ Running |
+| 17 | 1868518 | Graph-RL for Grid Restoration | ML/Power Systems | ✅ Complete |
 | 18 | 3003857 | Chaotic Dynamics via Multi-Step Penalty Neural ODEs | ML/Math | ✅ Complete |
 
 ## OSTI Publication Analysis
