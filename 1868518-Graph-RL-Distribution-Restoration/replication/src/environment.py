@@ -1,3 +1,9 @@
+# Suppress pandapower numba warnings before any pandapower import
+import os
+os.environ['NUMBA_DISABLE_JIT'] = '1'
+import warnings
+warnings.filterwarnings('ignore')
+
 """
 Distribution System Restoration Environment
 ============================================
@@ -90,10 +96,10 @@ class DistributionRestorationEnv:
         tie_pairs = [(7, 20), (8, 14), (11, 21), (17, 32), (24, 28)]
         for from_bus, to_bus in tie_pairs:
             if from_bus < len(net.bus) and to_bus < len(net.bus):
-                pp.create_switch(net, bus=from_bus, element=len(net.line), 
-                               et='l', closed=False, type='LBS')
-                pp.create_line(net, from_bus=from_bus, to_bus=to_bus,
+                new_line = pp.create_line(net, from_bus=from_bus, to_bus=to_bus,
                              length_km=1.0, std_type='NAYY 4x50 SE')
+                pp.create_switch(net, bus=from_bus, element=new_line, 
+                               et='l', closed=False, type='LBS')
         
         return net
     

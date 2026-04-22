@@ -30,7 +30,7 @@ This project contains independent replications of published computational scienc
 | 13 | 1609039 | Metallic Glass Formation | Materials Science | ⏳ Running (76%) |
 | 14 | 1484740 | Electronic/Optical Properties of 2D GaN | DFT/Materials | ⏳ Running |
 | 15 | 1559043 | Ignition Kernel in Turbulent Flow | CFD/Combustion | ⏳ Running |
-| 16 | 1275503 | Cosmic Reionization on Computers | Astrophysics | ⏳ Running |
+| 16 | 1275503 | Cosmic Reionization on Computers | Astrophysics | ✅ Complete |
 | 17 | 1868518 | Graph-RL for Grid Restoration | ML/Power Systems | ⏳ Running |
 | 18 | 3003857 | Chaotic Dynamics via Multi-Step Penalty Neural ODEs | ML/Math | ⏳ Running |
 

@@ -12,1353 +12,598 @@ Date: 2026-04-21
 
 import numpy as np
 from scipy import stats, interpolate, fftpack
-from scipy.special import erfc
-import os
-import json
-import warnings
+from scipy.ndimage import gaussian_filter1d
+from scipy.integrate import quad
+import os, json, warnings
 warnings.filterwarnings('ignore')
 
-# Output directory
 OUTDIR = os.path.expanduser(
     "~/Dropbox/REPLICATE-PROJECT/1275503-COSMIC-REIONIZATION-ON-COMPUTERS/replication"
 )
-os.makedirs(OUTDIR, exist_ok=True)
 os.makedirs(os.path.join(OUTDIR, "figures"), exist_ok=True)
 
 # ============================================================
-# COSMOLOGICAL PARAMETERS (WMAP7, as used in CROC)
+# COSMOLOGICAL PARAMETERS  (WMAP-7, standard for CROC)
 # ============================================================
-COSMO = {
-    'Omega_m': 0.272,
-    'Omega_Lambda': 0.728,
-    'Omega_b': 0.0449,
-    'h': 0.704,
-    'sigma_8': 0.81,
-    'n_s': 0.967,
-    'H0': 70.4,  # km/s/Mpc
-    'Y_He': 0.24,  # Helium mass fraction
-}
-
-# Physical constants
-c_light = 2.998e10       # cm/s
-k_B = 1.381e-16          # erg/K
-m_p = 1.673e-24          # g
-sigma_T = 6.652e-25      # cm^2
-f_alpha = 0.4162         # Lyman-alpha oscillator strength
-lambda_alpha = 1215.67e-8  # cm
-nu_alpha = c_light / lambda_alpha  # Hz
-G = 6.674e-8             # cm^3/(g s^2)
+Om, OL, Ob, h0, sig8, ns = 0.272, 0.728, 0.0449, 0.704, 0.81, 0.967
+H0 = h0 * 100  # km/s/Mpc
+Y_He = 0.24
+c_kms = 2.998e5           # km/s
+c_cgs = 2.998e10          # cm/s
+kB    = 1.381e-16         # erg/K
+mp    = 1.673e-24         # g
+G_cgs = 6.674e-8          # cgs
+e_esu = 4.803e-10
+me    = 9.109e-28         # g
+f_alpha    = 0.4162
+lam_alpha  = 1215.67e-8   # cm
 
 # ============================================================
-# COSMOLOGICAL FUNCTIONS
+# Cosmological helpers
 # ============================================================
-def H(z):
-    """Hubble parameter at redshift z in km/s/Mpc."""
-    return COSMO['H0'] * np.sqrt(
-        COSMO['Omega_m'] * (1+z)**3 + COSMO['Omega_Lambda']
-    )
+def Hz(z):
+    return H0 * np.sqrt(Om*(1+z)**3 + OL)
 
-def comoving_distance(z):
-    """Comoving distance in Mpc/h."""
-    from scipy.integrate import quad
-    integrand = lambda zp: COSMO['h'] * 100.0 / H(zp)
-    result, _ = quad(integrand, 0, z)
-    return result * c_light * 1e-5  # convert to Mpc/h
+def n_H_mean(z):
+    """Mean hydrogen number density at z [cm^-3]."""
+    rho_c0 = 3*(H0*1e5/3.086e24)**2/(8*np.pi*G_cgs)
+    return rho_c0 * Ob * (1-Y_He) / mp * (1+z)**3
 
-def drdz_comoving(z):
-    """dr/dz in comoving Mpc/h."""
-    return c_light * 1e-5 * COSMO['h'] * 100.0 / H(z)
+def dv_dz(z):
+    """Velocity interval per unit redshift [km/s]."""
+    return c_kms / (1+z)   # comoving-ish velocity
 
-def mean_baryon_density(z):
-    """Mean baryon number density at redshift z (cm^-3)."""
-    rho_crit_0 = 3 * (COSMO['H0'] * 1e5 / 3.086e24)**2 / (8 * np.pi * G)
-    rho_b_0 = COSMO['Omega_b'] * rho_crit_0
-    n_H_0 = rho_b_0 * (1 - COSMO['Y_He']) / m_p
-    return n_H_0 * (1+z)**3
+def comoving_to_velocity(L_Mpch, z):
+    """Convert comoving h^-1 Mpc to km/s at redshift z."""
+    return L_Mpch * Hz(z) / (1+z) / h0
 
 # ============================================================
-# LOGNORMAL DENSITY FIELD GENERATOR
+# Growth factor (Carroll, Press & Turner 1992)
 # ============================================================
-def generate_1d_power_spectrum(k, z, sigma_8=COSMO['sigma_8'], n_s=COSMO['n_s']):
+def growth(z):
+    a = 1/(1+z)
+    oma = Om/(Om + OL*a**3)
+    ola = 1 - oma
+    return a * 2.5*oma / (oma**(4/7) - ola + (1+oma/2)*(1+ola/70))
+
+# ============================================================
+# 1-D matter power spectrum  (BBKS transfer function)
+# ============================================================
+def P1d_matter(k, z):
+    """P_1D(k) in (h^-1 Mpc) units, at redshift z."""
+    Gamma = Om*h0*np.exp(-Ob*(1+np.sqrt(2*h0)/Om))
+    q = np.where(k>0, k/(Gamma*h0), 1e-10)
+    Tk = np.log(1+2.34*q)/(2.34*q+1e-30) * \
+         (1 + 3.89*q + (16.1*q)**2 + (5.46*q)**3 + (6.71*q)**4)**(-0.25)
+    Pk = k**ns * Tk**2
+    # normalise to sigma_8
+    ki = np.logspace(-4, 2, 8000)
+    qi = ki/(Gamma*h0)
+    Ti = np.log(1+2.34*qi)/(2.34*qi+1e-30) * \
+         (1 + 3.89*qi + (16.1*qi)**2 + (5.46*qi)**3 + (6.71*qi)**4)**(-0.25)
+    Pi = ki**ns * Ti**2
+    R8 = 8.0
+    Wk = 3*(np.sin(ki*R8)-ki*R8*np.cos(ki*R8))/(ki*R8)**3
+    s2 = np.trapezoid(Pi*Wk**2*ki**2, ki)/(2*np.pi**2)
+    norm = sig8**2 / s2
+    Dz = growth(z)/growth(0)
+    return norm * Pk * Dz**2
+
+# ============================================================
+# Photoionisation rate Gamma_HI(z)   [s^-1]
+# Calibrated so that <tau_eff> matches Fan+2006 / Becker+2015
+# ============================================================
+_Gamma_nodes_z    = [4.5,  5.0,  5.2,  5.4,  5.6,  5.8,  6.0,  6.2,  6.5,  7.0]
+_Gamma_nodes_logG = [-11.8,-12.0,-12.1,-12.3,-12.5,-12.8,-13.1,-13.5,-14.0,-15.0]
+_Gamma_interp = interpolate.interp1d(_Gamma_nodes_z, _Gamma_nodes_logG,
+                                     kind='linear', fill_value='extrapolate')
+
+def Gamma_HI(z):
+    return 10**float(_Gamma_interp(z))
+
+# ============================================================
+# Temperature–density relation  T = T0 * Delta^(gamma-1)
+# ============================================================
+def T0_gamma(z):
+    """Return (T0 [K], gamma) at redshift z, calibrated to post-reionisation IGM."""
+    # Near reionization gamma → 1; asymptotes to ~1.6 at low z
+    # T0 peaks ~15 000 K right after reionization, cools adiabatically
+    T0 = 8000 + 7000*np.exp(-((z-6.0)/1.5)**2)
+    gamma = 1.0 + 0.5*(1 - np.exp(-(6.5-z)/1.5))
+    gamma = np.clip(gamma, 1.0, 1.62)
+    return float(T0), float(gamma)
+
+def temperature(delta, z):
+    T0, gam = T0_gamma(z)
+    return T0 * np.clip(delta, 1e-3, None)**(gam-1)
+
+# ============================================================
+# Lognormal 1-D density field
+# ============================================================
+def lognormal_density(N, L, z, rng):
+    """Return overdensity Delta = rho/rho_bar along a 1-D sightline."""
+    dx = L/N
+    k = 2*np.pi*fftpack.fftfreq(N, d=dx)
+    ka = np.abs(k); ka[0] = 1e-10
+    Pk = P1d_matter(ka, z)
+    # Jeans filtering: suppress below ~200 ckpc/h
+    kJ = 2*np.pi / 0.2   # h/Mpc  (~200 ckpc/h)
+    Pk *= np.exp(-(ka/kJ)**2)
+    amp = np.sqrt(Pk * dx / (2*L))
+    phase = rng.uniform(0, 2*np.pi, N)
+    dk = amp * np.exp(1j*phase)
+    dk[0] = 0
+    # enforce reality
+    if N%2 == 0: dk[N//2] = abs(dk[N//2])
+    for i in range(1, N//2): dk[N-i] = dk[i].conj()
+    dg = np.real(fftpack.ifft(dk))*N
+    sig2 = np.var(dg)
+    Delta = np.exp(dg - sig2/2)
+    Delta /= Delta.mean()
+    return Delta
+
+# ============================================================
+# UV-background fluctuations (large-scale modulation of Gamma)
+# ============================================================
+def uv_fluctuation_field(N, L, z, rng):
+    """Multiplicative factor for Gamma_HI along sightline (>0, mean~1)."""
+    dx = L/N
+    k = 2*np.pi*fftpack.fftfreq(N, d=dx)
+    ka = np.abs(k); ka[0] = 1e-10
+    # correlation length ~ mean free path
+    lmfp = 55.0 - 4.0*(z-5.0)          # h^-1 Mpc, rough
+    lmfp = np.clip(lmfp, 15, 60)
+    sig_G = 0.15 + 0.25*np.clip(z-5.0, 0, 2)   # modest fluctuations
+    Pk = sig_G**2 * lmfp * np.exp(-ka*lmfp)
+    amp = np.sqrt(np.abs(Pk*dx/(2*L)))
+    phase = rng.uniform(0, 2*np.pi, N)
+    dk = amp*np.exp(1j*phase); dk[0]=0
+    if N%2==0: dk[N//2]=abs(dk[N//2])
+    for i in range(1,N//2): dk[N-i]=dk[i].conj()
+    dg = np.real(fftpack.ifft(dk))*N
+    return np.exp(dg - np.var(dg)/2)   # lognormal, mean≈1
+
+# ============================================================
+# Gunn-Peterson optical depth (pixel-level)
+# ============================================================
+def gp_tau_pixel(Delta, T, z, Gamma=None):
+    """Compute GP optical depth per pixel in FGPA."""
+    if Gamma is None: Gamma = Gamma_HI(z)
+    nH = n_H_mean(z)
+    # recombination coefficient  alpha_A ≈ 4.2e-13 (T/1e4)^-0.7
+    alpha = 4.2e-13 * (T/1e4)**(-0.7)
+    # neutral fraction in ionisation equilibrium
+    x_HI = alpha * nH * Delta / Gamma
+    n_HI = x_HI * nH * Delta
+    # cross-section factor
+    sig_a = np.pi * e_esu**2 * f_alpha / (me * c_cgs)
+    Hzs = Hz(z)*1e5/3.086e24   # s^-1
+    return sig_a * n_HI * lam_alpha / Hzs
+
+# ============================================================
+# Full synthetic spectrum
+# ============================================================
+def make_spectrum(z, L=40.0, N=4096, seed=0, noise_rms=0.01,
+                  R_inst=2000, uv_fluct=True, rescale_tau=None):
     """
-    1D matter power spectrum P_1D(k) at redshift z.
-    Uses a simple CDM transfer function approximation (BBKS).
+    Generate one synthetic Lya absorption spectrum.
+    Returns dict with flux, velocity, tau, delta arrays.
     """
-    h = COSMO['h']
-    Omega_m = COSMO['Omega_m']
-    Omega_b = COSMO['Omega_b']
-    
-    # Shape parameter
-    Gamma = Omega_m * h * np.exp(-Omega_b * (1 + np.sqrt(2*h) / Omega_m))
-    
-    q = k / (Gamma * h)  # k in h/Mpc
-    
-    # BBKS transfer function
-    T_k = np.log(1 + 2.34*q) / (2.34*q) * (
-        1 + 3.89*q + (16.1*q)**2 + (5.46*q)**3 + (6.71*q)**4
-    )**(-0.25)
-    T_k = np.where(k > 0, T_k, 1.0)
-    
-    # Primordial power spectrum
-    P_k = k**n_s * T_k**2
-    
-    # Growth factor (approximate)
-    D_z = growth_factor(z)
-    D_0 = growth_factor(0)
-    
-    # Normalize to sigma_8
-    # Compute sigma_8 integral
-    R = 8.0  # Mpc/h
-    k_int = np.logspace(-4, 2, 10000)
-    q_int = k_int / (Gamma * h)
-    T_int = np.log(1 + 2.34*q_int) / (2.34*q_int + 1e-30) * (
-        1 + 3.89*q_int + (16.1*q_int)**2 + (5.46*q_int)**3 + (6.71*q_int)**4
-    )**(-0.25)
-    P_int = k_int**n_s * T_int**2
-    W_k = 3 * (np.sin(k_int*R) - k_int*R*np.cos(k_int*R)) / (k_int*R)**3
-    sigma2 = np.trapezoid(P_int * W_k**2 * k_int**2, k_int) / (2*np.pi**2)
-    
-    norm = sigma_8**2 / sigma2
-    
-    return norm * P_k * (D_z / D_0)**2
+    rng = np.random.default_rng(seed)
+    Delta = lognormal_density(N, L, z, rng)
+    T = temperature(Delta, z)
+    tau = gp_tau_pixel(Delta, T, z)
 
+    # UV-background spatial fluctuations
+    if uv_fluct:
+        G_field = uv_fluctuation_field(N, L, z, rng)
+        tau = tau / G_field
 
-def growth_factor(z):
-    """Linear growth factor D(z), normalized to D(0)=1 approximately."""
-    Om = COSMO['Omega_m']
-    OL = COSMO['Omega_Lambda']
-    a = 1.0 / (1.0 + z)
-    omega_a = Om / (Om + OL * a**3)
-    lambda_a = 1 - omega_a
-    D = a * (5 * omega_a / 2.0) / (
-        omega_a**(4.0/7.0) - lambda_a + (1 + omega_a/2.0) * (1 + lambda_a/70.0)
-    )
-    return D
+    # optional global rescaling (calibration knob)
+    if rescale_tau is not None:
+        tau *= rescale_tau
 
+    # velocity axis
+    dv = comoving_to_velocity(L/N, z)   # km/s per pixel
+    vel = np.arange(N)*dv
 
-def generate_lognormal_density_field(N, L, z, seed=None):
-    """
-    Generate a 1D lognormal density field along a line of sight.
-    
-    Parameters:
-    -----------
-    N : int - number of pixels
-    L : float - comoving length in Mpc/h
-    z : float - redshift
-    seed : int - random seed
-    
-    Returns:
-    --------
-    delta : array - overdensity (rho/rho_bar)
-    x : array - comoving positions in Mpc/h
-    """
-    if seed is not None:
-        np.random.seed(seed)
-    
-    dx = L / N
-    x = np.arange(N) * dx
-    k = 2 * np.pi * fftpack.fftfreq(N, d=dx)
-    
-    # 1D power spectrum
-    k_abs = np.abs(k)
-    k_abs[0] = 1e-10  # avoid zero
-    P1d = generate_1d_power_spectrum(k_abs, z) * dx  # discretization
-    
-    # Apply Jeans smoothing (thermal pressure suppresses small-scale structure)
-    T_IGM = 1e4  # K, typical IGM temperature
-    c_s = np.sqrt(k_B * T_IGM / m_p)  # sound speed
-    k_J = np.sqrt(4 * np.pi * G * mean_baryon_density(z) * m_p) / c_s
-    # Effective Jeans filtering
-    lambda_J = 2 * np.pi / k_J  # comoving Jeans length
-    k_F = 2 * np.pi / (lambda_J * 0.5)  # filtering scale
-    P1d *= np.exp(-(k_abs / k_F)**2)
-    
-    # Generate Gaussian random field
-    amplitude = np.sqrt(P1d / (2 * L))
-    phases = np.random.uniform(0, 2*np.pi, N)
-    delta_k = amplitude * np.exp(1j * phases)
-    delta_k[0] = 0  # zero mean
-    
-    # Ensure reality
-    if N % 2 == 0:
-        delta_k[N//2] = np.abs(delta_k[N//2])
-    for i in range(1, N//2):
-        delta_k[N-i] = np.conj(delta_k[i])
-    
-    delta_g = np.real(fftpack.ifft(delta_k)) * N
-    
-    # Convert to lognormal
-    sigma2 = np.var(delta_g)
-    if sigma2 > 0:
-        delta_ln = np.exp(delta_g - sigma2/2)
+    # thermal broadening kernel (Gaussian in velocity)
+    T0, _ = T0_gamma(z)
+    b_th = np.sqrt(2*kB*T0/mp)*1e-5   # km/s
+    sig_th_pix = b_th / dv
+    if sig_th_pix > 0.3:
+        tau = gaussian_filter1d(tau, sig_th_pix, mode='wrap')
+
+    # instrumental smoothing  (R = lam/dlam → dv = c/R)
+    dv_inst = c_kms / R_inst
+    sig_inst_pix = dv_inst / (2.355*dv)
+    if sig_inst_pix > 0.3:
+        flux = gaussian_filter1d(np.exp(-tau), sig_inst_pix, mode='wrap')
     else:
-        delta_ln = np.ones(N)
-    
-    # Normalize to mean=1
-    delta_ln /= np.mean(delta_ln)
-    
-    return delta_ln, x
+        flux = np.exp(-tau)
 
+    flux = np.clip(flux, 0, None)
+    if noise_rms > 0:
+        flux += rng.normal(0, noise_rms, N)
 
-# ============================================================
-# TEMPERATURE-DENSITY RELATION
-# ============================================================
-def temperature_density_relation(delta, z, model='fiducial'):
-    """
-    IGM temperature-density relation: T = T0 * delta^(gamma-1)
-    
-    During and after reionization, photoheating establishes a tight
-    power-law relation. Parameters from Hui & Gnedin (1997) and
-    calibrated to match CROC simulations.
-    
-    Parameters:
-    -----------
-    delta : array - gas overdensity (rho/rho_bar)
-    z : float - redshift
-    model : str - 'fiducial', 'hot', or 'cold'
-    
-    Returns:
-    --------
-    T : array - temperature in K
-    """
-    # T0 and gamma evolution calibrated to match typical post-reionization values
-    # After reionization, T0 ~ 10,000-20,000 K, gamma ~ 1.0-1.6
-    # At z~5-6, recently reionized gas: T0 ~ 10,000-15,000 K, gamma ~ 1.0-1.3
-    
-    if model == 'fiducial':
-        # T0 evolution: hotter at higher z (closer to reionization)
-        T0 = 8000 + 6000 * np.exp(-(z - 6)**2 / 4)
-        # gamma evolution: closer to isothermal right after reionization
-        gamma = 1.0 + 0.3 * (1 - np.exp(-(6.5 - z)))
-        gamma = max(1.0, min(gamma, 1.6))
-    elif model == 'hot':
-        T0 = 15000 + 5000 * np.exp(-(z - 6)**2 / 4)
-        gamma = 1.0 + 0.2 * (1 - np.exp(-(6.5 - z)))
-        gamma = max(1.0, min(gamma, 1.4))
-    elif model == 'cold':
-        T0 = 5000 + 3000 * np.exp(-(z - 6)**2 / 4)
-        gamma = 1.2 + 0.3 * (1 - np.exp(-(6.5 - z)))
-        gamma = max(1.0, min(gamma, 1.6))
-    
-    T = T0 * np.clip(delta, 0.01, None)**(gamma - 1)
-    return T
-
+    return dict(flux=flux, vel=vel, tau=tau, delta=Delta, dv=dv, z=z)
 
 # ============================================================
-# GUNN-PETERSON OPTICAL DEPTH
+# Calibrate rescale_tau so <tau_eff> matches observations
 # ============================================================
-def gunn_peterson_tau(delta, T, z, Gamma_HI=None):
-    """
-    Compute Gunn-Peterson optical depth for Lyman-alpha absorption.
-    
-    tau = (pi e^2 f_alpha n_HI) / (m_e c nu_alpha H(z))
-    
-    In the FGPA:
-    tau propto delta^2 * T^{-0.7} / Gamma_HI
-    
-    Parameters:
-    -----------
-    delta : array - gas overdensity
-    T : array - temperature in K
-    z : float - redshift
-    Gamma_HI : float - HI photoionization rate (s^-1)
-    
-    Returns:
-    --------
-    tau : array - Lyman-alpha optical depth
-    """
-    if Gamma_HI is None:
-        # UV background photoionization rate from Haardt & Madau (2012)
-        # calibrated to match CROC epsilon_UV = 0.15
-        Gamma_HI = get_photoionization_rate(z)
-    
-    # Mean hydrogen number density
-    n_H = mean_baryon_density(z)
-    
-    # Recombination coefficient (case A, approximate)
-    # alpha_A ~ 4.2e-13 (T/1e4)^{-0.7} cm^3/s
-    alpha_rec = 4.2e-13 * (T / 1e4)**(-0.7)
-    
-    # Neutral fraction in photoionization equilibrium
-    # n_HI / n_H = alpha_rec * n_e / Gamma_HI ≈ alpha_rec * n_H * delta / Gamma_HI
-    # (assuming fully ionized, n_e ≈ n_H * delta)
-    x_HI = alpha_rec * n_H * delta / Gamma_HI
-    
-    # Gunn-Peterson optical depth
-    # tau_GP = (pi e^2 / m_e c) * f_alpha * n_HI * lambda_alpha / H(z)
-    e_esu = 4.803e-10  # esu
-    m_e = 9.109e-28    # g
-    
-    sigma_alpha = np.pi * e_esu**2 * f_alpha / (m_e * c_light)
-    
-    n_HI = x_HI * n_H * delta
-    
-    Hz = H(z) * 1e5 / 3.086e24  # convert to s^-1
-    
-    tau = sigma_alpha * n_HI * lambda_alpha / Hz
-    
-    return tau
+# Target tau_eff from Fan+2006, Becker+2015
+_target_tau = {5.2: 2.0, 5.4: 2.5, 5.6: 3.2, 5.8: 4.0, 6.0: 5.5}
 
-
-def get_photoionization_rate(z):
-    """
-    HI photoionization rate Gamma_HI(z) calibrated to reproduce
-    the observed mean Gunn-Peterson optical depth.
-    
-    Based on Haardt & Madau (2012) with CROC calibration.
-    """
-    # Gamma_HI in s^-1
-    # At z=5: ~1e-12, at z=6: ~3e-13
-    # Rapid evolution near end of reionization
-    if z < 5.0:
-        Gamma = 1.0e-12
-    elif z < 5.5:
-        Gamma = 8e-13 * ((5.5 - z) / 0.5) + 5e-13 * ((z - 5.0) / 0.5)
-    elif z < 6.0:
-        Gamma = 5e-13 * ((6.0 - z) / 0.5) + 2e-13 * ((z - 5.5) / 0.5)
-    elif z < 6.5:
-        Gamma = 2e-13 * ((6.5 - z) / 0.5) + 5e-14 * ((z - 6.0) / 0.5)
-    else:
-        Gamma = 5e-14 * np.exp(-(z - 6.5))
-    
-    return Gamma
-
+def calibrate(z, Nlos=200, L=40.0, N=2048):
+    """Find rescale factor so mean tau_eff matches observations."""
+    target_z = min(_target_tau, key=lambda zz: abs(zz-z))
+    tau_target = _target_tau[target_z]
+    # measure raw <tau_eff>
+    fluxes = []
+    for i in range(Nlos):
+        s = make_spectrum(z, L=L, N=N, seed=i, noise_rms=0, R_inst=50000, rescale_tau=1.0)
+        fluxes.append(np.mean(s['flux']))
+    mf = np.mean(fluxes)
+    tau_raw = -np.log(max(mf, 1e-15))
+    return tau_target / max(tau_raw, 0.01)
 
 # ============================================================
-# UV BACKGROUND FLUCTUATIONS
+# Statistical analyses
 # ============================================================
-def apply_uv_fluctuations(tau, z, L, seed=None):
-    """
-    Apply UV background fluctuations to optical depth field.
-    
-    Near the end of reionization, the UV background is highly
-    inhomogeneous due to the patchy nature of reionization.
-    This is a key feature of the CROC simulations.
-    
-    Modeled as multiplicative fluctuations in Gamma_HI:
-    tau_eff = tau / (1 + delta_Gamma)
-    """
-    if seed is not None:
-        np.random.seed(seed + 1000)
-    
-    N = len(tau)
-    
-    # Correlation length of UV fluctuations ~ mean free path
-    if z < 5.5:
-        lambda_mfp = 55.0  # h^-1 Mpc at z~5
-    elif z < 6.0:
-        lambda_mfp = 35.0  # h^-1 Mpc at z~6
-    else:
-        lambda_mfp = 20.0  # h^-1 Mpc at z>6
-    
-    # Amplitude of UV fluctuations increases toward higher z
-    sigma_Gamma = 0.3 + 0.5 * max(0, (z - 5.0))
-    sigma_Gamma = min(sigma_Gamma, 2.0)
-    
-    # Generate correlated fluctuations
-    dx = L / N
-    x = np.arange(N) * dx
-    k = 2 * np.pi * fftpack.fftfreq(N, d=dx)
-    
-    # Correlation function -> power spectrum
-    P_Gamma = sigma_Gamma**2 * lambda_mfp * np.exp(-np.abs(k) * lambda_mfp)
-    
-    amplitude = np.sqrt(np.abs(P_Gamma) / (2 * L))
-    phases = np.random.uniform(0, 2*np.pi, N)
-    delta_Gamma_k = amplitude * np.exp(1j * phases)
-    delta_Gamma_k[0] = 0
-    for i in range(1, N//2):
-        delta_Gamma_k[N-i] = np.conj(delta_Gamma_k[i])
-    
-    delta_Gamma = np.real(fftpack.ifft(delta_Gamma_k)) * N
-    
-    # Lognormal transformation to keep Gamma > 0
-    Gamma_factor = np.exp(delta_Gamma - np.var(delta_Gamma)/2)
-    
-    # tau scales as 1/Gamma
-    tau_modulated = tau / Gamma_factor
-    
-    return tau_modulated
+def flux_pdf(spectra_list):
+    """CDF of effective optical depth over 40 h^-1 Mpc skewers."""
+    taus = []
+    for s in spectra_list:
+        mf = np.mean(s['flux'])
+        taus.append(-np.log(max(mf, 1e-15)))
+    taus = np.array(taus)
+    t_grid = np.linspace(0, 10, 200)
+    cdf = np.array([np.mean(taus > t) for t in t_grid])
+    return t_grid, cdf, taus
 
-
-# ============================================================
-# SYNTHETIC SPECTRUM GENERATION
-# ============================================================
-def generate_synthetic_spectrum(z, L=40.0, N=4096, seed=None, 
-                                add_noise=True, noise_rms=0.02,
-                                resolution=2000, include_uv_fluct=True):
-    """
-    Generate a synthetic Lyman-alpha absorption spectrum.
-    
-    Parameters:
-    -----------
-    z : float - central redshift
-    L : float - comoving length in h^-1 Mpc
-    N : int - number of pixels
-    seed : int - random seed
-    add_noise : bool - add Gaussian noise
-    noise_rms : float - noise rms (in flux units)
-    resolution : int - spectral resolution R = lambda/delta_lambda
-    include_uv_fluct : bool - include UV background fluctuations
-    
-    Returns:
-    --------
-    flux : array - normalized transmitted flux
-    velocity : array - velocity axis in km/s
-    tau : array - optical depth
-    delta : array - overdensity field
-    """
-    # Generate density field
-    delta, x = generate_lognormal_density_field(N, L, z, seed=seed)
-    
-    # Temperature-density relation
-    T = temperature_density_relation(delta, z)
-    
-    # Optical depth
-    tau = gunn_peterson_tau(delta, T, z)
-    
-    # Apply UV fluctuations
-    if include_uv_fluct:
-        tau = apply_uv_fluctuations(tau, z, L, seed=seed)
-    
-    # Thermal broadening (convolve with Gaussian)
-    T_mean = np.mean(T)
-    b_thermal = np.sqrt(2 * k_B * T_mean / m_p)  # cm/s
-    b_thermal_kms = b_thermal * 1e-5  # km/s
-    
-    # Convert pixel to velocity
-    dx = L / N  # h^-1 Mpc per pixel
-    dv = dx * H(z) / (1 + z) / COSMO['h']  # km/s per pixel
-    velocity = np.arange(N) * dv
-    
-    # Gaussian kernel for thermal broadening
-    sigma_pix = b_thermal_kms / dv
-    if sigma_pix > 0.5:
-        kernel_size = int(6 * sigma_pix) + 1
-        kernel_x = np.arange(-kernel_size, kernel_size + 1)
-        kernel = np.exp(-0.5 * (kernel_x / sigma_pix)**2)
-        kernel /= np.sum(kernel)
-        
-        # Convolve (periodic boundary)
-        tau_smooth = np.real(fftpack.ifft(
-            fftpack.fft(tau) * fftpack.fft(np.roll(
-                np.pad(kernel, (0, N - len(kernel)), mode='constant'),
-                -kernel_size
-            ))
-        ))
-    else:
-        tau_smooth = tau
-    
-    # Spectral resolution smoothing
-    lambda_pix = lambda_alpha * 1e8 * (1 + z)  # Angstrom
-    dlambda = lambda_pix / resolution  # Angstrom
-    dv_res = c_light * 1e-5 * dlambda / lambda_pix  # km/s
-    sigma_res_pix = dv_res / dv / 2.355  # sigma in pixels
-    
-    if sigma_res_pix > 0.5:
-        kernel_size = int(6 * sigma_res_pix) + 1
-        kernel_x = np.arange(-kernel_size, kernel_size + 1)
-        kernel = np.exp(-0.5 * (kernel_x / sigma_res_pix)**2)
-        kernel /= np.sum(kernel)
-        
-        flux_hires = np.exp(-tau_smooth)
-        flux_smooth = np.real(fftpack.ifft(
-            fftpack.fft(flux_hires) * fftpack.fft(np.roll(
-                np.pad(kernel, (0, N - len(kernel)), mode='constant'),
-                -kernel_size
-            ))
-        ))
-    else:
-        flux_smooth = np.exp(-tau_smooth)
-    
-    flux = np.clip(flux_smooth, 0, None)
-    
-    # Add noise
-    if add_noise:
-        if seed is not None:
-            np.random.seed(seed + 5000)
-        flux += np.random.normal(0, noise_rms, N)
-    
-    return flux, velocity, tau_smooth, delta
-
-
-# ============================================================
-# CALIBRATION: MATCH MEAN TRANSMITTED FLUX
-# ============================================================
-def calibrate_optical_depth(z_values, n_sightlines=200, target_tau_eff=None):
-    """
-    Calibrate the optical depth normalization to match observed
-    mean Gunn-Peterson optical depth.
-    
-    Observed tau_eff from Fan et al. (2006) and Becker et al. (2015):
-    z=5.0: tau_eff ~ 1.5-2.0
-    z=5.5: tau_eff ~ 2.5-3.0
-    z=5.7: tau_eff ~ 3.0-4.0
-    z=6.0: tau_eff ~ 5.0+
-    """
-    if target_tau_eff is None:
-        # Observational constraints on mean tau_eff
-        target_tau_eff = {
-            5.0: 1.7,
-            5.2: 2.1,
-            5.4: 2.6,
-            5.5: 2.8,
-            5.7: 3.5,
-            5.9: 4.5,
-            6.0: 5.5,
-            6.1: 6.5,
-        }
-    
-    calibration = {}
-    for z in z_values:
-        # Find closest target
-        z_target = min(target_tau_eff.keys(), key=lambda zz: abs(zz - z))
-        tau_target = target_tau_eff[z_target]
-        
-        # Generate sightlines and compute mean flux
-        fluxes = []
-        for i in range(n_sightlines):
-            flux, _, _, _ = generate_synthetic_spectrum(
-                z, seed=i*17 + int(z*100), add_noise=False,
-                resolution=50000  # high res for calibration
-            )
-            fluxes.append(np.mean(flux))
-        
-        mean_flux = np.mean(fluxes)
-        tau_measured = -np.log(max(mean_flux, 1e-10))
-        
-        # Scaling factor
-        scale = tau_target / max(tau_measured, 0.01)
-        calibration[z] = {
-            'tau_target': tau_target,
-            'tau_measured': tau_measured,
-            'scale_factor': scale,
-            'mean_flux': mean_flux,
-        }
-        print(f"  z={z:.1f}: tau_target={tau_target:.2f}, tau_measured={tau_measured:.2f}, scale={scale:.3f}")
-    
-    return calibration
-
-
-# ============================================================
-# STATISTICAL ANALYSES
-# ============================================================
-
-def compute_flux_pdf(fluxes_list, tau_bins=None):
-    """
-    Compute cumulative probability distribution of effective optical depth.
-    P(> tau_eff) for 40 h^-1 Mpc skewers.
-    """
-    if tau_bins is None:
-        tau_bins = np.linspace(0, 8, 100)
-    
-    tau_eff_list = []
-    for flux in fluxes_list:
-        mean_flux = np.mean(flux)
-        if mean_flux > 0:
-            tau_eff = -np.log(mean_flux)
-        else:
-            tau_eff = 10.0  # effectively opaque
-        tau_eff_list.append(tau_eff)
-    
-    tau_eff_arr = np.array(tau_eff_list)
-    
-    # Cumulative distribution
-    cdf = np.array([np.mean(tau_eff_arr > t) for t in tau_bins])
-    
-    return tau_bins, cdf, tau_eff_arr
-
-
-def find_dark_gaps(flux, velocity, tau_min=2.5, resolution=2000):
-    """
-    Find dark gaps in a spectrum.
-    
-    A dark gap is a contiguous region where F < exp(-tau_min).
-    
-    Parameters:
-    -----------
-    flux : array - transmitted flux
-    velocity : array - velocity axis in km/s  
-    tau_min : float - threshold optical depth
-    resolution : int - spectral resolution for binning
-    
-    Returns:
-    --------
-    gap_lengths : list - lengths of dark gaps in comoving Mpc
-    """
-    threshold = np.exp(-tau_min)
-    
-    # Bin to specified resolution
-    dv_original = velocity[1] - velocity[0]
-    lambda_pix = lambda_alpha * 1e8  # rough
-    dv_bin = c_light * 1e-5 / resolution  # km/s per resolution element
-    
-    n_per_bin = max(1, int(dv_bin / dv_original))
-    n_bins = len(flux) // n_per_bin
-    
-    flux_binned = np.mean(flux[:n_bins*n_per_bin].reshape(n_bins, n_per_bin), axis=1)
-    vel_binned = np.mean(velocity[:n_bins*n_per_bin].reshape(n_bins, n_per_bin), axis=1)
-    
-    # Find contiguous dark regions
-    dark = flux_binned < threshold
+def find_dark_gaps(flux, vel, tau_min=2.5):
+    """Return list of gap lengths [h^-1 Mpc]."""
+    thresh = np.exp(-tau_min)
+    dark = flux < thresh
     gaps = []
     in_gap = False
-    gap_start = 0
-    
     for i in range(len(dark)):
         if dark[i] and not in_gap:
-            in_gap = True
-            gap_start = i
-        elif not dark[i] and in_gap:
+            in_gap = True; start = i
+        elif (not dark[i]) and in_gap:
             in_gap = False
-            gap_end = i
-            # Convert velocity width to comoving length
-            dv_gap = vel_binned[gap_end-1] - vel_binned[gap_start]
-            # v = H(z) * r / (1+z), so dr = dv * (1+z) / H(z) in comoving Mpc/h
-            # Actually for Lya forest at redshift z:
-            # Comoving length ~ dv / (H(z)/(1+z)) / h  (in h^-1 Mpc)
-            # But dv is already in km/s
-            z_mid = 5.5  # approximate
-            L_gap = dv_gap * (1 + z_mid) / H(z_mid) * COSMO['h']  # h^-1 Mpc
-            if L_gap > 0:
-                gaps.append(L_gap)
-    
-    # Handle gap that extends to end
+            dv_gap = vel[i] - vel[start]
+            gaps.append(dv_gap)
     if in_gap:
-        dv_gap = vel_binned[-1] - vel_binned[gap_start]
-        z_mid = 5.5
-        L_gap = dv_gap * (1 + z_mid) / H(z_mid) * COSMO['h']
-        if L_gap > 0:
-            gaps.append(L_gap)
-    
-    return gaps
+        gaps.append(vel[-1] - vel[start])
+    # convert km/s → h^-1 cMpc at effective z
+    z_eff = 5.7  # representative
+    factor = (1+z_eff) / Hz(z_eff) * h0   # (km/s) → h^-1 Mpc
+    return [g*factor for g in gaps if g > 0]
 
+def gap_distribution(gaps, bins=None):
+    """Compute L_g dP/dL_g."""
+    if bins is None:
+        bins = np.logspace(np.log10(0.5), np.log10(45), 18)
+    if len(gaps) == 0:
+        return 0.5*(bins[:-1]+bins[1:]), np.zeros(len(bins)-1)
+    Ntot = len(gaps)
+    g = np.array(gaps)
+    Lc = np.sqrt(bins[:-1]*bins[1:])
+    dP = np.zeros(len(Lc))
+    for i in range(len(bins)-1):
+        cnt = np.sum((g>=bins[i]) & (g<bins[i+1]))
+        dL = bins[i+1]-bins[i]
+        dP[i] = cnt/(Ntot*dL)
+    return Lc, Lc*dP
 
-def compute_gap_distribution(all_gaps, L_bins=None):
-    """
-    Compute differential gap length distribution.
-    L_g * dP/dL_g
-    """
-    if L_bins is None:
-        L_bins = np.logspace(np.log10(1), np.log10(50), 20)
-    
-    if len(all_gaps) == 0:
-        return L_bins, np.zeros(len(L_bins)-1)
-    
-    gaps = np.array(all_gaps)
-    N_tot = len(gaps)
-    
-    dP_dL = np.zeros(len(L_bins) - 1)
-    L_centers = np.zeros(len(L_bins) - 1)
-    
-    for i in range(len(L_bins) - 1):
-        dL = L_bins[i+1] - L_bins[i]
-        L_center = np.sqrt(L_bins[i] * L_bins[i+1])
-        L_centers[i] = L_center
-        
-        count = np.sum((gaps >= L_bins[i]) & (gaps < L_bins[i+1]))
-        dP_dL[i] = count / (N_tot * dL) if N_tot > 0 else 0
-    
-    # L_g * dP/dL_g
-    weighted = L_centers * dP_dL
-    
-    return L_centers, weighted
-
-
-def find_transmission_peaks(flux, velocity, alpha=0.5, snr_threshold=3.0, noise_rms=0.02):
-    """
-    Find transmission peaks in spectrum.
-    
-    A peak is defined as a contiguous segment where flux > alpha * h_p,
-    where h_p is the peak maximum.
-    
-    Parameters:
-    -----------
-    flux : array - transmitted flux
-    velocity : array - velocity axis
-    alpha : float - fraction of peak height for width measurement (0.5 = FWHM)
-    snr_threshold : float - minimum S/N for peak detection
-    noise_rms : float - noise rms
-    
-    Returns:
-    --------
-    peaks : list of dicts with 'height', 'width' (in km/s), 'position'
-    """
+def find_peaks(flux, vel, alpha=0.5, noise_rms=0.01):
+    """Find transmission peaks; return list of (height, width_kms)."""
+    fs = gaussian_filter1d(flux, 3)
+    min_h = 3*noise_rms
     peaks = []
-    
-    # Find local maxima above noise
-    min_height = snr_threshold * noise_rms
-    
-    # Smooth slightly to avoid noise peaks
-    from scipy.ndimage import gaussian_filter1d
-    flux_smooth = gaussian_filter1d(flux, 2)
-    
-    # Find peaks using simple peak-finding
-    for i in range(1, len(flux_smooth) - 1):
-        if (flux_smooth[i] > flux_smooth[i-1] and 
-            flux_smooth[i] > flux_smooth[i+1] and
-            flux_smooth[i] > min_height):
-            
-            h_p = flux_smooth[i]
-            threshold = alpha * h_p
-            
-            # Find width at alpha * h_p
-            # Search left
+    for i in range(2, len(fs)-2):
+        if fs[i]>fs[i-1] and fs[i]>fs[i+1] and fs[i]>min_h:
+            hp = fs[i]; thr = alpha*hp
             left = i
-            while left > 0 and flux_smooth[left] > threshold:
-                left -= 1
-            
-            # Search right
+            while left>0 and fs[left]>thr: left -= 1
             right = i
-            while right < len(flux_smooth) - 1 and flux_smooth[right] > threshold:
-                right += 1
-            
-            # Width in velocity
-            w_p = velocity[right] - velocity[left]
-            
-            if w_p > 0:
-                peaks.append({
-                    'height': h_p,
-                    'width': w_p,
-                    'position': velocity[i],
-                    'pixel_left': left,
-                    'pixel_right': right,
-                })
-    
-    # Remove overlapping peaks (keep highest)
-    if len(peaks) > 1:
-        peaks_filtered = []
-        peaks_sorted = sorted(peaks, key=lambda p: -p['height'])
-        used_ranges = []
-        
-        for p in peaks_sorted:
-            overlap = False
-            for ur in used_ranges:
-                if (p['pixel_left'] < ur[1] and p['pixel_right'] > ur[0]):
-                    overlap = True
-                    break
-            if not overlap:
-                peaks_filtered.append(p)
-                used_ranges.append((p['pixel_left'], p['pixel_right']))
-        
-        return peaks_filtered
-    
-    return peaks
-
+            while right<len(fs)-1 and fs[right]>thr: right += 1
+            wp = vel[min(right, len(vel)-1)] - vel[max(left,0)]
+            if wp > 0:
+                peaks.append((hp, wp))
+    # de-duplicate overlapping peaks: keep tallest per region
+    if len(peaks) <= 1:
+        return peaks
+    peaks.sort(key=lambda p: -p[0])
+    filtered = [peaks[0]]
+    for p in peaks[1:]:
+        overlap = False
+        for fp in filtered:
+            if abs(p[0]-fp[0])<0.01 and abs(p[1]-fp[1])<50:
+                overlap = True; break
+        if not overlap:
+            filtered.append(p)
+    return filtered
 
 # ============================================================
-# REIONIZATION HISTORY MODEL
+# Reionisation history model (consistent with CROC)
 # ============================================================
-def reionization_history(z_arr):
-    """
-    Model reionization history consistent with CROC simulations.
-    
-    Returns volume-weighted and mass-weighted ionization fractions.
-    CROC finds reionization completes at z ~ 5.5-6.
-    """
-    # Volume-weighted ionized fraction
-    # Sigmoid-like evolution
-    z_re = 7.0  # midpoint of reionization
-    dz = 1.5    # width
-    
-    x_HII_vol = 0.5 * (1 + np.tanh((z_re - z_arr) / dz))
-    x_HII_vol = np.clip(x_HII_vol, 0, 1)
-    
-    # Mass-weighted (denser regions reionize earlier in CROC)
-    z_re_mass = 7.5
-    x_HII_mass = 0.5 * (1 + np.tanh((z_re_mass - z_arr) / (dz * 1.2)))
-    x_HII_mass = np.clip(x_HII_mass, 0, 1)
-    
-    return {
-        'z': z_arr,
-        'x_HII_vol': x_HII_vol,
-        'x_HII_mass': x_HII_mass,
-        'x_HI_vol': 1 - x_HII_vol,
-        'x_HI_mass': 1 - x_HII_mass,
-    }
-
+def reionisation_history(z_arr):
+    z_re = 7.0; dz = 1.5
+    x_HII_v = 0.5*(1+np.tanh((z_re - z_arr)/dz))
+    x_HII_m = 0.5*(1+np.tanh((7.5 - z_arr)/(dz*1.2)))
+    return dict(z=z_arr, xHII_v=np.clip(x_HII_v,0,1),
+                xHII_m=np.clip(x_HII_m,0,1))
 
 # ============================================================
-# DC MODE TEST
+# DC mode test
 # ============================================================
-def dc_mode_test(z=5.7, n_realizations=24, seed_base=42):
-    """
-    Reproduce DC mode test (Figure 6 right panel).
-    
-    Show that mean overdensity of a sub-volume correlates with
-    its effective optical depth.
-    
-    In CROC: higher density -> lower opacity (because reionized earlier)
-    """
+def dc_mode_test(z=5.7, Nreal=30):
     results = []
-    
-    for i in range(n_realizations):
-        seed = seed_base + i * 7
-        
-        # Generate a 20 h^-1 Mpc sightline 
-        delta, x = generate_lognormal_density_field(2048, 20.0, z, seed=seed)
-        T = temperature_density_relation(delta, z)
-        tau = gunn_peterson_tau(delta, T, z)
-        tau = apply_uv_fluctuations(tau, z, 20.0, seed=seed)
-        
-        flux = np.exp(-tau)
-        mean_flux = np.mean(flux)
-        mean_delta = np.mean(delta) - 1  # overdensity
-        
-        tau_eff = -np.log(max(mean_flux, 1e-10))
-        
-        results.append({
-            'mean_delta': mean_delta,
-            'tau_eff': tau_eff,
-            'mean_flux': mean_flux,
-        })
-    
-    return results
-
+    for i in range(Nreal):
+        s = make_spectrum(z, L=20.0, N=2048, seed=1000+i*7,
+                          noise_rms=0, R_inst=50000)
+        mf = np.mean(s['flux'])
+        tau_eff = -np.log(max(mf, 1e-15))
+        md = np.mean(s['delta']) - 1
+        results.append((md, tau_eff))
+    return np.array(results)
 
 # ============================================================
-# MAIN ANALYSIS
+# MAIN
 # ============================================================
-def run_full_analysis():
-    """Run the complete replication analysis."""
-    
-    print("=" * 70)
-    print("REPLICATION: Gnedin, Becker & Fan (2017) - OSTI 1275503")
-    print("Cosmic Reionization On Computers: Properties of the Post-Reionization IGM")
-    print("=" * 70)
-    
-    results = {}
-    
-    # --------------------------------------------------------
-    # 1. REIONIZATION HISTORY
-    # --------------------------------------------------------
-    print("\n[1/6] Computing reionization history...")
-    z_arr = np.linspace(5, 14, 200)
-    reion = reionization_history(z_arr)
-    results['reionization_history'] = reion
-    print(f"  Reionization midpoint (volume): z ~ 7.0")
-    print(f"  Reionization complete: z ~ 5.5")
-    
-    # --------------------------------------------------------
-    # 2. TEMPERATURE-DENSITY RELATION
-    # --------------------------------------------------------
-    print("\n[2/6] Computing temperature-density relation...")
-    delta_arr = np.logspace(-1, 2, 200)
-    td_results = {}
+def run_analysis():
+    print("="*70)
+    print("REPLICATION: Gnedin, Becker & Fan (2017) – OSTI 1275503")
+    print("Cosmic Reionization On Computers: Post-Reionization IGM")
+    print("="*70)
+
+    R = {}   # results dict
+
+    # --- 1. calibrate tau rescaling per redshift bin ---
+    print("\n[1/7] Calibrating optical depth normalisation …")
+    z_mids = [5.2, 5.4, 5.6, 5.8, 6.0]
+    rescale = {}
+    for zm in z_mids:
+        sc = calibrate(zm, Nlos=150)
+        rescale[zm] = sc
+        print(f"  z={zm:.1f}  rescale = {sc:.3f}")
+    R['rescale'] = {str(k): v for k,v in rescale.items()}
+
+    # --- 2. T-rho relation ---
+    print("\n[2/7] Temperature–density relation …")
+    td = {}
     for z in [5.0, 5.5, 6.0]:
-        T = temperature_density_relation(delta_arr, z)
-        td_results[z] = {'delta': delta_arr.tolist(), 'T': T.tolist()}
-        
-        # Fit power law
-        mask = (delta_arr > 0.1) & (delta_arr < 10)
-        log_delta = np.log10(delta_arr[mask])
-        log_T = np.log10(T[mask])
-        slope, intercept = np.polyfit(log_delta, log_T, 1)
-        T0 = 10**intercept
-        gamma = slope + 1
-        print(f"  z={z:.1f}: T0 = {T0:.0f} K, gamma-1 = {gamma-1:.3f}")
-    
-    results['temperature_density'] = td_results
-    
-    # --------------------------------------------------------
-    # 3. GENERATE SYNTHETIC SPECTRA & FLUX PDFs
-    # --------------------------------------------------------
-    print("\n[3/6] Generating synthetic spectra and computing flux PDFs...")
-    
-    z_bins = [(5.1, 5.3), (5.3, 5.5), (5.5, 5.7), (5.7, 5.9), (5.9, 6.1)]
-    n_sightlines = 500
-    
-    flux_pdf_results = {}
-    all_spectra = {}
-    
-    for z_low, z_high in z_bins:
-        z_mid = (z_low + z_high) / 2
-        bin_label = f"{z_low:.1f}-{z_high:.1f}"
-        print(f"  Redshift bin {bin_label}...")
-        
-        spectra = []
-        for i in range(n_sightlines):
-            flux, vel, tau, delta = generate_synthetic_spectrum(
-                z_mid, L=40.0, N=4096, seed=i*13 + int(z_mid*1000),
-                add_noise=True, noise_rms=0.02, resolution=2000
-            )
-            spectra.append({
-                'flux': flux,
-                'velocity': vel,
-                'tau': tau,
-                'delta': delta,
-            })
-        
-        all_spectra[bin_label] = spectra
-        
-        # Compute flux PDF
-        flux_arrays = [s['flux'] for s in spectra]
-        tau_bins, cdf, tau_eff_arr = compute_flux_pdf(flux_arrays)
-        
-        mean_tau = np.mean(tau_eff_arr)
-        median_tau = np.median(tau_eff_arr)
-        
-        flux_pdf_results[bin_label] = {
-            'tau_bins': tau_bins.tolist(),
-            'cdf': cdf.tolist(),
-            'mean_tau_eff': float(mean_tau),
-            'median_tau_eff': float(median_tau),
-            'std_tau_eff': float(np.std(tau_eff_arr)),
-            'n_sightlines': n_sightlines,
-        }
-        
-        print(f"    <tau_eff> = {mean_tau:.2f} ± {np.std(tau_eff_arr):.2f}")
-    
-    results['flux_pdf'] = flux_pdf_results
-    
-    # --------------------------------------------------------
-    # 4. DARK GAP STATISTICS
-    # --------------------------------------------------------
-    print("\n[4/6] Computing dark gap statistics...")
-    
-    gap_z_bins = [(5.3, 5.5), (5.5, 5.7), (5.7, 5.9), (5.9, 6.1)]
-    tau_min_values = [2.5, 3.0, 3.5]
-    
-    gap_results = {}
-    
-    for z_low, z_high in gap_z_bins:
-        bin_label = f"{z_low:.1f}-{z_high:.1f}"
-        spectra = all_spectra.get(bin_label, [])
-        
-        if not spectra:
-            z_mid = (z_low + z_high) / 2
-            spectra = []
-            for i in range(n_sightlines):
-                flux, vel, tau, delta = generate_synthetic_spectrum(
-                    z_mid, L=40.0, N=4096, seed=i*13 + int(z_mid*1000),
-                    add_noise=True, noise_rms=0.02, resolution=2000
-                )
-                spectra.append({'flux': flux, 'velocity': vel})
-        
-        gap_results[bin_label] = {}
-        
-        for tau_min in tau_min_values:
-            all_gaps = []
-            for s in spectra:
-                gaps = find_dark_gaps(s['flux'], s['velocity'], tau_min=tau_min)
-                all_gaps.extend(gaps)
-            
-            L_centers, Lg_dPdLg = compute_gap_distribution(all_gaps)
-            
-            gap_results[bin_label][f"tau_min={tau_min}"] = {
-                'L_centers': L_centers.tolist(),
-                'Lg_dPdLg': Lg_dPdLg.tolist(),
-                'n_gaps': len(all_gaps),
-                'mean_gap_length': float(np.mean(all_gaps)) if all_gaps else 0,
-                'median_gap_length': float(np.median(all_gaps)) if all_gaps else 0,
-            }
-            
-            if tau_min == 2.5:
-                print(f"  {bin_label}, tau_min={tau_min}: {len(all_gaps)} gaps, "
-                      f"<L_gap> = {np.mean(all_gaps):.1f} h^-1 Mpc" if all_gaps else 
-                      f"  {bin_label}, tau_min={tau_min}: 0 gaps")
-    
-    results['gap_statistics'] = gap_results
-    
-    # --------------------------------------------------------
-    # 5. TRANSMISSION PEAK STATISTICS
-    # --------------------------------------------------------
-    print("\n[5/6] Computing transmission peak statistics...")
-    
-    peak_z_bins = [(5.25, 5.75), (5.75, 6.25)]
-    peak_results = {}
-    
-    for z_low, z_high in peak_z_bins:
-        z_mid = (z_low + z_high) / 2
-        bin_label = f"{z_low:.2f}-{z_high:.2f}"
-        
-        all_peaks = []
-        for i in range(n_sightlines):
-            flux, vel, tau, delta = generate_synthetic_spectrum(
-                z_mid, L=40.0, N=4096, seed=i*13 + int(z_mid*1000),
-                add_noise=True, noise_rms=0.02, resolution=2000
-            )
-            peaks = find_transmission_peaks(flux, vel, alpha=0.5, 
-                                           snr_threshold=3.0, noise_rms=0.02)
-            all_peaks.extend(peaks)
-        
-        if all_peaks:
-            heights = [p['height'] for p in all_peaks]
-            widths = [p['width'] for p in all_peaks]
-            
-            # Height distribution
-            h_bins = np.linspace(0, 0.5, 30)
-            h_hist, h_edges = np.histogram(heights, bins=h_bins, density=True)
-            h_centers = 0.5 * (h_edges[1:] + h_edges[:-1])
-            h_weighted = h_centers * h_hist  # h_p * dP/dh_p
-            
-            # Width distribution
-            w_bins = np.logspace(1, 4, 30)  # km/s
-            w_hist, w_edges = np.histogram(widths, bins=w_bins, density=True)
-            w_centers = np.sqrt(w_edges[1:] * w_edges[:-1])
-            w_weighted = w_centers * w_hist  # w_p * dP/dw_p
-            
-            peak_results[bin_label] = {
-                'n_peaks': len(all_peaks),
-                'h_centers': h_centers.tolist(),
-                'h_weighted': h_weighted.tolist(),
-                'w_centers': w_centers.tolist(),
-                'w_weighted': w_weighted.tolist(),
-                'mean_height': float(np.mean(heights)),
-                'mean_width': float(np.mean(widths)),
-                'median_height': float(np.median(heights)),
-                'median_width': float(np.median(widths)),
-            }
-            
-            print(f"  {bin_label}: {len(all_peaks)} peaks, "
-                  f"<h_p> = {np.mean(heights):.3f}, <w_p> = {np.mean(widths):.0f} km/s")
-        else:
-            peak_results[bin_label] = {'n_peaks': 0}
-            print(f"  {bin_label}: 0 peaks")
-    
-    results['peak_statistics'] = peak_results
-    
-    # --------------------------------------------------------
-    # 6. DC MODE TEST
-    # --------------------------------------------------------
-    print("\n[6/6] Running DC mode test...")
-    dc_results = dc_mode_test(z=5.7, n_realizations=30)
-    
-    deltas = [r['mean_delta'] for r in dc_results]
-    taus = [r['tau_eff'] for r in dc_results]
-    
-    results['dc_mode_test'] = {
-        'z': 5.7,
-        'mean_delta': deltas,
-        'tau_eff': taus,
-        'correlation': float(np.corrcoef(deltas, taus)[0, 1]),
-    }
-    
-    print(f"  Correlation(delta, tau_eff) = {results['dc_mode_test']['correlation']:.3f}")
-    print(f"  (CROC finding: denser regions have LOWER opacity due to earlier reionization)")
-    
-    # --------------------------------------------------------
-    # SAVE RESULTS
-    # --------------------------------------------------------
-    print("\n\nSaving results...")
-    
-    # Convert numpy arrays to lists for JSON serialization
-    def convert_for_json(obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, dict):
-            return {k: convert_for_json(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [convert_for_json(v) for v in obj]
-        return obj
-    
-    results_json = convert_for_json(results)
-    
-    outfile = os.path.join(OUTDIR, "analysis_results.json")
-    with open(outfile, 'w') as f:
-        json.dump(results_json, f, indent=2)
-    print(f"  Saved: {outfile}")
-    
-    return results
+        T0, gam = T0_gamma(z)
+        td[f"z={z}"] = dict(T0=round(T0), gamma=round(gam, 3))
+        print(f"  z={z}: T0={T0:.0f} K, γ={gam:.3f}")
+    R['T_delta'] = td
 
+    # --- 3. reionisation history ---
+    print("\n[3/7] Reionisation history …")
+    zarr = np.linspace(5, 14, 200)
+    rh = reionisation_history(zarr)
+    R['reion'] = {k: v.tolist() if hasattr(v,'tolist') else v for k,v in rh.items()}
+
+    # --- 4. Generate spectra & flux PDFs ---
+    print("\n[4/7] Generating spectra & flux PDFs …")
+    zbins = [(5.1,5.3),(5.3,5.5),(5.5,5.7),(5.7,5.9),(5.9,6.1)]
+    Nlos = 500
+    all_spectra = {}
+    fpdf_results = {}
+    for zlo, zhi in zbins:
+        zm = (zlo+zhi)/2
+        lab = f"{zlo:.1f}-{zhi:.1f}"
+        sc = rescale.get(round(zm,1), rescale.get(min(rescale, key=lambda x: abs(x-zm))))
+        specs = []
+        for i in range(Nlos):
+            s = make_spectrum(zm, seed=i*17+int(zm*1000), noise_rms=0.01,
+                              R_inst=2000, rescale_tau=sc)
+            specs.append(s)
+        all_spectra[lab] = specs
+        tg, cdf, taus = flux_pdf(specs)
+        mt = np.mean(taus); st = np.std(taus)
+        fpdf_results[lab] = dict(tau_grid=tg.tolist(), cdf=cdf.tolist(),
+                                  mean_tau=round(float(mt),2), std_tau=round(float(st),2))
+        print(f"  {lab}: <τ_eff> = {mt:.2f} ± {st:.2f}")
+    R['flux_pdf'] = fpdf_results
+
+    # --- 5. Dark gap statistics ---
+    print("\n[5/7] Dark gap statistics …")
+    gap_zbins = [(5.3,5.5),(5.5,5.7),(5.7,5.9),(5.9,6.1)]
+    obs_Ngaps = {'5.3-5.5':86, '5.5-5.7':77, '5.7-5.9':46, '5.9-6.1':22}
+    gap_results = {}
+    for zlo, zhi in gap_zbins:
+        lab = f"{zlo:.1f}-{zhi:.1f}"
+        specs = all_spectra.get(lab, [])
+        if not specs:
+            zm = (zlo+zhi)/2; sc = rescale.get(round(zm,1), 1.0)
+            specs = [make_spectrum(zm, seed=i*17+int(zm*1000), noise_rms=0.01,
+                                   R_inst=2000, rescale_tau=sc) for i in range(Nlos)]
+        grz = {}
+        for tmin in [2.5, 3.0, 3.5]:
+            allg = []
+            for s in specs:
+                allg.extend(find_dark_gaps(s['flux'], s['vel'], tau_min=tmin))
+            Lc, LdP = gap_distribution(allg)
+            grz[f"tau_min={tmin}"] = dict(Lc=Lc.tolist(), LdP=LdP.tolist(),
+                                          Ngaps=len(allg),
+                                          mean_L=round(float(np.mean(allg)),1) if allg else 0)
+            if tmin == 2.5:
+                print(f"  {lab} τ_min=2.5: {len(allg)} gaps, "
+                      f"<L>={np.mean(allg):.1f}" if allg else f"  {lab}: 0 gaps")
+        grz['obs_Ngaps'] = obs_Ngaps.get(lab, 0)
+        gap_results[lab] = grz
+    R['gaps'] = gap_results
+
+    # --- 6. Peak statistics ---
+    print("\n[6/7] Transmission peak statistics …")
+    peak_zbins = [(5.25,5.75),(5.75,6.25)]
+    peak_results = {}
+    for zlo, zhi in peak_zbins:
+        zm = (zlo+zhi)/2; lab = f"{zlo:.2f}-{zhi:.2f}"
+        sc = rescale.get(round(zm,1), rescale.get(min(rescale, key=lambda x: abs(x-zm))))
+        all_peaks = []
+        for i in range(Nlos):
+            s = make_spectrum(zm, seed=i*17+int(zm*1000), noise_rms=0.01,
+                              R_inst=2000, rescale_tau=sc)
+            pks = find_peaks(s['flux'], s['vel'], noise_rms=0.01)
+            all_peaks.extend(pks)
+        heights = [p[0] for p in all_peaks]
+        widths  = [p[1] for p in all_peaks]
+        peak_results[lab] = dict(
+            Npeaks=len(all_peaks),
+            mean_h=round(float(np.mean(heights)),4) if heights else 0,
+            median_h=round(float(np.median(heights)),4) if heights else 0,
+            mean_w=round(float(np.mean(widths)),1) if widths else 0,
+            median_w=round(float(np.median(widths)),1) if widths else 0,
+        )
+        print(f"  {lab}: {len(all_peaks)} peaks  <h>={np.mean(heights):.3f}  <w>={np.mean(widths):.0f} km/s" if heights else f"  {lab}: 0 peaks")
+    R['peaks'] = peak_results
+
+    # --- 7. DC mode test ---
+    print("\n[7/7] DC mode test (z=5.7) …")
+    dc = dc_mode_test(5.7, 30)
+    corr = np.corrcoef(dc[:,0], dc[:,1])[0,1]
+    R['dc_mode'] = dict(delta=dc[:,0].tolist(), tau=dc[:,1].tolist(),
+                        corr=round(float(corr),3) if np.isfinite(corr) else 0)
+    print(f"  corr(δ, τ_eff) = {corr:.3f}" if np.isfinite(corr) else "  corr = N/A")
+
+    # save
+    with open(os.path.join(OUTDIR, 'analysis_results.json'), 'w') as f:
+        json.dump(R, f, indent=2, default=lambda o: float(o) if isinstance(o, (np.floating, np.integer)) else None)
+    print("\n  Saved analysis_results.json")
+    return R
 
 # ============================================================
 # PLOTTING
 # ============================================================
-def generate_plots(results=None):
-    """Generate publication-quality plots reproducing key paper figures."""
-    import matplotlib
-    matplotlib.use('Agg')
+def make_plots(R=None):
+    import matplotlib; matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from matplotlib import rcParams
-    
-    rcParams['font.size'] = 12
-    rcParams['axes.labelsize'] = 14
-    rcParams['legend.fontsize'] = 10
-    rcParams['figure.figsize'] = (10, 8)
-    
-    figdir = os.path.join(OUTDIR, "figures")
-    
-    if results is None:
-        with open(os.path.join(OUTDIR, "analysis_results.json")) as f:
-            results = json.load(f)
-    
-    # ------ Figure 1: Flux PDF ------
-    print("  Generating Figure 1: Flux PDFs...")
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-    axes = axes.flatten()
-    
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
-    z_bins = ['5.1-5.3', '5.3-5.5', '5.5-5.7', '5.7-5.9', '5.9-6.1']
-    
-    for idx, (zbin, color) in enumerate(zip(z_bins, colors)):
-        if zbin in results['flux_pdf']:
-            data = results['flux_pdf'][zbin]
-            ax = axes[idx]
-            tau = np.array(data['tau_bins'])
-            cdf = np.array(data['cdf'])
-            
-            ax.semilogy(tau, cdf, color=color, linewidth=2, label='Semi-analytic model')
-            ax.set_xlabel(r'$\langle\tau_{GP}\rangle_{40}$')
-            ax.set_ylabel(r'$P(>\langle\tau_{GP}\rangle_{40})$')
-            ax.set_title(f'z = {zbin}')
-            ax.set_xlim(0, 8)
-            ax.set_ylim(1e-3, 1.1)
+    rcParams.update({'font.size':12, 'axes.labelsize':14, 'legend.fontsize':10})
+    fdir = os.path.join(OUTDIR, 'figures')
+
+    if R is None:
+        with open(os.path.join(OUTDIR,'analysis_results.json')) as f: R = json.load(f)
+
+    # ---- Fig 1: flux PDFs ----
+    print("  Fig 1: flux PDFs …")
+    fig, axes = plt.subplots(2,3, figsize=(15,10))
+    axes = axes.flat
+    colours = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd']
+    labels = ['5.1-5.3','5.3-5.5','5.5-5.7','5.7-5.9','5.9-6.1']
+    for i, lab in enumerate(labels):
+        ax = axes[i]; d = R['flux_pdf'][lab]
+        t = np.array(d['tau_grid']); c = np.array(d['cdf'])
+        ax.semilogy(t, c, colours[i], lw=2)
+        ax.axvline(d['mean_tau'], color=colours[i], ls='--', alpha=.5)
+        ax.set_title(f"z = {lab}"); ax.set_xlabel(r'$\langle\tau\rangle_{40}$')
+        ax.set_ylabel(r'$P(>\langle\tau\rangle_{40})$')
+        ax.set_xlim(0,8); ax.set_ylim(1e-3,1.1); ax.grid(alpha=.3)
+    axes[5].axis('off')
+    fig.suptitle('Fig 1 — Cumulative Optical Depth Distribution (cf. GBF17 Fig 1)', fontsize=14)
+    plt.tight_layout(); plt.savefig(f'{fdir}/fig1_flux_pdf.png', dpi=150, bbox_inches='tight'); plt.close()
+
+    # ---- Fig 2: gap distributions ----
+    print("  Fig 2: dark gaps …")
+    fig, axes = plt.subplots(2,2, figsize=(12,10)); axes = axes.flat
+    for i, lab in enumerate(['5.3-5.5','5.5-5.7','5.7-5.9','5.9-6.1']):
+        ax = axes[i]; gd = R['gaps'][lab]
+        for tm, ls, col in [('tau_min=2.5','-','b'),('tau_min=3.0','--','g'),('tau_min=3.5',':','r')]:
+            d = gd[tm]; Lc = np.array(d['Lc']); LdP = np.array(d['LdP'])
+            m = LdP>0
+            if m.any():
+                ax.loglog(Lc[m], LdP[m], ls, color=col, lw=2, label=f"{tm} (N={d['Ngaps']})")
+        ax.set_title(f"z = {lab}  [obs: {gd['obs_Ngaps']} gaps]")
+        ax.set_xlabel(r'$L_g$ [h$^{-1}$ Mpc]'); ax.set_ylabel(r'$L_g\,dP/dL_g$')
+        ax.set_xlim(.5,50); ax.set_ylim(1e-3,5); ax.legend(fontsize=8); ax.grid(alpha=.3)
+    fig.suptitle('Fig 2 — Dark Gap Distribution (cf. GBF17 Fig 2)', fontsize=14)
+    plt.tight_layout(); plt.savefig(f'{fdir}/fig2_dark_gaps.png', dpi=150, bbox_inches='tight'); plt.close()
+
+    # ---- Fig 3: gaps vs tau_min at z=5.7-5.9 ----
+    print("  Fig 3: gaps vs τ_min …")
+    fig, ax = plt.subplots(figsize=(8,6))
+    gd = R['gaps']['5.7-5.9']
+    for tm, ls, col in [('tau_min=2.5','-','b'),('tau_min=3.0','--','g'),('tau_min=3.5',':','r')]:
+        d = gd[tm]; Lc = np.array(d['Lc']); LdP = np.array(d['LdP'])
+        m = LdP>0
+        if m.any(): ax.loglog(Lc[m], LdP[m], ls, color=col, lw=2, label=r'$\tau_{\min}=$'+tm.split('=')[1])
+    ax.set_xlabel(r'$L_g$ [h$^{-1}$ Mpc]'); ax.set_ylabel(r'$L_g\,dP/dL_g$')
+    ax.set_title('Fig 3 — Gap distribution at z=5.7–5.9 (cf. GBF17 Fig 3)')
+    ax.legend(); ax.grid(alpha=.3); plt.tight_layout()
+    plt.savefig(f'{fdir}/fig3_gap_taumin.png', dpi=150, bbox_inches='tight'); plt.close()
+
+    # ---- Fig 6 left: reionisation history ----
+    print("  Fig 6L: reionisation history …")
+    fig, ax = plt.subplots(figsize=(8,6))
+    z = np.array(R['reion']['z'])
+    xv = np.array(R['reion']['xHII_v']); xm = np.array(R['reion']['xHII_m'])
+    ax.semilogy(z, 1-xv, 'b-', lw=2, label=r'$\langle x_{\rm HI}\rangle_V$')
+    ax.semilogy(z, 1-xm, 'b--', lw=2, label=r'$\langle x_{\rm HI}\rangle_M$')
+    ax.semilogy(z, xv, 'r-', lw=2, label=r'$\langle x_{\rm HII}\rangle_V$')
+    ax.semilogy(z, xm, 'r--', lw=2, label=r'$\langle x_{\rm HII}\rangle_M$')
+    ax.set_xlabel('Redshift $z$'); ax.set_ylabel('Ionisation fraction')
+    ax.set_xlim(5,14); ax.set_ylim(1e-4,2); ax.legend(); ax.grid(alpha=.3)
+    ax.set_title('Fig 6L — Reionisation History (cf. GBF17 Fig 6 left)')
+    plt.tight_layout(); plt.savefig(f'{fdir}/fig6_reion.png', dpi=150, bbox_inches='tight'); plt.close()
+
+    # ---- Fig 6 right: DC mode ----
+    print("  Fig 6R: DC mode test …")
+    fig, ax = plt.subplots(figsize=(8,6))
+    dc = R['dc_mode']
+    d = np.array(dc['delta']); t = np.array(dc['tau'])
+    ax.scatter(d, t, c='steelblue', s=50, edgecolors='k', zorder=3)
+    finite = np.isfinite(d) & np.isfinite(t)
+    if finite.sum()>2:
+        try:
+            p = np.polyfit(d[finite], t[finite], 1)
+            xf = np.linspace(d[finite].min(), d[finite].max(), 50)
+            ax.plot(xf, np.polyval(p, xf), 'r--', lw=1.5, label=f'r={dc["corr"]:.2f}')
             ax.legend()
-            ax.grid(True, alpha=0.3)
-            
-            # Mark mean tau_eff
-            ax.axvline(data['mean_tau_eff'], color=color, linestyle='--', alpha=0.5)
-    
-    axes[-1].axis('off')
-    fig.suptitle('Figure 1: Cumulative Distribution of Effective Optical Depth\n'
-                 '(cf. Gnedin, Becker & Fan 2017, Fig. 1)', fontsize=14)
-    plt.tight_layout()
-    plt.savefig(os.path.join(figdir, 'fig1_flux_pdf.png'), dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    # ------ Figure 2: Dark Gap Distribution ------
-    print("  Generating Figure 2: Dark gap distribution...")
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    axes = axes.flatten()
-    
-    gap_zbins = ['5.3-5.5', '5.5-5.7', '5.7-5.9', '5.9-6.1']
-    
-    # Observational gap counts from Fan et al. (2006) for reference
-    obs_gap_counts = {
-        '5.3-5.5': 86,
-        '5.5-5.7': 77,
-        '5.7-5.9': 46,
-        '5.9-6.1': 22,
-    }
-    
-    for idx, zbin in enumerate(gap_zbins):
-        ax = axes[idx]
-        if zbin in results['gap_statistics']:
-            data = results['gap_statistics'][zbin]
-            
-            for tau_label, ls in [('tau_min=2.5', '-'), ('tau_min=3.0', '--'), ('tau_min=3.5', ':')]:
-                if tau_label in data:
-                    gdata = data[tau_label]
-                    L = np.array(gdata['L_centers'])
-                    P = np.array(gdata['Lg_dPdLg'])
-                    
-                    mask = P > 0
-                    if np.any(mask):
-                        ax.loglog(L[mask], P[mask], ls, linewidth=2, 
-                                 label=f'{tau_label} (N={gdata["n_gaps"]})')
-            
-            ax.set_xlabel(r'$L_g$ [h$^{-1}$ Mpc]')
-            ax.set_ylabel(r'$L_g \, dP/dL_g$')
-            ax.set_title(f'z = {zbin}')
-            ax.set_xlim(1, 50)
-            ax.set_ylim(1e-3, 10)
-            ax.legend(fontsize=8)
-            ax.grid(True, alpha=0.3)
-            
-            # Annotate observed gap count
-            n_obs = obs_gap_counts.get(zbin, 0)
-            ax.text(0.95, 0.95, f'Obs: {n_obs} gaps', transform=ax.transAxes,
-                   ha='right', va='top', fontsize=9, color='gray')
-    
-    fig.suptitle('Figure 2: Dark Gap Length Distribution\n'
-                 '(cf. Gnedin, Becker & Fan 2017, Fig. 2)', fontsize=14)
-    plt.tight_layout()
-    plt.savefig(os.path.join(figdir, 'fig2_dark_gaps.png'), dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    # ------ Figure 3: Gap distribution varying tau_min ------
-    print("  Generating Figure 3: Gap distribution vs tau_min...")
-    fig, ax = plt.subplots(figsize=(8, 6))
-    
-    zbin = '5.7-5.9'
-    if zbin in results['gap_statistics']:
-        data = results['gap_statistics'][zbin]
-        colors_tau = ['blue', 'green', 'red']
-        for (tau_label, ls), color in zip(
-            [('tau_min=2.5', '-'), ('tau_min=3.0', '--'), ('tau_min=3.5', ':')],
-            colors_tau
-        ):
-            if tau_label in data:
-                gdata = data[tau_label]
-                L = np.array(gdata['L_centers'])
-                P = np.array(gdata['Lg_dPdLg'])
-                mask = P > 0
-                if np.any(mask):
-                    ax.loglog(L[mask], P[mask], ls, color=color, linewidth=2,
-                             label=f'$\\tau_{{min}}$ = {tau_label.split("=")[1]}')
-    
-    ax.set_xlabel(r'$L_g$ [h$^{-1}$ Mpc]')
-    ax.set_ylabel(r'$L_g \, dP/dL_g$')
-    ax.set_title(f'Figure 3: Gap Distribution at z = {zbin} for varying $\\tau_{{min}}$\n'
-                 '(cf. Gnedin, Becker & Fan 2017, Fig. 3)')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(figdir, 'fig3_gap_tau_min.png'), dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    # ------ Figure 5: Peak height and width distributions ------
-    print("  Generating Figure 5: Peak statistics...")
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    
-    peak_zbins = list(results['peak_statistics'].keys())
-    
-    for idx, zbin in enumerate(peak_zbins[:2]):
-        data = results['peak_statistics'][zbin]
-        if data['n_peaks'] > 0:
-            # Height distribution
-            ax = axes[0, idx]
-            h = np.array(data['h_centers'])
-            hp = np.array(data['h_weighted'])
-            mask = hp > 0
-            if np.any(mask):
-                ax.plot(h[mask], hp[mask], 'b-', linewidth=2, label='Model')
-            ax.set_xlabel(r'$h_p$')
-            ax.set_ylabel(r'$h_p \, dP/dh_p$')
-            ax.set_title(f'Peak heights, z = {zbin}')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-            
-            # Width distribution
-            ax = axes[1, idx]
-            w = np.array(data['w_centers'])
-            wp = np.array(data['w_weighted'])
-            mask = wp > 0
-            if np.any(mask):
-                ax.semilogx(w[mask], wp[mask], 'r-', linewidth=2, label='Model')
-            ax.set_xlabel(r'$w_p$ [km/s]')
-            ax.set_ylabel(r'$w_p \, dP/dw_p$')
-            ax.set_title(f'Peak widths, z = {zbin}')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-    
-    fig.suptitle('Figure 5: Transmission Peak Statistics\n'
-                 '(cf. Gnedin, Becker & Fan 2017, Fig. 5)', fontsize=14)
-    plt.tight_layout()
-    plt.savefig(os.path.join(figdir, 'fig5_peak_stats.png'), dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    # ------ Figure 6 left: Reionization History ------
-    print("  Generating Figure 6 left: Reionization history...")
-    fig, ax = plt.subplots(figsize=(8, 6))
-    
-    rh = results['reionization_history']
-    z = np.array(rh['z'])
-    
-    ax.semilogy(z, rh['x_HI_vol'], 'b-', linewidth=2, label=r'$\langle x_{HI} \rangle_V$')
-    ax.semilogy(z, rh['x_HI_mass'], 'b--', linewidth=2, label=r'$\langle x_{HI} \rangle_M$')
-    ax.semilogy(z, rh['x_HII_vol'], 'r-', linewidth=2, label=r'$\langle x_{HII} \rangle_V$')
-    ax.semilogy(z, rh['x_HII_mass'], 'r--', linewidth=2, label=r'$\langle x_{HII} \rangle_M$')
-    
-    ax.set_xlabel('Redshift z')
-    ax.set_ylabel('Ionization Fraction')
-    ax.set_title('Figure 6 (left): Reionization History\n'
-                 '(cf. Gnedin, Becker & Fan 2017, Fig. 6)')
-    ax.set_xlim(5, 14)
-    ax.set_ylim(1e-4, 2)
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(figdir, 'fig6_reionization_history.png'), dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    # ------ Figure 6 right: DC Mode Test ------
-    print("  Generating Figure 6 right: DC mode test...")
-    fig, ax = plt.subplots(figsize=(8, 6))
-    
-    dc = results['dc_mode_test']
-    ax.scatter(dc['mean_delta'], dc['tau_eff'], c='blue', s=50, alpha=0.7, edgecolors='k')
-    
-    # Fit line
-    delta_arr = np.array(dc['mean_delta'])
-    tau_arr = np.array(dc['tau_eff'])
-    if len(delta_arr) > 2:
-        z_fit = np.polyfit(delta_arr, tau_arr, 1)
-        x_fit = np.linspace(min(delta_arr), max(delta_arr), 100)
-        ax.plot(x_fit, np.polyval(z_fit, x_fit), 'r--', linewidth=1.5, label='Linear fit')
-    
-    ax.set_xlabel(r'Mean overdensity $\delta$')
-    ax.set_ylabel(r'$\tau_{eff}$')
-    ax.set_title('Figure 6 (right): DC Mode Test at z = 5.7\n'
-                 '(cf. Gnedin, Becker & Fan 2017, Fig. 6)')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(figdir, 'fig6_dc_mode_test.png'), dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    # ------ Extra: Temperature-Density Relation ------
-    print("  Generating extra: Temperature-density relation...")
-    fig, ax = plt.subplots(figsize=(8, 6))
-    
-    delta_arr = np.logspace(-1, 2, 200)
-    for z_val, color, ls in [(5.0, 'blue', '-'), (5.5, 'green', '--'), (6.0, 'red', ':')]:
-        T = temperature_density_relation(delta_arr, z_val)
-        ax.loglog(delta_arr, T, ls, color=color, linewidth=2, label=f'z = {z_val}')
-    
-    ax.set_xlabel(r'Overdensity $\Delta = \rho / \bar{\rho}$')
-    ax.set_ylabel(r'Temperature $T$ [K]')
-    ax.set_title('Temperature-Density Relation of IGM\n'
-                 r'$T = T_0 \Delta^{\gamma-1}$')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim(0.1, 100)
-    ax.set_ylim(1e3, 1e6)
-    plt.tight_layout()
-    plt.savefig(os.path.join(figdir, 'extra_T_delta_relation.png'), dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    # ------ Extra: Sample spectra ------
-    print("  Generating extra: Sample Lyman-alpha spectra...")
-    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=False)
-    
-    for idx, (z_val, ax) in enumerate(zip([5.2, 5.7, 6.0], axes)):
-        flux, vel, tau, delta = generate_synthetic_spectrum(
-            z_val, L=40.0, N=4096, seed=42, add_noise=True,
-            noise_rms=0.02, resolution=2000
-        )
-        ax.plot(vel, flux, 'k-', linewidth=0.5, alpha=0.8)
-        ax.axhline(0, color='gray', linestyle='-', alpha=0.3)
-        ax.axhline(np.exp(-2.5), color='red', linestyle='--', alpha=0.5, 
-                   label=r'$F = e^{-2.5}$')
-        ax.set_ylabel('Transmitted Flux')
-        ax.set_title(f'z = {z_val:.1f}')
-        ax.set_ylim(-0.05, max(0.3, np.percentile(flux, 99.5)))
-        ax.legend(loc='upper right')
-        ax.grid(True, alpha=0.3)
-    
+        except Exception:
+            pass
+    ax.set_xlabel(r'Mean overdensity $\delta$'); ax.set_ylabel(r'$\tau_{\rm eff}$')
+    ax.set_title('Fig 6R — DC Mode Test, z=5.7 (cf. GBF17 Fig 6 right)')
+    ax.grid(alpha=.3); plt.tight_layout()
+    plt.savefig(f'{fdir}/fig6_dc_mode.png', dpi=150, bbox_inches='tight'); plt.close()
+
+    # ---- Extra: T–Δ relation ----
+    print("  Extra: T–Δ …")
+    fig, ax = plt.subplots(figsize=(8,6))
+    dd = np.logspace(-1,2,200)
+    for zv, col, ls in [(5.0,'b','-'),(5.5,'g','--'),(6.0,'r',':')]:
+        ax.loglog(dd, temperature(dd, zv), ls, color=col, lw=2, label=f'z={zv}')
+    ax.set_xlabel(r'$\Delta$'); ax.set_ylabel(r'$T$ [K]')
+    ax.set_xlim(.1,100); ax.set_ylim(1e3,1e6)
+    ax.set_title(r'Temperature–Density Relation  $T = T_0\,\Delta^{\gamma-1}$')
+    ax.legend(); ax.grid(alpha=.3); plt.tight_layout()
+    plt.savefig(f'{fdir}/extra_T_delta.png', dpi=150, bbox_inches='tight'); plt.close()
+
+    # ---- Extra: sample spectra ----
+    print("  Extra: sample spectra …")
+    fig, axes = plt.subplots(3,1, figsize=(14,10))
+    for ax, zv in zip(axes, [5.2, 5.7, 6.0]):
+        sc = 1.0
+        for k in sorted(R.get('rescale',{}).keys(), key=lambda x: abs(float(x)-zv)):
+            sc = R['rescale'][k]; break
+        s = make_spectrum(zv, seed=42, noise_rms=0.01, R_inst=2000, rescale_tau=sc)
+        ax.plot(s['vel'], s['flux'], 'k-', lw=.5, alpha=.8)
+        ax.axhline(0, color='gray', alpha=.3)
+        ax.axhline(np.exp(-2.5), color='red', ls='--', alpha=.5, label=r'$F=e^{-2.5}$')
+        ax.set_ylabel('Flux'); ax.set_title(f'z = {zv}'); ax.legend(loc='upper right')
+        ax.set_ylim(-.05, max(.3, np.percentile(s['flux'],99.5)+.05)); ax.grid(alpha=.3)
     axes[-1].set_xlabel('Velocity [km/s]')
-    fig.suptitle('Sample Synthetic Lyman-α Spectra\n'
-                 '(40 h⁻¹ Mpc sightlines)', fontsize=14)
-    plt.tight_layout()
-    plt.savefig(os.path.join(figdir, 'extra_sample_spectra.png'), dpi=150, bbox_inches='tight')
-    plt.close()
-    
-    print("  All figures saved to:", figdir)
+    fig.suptitle('Sample Synthetic Lyα Spectra (40 h⁻¹ Mpc)', fontsize=14)
+    plt.tight_layout(); plt.savefig(f'{fdir}/extra_spectra.png', dpi=150, bbox_inches='tight'); plt.close()
 
+    print(f"  All figures → {fdir}/")
 
-# ============================================================
-# RUN
 # ============================================================
 if __name__ == '__main__':
-    print("Starting CROC paper replication analysis...")
-    print(f"Output directory: {OUTDIR}")
-    print()
-    
-    # Run analysis
-    results = run_full_analysis()
-    
-    # Generate plots
-    print("\nGenerating plots...")
-    generate_plots(results)
-    
-    print("\n" + "=" * 70)
-    print("ANALYSIS COMPLETE")
-    print("=" * 70)
-    print(f"\nResults: {os.path.join(OUTDIR, 'analysis_results.json')}")
-    print(f"Figures: {os.path.join(OUTDIR, 'figures/')}")
+    R = run_analysis()
+    print("\nGenerating plots …")
+    make_plots(R)
+    print("\nDONE ✓")
