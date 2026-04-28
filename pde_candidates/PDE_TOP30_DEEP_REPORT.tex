@@ -1,0 +1,1381 @@
+\documentclass[10pt,letterpaper]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{graphicx,xcolor,booktabs,enumitem,titlesec,longtable,hyperref}
+\usepackage{parskip}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+\titleformat{\section}{\large\bfseries\color{blue!50!black}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\setlist[itemize]{leftmargin=*,topsep=2pt,itemsep=1pt}
+\setlength{\parskip}{4pt}
+\title{\textbf{PDE Top-30 Deep-Read Report}\\\large Stage 5: LLM-refined reproducibility analysis}
+\author{OpenClaw / Ollie --- subagent for Rick}
+\date{2026-04-24}
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Executive Summary}
+
+This report distills Stage-5 deep reads of the top-30 PDE papers surviving Stage~4 signal-based scoring (all with \emph{full PDFs} in hand --- abstract-only papers excluded per Rick's instructions). For each paper, we read sections from the extracted text (methods / experiments / conclusions / tail-references), verified advertised GitHub/GitLab URLs by HTTP check, and produced a structured reproduction plan.
+
+\subsection*{Tier list}
+\begin{itemize}
+\item \textbf{Priority A (start today, 11 papers):} Public, live code + clear benchmarks. Low friction, high confidence of quantitative replication.
+\item \textbf{Priority B (plan next 1--2 weeks, 10 papers):} Partial code, heavy dependencies, or tractable reimplementation.
+\item \textbf{Priority C (aspirational / deferred, 9 papers):} No public code or theory-focused; reimplementation cost dominates.
+\end{itemize}
+
+\subsection*{Top-10 revised ranking (by reproduction feasibility $\times$ scientific impact)}
+\begin{enumerate}
+\item \textbf{FEM vs PINNs} (Grossmann 2023) --- A, feasibility 10/10, 4h
+\item \textbf{ML-accelerated CFD / jax-cfd} (Kochkov 2021) --- A, 9/10, 6h, 1123 cites
+\item \textbf{Dedalus} (Burns 2019) --- A, 9/10, 4h, 485 cites
+\item \textbf{Latent Spectral Models} (Wu 2023) --- A, 9/10, 6h
+\item \textbf{Walk on Stars} (Sawhney 2023) --- A, 9/10, 5h
+\item \textbf{Koopman Neural Operator} (Xiong 2023) --- A, 8/10, 6h
+\item \textbf{Laplace Neural Operator} (Cao 2023) --- A, 8/10, 4h
+\item \textbf{Fast Poisson spectral} (Fortunato/Townsend 2017) --- A, 8/10, 4h
+\item \textbf{Lightning Laplace/Helmholtz} (Gopal/Trefethen 2019) --- A, 9/10, 3h
+\item \textbf{Kinetic.jl} (Xiao 2021) --- A, 9/10, 4h
+\end{enumerate}
+
+\subsection*{Key changes from Stage-4 rank}
+\begin{itemize}
+\item \textbf{Promoted to A:} Kochkov (up from 6), Dedalus (up from 7) --- both have exemplary public code.
+\item \textbf{Demoted to C:} Kopanicakova 2023 (code ``upon acceptance'' only), Foucart 2022 (github.com/corbett5/amr\_dl returns 404), Bessemoulin 2022 / Blömker 2013 / Gantner 2020 (all theory-only, no code).
+\item \textbf{Off-topic flag:} Xu 2022 ``Poisson Flow Generative Models'' is a generative ML paper that uses the Poisson equation as an \emph{analogy}; it's not really a PDE-solver paper. Retained as B-tier since code is excellent but scope is a mismatch.
+\end{itemize}
+
+\subsection*{Domain / method distribution}
+\begin{itemize}
+\item ML-operator / PINN: 10 papers (\textasciitilde 33\%)
+\item Classical spectral / FD / FV: 8 papers
+\item Preconditioning / DD / multigrid: 4 papers
+\item Stochastic / kinetic / fractional: 5 papers
+\item Monte Carlo / grid-free: 2 papers
+\item AMR / adaptivity: 3 papers
+\end{itemize}
+
+A healthy 40--60 split between ML-forward and classical numerics, matching our strategic intent.
+
+\subsection*{Recommended ``start today'' set}
+Spawn Wave~1 immediately (5 parallel subagents, $\sim$8h wallclock): FEM-vs-PINNs, Walk on Stars, Fast Poisson Spectral, Lightning Laplace, Kinetic.jl. See \texttt{top30\_batch\_schedule.md} for full 15-paper waves.
+
+\subsection*{Cross-check against existing replications}
+A text search across \texttt{\textasciitilde/Dropbox/REPLICATE-PROJECT/} found \emph{no} matching titles or DOIs among the existing $\sim 35$ subdirectories (which cover cosmology, materials, biology, NLP, etc.). All 30 PDE candidates are novel to our replication portfolio.
+
+\newpage
+\section{Per-paper deep reads}
+
+\subsection*{\#1. Can physics-informed neural networks beat the finite element method?}
+\textbf{Authors}: T. G. Grossmann;U. J. Komorowska;J. Latz;C. Schönlieb \textbullet{} \textbf{Year}: 2023 \textbullet{} \textbf{Cites}: 188 \textbullet{} \textbf{DOI}: \texttt{10.1093/imamat/hxae011} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 19/20 \textbullet{} \textbf{Topic}: ML-operator/PINN
+
+\textbf{Problem.} Systematically compare PINNs versus the finite element method (FEM) for solving a suite of linear and nonlinear PDEs. The question: can PINNs actually beat FEM in accuracy and runtime?
+
+\textbf{Approach.} Solve 1D/2D/3D Poisson, 1D Allen-Cahn, and 1D/2D semilinear Schrödinger with both standard Galerkin FEM (FEniCS) and PINNs (PyTorch). Sweep PINN architectures (layers, nodes) and FEM mesh sizes. Measure relative error on independent test grid, solution-time and evaluation-time.
+
+\textbf{Key results.}
+\begin{itemize}
+\item For all PDEs tested, FEM achieved same-or-better accuracy at 2–3 orders of magnitude lower cost than PINNs.
+\item PINNs were only competitive on pointwise evaluation cost after training, not on total time to solution.
+\item Larger PINN networks did not yield monotonic accuracy gains; width mattered more than depth.
+\end{itemize}
+
+\textbf{Main contribution.} Carefully-controlled empirical disproof of the common claim that PINNs outperform FEM for standard elliptic/parabolic PDEs.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/TamaraGrossmann/FEM-vs-PINNs (HTTP 200)}. Language: python (FEniCS + PyTorch). Completeness: 9/10. Data: Analytical/manufactured solutions, generated in-repo.
+
+\textbf{Benchmarks.} Poisson 1D/2D/3D, Allen-Cahn 1D, Schrödinger 1D/2D (semilinear)
+
+\textbf{Reproduction plan} (feasibility 10/10, \textasciitilde4h, compute: 1 GPU):
+\begin{itemize}
+\item 1. Clone github.com/TamaraGrossmann/FEM-vs-PINNs and install FEniCS + PyTorch.
+\item 2. Run 1D Poisson FEM (their fem\_poisson1d.py) across mesh refinements; record L2 relative errors vs DOF.
+\item 3. Train PINNs at specified architectures on 1D Poisson; record train time and L2 error.
+\item 4. Reproduce Pareto plot (Fig 2): FEM dominates PINN in time-accuracy tradeoff.
+\item 5. Repeat for Allen-Cahn 1D and confirm qualitative conclusion.
+\item 6. Optional: extend with 3D Poisson to reproduce the one regime (eval time) where PINN wins.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative match within \~{}10\% on relative-error tables; qualitative reproduction of all Pareto figures.. \textbf{Known risks:} PINN training is stochastic; averaged over several seeds for stable numbers.; FEniCS version drift (legacy vs FEniCSx)..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Does the PINN-vs-FEM gap close at higher spatial dimensions (d≥5)?
+\item How do adaptive activation functions or Fourier feature embeddings change the Pareto?
+\item Is the conclusion robust under parametric PDE families where FEM must be resolved many times (surrogate regime)?
+\item What happens under irregular geometry where FEM meshing is itself expensive?
+\item Does causal PINN training alter the Allen-Cahn verdict?
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Perfect match to our needs: open code, FEniCS+PyTorch only, direct quantitative comparison. Keep top rank.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#2. Solving High-Dimensional PDEs with Latent Spectral Models}
+\textbf{Authors}: Haixu Wu;Tengge Hu;Huakun Luo;Jianmin Wang;Mingsheng Long \textbullet{} \textbf{Year}: 2023 \textbullet{} \textbf{Cites}: 95 \textbullet{} \textbf{DOI}: \texttt{10.48550/arXiv.2301.12664} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 18/20 \textbullet{} \textbf{Topic}: ML-operator/PINN
+
+\textbf{Problem.} Neural operators work in coordinate space and suffer curse-of-dimensionality for high-dim PDEs. Learn PDEs in a compact latent spectral space.
+
+\textbf{Approach.} Latent Spectral Models (LSM) use hierarchical projection to a low-dim latent, then a 'neural spectral block' that approximates the operator with trainable basis functions. Theoretical guarantees via spectral approximation theory.
+
+\textbf{Key results.}
+\begin{itemize}
+\item SOTA on 7 solid+fluid benchmarks (Elasticity, Plasticity, Navier-Stokes, Darcy, Airfoil, Pipe).
+\item Stable performance across resolutions 32x32 → 1024x1024 on Darcy.
+\item Consistent outperformance of FNO, U-FNO, WMT, Galerkin-Transformer baselines.
+\end{itemize}
+
+\textbf{Main contribution.} Operator learning in a learned latent spectral basis—decoupling representation from output grid.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/thuml/Latent-Spectral-Models (HTTP 200; also in thuml/Neural-Solver-Library)}. Language: python (PyTorch). Completeness: 10/10. Data: PDEBench / Takamoto benchmarks; dataset download links in repo README.
+
+\textbf{Benchmarks.} Elasticity-P, Elasticity-G, Plasticity, Navier-Stokes (2D), Darcy, Airfoil, Pipe
+
+\textbf{Reproduction plan} (feasibility 9/10, \textasciitilde6h, compute: 1 GPU (A100 ideal, any modern GPU sufficient)):
+\begin{itemize}
+\item 1. Clone thuml/Latent-Spectral-Models; install PyTorch per requirements.txt.
+\item 2. Download Darcy 2D dataset (small benchmark, fast iteration).
+\item 3. Train LSM-S on Darcy (should take \~{}1–2h on a single GPU); reproduce relative L2 near 0.0065 (paper value).
+\item 4. Train FNO baseline from the same repo on same data; compare to LSM.
+\item 5. Run resolution test across 64/128/256 on Darcy to replicate resolution-stability figure.
+\item 6. (Optional) Navier-Stokes 2D benchmark for a harder check.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative match within 5–10\% on Darcy \& NS-2D L2 errors.. \textbf{Known risks:} GPU memory at 1024x1024 resolution.; Dataset download bandwidth (10+ GB)..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item How does LSM perform on 3D turbulence datasets (Johns Hopkins Turbulence Database)?
+\item Can the latent-spectral basis be made physics-aware (e.g., divergence-free)?
+\item What is the sample-efficiency curve vs. FNO?
+\item Does LSM generalize zero-shot across parametric PDE families?
+\item Can the approach be combined with multigrid for hybrid solver acceleration?
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Well-supported repo and benchmark datasets; strong baselines. Prime candidate.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#3. Koopman neural operator as a mesh-free solver of non-linear partial differential equations}
+\textbf{Authors}: Wei Xiong;Xiaomeng Huang;Ziyang Zhang;Ruixuan Deng;Pei Sun;Yang Tian \textbullet{} \textbf{Year}: 2023 \textbullet{} \textbf{Cites}: 74 \textbullet{} \textbf{DOI}: \texttt{10.48550/arXiv.2301.10022} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 17/20 \textbullet{} \textbf{Topic}: ML-operator/PINN
+
+\textbf{Problem.} Existing neural operators become inaccurate and less interpretable for long-term/non-linear PDE evolution.
+
+\textbf{Approach.} Koopman Neural Operator (KNO) formulates the PDE solution as a non-linear dynamical system and approximates its Koopman operator (infinite-dim linear) acting on flow embeddings. Uses an FNO-like lifting but with a Koopman block.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Outperforms FNO on mesh-independent Burgers experiments and long-term prediction on 5 PDEs incl. 2D Navier-Stokes and Rayleigh-Bénard.
+\item Zero-shot prediction across untrained discretization granularities.
+\item Applied to real systems: global water vapor, western boundary currents.
+\end{itemize}
+
+\textbf{Main contribution.} First Koopman-theoretic neural operator with demonstrated long-horizon stability on turbulent PDEs.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/Koopman-Laboratory/KoopmanLab (HTTP 200)}. Language: python (PyTorch). Completeness: 9/10. Data: Benchmark datasets reused from FNO paper (Burgers, NS-2D) + Copernicus ocean data.
+
+\textbf{Benchmarks.} Bateman-Burgers 1D, 2D Navier-Stokes, Rayleigh-Bénard, Shallow Water, Diffusion-reaction
+
+\textbf{Reproduction plan} (feasibility 8/10, \textasciitilde6h, compute: 1 GPU (A100 40GB used by authors)):
+\begin{itemize}
+\item 1. Clone Koopman-Laboratory/KoopmanLab; install via pip install -e .
+\item 2. Download FNO's Burgers dataset; run python train\_burgers.py with KNO config.
+\item 3. Verify reported relative L2 \~{} reported value (check paper Table 2).
+\item 4. Train FNO baseline for head-to-head.
+\item 5. Extend to NS-2D long-term (100+ steps) and check stability.
+\item 6. Zero-shot: train at res=32, evaluate at res=64/128.
+\end{itemize}
+\textbf{Expected fidelity:} Within 10-15\% on L2; qualitative reproduction of Koopman-eigenvalue analysis.. \textbf{Known risks:} Long-term rollout stability is finicky.; Possible version drift in KoopmanLab package..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item How does KNO compare against POD-DL-ROM on same benchmarks?
+\item Is the learned Koopman spectrum interpretable / linked to physical modes?
+\item Can KNO handle boundary changes (mesh-free in a stronger sense)?
+\item Performance on 3D turbulence?
+\item Hybrid KNO + classical time-integrator for stability guarantees?
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Strong code, clear benchmarks. Slightly trickier than LSM due to long-rollout stability.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#4. Lifex-cfd: an Open-source Computational Fluid Dynamics Solver for Cardiovascular Applications}
+\textbf{Authors}: P. C. Africa;Ivan Fumagalli;M. Bucelli;Alberto Zingaro;L. Dede’;A. Quarteroni \textbullet{} \textbf{Year}: 2023 \textbullet{} \textbf{Cites}: 61 \textbullet{} \textbf{DOI}: \texttt{10.48550/arXiv.2304.12032} \\
+\textbf{Priority}: B \textbullet{} \textbf{Revised score}: 16/20 \textbullet{} \textbf{Topic}: Fluid/NavierStokes
+
+\textbf{Problem.} Open-source CFD solver specialized for cardiovascular simulations (blood flow in moving cardiac chambers + valves).
+
+\textbf{Approach.} Finite-element incompressible Navier-Stokes solver on deal.II/PETSc. ALE for moving domains, VMS-LES for transitional turbulence, RIIS for immersed valves. SUPG-PSPG stabilization.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Verified ideal convergence orders on Beltrami benchmark.
+\item Near-ideal parallel speedup on Taylor-Green vortex.
+\item Patient-specific cases for idealized and real vasculature.
+\end{itemize}
+
+\textbf{Main contribution.} Production-quality, LGPL-v3 cardiovascular CFD with careful verification and parallel scalability.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://gitlab.com/lifex/lifex-cfd (HTTP 200) + Zenodo 10.5281/zenodo.7852088 for input data}. Language: C++ (deal.II, PETSc, Trilinos). Completeness: 10/10. Data: Zenodo 7852088 - parameter files, meshes, auxiliary data.
+
+\textbf{Benchmarks.} Beltrami flow, Taylor-Green vortex, patient-specific aorta/LV
+
+\textbf{Reproduction plan} (feasibility 7/10, \textasciitilde10h, compute: multi-CPU node; HPC for full cardiac test):
+\begin{itemize}
+\item 1. Build deal.II with MPI/PETSc/Trilinos; build lifex core, then lifex-cfd.
+\item 2. Download Zenodo 7852088; run Beltrami benchmark → verify convergence table.
+\item 3. Run Taylor-Green vortex on 32-core node; verify expected kinetic-energy dissipation curve.
+\item 4. (Optional) Run one patient-specific idealized aorta case from the provided data.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative match on convergence rates and kinetic-energy dissipation curves.. \textbf{Known risks:} deal.II build is non-trivial (1–3h compile).; Full cardiac cases may require HPC queue time..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Can the lifex-cfd Navier-Stokes solver be coupled with Windkessel BCs from the literature?
+\item Performance vs. OpenFOAM on the same Beltrami benchmark?
+\item Can ML turbulence models replace VMS-LES?
+\item GPU port via deal.II's matrix-free infrastructure?
+\item Verification on pulsatile non-Newtonian rheology.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Excellent reproducibility but heavy dependency stack (deal.II + Trilinos) inflates setup time. Great if we want a cardiovascular reference; not a 'start today' pick.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#5. Enhancing training of physics-informed neural networks using domain-decomposition based preconditioning strategies}
+\textbf{Authors}: Alena Kopanicáková;Hardik Kothari;G. Karniadakis;Rolf Krause \textbullet{} \textbf{Year}: 2023 \textbullet{} \textbf{Cites}: 28 \textbullet{} \textbf{DOI}: \texttt{10.1137/23M1583375} \\
+\textbf{Priority}: C \textbullet{} \textbf{Revised score}: 13/20 \textbullet{} \textbf{Topic}: ML-operator/PINN
+
+\textbf{Problem.} PINN training often converges slowly with L-BFGS; preconditioning is underexplored.
+
+\textbf{Approach.} Introduce Schwarz-domain-decomposition-based nonlinear preconditioners (additive SPQN and multiplicative MPQN) that decompose network parameters layer-wise and apply L-BFGS within blocks.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Significant convergence acceleration vs vanilla L-BFGS/Adam on several PINN benchmarks.
+\item Additive preconditioner is embarrassingly parallel → new model-parallelism route for PINNs.
+\item Lower achieved relative error at fixed training budget.
+\end{itemize}
+
+\textbf{Main contribution.} Brings classical domain-decomposition preconditioning into nonlinear optimization for PINNs.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{Promised upon acceptance (Bitbucket/alena\_ referenced in text); SIAM J. Sci. Comput. 2023 version should have code appendix}. Language: python (PyTorch per conventions of Karniadakis group). Completeness: 4/10. Data: Manufactured solutions for Burgers, Allen-Cahn, advection tests.
+
+\textbf{Benchmarks.} Burgers, Allen-Cahn, advection-diffusion
+
+\textbf{Reproduction plan} (feasibility 6/10, \textasciitilde8h, compute: 1 GPU):
+\begin{itemize}
+\item 1. Implement layer-wise Schwarz block L-BFGS from scratch guided by Algorithm 1 in paper.
+\item 2. Reproduce Burgers PINN baseline with Adam and plain L-BFGS.
+\item 3. Add additive SPQN wrapper; verify convergence curves reported in Fig 5.
+\item 4. Measure final Erel and compare to paper Tables 3-5.
+\end{itemize}
+\textbf{Expected fidelity:} Qualitative reproduction of convergence acceleration; numerical match within 20\% given stochasticity.. \textbf{Known risks:} No public code yet → full re-implementation required.; L-BFGS line search finicky in Schwarz setting..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Does the preconditioner help for stiff PINN losses (low-viscosity Burgers)?
+\item How does it compose with causal/self-adaptive PINN weighting?
+\item Scaling to 100-layer PINNs?
+\item Comparison to natural-gradient PINN variants?
+\item Theoretical convergence rate of the nonlinear Schwarz iteration.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Strong idea, but code not public at time of writing — demotes from A to C until repo is released or full reimplementation budget allotted.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#6. Machine learning–accelerated computational fluid dynamics}
+\textbf{Authors}: Dmitrii Kochkov;Jamie A. Smith;Ayya Alieva;Qing Wang;M. Brenner;Stephan Hoyer \textbullet{} \textbf{Year}: 2021 \textbullet{} \textbf{Cites}: 1123 \textbullet{} \textbf{DOI}: \texttt{10.1073/pnas.2101784118} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 19/20 \textbullet{} \textbf{Topic}: ML-operator/PINN
+
+\textbf{Problem.} DNS of Navier-Stokes is limited by smallest-scale resolution; LES relies on hand-tuned closures.
+
+\textbf{Approach.} End-to-end differentiable CFD where a CNN corrects the convective flux on a coarse grid; trained against high-res DNS of 2D Kolmogorov flow with model-consistent rollouts (32 steps).
+
+\textbf{Key results.}
+\begin{itemize}
+\item Matches DNS accuracy at 8–10× coarser grid → \~{}40–80× compute speedup.
+\item Stable long-horizon rollouts (tens of thousands of time steps).
+\item Outperforms LES closures at equivalent cost.
+\end{itemize}
+
+\textbf{Main contribution.} First large-scale demonstration of ML-accelerated CFD with DNS-fidelity on 2D turbulence.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/google/jax-cfd (HTTP 200)}. Language: python (JAX). Completeness: 10/10. Data: Datasets generated in-repo (seeded); also published via TFDS.
+
+\textbf{Benchmarks.} 2D Kolmogorov flow Re=1000, 2D decaying turbulence
+
+\textbf{Reproduction plan} (feasibility 9/10, \textasciitilde6h, compute: 1 GPU (Spark or A100)):
+\begin{itemize}
+\item 1. pip install jax-cfd; run the notebook `notebooks/kolmogorov\_flow.ipynb`.
+\item 2. Generate ground-truth DNS at 2048² (may need to reduce to 512² for time budget).
+\item 3. Train the learned correction model (default config).
+\item 4. Compare vorticity correlation vs baseline DNS at same coarse resolution.
+\item 5. Reproduce Fig 1 quantitative results: coarse-DNS vs ML-DNS vorticity correlations.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative match on vorticity correlation and energy spectra.. \textbf{Known risks:} DNS at 2048² is expensive; may need to cap at 1024².; JAX-cfd's default training can take hours..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Does the same approach work for 3D turbulence?
+\item Transfer learning across Reynolds numbers?
+\item Hybrid with entropy-stable limiters for shocks?
+\item Training with less high-res data (sample efficiency)?
+\item Integrating this with weather model cores (NWP)?
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{1123 citations, Google JAX-CFD repo is exemplary, data generation built in. Upgrade to co-\#1 priority.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#7. Dedalus: A flexible framework for numerical simulations with spectral methods}
+\textbf{Authors}: K. Burns;G. Vasil;J. Oishi;D. Lecoanet;B. Brown \textbullet{} \textbf{Year}: 2019 \textbullet{} \textbf{Cites}: 485 \textbullet{} \textbf{DOI}: \texttt{10.1103/PhysRevResearch.2.023068} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 18/20 \textbullet{} \textbf{Topic}: Fluid/NavierStokes
+
+\textbf{Problem.} Need a flexible framework to solve general PDEs spectrally in many geometries (Cartesian, spherical, annular).
+
+\textbf{Approach.} Dedalus: object-oriented Python framework representing PDEs symbolically; uses modified sparse tau method with Chebyshev/Fourier bases; banded matrices via Dirichlet preconditioning. Parallel via MPI.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Demonstrated on Kelvin-Helmholtz, Rayleigh-Bénard, Kolmogorov flow, self-gravitating cylinders.
+\item Banded systems give O(N) solves per timestep.
+\item Scalable to O(10k) cores on ALCF/NERSC.
+\end{itemize}
+
+\textbf{Main contribution.} Widely-adopted (485 cites) production-grade spectral PDE framework.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/DedalusProject/dedalus (HTTP 200) + DedalusProject/methods\_paper\_examples}. Language: python (NumPy, MPI, h5py). Completeness: 10/10. Data: Example scripts in methods\_paper\_examples repo.
+
+\textbf{Benchmarks.} Poisson 1D/2D, Helmholtz, Kelvin-Helmholtz 2D, Rayleigh-Bénard, reaction-diffusion
+
+\textbf{Reproduction plan} (feasibility 9/10, \textasciitilde4h, compute: CPU (multi-core); MPI for 2D+ cases):
+\begin{itemize}
+\item 1. conda install -c conda-forge dedalus.
+\item 2. Clone DedalusProject/methods\_paper\_examples.
+\item 3. Run 1D Poisson example; verify spectral convergence.
+\item 4. Run 2D Kelvin-Helmholtz example; compare to published vorticity field.
+\item 5. Run Rayleigh-Bénard at Ra=1e6; check Nusselt number scaling.
+\end{itemize}
+\textbf{Expected fidelity:} Exact match on spectral convergence; qualitative on turbulent cases.. \textbf{Known risks:} Dedalus v3 changed API significantly; methods\_paper\_examples may target v2.; MPI build can be finicky..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Benchmark Dedalus vs Julia's ApproxFun + FourierFlows on same problems.
+\item GPU port via JAX or CUDA?
+\item Automatic-differentiation overlay for inverse problems?
+\item Use for dynamo simulations — replicate Vasil's ICC benchmark.
+\item Coupling with AMR for local resolution.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Mature, heavily cited, easy install. Upgrade — excellent starting point.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#8. Physics-informed neural networks for solving Reynolds-averaged Navier-Stokes equations}
+\textbf{Authors}: Hamidreza Eivazi;Mojtaba Tahani;P. Schlatter;R. Vinuesa \textbullet{} \textbf{Year}: 2021 \textbullet{} \textbf{Cites}: 404 \textbullet{} \textbf{DOI}: \texttt{10.1063/5.0095270} \\
+\textbf{Priority}: B \textbullet{} \textbf{Revised score}: 13/20 \textbullet{} \textbf{Topic}: Fluid/NavierStokes
+
+\textbf{Problem.} Turbulence closure is hard; can PINNs learn RANS solutions using only boundary data?
+
+\textbf{Approach.} Fully-connected PINN taking (x,y) → (U,V,P,u²,v²,uv). Loss = PDE residual of RANS + data match at boundaries (no interior closure assumption).
+
+\textbf{Key results.}
+\begin{itemize}
+\item <1\% error on laminar Falkner-Skan.
+\item Good accuracy on ZPG/APG boundary layers and NACA-0012 airfoil without a turbulence model.
+\item Reynolds stresses recovered consistently.
+\end{itemize}
+
+\textbf{Main contribution.} Shows PINNs can bypass explicit turbulence closure if boundary Reynolds-stress data are provided.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{None advertised; may be available upon request from authors}. Language: python (TensorFlow per text). Completeness: 3/10. Data: DNS/LES reference data for ZPG/APG BL and NACA (public DNS databases).
+
+\textbf{Benchmarks.} Falkner-Skan, ZPG BL, APG BL, NACA-0012
+
+\textbf{Reproduction plan} (feasibility 6/10, \textasciitilde8h, compute: 1 GPU):
+\begin{itemize}
+\item 1. Set up a 5-output PINN in DeepXDE with RANS residual.
+\item 2. Generate Falkner-Skan analytical solution; train; expect <1\% error.
+\item 3. Use Jiménez DNS for ZPG BL as boundary data; train.
+\item 4. Compare predicted U,V,P,u²,v²,uv against DNS at interior stations.
+\end{itemize}
+\textbf{Expected fidelity:} Qualitative (shapes of U,V profiles); quantitative L2 within \~{}10\% of paper.. \textbf{Known risks:} No public code → reimplementation.; PINN for turbulent cases is notoriously sensitive to loss-weight scheduling..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Does it extend to 3D separated flows?
+\item Comparison against data-driven SA or k-omega closures?
+\item Uncertainty quantification on the recovered Reynolds stresses.
+\item Integration with real PIV data instead of DNS.
+\item Does causal/time-marching PINN improve on this steady formulation?
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Clear, impactful paper but no public code lowers feasibility; still a B-tier candidate given DeepXDE reimplementation is tractable.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#9. Learning in Modal Space: Solving Time-Dependent Stochastic PDEs Using Physics-Informed Neural Networks}
+\textbf{Authors}: Dongkun Zhang;Ling Guo;G. Karniadakis \textbullet{} \textbf{Year}: 2019 \textbullet{} \textbf{Cites}: 274 \textbullet{} \textbf{DOI}: \texttt{10.1137/19m1260141} \\
+\textbf{Priority}: C \textbullet{} \textbf{Revised score}: 11/20 \textbullet{} \textbf{Topic}: ML-operator/PINN
+
+\textbf{Problem.} Long-time integration of stochastic PDEs with arbitrary initial data — classical DO/BO methods have singular covariance and eigenvalue-crossing issues.
+
+\textbf{Approach.} NN-DO and NN-BO: parameterize modes and coefficients by neural networks; enforce DO/BO constraints implicitly in the loss (no explicit time derivatives of modes).
+
+\textbf{Key results.}
+\begin{itemize}
+\item Works when original DO fails (deterministic IC case).
+\item RMSE for BO random coefficients \~{}0.05–0.29 at early/late times.
+\item Handles long-time integration via subdomain-in-time decomposition.
+\end{itemize}
+
+\textbf{Main contribution.} Trainable DO/BO decomposition avoiding the pathological assumptions of classical versions.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{None advertised; possibly available from Karniadakis group on request}. Language: python (TensorFlow 1.x, typical of 2019 Karniadakis). Completeness: 3/10. Data: Manufactured SPDE problems (linear stochastic advection, stochastic diffusion-reaction, etc.).
+
+\textbf{Benchmarks.} Stochastic advection 1D, Stochastic diffusion-reaction 1D, Stochastic Burgers
+
+\textbf{Reproduction plan} (feasibility 5/10, \textasciitilde10h, compute: 1 GPU):
+\begin{itemize}
+\item 1. Reimplement the DO/BO loss with NN parameterization (algorithms 1-2 in paper).
+\item 2. Benchmark on stochastic advection; match RMSE \~{}0.05 after 1000 iterations.
+\item 3. Extend to diffusion-reaction; match Table 5 random-coefficient RMSE.
+\end{itemize}
+\textbf{Expected fidelity:} Qualitative match; quantitative within 2× of reported RMSE.. \textbf{Known risks:} No code; 2019 paper → reimplementation.; Subdomain time-splitting detail is fragile..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Extension to stochastic Navier-Stokes 2D?
+\item Adaptive basis dimension during training?
+\item Comparison to stochastic Galerkin + PC expansion.
+\item Inverse problems under stochastic forcing.
+\item How much training data does the inverse setup require?
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Niche but no public code; demote to C.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#10. Poisson Flow Generative Models}
+\textbf{Authors}: Yilun Xu;Ziming Liu;M. Tegmark;T. Jaakkola \textbullet{} \textbf{Year}: 2022 \textbullet{} \textbf{Cites}: 115 \textbullet{} \textbf{DOI}: \texttt{10.48550/arXiv.2209.11178} \\
+\textbf{Priority}: B \textbullet{} \textbf{Revised score}: 14/20 \textbullet{} \textbf{Topic}: Elliptic
+
+\textbf{Problem.} Normalizing flows / SDE-based generative models have slow sampling and mode-collapse issues.
+
+\textbf{Approach.} Interpret data as charges in z=0 plane of a (d+1)-dim space; the gradient of the Poisson equation solution induces a deterministic flow that maps data → uniform hemisphere. Backward ODE gives sampling.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Inception 9.68, FID 2.35 on CIFAR-10 (SOTA at time among normalizing flows).
+\item 10-20× faster sampling than VP/VE-SDE baselines at equal FID.
+\item Robust to network choice and step size.
+\end{itemize}
+
+\textbf{Main contribution.} A PDE-physics-inspired generative model with fewer sampling steps and good FID.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/Newbeeer/poisson\_flow (HTTP 200)}. Language: python (PyTorch). Completeness: 10/10. Data: CIFAR-10, CelebA (public).
+
+\textbf{Benchmarks.} CIFAR-10 FID/IS, CelebA 64x64, LSUN bedroom
+
+\textbf{Reproduction plan} (feasibility 9/10, \textasciitilde10h, compute: 1 GPU (A100 ideal); training 1-2 days):
+\begin{itemize}
+\item 1. Clone Newbeeer/poisson\_flow.
+\item 2. Use provided CIFAR-10 config; train.
+\item 3. Evaluate FID/IS using their eval script.
+\item 4. Reproduce sampling-speedup table (Table in paper).
+\end{itemize}
+\textbf{Expected fidelity:} FID within \~{}0.2 of published 2.35.. \textbf{Known risks:} Training takes \~{}1 day.; FID calculation depends on reference stats; ensure matching CIFAR-10 stats file..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item How does PFGM compare to later PFGM++ and diffusion-transformer models?
+\item Does the Poisson analogy extend to discrete data (text)?
+\item Connection to score matching and Wasserstein flows.
+\item Ablate the hemisphere geometry — is it necessary?
+\item Large-scale text-to-image applications.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Not really a PDE-solver paper (it's a generative model using Poisson as analogy). Good code but off-topic for PDE replication; B tier at best for 'PDE' bucket.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#11. LNO: Laplace Neural Operator for Solving Differential Equations}
+\textbf{Authors}: Qianying Cao;S. Goswami;G. Karniadakis \textbullet{} \textbf{Year}: 2023 \textbullet{} \textbf{Cites}: 56 \textbullet{} \textbf{DOI}: \texttt{10.48550/arXiv.2303.10528} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 16/20 \textbullet{} \textbf{Topic}: ML-operator/PINN
+
+\textbf{Problem.} FNO handles only periodic signals and cannot represent non-periodic transient responses well.
+
+\textbf{Approach.} Laplace Neural Operator (LNO): replace Fourier transform block with Laplace transform (pole-residue representation). Natural handling of transients via poles.
+
+\textbf{Key results.}
+\begin{itemize}
+\item LNO with 1 layer beats FNO with 4 layers on 3 ODEs (Duffing, driven pendulum, Lorenz) and 3 PDEs (Euler-Bernoulli beam, diffusion, reaction-diffusion).
+\item Exponential convergence claimed for linear problems.
+\item Better transient-response capture in undamped cases.
+\end{itemize}
+
+\textbf{Main contribution.} Laplace-transform-based neural operator handling non-periodic and transient signals.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/qianyingcao/Laplace-Neural-Operator (HTTP 200)}. Language: python (PyTorch). Completeness: 9/10. Data: Generated in-repo via SciPy ODE solvers and analytical solutions.
+
+\textbf{Benchmarks.} Duffing, driven pendulum, Lorenz, Euler-Bernoulli beam, diffusion, reaction-diffusion
+
+\textbf{Reproduction plan} (feasibility 8/10, \textasciitilde4h, compute: 1 GPU):
+\begin{itemize}
+\item 1. Clone qianyingcao/Laplace-Neural-Operator.
+\item 2. Run Duffing training; verify relative L2 < FNO baseline.
+\item 3. Run reaction-diffusion; verify Table 2 values.
+\item 4. Sweep \# poles; produce the convergence-vs-poles plot.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative match on Table 2 within 10\%.. \textbf{Known risks:} Complex-valued arithmetic in pole-residue layer can have numerical issues..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Extension to 2D PDEs on non-periodic domains?
+\item Can the learned poles be interpreted physically?
+\item Compare with wavelet/DeepONet operators.
+\item Efficiency vs. FNO at equal parameter count.
+\item Transfer learning across physical parameters.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Clean scope, public code, lightweight benchmarks. Solid A pick.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#12. Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions}
+\textbf{Authors}: Rohan Sawhney;Bailey Miller;Ioannis Gkioulekas;Keenan Crane \textbullet{} \textbf{Year}: 2023 \textbullet{} \textbf{Cites}: 48 \textbullet{} \textbf{DOI}: \texttt{10.1145/3592398} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 17/20 \textbullet{} \textbf{Topic}: Elliptic
+
+\textbf{Problem.} Walk-on-spheres Monte Carlo solves only Dirichlet Laplace problems; no Neumann BCs.
+
+\textbf{Approach.} Walk on Stars (WoSt) samples on star-shaped regions whose boundaries include Neumann-boundary arcs; sampling via visibility silhouette. Solves linear elliptic PDEs with mixed BCs without meshing.
+
+\textbf{Key results.}
+\begin{itemize}
+\item First grid-free MC method for Neumann conditions.
+\item Works on arbitrary geometries (non-convex) and extreme geometric complexity.
+\item Progressive output (like ray tracing) → useful for graphics.
+\end{itemize}
+
+\textbf{Main contribution.} Fundamentally extends WoS to the full mixed-BC regime with practical BVH-based implementation.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/GeometryCollective/wost-simple (HTTP 200)}. Language: C++ (with Python bindings); also simple Python reference. Completeness: 9/10. Data: Example scenes in repo.
+
+\textbf{Benchmarks.} 2D Laplace mixed-BC, Poisson with Neumann, heat transfer (toaster-bread example)
+
+\textbf{Reproduction plan} (feasibility 9/10, \textasciitilde5h, compute: CPU (multi-thread)):
+\begin{itemize}
+\item 1. Clone wost-simple; build (CMake + C++17).
+\item 2. Run 2D Laplace demo with mixed Dirichlet/Neumann.
+\item 3. Verify pointwise convergence rate N\^{}\{-1/2\}.
+\item 4. Compare against FEniCS reference solution on same geometry.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative MC convergence rate match; pointwise values within 1σ of reference.. \textbf{Known risks:} Robust silhouette computation is subtle.; Limited to linear elliptic..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Extension to Robin BCs and anisotropic media?
+\item Variance reduction via control variates with WoS.
+\item Use in rendering-physics hybrid pipelines.
+\item Walk on Stars for PDE-constrained optimization.
+\item 3D performance on complex meshes.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Beautiful paper, great code. A-tier.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#13. Fast Poisson solvers for spectral methods}
+\textbf{Authors}: D. Fortunato;Alex Townsend \textbullet{} \textbf{Year}: 2017 \textbullet{} \textbf{Cites}: 47 \textbullet{} \textbf{DOI}: \texttt{10.1093/imanum/drz034} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 16/20 \textbullet{} \textbf{Topic}: Elliptic
+
+\textbf{Problem.} Fast Poisson solvers exist for FD/FE but not for spectral methods; spectral accuracy traditionally couples with O(n\^{}3) cost.
+
+\textbf{Approach.} Ultraspherical spectral discretization → Sylvester matrix equation with 'separated spectra' → ADI method gives O(n\^{}2 log\^{}2 n) complexity. Works on square, cylinder, solid sphere, cube.
+
+\textbf{Key results.}
+\begin{itemize}
+\item 100M DOF Poisson on a square solved in < 2 minutes on laptop.
+\item Spectral accuracy with quasi-optimal complexity.
+\item Integrated into Chebfun via chebfun2.poisson.
+\end{itemize}
+
+\textbf{Main contribution.} First optimal-complexity spectral Poisson solver via ADI on Sylvester equations.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/danfortunato/fast-poisson-solvers (HTTP 200) + Chebfun chebop2}. Language: MATLAB (Chebfun). Completeness: 9/10. Data: Analytical test functions in repo.
+
+\textbf{Benchmarks.} Poisson on square, cylinder, solid sphere, cube
+
+\textbf{Reproduction plan} (feasibility 8/10, \textasciitilde4h, compute: CPU (single laptop)):
+\begin{itemize}
+\item 1. Install Chebfun in MATLAB/Octave.
+\item 2. u = chebfun2.poisson(f, BC, n) for n=4096 → measure time.
+\item 3. Verify runtime scaling across n=64,...,16384.
+\item 4. Benchmark vs. MATLAB's built-in Poisson solver on same grid.
+\end{itemize}
+\textbf{Expected fidelity:} Exact match on runtime scaling; residual at machine precision.. \textbf{Known risks:} MATLAB license; Octave support for Chebfun is partial..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Port to Python (via chebpy)?
+\item Extension to variable-coefficient Poisson?
+\item Biharmonic and Helmholtz analogs via same ADI approach?
+\item GPU implementation?
+\item Use as preconditioner in more general elliptic solvers.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Classic, clean, reproducible. MATLAB/Chebfun dependency is minor. A-tier.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#14. Deep Reinforcement Learning for Adaptive Mesh Refinement}
+\textbf{Authors}: C. Foucart;A. Charous;Pierre FJ Lermusiaux \textbullet{} \textbf{Year}: 2022 \textbullet{} \textbf{Cites}: 35 \textbullet{} \textbf{DOI}: \texttt{10.48550/arXiv.2209.12351} \\
+\textbf{Priority}: C \textbullet{} \textbf{Revised score}: 11/20 \textbullet{} \textbf{Topic}: AMR/Multigrid
+
+\textbf{Problem.} AMR refinement heuristics are ad-hoc; can RL learn better refinement policies?
+
+\textbf{Approach.} Formulate AMR as POMDP with local per-element observation. Train deep Q-network to refine/coarsen HDG-FEM elements on advection and Poisson.
+
+\textbf{Key results.}
+\begin{itemize}
+\item RL agent reduces DOF by \~{}20-30\% at fixed error vs heuristic.
+\item Generalizes across PDEs (trained on advection, tested on Poisson).
+\item Demonstrated on 1D \& 2D.
+\end{itemize}
+
+\textbf{Main contribution.} First practical RL-AMR controller shown to beat bulk-refinement heuristic on DG-FEM.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{github.com/corbett5/amr\_dl (DEAD 404) — request from authors}. Language: python (custom HDG code + PyTorch/RLlib). Completeness: 3/10. Data: Manufactured solutions.
+
+\textbf{Benchmarks.} advection 1D/2D, Poisson 1D with Gaussian bumps
+
+\textbf{Reproduction plan} (feasibility 5/10, \textasciitilde12h, compute: 1 GPU for RL training + CPU for DG):
+\begin{itemize}
+\item 1. Build advection HDG solver in MFEM with refinement API.
+\item 2. Wrap as Gym environment: obs=element residual features, action=refine/coarsen/nothing.
+\item 3. Train DQN per paper Section 4.
+\item 4. Compare agent vs bulk(theta=0.5) heuristic on Pareto.
+\end{itemize}
+\textbf{Expected fidelity:} Qualitative reproduction of Pareto dominance; quantitative within 30\%.. \textbf{Known risks:} Dead code repo → full reimplementation.; HDG implementation details non-trivial..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Can the agent generalize across solver types (FVM, DG, CG)?
+\item Multi-agent RL for parallel AMR load-balancing.
+\item Use of transformer-based policy for long-range correlations.
+\item RL-AMR for time-dependent problems with shocks.
+\item Offline RL from existing AMR simulation data.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Dead code repo. Reimplementation cost is high for what it delivers.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#15. Godunov loss functions for modelling of hyperbolic conservation laws}
+\textbf{Authors}: R. Cassia;R. Kerswell \textbullet{} \textbf{Year}: 2024 \textbullet{} \textbf{Cites}: 5 \textbullet{} \textbf{DOI}: \texttt{10.1016/j.cma.2025.117782} \\
+\textbf{Priority}: B \textbullet{} \textbf{Revised score}: 13/20 \textbullet{} \textbf{Topic}: Hyperbolic
+
+\textbf{Problem.} Standard PINNs fail for hyperbolic conservation laws with shocks because PDE residual is ill-defined at discontinuities.
+
+\textbf{Approach.} Replace PDE-residual loss with finite-volume-based Godunov/approximate-Riemann-solver flux loss — 'Godunov loss'. Evaluate losses as cell-averaged flux imbalances.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Beats standard PINN and FVM-based (no-Riemann) losses on 2D Riemann problem.
+\item Successful time-stepping and super-resolution reconstruction.
+\item Tested across 6 classes of Riemann problems (19 admissible initial conditions).
+\end{itemize}
+
+\textbf{Main contribution.} Entropy-consistent shock-capturing loss function for neural PDE solvers.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{Check CMAME supplementary; search R. Cassia or Kerswell group pages}. Language: python (PyTorch). Completeness: 4/10. Data: 2D Riemann initial conditions (analytical).
+
+\textbf{Benchmarks.} 2D Riemann problem (6 configuration classes)
+
+\textbf{Reproduction plan} (feasibility 6/10, \textasciitilde8h, compute: 1 GPU):
+\begin{itemize}
+\item 1. Reimplement Godunov loss with HLLC or Roe flux.
+\item 2. Generate 2D Riemann initial conditions for one representative configuration per class.
+\item 3. Train PINN with Godunov loss; compare to standard PDE loss.
+\item 4. Verify sharpness of captured shocks vs TV.
+\end{itemize}
+\textbf{Expected fidelity:} Qualitative reproduction of shock sharpness; quantitative MSE within 2×.. \textbf{Known risks:} Riemann solver implementation details.; No public code..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Extension to 3D Euler?
+\item Entropy regularization vs Godunov — ablation.
+\item Does WENO loss do better than Godunov loss?
+\item Coupling with residual-based adaptive sampling.
+\item Performance on ideal MHD?
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Important topic, tractable reimplementation, but no public code. B tier.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#16. Plane Wave Discontinuous Galerkin Methods for the 2D Helmholtz Equation: Analysis of the p-Version}
+\textbf{Authors}: R. Hiptmair;A. Moiola;I. Perugia \textbullet{} \textbf{Year}: 2011 \textbullet{} \textbf{Cites}: 199 \textbullet{} \textbf{DOI}: \texttt{10.1137/090761057} \\
+\textbf{Priority}: C \textbullet{} \textbf{Revised score}: 11/20 \textbullet{} \textbf{Topic}: Helmholtz/Wave
+
+\textbf{Problem.} Plane-wave DG methods (Trefftz type) for Helmholtz equation lacked sharp p-version convergence theory.
+
+\textbf{Approach.} Prove p-version convergence estimates for plane-wave DG on 2D Helmholtz; builds on ultra-weak variational formulation.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Algebraic convergence rate in p with explicit constants.
+\item Connection to standard p-FEM theory.
+\item Numerical experiments confirming theoretical rates.
+\end{itemize}
+
+\textbf{Main contribution.} Rigorous p-version analysis of plane-wave DG for Helmholtz.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{Not advertised; Hiptmair group ETH may have MATLAB code.}. Language: MATLAB likely. Completeness: 3/10. Data: Analytical Helmholtz solutions on polygonal domains.
+
+\textbf{Benchmarks.} 2D Helmholtz on square with Robin BCs
+
+\textbf{Reproduction plan} (feasibility 5/10, \textasciitilde10h, compute: CPU):
+\begin{itemize}
+\item 1. Implement plane-wave DG basis in NGSolve.
+\item 2. Solve 2D Helmholtz on square for k=1,5,10; vary p.
+\item 3. Measure L2 error vs analytical solution; plot convergence in p.
+\item 4. Compare observed rate to theory.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative match on p-convergence rate.. \textbf{Known risks:} Plane-wave basis has conditioning issues for large p.; No public code..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Extension to 3D Helmholtz?
+\item Preconditioning of plane-wave DG systems.
+\item Coupling with high-order BEM.
+\item Time-harmonic elasticity generalization.
+\item High-frequency asymptotics connection.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Theory-heavy, no code, specialized niche. Demote.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#17. Galerkin Approximations for the Stochastic Burgers Equation}
+\textbf{Authors}: D. Blömker;Arnulf Jentzen \textbullet{} \textbf{Year}: 2013 \textbullet{} \textbf{Cites}: 105 \textbullet{} \textbf{DOI}: \texttt{10.1137/110845756} \\
+\textbf{Priority}: C \textbullet{} \textbf{Revised score}: 10/20 \textbullet{} \textbf{Topic}: NonlinearScalar
+
+\textbf{Problem.} Rigorous L∞ convergence rates for Galerkin approximations of stochastic Burgers \& related SPDEs.
+
+\textbf{Approach.} Prove spectral Galerkin approximations converge in L∞ (not just L2) for semilinear stochastic evolution equations with additive noise. Apply to stochastic heat, reaction-diffusion, Burgers.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Explicit rate N\^{}\{-γ\} in truncation with γ tied to noise regularity.
+\item L∞ error uniformly in space (new — previously only L2 known).
+\item Numerical experiments illustrating rates.
+\end{itemize}
+
+\textbf{Main contribution.} First L∞ error estimates for Galerkin-SPDE approximations.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{No code advertised}. Language: MATLAB likely. Completeness: 2/10. Data: Manufactured SPDE solutions.
+
+\textbf{Benchmarks.} Stochastic heat, Stochastic reaction-diffusion, Stochastic Burgers
+
+\textbf{Reproduction plan} (feasibility 5/10, \textasciitilde8h, compute: CPU):
+\begin{itemize}
+\item 1. Implement Fourier Galerkin solver for stochastic Burgers.
+\item 2. Use Gaussian white-noise Q-Wiener forcing.
+\item 3. Monte Carlo over 100+ paths; measure L∞ error.
+\item 4. Verify empirical rate matches theoretical γ.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative rate match.. \textbf{Known risks:} Monte Carlo variance; need many paths..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Sharpness of constants?
+\item Extension to multiplicative noise.
+\item L∞ rates for finite-element vs spectral.
+\item Use in uncertainty quantification.
+\item Stochastic Burgers with shocks.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Pure-math paper; easy to reimplement numerics but limited 'reproduction' since no code. C tier.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#18. FLUPS: A Fourier-Based Library of Unbounded Poisson Solvers}
+\textbf{Authors}: Denis-Gabriel Caprace;Thomas Gillis;P. Chatelain \textbullet{} \textbf{Year}: 2020 \textbullet{} \textbf{Cites}: 18 \textbullet{} \textbf{DOI}: \texttt{10.1137/19M1303848} \\
+\textbf{Priority}: B \textbullet{} \textbf{Revised score}: 14/20 \textbullet{} \textbf{Topic}: Elliptic
+
+\textbf{Problem.} Fast Poisson solvers needed for simulations with mixed boundary types (periodic, Neumann, unbounded), particularly vortex methods.
+
+\textbf{Approach.} FLUPS: MPI+OpenMP C++ library, FFT-based Green's function convolution, spectral to order 10; supports all 3x3x3=27 BC combinations. Optimized all-to-all and point-to-point communications.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Convergence orders 2 to 10+ achieved.
+\item Strong scaling to 32K cores on unbounded Poisson.
+\item Faster than PMG/FMM at same accuracy for cell-centered unbounded problems.
+\end{itemize}
+
+\textbf{Main contribution.} Production-grade MPI Poisson library handling the full BC matrix.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://gitlab.uliege.be/uliege\_mmech/flups (HTTP 200)}. Language: C++ (MPI + OpenMP, FFTW). Completeness: 9/10. Data: Analytical Poisson test problems in repo.
+
+\textbf{Benchmarks.} Poisson 3D with periodic/Neumann/unbounded BCs, vortex ring
+
+\textbf{Reproduction plan} (feasibility 7/10, \textasciitilde8h, compute: multi-CPU node; HPC for scaling test):
+\begin{itemize}
+\item 1. Clone flups; build with FFTW.
+\item 2. Run convergence test on 3D Poisson; verify order 2,4,6,8,10.
+\item 3. Strong-scaling test on 128-1024 cores.
+\item 4. Compare timing with PETSc's FFT Poisson.
+\end{itemize}
+\textbf{Expected fidelity:} Exact match on convergence orders; qualitative match on scaling.. \textbf{Known risks:} FFTW MPI setup.; Access to HPC queue for scaling study..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item GPU port using cuFFT / heFFTe?
+\item Integration with a vortex particle method.
+\item Extension to non-uniform grids?
+\item Helmholtz variant.
+\item Benchmark vs AccFFT.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Strong code but HPC-oriented; needs multi-node to really show off. B tier.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#19. Kernel‐based active subspaces with application to computational fluid dynamics parametric problems using the discontinuous Galerkin method}
+\textbf{Authors}: F. Romor;M. Tezzele;Andrea Lario;G. Rozza \textbullet{} \textbf{Year}: 2020 \textbullet{} \textbf{Cites}: 15 \textbullet{} \textbf{DOI}: \texttt{10.1002/nme.7099} \\
+\textbf{Priority}: B \textbullet{} \textbf{Revised score}: 13/20 \textbullet{} \textbf{Topic}: Hyperbolic
+
+\textbf{Problem.} Active subspaces reduce parameter space linearly; most engineering problems have nonlinear active structures.
+
+\textbf{Approach.} Kernel-based Active Subspaces (KAS) generalize AS with feature maps (Random Fourier Features, radial kernels) and multivariate output objectives. Pipeline with DG-FEM CFD.
+
+\textbf{Key results.}
+\begin{itemize}
+\item KAS outperforms linear AS on test functions with nonlinear ridge structure.
+\item Applied to DG-FEM CFD parametric problem (airfoil).
+\item Response-surface accuracy better than Gaussian process baselines.
+\end{itemize}
+
+\textbf{Main contribution.} Kernel-AS method for nonlinear dimension reduction in PDE-parametric problems.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/mathLab/EZyRB (HTTP 200) + ATHENA from same group}. Language: python. Completeness: 7/10. Data: Benchmark test functions + HopeFOAM CFD runs.
+
+\textbf{Benchmarks.} Radial test functions, SEIR model, DG-FEM airfoil
+
+\textbf{Reproduction plan} (feasibility 7/10, \textasciitilde6h, compute: CPU):
+\begin{itemize}
+\item 1. Install ATHENA from mathLab.
+\item 2. Run radial test function experiments; reproduce linear-vs-kernel AS comparison.
+\item 3. (Optional) Run HopeFOAM airfoil case for CFD pipeline.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative R² match on test functions.. \textbf{Known risks:} HopeFOAM case requires DG solver stack.; Random seed affects RFF variance..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Deep-kernel AS with learned features?
+\item Use in Bayesian optimization for expensive PDE surrogates.
+\item Extension to multi-fidelity setups.
+\item Automatic kernel selection.
+\item Active learning of subspace directions.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Tool-chain heavier than advertised; fine B-tier candidate for UQ/surrogates.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#20. On the convergence of discontinuous Galerkin/Hermite spectral methods for the Vlasov-Poisson system}
+\textbf{Authors}: M. Bessemoulin-Chatard;F. Filbet \textbullet{} \textbf{Year}: 2022 \textbullet{} \textbf{Cites}: 6 \textbullet{} \textbf{DOI}: \texttt{10.48550/arXiv.2208.12503} \\
+\textbf{Priority}: C \textbullet{} \textbf{Revised score}: 10/20 \textbullet{} \textbf{Topic}: Elliptic
+
+\textbf{Problem.} DG/Hermite-spectral methods for Vlasov-Poisson lacked a priori convergence theory.
+
+\textbf{Approach.} Use asymmetrically weighted Hermite in velocity + DG in space. Introduce time-dependent weighted L2 space. Prove stability + error estimate.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Global weighted L2 stability.
+\item Propagation of regularity.
+\item Error estimate in weighted L2.
+\end{itemize}
+
+\textbf{Main contribution.} First convergence theory for DG/Hermite Vlasov-Poisson.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{No code advertised}. Language: Julia/Fortran likely. Completeness: 2/10. Data: Manufactured Vlasov-Poisson solutions.
+
+\textbf{Benchmarks.} Landau damping, two-stream instability, bump-on-tail
+
+\textbf{Reproduction plan} (feasibility 4/10, \textasciitilde12h, compute: CPU):
+\begin{itemize}
+\item 1. Implement DG-Hermite Vlasov-Poisson from scratch in Python + FEniCSx.
+\item 2. Landau damping test; verify damping rate matches linear theory.
+\item 3. Refine Hermite moments; measure convergence.
+\item 4. Compare to reported rate.
+\end{itemize}
+\textbf{Expected fidelity:} Qualitative match; quantitative rate within 20\%.. \textbf{Known risks:} Significant implementation effort; weighted-Hermite basis conditioning..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Extension to Vlasov-Maxwell?
+\item Positivity-preserving DG-Hermite schemes.
+\item Kinetic plasma turbulence benchmarks.
+\item Comparison to semi-Lagrangian.
+\item GPU port.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Theory paper; heavy reimplementation, no code. C tier.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#21. Improvements to the APBS biomolecular solvation software suite}
+\textbf{Authors}: E. Jurrus;David Engel;Keith T. Star;Kyle Monson;Juan Brandi;Lisa E. Felberg;David H. Brookes;Leighton Wilson;Jiahui Chen;Karina Liles;Minju Chun;Peter Li;D. Gohara;Todd J. Dolinsky;R. Konečný;D. Koes; \textbullet{} \textbf{Year}: 2017 \textbullet{} \textbf{Cites}: 2081 \textbullet{} \textbf{DOI}: \texttt{10.1002/pro.3280} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 15/20 \textbullet{} \textbf{Topic}: Elliptic
+
+\textbf{Problem.} Update and extend APBS for biomolecular electrostatics (Poisson-Boltzmann equation).
+
+\textbf{Approach.} New features in APBS suite: analytical/semi-analytical PBE solver, boundary element solver, geometric flow solvation, graph-based pKa, visualization.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Scalable to large biomolecules.
+\item Multiple solver backends (FD multigrid, BEM, analytical).
+\item Validated on standard benchmark sets.
+\end{itemize}
+
+\textbf{Main contribution.} Reference biomolecular electrostatics toolkit, widely used (2081 cites).
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/Electrostatics/apbs (HTTP 200)}. Language: C/C++ with Python bindings. Completeness: 10/10. Data: PQR files from PDB, provided in docs.
+
+\textbf{Benchmarks.} alpha-chymotrypsin, insulin hexamer, lysozyme, 10+ standard biomol cases
+
+\textbf{Reproduction plan} (feasibility 9/10, \textasciitilde6h, compute: CPU (multi-core)):
+\begin{itemize}
+\item 1. conda install -c conda-forge apbs pdb2pqr.
+\item 2. Run example inputs from APBS tutorial (1ake lysozyme etc).
+\item 3. Reproduce solvation energy values.
+\item 4. Use geometric-flow solver on one test; compare to FD-multigrid.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative match to within 1-2\%.. \textbf{Known risks:} Compiling APBS from source is painful; conda package is stable..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Integration with ML potentials (FEP/ML).
+\item Coupling with MD via AMBER PBSA.
+\item GPU port of geometric flow.
+\item AlphaFold → APBS automated pipeline.
+\item pKa prediction benchmark vs PROPKA.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Mature code, easy conda install. Upgrade — a very safe starter replication.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#22. Fast Nonsymmetric Iterations and Preconditioning for Navier-Stokes Equations}
+\textbf{Authors}: H. Elman;D. Silvester \textbullet{} \textbf{Year}: 1996 \textbullet{} \textbf{Cites}: 258 \textbullet{} \textbf{DOI}: \texttt{10.1137/0917004} \\
+\textbf{Priority}: B \textbullet{} \textbf{Revised score}: 14/20 \textbullet{} \textbf{Topic}: Fluid/NavierStokes
+
+\textbf{Problem.} Classic Navier-Stokes linear systems are non-symmetric + indefinite; few preconditioners give mesh-independent convergence.
+
+\textbf{Approach.} Block preconditioners for discrete Oseen operator: diagonal with Schur-complement approximations. Prove eigenvalues bounded independent of h.
+
+\textbf{Key results.}
+\begin{itemize}
+\item GMRES iterations independent of mesh size h.
+\item Inner iterative solvers for preconditioner keep costs low.
+\item Validated on backward-facing step and lid-driven cavity.
+\end{itemize}
+
+\textbf{Main contribution.} Foundational paper (258 cites) for block preconditioning of incompressible Navier-Stokes — precursor to PCD/LSC.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{None advertised (1996 paper); modern equivalents in IFISS (MATLAB)}. Language: MATLAB. Completeness: 6/10. Data: Standard Stokes/Oseen benchmarks.
+
+\textbf{Benchmarks.} Backward-facing step, lid-driven cavity, channel flow
+
+\textbf{Reproduction plan} (feasibility 8/10, \textasciitilde5h, compute: CPU):
+\begin{itemize}
+\item 1. Download IFISS; run navier\_testproblem with the block preconditioner.
+\item 2. Reproduce iteration-vs-h table at multiple Re.
+\item 3. Verify mesh-independence claim.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative iteration-count reproduction.. \textbf{Known risks:} MATLAB license for IFISS.; Original 1996 numbers may differ slightly from IFISS defaults..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Compare to LSC and PCD preconditioners.
+\item Extend to stabilized FE discretizations.
+\item Use in ROM surrogates.
+\item GPU port of block preconditioner.
+\item Extension to Navier-Stokes-Boussinesq.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Classic, reproducible via IFISS. Solid B.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#23. New Laplace and Helmholtz solvers}
+\textbf{Authors}: A. Gopal;L. Trefethen \textbullet{} \textbf{Year}: 2019 \textbullet{} \textbf{Cites}: 51 \textbullet{} \textbf{DOI}: \texttt{10.1073/pnas.1904139116} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 15/20 \textbullet{} \textbf{Topic}: Helmholtz/Wave
+
+\textbf{Problem.} Standard FEM/BEM methods have O(h\^{}p) polynomial convergence on polygons with corners.
+
+\textbf{Approach.} Rational-function approximations (lightning solvers) with exponential clustering of poles near corners give fractional-exponential (root-exponential) convergence for 2D Laplace/Helmholtz.
+
+\textbf{Key results.}
+\begin{itemize}
+\item e\^{}\{-c√N\} convergence for 2D Laplace on polygons with corners.
+\item Orders of magnitude faster than FEM/BEM for comparable accuracy.
+\item Implemented in lightning.m (MATLAB).
+\end{itemize}
+
+\textbf{Main contribution.} Paradigm shift toward rational-function PDE solvers (lightning Laplace solver).
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://people.maths.ox.ac.uk/trefethen/lightning.html (MATLAB scripts)}. Language: MATLAB. Completeness: 9/10. Data: Analytical Laplace problems on L-shape, polygons.
+
+\textbf{Benchmarks.} Laplace on L-shape, Helmholtz on polygon with corners
+
+\textbf{Reproduction plan} (feasibility 9/10, \textasciitilde3h, compute: CPU (laptop)):
+\begin{itemize}
+\item 1. Download lightning.m from Trefethen's page.
+\item 2. Run L-shape example; verify 10-digit accuracy.
+\item 3. Vary N; plot convergence vs e\^{}\{-c√N\}.
+\item 4. Compare time-to-10-digits vs FEniCS on same geometry.
+\end{itemize}
+\textbf{Expected fidelity:} Exact match at machine precision.. \textbf{Known risks:} MATLAB license..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Python port (already exists via Baddoo's lightning-python)?
+\item 3D extension?
+\item Lightning Helmholtz at high k.
+\item Combining lightning with FEM (hybrid)?
+\item Use in conformal mapping.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Short, clean, high-impact paper with a one-file MATLAB demo. Perfect reproduction target.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#24. Stability and error analysis of a class of high-order IMEX schemes for Navier-stokes equations with periodic boundary conditions}
+\textbf{Authors}: Fukeng Huang;Jie Shen \textbullet{} \textbf{Year}: 2021 \textbullet{} \textbf{Cites}: 43 \textbullet{} \textbf{DOI}: \texttt{10.1137/21m1404144} \\
+\textbf{Priority}: B \textbullet{} \textbf{Revised score}: 12/20 \textbullet{} \textbf{Topic}: Fluid/NavierStokes
+
+\textbf{Problem.} High-order IMEX schemes for Navier-Stokes lacked unconditional-stability error analysis.
+
+\textbf{Approach.} Scalar-auxiliary-variable (SAV) technique + IMEX k-step (k=1..5) + Fourier-Galerkin space. Prove unconditional L∞-H\^{}1 stability and error estimates.
+
+\textbf{Key results.}
+\begin{itemize}
+\item First unconditionally stable high-order IMEX for Navier-Stokes.
+\item Up to 5th-order in time, confirmed numerically.
+\item Successful on double-shear-layer problem.
+\end{itemize}
+
+\textbf{Main contribution.} Rigorous high-order IMEX-SAV framework for incompressible NS.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{Shen group sometimes publishes MATLAB on personal pages — check}. Language: MATLAB likely. Completeness: 3/10. Data: Manufactured solutions + double shear layer IC.
+
+\textbf{Benchmarks.} Taylor-Green 2D, double shear layer 2D
+
+\textbf{Reproduction plan} (feasibility 6/10, \textasciitilde8h, compute: CPU):
+\begin{itemize}
+\item 1. Implement Fourier pseudo-spectral Navier-Stokes in 2D.
+\item 2. Add SAV auxiliary variable; implement IMEX-BDFk for k=1..5.
+\item 3. Manufactured-solution test; verify order k in Δt.
+\item 4. Double shear layer at Re=10000; compare vorticity to reported figure.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative order match; qualitative vorticity match.. \textbf{Known risks:} SAV implementation subtleties.; High-order IMEX conditioning..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item SAV + exponential integrators?
+\item Extension to MHD.
+\item SAV on unstructured FE meshes.
+\item Combination with adaptive time-stepping.
+\item Parallelization.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Clear numerics but no code; reimplementation tractable.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#25. Rate optimality of adaptive finite element methods with respect to the overall computational costs}
+\textbf{Authors}: G. Gantner;A. Haberl;D. Praetorius;S. Schimanko \textbullet{} \textbf{Year}: 2020 \textbullet{} \textbf{Cites}: 34 \textbullet{} \textbf{DOI}: \texttt{10.1090/mcom/3654} \\
+\textbf{Priority}: C \textbullet{} \textbf{Revised score}: 11/20 \textbullet{} \textbf{Topic}: Elliptic
+
+\textbf{Problem.} Adaptive FEM rate-optimality theory typically measured vs \# DOF, not vs computational cost.
+
+\textbf{Approach.} Analyze adaptive FEM with inexact iterative solvers (CG for linear, Zarantonello for nonlinear monotone). Prove quasi-optimal linear convergence w.r.t. total cost.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Rate-optimality in overall cost (not just DOF).
+\item Applies to linear elliptic and nonlinear monotone problems.
+\item Numerical experiments confirm.
+\end{itemize}
+
+\textbf{Main contribution.} First rate-optimality theorem w.r.t. overall computational cost for inexact AFEM.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{TU Wien group sometimes publishes MATLAB}. Language: MATLAB likely. Completeness: 3/10. Data: Standard elliptic test problems.
+
+\textbf{Benchmarks.} L-shape Laplace, Z-shape elliptic, p-Laplacian nonlinear
+
+\textbf{Reproduction plan} (feasibility 6/10, \textasciitilde8h, compute: CPU):
+\begin{itemize}
+\item 1. Implement residual-based AFEM in FEniCS with Dörfler marking.
+\item 2. Use inexact CG for linear system; adjust solver tolerance adaptively.
+\item 3. Track error vs cumulative solver cost on L-shape.
+\item 4. Confirm algebraic rate -1 w.r.t. cost.
+\end{itemize}
+\textbf{Expected fidelity:} Qualitative reproduction of rate.. \textbf{Known risks:} AFEM implementation details subtle.; No public reference code..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Extension to parabolic problems.
+\item Goal-oriented AFEM cost-optimality.
+\item Practical comparison w/ heuristic AFEM.
+\item Multigrid inside inexact solver.
+\item ML-based marking strategies.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Theory-focused, no code. C.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#26. Comparison of Adaptive Multiresolution and Adaptive Mesh Refinement Applied to Simulations of the Compressible Euler Equations}
+\textbf{Authors}: R. Deiterding;M. O. Domingues;S. Gomes;K. Schneider \textbullet{} \textbf{Year}: 2015 \textbullet{} \textbf{Cites}: 33 \textbullet{} \textbf{DOI}: \texttt{10.1137/15M1026043} \\
+\textbf{Priority}: B \textbullet{} \textbf{Revised score}: 13/20 \textbullet{} \textbf{Topic}: AMR/Multigrid
+
+\textbf{Problem.} AMR and adaptive-multiresolution (MR) are two dominant approaches for PDEs with sharp fronts; which is better?
+
+\textbf{Approach.} Head-to-head FV comparison on compressible Euler (2D Riemann Lax-Liu \#6, 3D expanding shock). Both use 2nd-order shock-capturing + local time-stepping.
+
+\textbf{Key results.}
+\begin{itemize}
+\item MR has better memory compression and slightly enhanced convergence.
+\item AMR has lower absolute overhead in tested codes.
+\item CPU-time compression trends similar for both.
+\end{itemize}
+
+\textbf{Main contribution.} Quantitative comparison settling MR vs AMR tradeoffs on standard Euler benchmarks.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/waveletApplications/carmen (HTTP 200) for MR side; AMROC for AMR}. Language: C/C++/Fortran. Completeness: 7/10. Data: Riemann IC analytical.
+
+\textbf{Benchmarks.} 2D Riemann Lax-Liu \#6, 3D expanding shock ellipsoid
+
+\textbf{Reproduction plan} (feasibility 7/10, \textasciitilde8h, compute: multi-CPU):
+\begin{itemize}
+\item 1. Build Carmen; run Lax-Liu \#6.
+\item 2. Build AMROC; run same problem.
+\item 3. Compare memory and CPU vs regular-grid baseline.
+\item 4. Confirm MR memory advantage.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative compression factor match within 20\%.. \textbf{Known risks:} AMROC build is specialized.; Timings hardware-dependent..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Hybrid MR+AMR?
+\item Performance on 3D turbulence.
+\item GPU AMR frameworks (AMReX) comparison.
+\item Wavelet-based refinement indicator portability.
+\item Extension to relativistic hydro.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Both codes exist but heavy-weight; mid-tier B.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#27. Kinetic.jl: A portable finite volume toolbox for scientific and neural computing}
+\textbf{Authors}: Tianbai Xiao \textbullet{} \textbf{Year}: 2021 \textbullet{} \textbf{Cites}: 17 \textbullet{} \textbf{DOI}: \texttt{10.21105/joss.03060} \\
+\textbf{Priority}: A \textbullet{} \textbf{Revised score}: 15/20 \textbullet{} \textbf{Topic}: ML-operator/PINN
+
+\textbf{Problem.} Need a flexible FV framework for kinetic equations + scientific ML in Julia.
+
+\textbf{Approach.} Kinetic.jl: modular FV toolbox with KitBase (physics) and KitML (neural closures). Supports multi-scale Boltzmann-Navier-Stokes transitions.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Solves Navier-Stokes and Boltzmann in unified API.
+\item Neural closure example for BGK collision operator.
+\item Short JOSS paper (software publication).
+\end{itemize}
+
+\textbf{Main contribution.} Unified kinetic-theory + ML Julia toolbox.
+
+\textbf{Reproducibility.} Code available: \emph{yes}. URL: \texttt{https://github.com/vavrines/Kinetic.jl (HTTP 200)}. Language: Julia. Completeness: 9/10. Data: Test scripts in repo.
+
+\textbf{Benchmarks.} Sod shock tube, Couette flow, BGK Boltzmann
+
+\textbf{Reproduction plan} (feasibility 9/10, \textasciitilde4h, compute: CPU):
+\begin{itemize}
+\item 1. Install Julia 1.10+; add Kinetic.jl.
+\item 2. Run examples/sod.jl; verify shock tube matches analytical Riemann solution.
+\item 3. Run Couette flow.
+\item 4. Reproduce a neural-closure example from KitML.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative match on shock positions/states.. \textbf{Known risks:} Julia version compatibility with older package commits..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Multi-scale coupling between kinetic and NS regimes.
+\item GPU support via CUDA.jl.
+\item Plasma kinetics.
+\item Neural BGK operator learning benchmarks.
+\item Adaptive grid refinement inside Kinetic.jl.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Julia ease + short paper = very low friction A-tier replication.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#28. Highly efficient and energy dissipative schemes for the time fractional Allen-Cahn equation}
+\textbf{Authors}: Dianming Hou;Chuanju Xu \textbullet{} \textbf{Year}: 2021 \textbullet{} \textbf{Cites}: 17 \textbullet{} \textbf{DOI}: \texttt{10.1137/20m135577x} \\
+\textbf{Priority}: C \textbullet{} \textbf{Revised score}: 10/20 \textbullet{} \textbf{Topic}: PhaseField/RD
+
+\textbf{Problem.} Time-fractional Allen-Cahn equation needs stable schemes on graded meshes for efficient long-time simulation.
+
+\textbf{Approach.} Split fractional derivative into local + history. Use L1/L1-CN/L1+-CN for local; extended SAV for nonlinearity + history. Fourier-Galerkin space.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Unconditional energy dissipation proven.
+\item Dissipation holds on graded mesh.
+\item Numerical confirmation on 2D Allen-Cahn.
+\end{itemize}
+
+\textbf{Main contribution.} First unconditionally dissipative high-order scheme for time-fractional Allen-Cahn.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{No code advertised}. Language: MATLAB likely. Completeness: 2/10. Data: Manufactured + standard Allen-Cahn IC.
+
+\textbf{Benchmarks.} Time-fractional Allen-Cahn 2D
+
+\textbf{Reproduction plan} (feasibility 5/10, \textasciitilde10h, compute: CPU):
+\begin{itemize}
+\item 1. Implement L1+-CN on graded mesh with sum-of-exponentials history.
+\item 2. Manufactured solution test for convergence order.
+\item 3. 2D Allen-Cahn coarsening; verify energy monotonicity.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative order match.. \textbf{Known risks:} Sum-of-exponentials approximation accuracy.; No reference code..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Extension to time-fractional Cahn-Hilliard.
+\item Higher-order L2/L3 schemes.
+\item Parallel SoE history evaluation.
+\item Coupling to phase-field crystal models.
+\item Adaptive time-stepping.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{No code; specialized.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#29. Modified Poisson-Nernst-Planck Model with Coulomb and Hard-sphere Correlations}
+\textbf{Authors}: Manman Ma;Zhenli Xu;Liwei Zhang \textbullet{} \textbf{Year}: 2020 \textbullet{} \textbf{Cites}: 15 \textbullet{} \textbf{DOI}: \texttt{10.1137/19m1310098} \\
+\textbf{Priority}: C \textbullet{} \textbf{Revised score}: 10/20 \textbullet{} \textbf{Topic}: Elliptic
+
+\textbf{Problem.} Standard Poisson-Nernst-Planck misses Coulomb and hard-sphere correlations important for multivalent ions at interfaces.
+
+\textbf{Approach.} Add Coulomb correlation via generalized Debye-Hückel (self-Green's function) and hard-sphere correlation via modified fundamental measure theory. Solve via WKB asymptotics for parallel-plate geometry.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Reproduces charge-inversion effects seen in Monte Carlo simulations.
+\item Agreement with MC for multivalent ions.
+\item Analytical WKB solution for two-plate case.
+\end{itemize}
+
+\textbf{Main contribution.} Modified PNP with both long- and short-range corrections beyond mean-field.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{No code advertised}. Language: MATLAB likely. Completeness: 2/10. Data: Reference MC data from cited papers.
+
+\textbf{Benchmarks.} Parallel-plate electrolyte with multivalent ions
+
+\textbf{Reproduction plan} (feasibility 5/10, \textasciitilde10h, compute: CPU):
+\begin{itemize}
+\item 1. Implement generalized Debye-Hückel equation solver (1D).
+\item 2. Add MFMT hard-sphere correction.
+\item 3. WKB asymptotic solution for two plates.
+\item 4. Compare density profiles to reference MC data.
+\end{itemize}
+\textbf{Expected fidelity:} Qualitative match on charge inversion.. \textbf{Known risks:} Implementation of self-Green's-function iteration.; No reference code..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Extension to 3D finite systems.
+\item Coupling with ML for closure.
+\item Nonequilibrium transport predictions.
+\item Nanopore applications.
+\item Benchmark vs classical DFT of ions.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Niche physics; no code.}
+
+\medskip\hrule\medskip
+
+\subsection*{\#30. Optimized Schwarz Methods without Overlap for the Helmholtz Equation}
+\textbf{Authors}: M. Gander;F. Magoulès;F. Nataf \textbullet{} \textbf{Year}: 2002 \textbullet{} \textbf{Cites}: 403 \textbullet{} \textbf{DOI}: \texttt{10.1137/S1064827501387012} \\
+\textbf{Priority}: B \textbullet{} \textbf{Revised score}: 13/20 \textbullet{} \textbf{Topic}: Helmholtz/Wave
+
+\textbf{Problem.} Classical Schwarz for Helmholtz fails without overlap (propagating modes undamped).
+
+\textbf{Approach.} Derive optimized Robin-type transmission conditions (symbol σ(k) optimized in Fourier). Proves convergence without overlap for Helmholtz.
+
+\textbf{Key results.}
+\begin{itemize}
+\item Optimal transmission condition gives convergence in finite steps (nonlocal) + local approximation.
+\item Dramatic iteration-count reduction over classical Schwarz.
+\item Numerical validation on 2D Helmholtz benchmark.
+\end{itemize}
+
+\textbf{Main contribution.} Foundational (403 cites) optimized Schwarz theory for Helmholtz.
+
+\textbf{Reproducibility.} Code available: \emph{no}. URL: \texttt{None advertised (2002 paper); modern HPDDM library includes OSM}. Language: MATLAB / FreeFem++. Completeness: 6/10. Data: Analytical Helmholtz solutions.
+
+\textbf{Benchmarks.} 2D Helmholtz in rectangle
+
+\textbf{Reproduction plan} (feasibility 7/10, \textasciitilde5h, compute: CPU):
+\begin{itemize}
+\item 1. Implement Schwarz iteration with classical vs optimized Robin BC in FreeFem++.
+\item 2. 2D Helmholtz on [0,1]² at k=10.
+\item 3. Compare iteration counts.
+\item 4. Reproduce convergence-rate curves from paper.
+\end{itemize}
+\textbf{Expected fidelity:} Quantitative iteration-count reproduction.. \textbf{Known risks:} Tuning of σ parameter.; 2002 numerics environment..
+
+\textbf{Follow-on questions.}
+\begin{itemize}
+\item Extension to Maxwell's equations.
+\item Hybrid OSM + sweeping preconditioner.
+\item OSM on unstructured meshes.
+\item Performance at very high k.
+\item ML-tuning of optimized parameters.
+\end{itemize}
+
+\textbf{Rationale for priority:} \emph{Classic paper reproducible via HPDDM or direct FreeFem++ implementation.}
+
+\medskip\hrule\medskip
+
+\section{Recommended 15-paper batch schedule}
+
+See companion \texttt{top30\_batch\_schedule.md} for details. Summary:
+
+\textbf{Wave 1} (5 parallel, \textasciitilde 6--8h wallclock, CPU+GPU mix): FEM-vs-PINNs, Walk on Stars, Fast Poisson Spectral, Lightning Laplace, Kinetic.jl.
+
+\textbf{Wave 2} (5 parallel, \textasciitilde 6--10h, 1 GPU each): jax-cfd (ML-CFD), Latent Spectral Models, Koopman Neural Operator, Laplace Neural Operator, Dedalus.
+
+\textbf{Wave 3} (5 parallel, mostly CPU-heavy): APBS, lifex-cfd, Elman-Silvester (IFISS), Optimized Schwarz, FLUPS.
+
+Total wallclock with 5-way parallelism: \textasciitilde 24--30 hours.
+
+\section{Conclusion}
+
+Rick: our highest-yield near-term set is the 11 Priority~A papers; starting Wave~1 of 5 today produces verifiable results in a workday. Stage-5 demoted 5 papers to C due to dead/absent code; Stage-4 signal heuristics (which scored \texttt{github:...} substring presence without HTTP validation) were too optimistic on those. One 404 (Foucart 2022 RL-AMR) is a clean red flag we couldn't have caught without this stage.
+
+\end{document}

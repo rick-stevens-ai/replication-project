@@ -1,0 +1,91 @@
+#!/bin/bash -l
+#PBS -N pelec_ensemble
+#PBS -l select=256
+#PBS -l walltime=12:00:00
+#PBS -l filesystems=home:flare
+#PBS -q prod
+#PBS -A datascience_collab
+#PBS -j oe
+#PBS -o /lus/flare/projects/datascience_collab/stevens/replicate-1559043/logs/ensemble_packed.out
+#PBS -r y
+#
+# Packed ensemble: 20 PeleC ignition-kernel runs, one per node, concurrent.
+# 20 used / 256 reserved. 236 nodes idle (small queue minimum is 256).
+# Each run: 6 MPI ranks × 1 node (6 Intel PVC GPUs).
+# Sim time: 1.0 ms per run; checkpoint every 1000 steps for restart resilience.
+
+cd "$PBS_O_WORKDIR"
+echo "=== Job $PBS_JOBID start $(date) on $(hostname) ==="
+echo "PBS_NODEFILE=$PBS_NODEFILE"
+NODE_TOTAL=$(wc -l < "$PBS_NODEFILE")
+echo "PBS_NODEFILE entries: $NODE_TOTAL"
+
+module load oneapi/release/2025.3.1 mpich/opt/5.0.0.aurora_test.3c70a61 2>/dev/null || true
+module list 2>&1
+
+EXE=/home/stevens/software/PeleC-aurora/Exec/Production/IgnitionKernel/PeleC3d.sycl.TPROF.MPI.ex
+GPU_SCRIPT=/soft/tools/mpi_wrapper_utils/gpu_tile_compact.sh
+RUNS_DIR=/lus/flare/projects/datascience_collab/stevens/replicate-1559043/runs
+LOGDIR=/lus/flare/projects/datascience_collab/stevens/replicate-1559043/logs
+mkdir -p "$LOGDIR"
+
+if [ ! -x "$EXE" ]; then echo "FATAL: EXE missing: $EXE"; exit 2; fi
+if [ ! -x "$GPU_SCRIPT" ]; then echo "FATAL: gpu_tile_compact.sh missing"; exit 2; fi
+
+# Unique hostnames from PBS_NODEFILE (each node appears once per core otherwise).
+mapfile -t NODES < <(awk '!seen[$0]++' "$PBS_NODEFILE")
+echo "Unique nodes allocated: ${#NODES[@]}"
+printf '  %s\n' "${NODES[@]:0:25}"
+
+CONFIGS=( phi0.6_r0 phi0.6_r1 phi0.6_r2 phi0.6_r3 phi0.6_r4 \
+          phi0.8_r0 phi0.8_r1 phi0.8_r2 phi0.8_r3 phi0.8_r4 \
+          phi1.0_r0 phi1.0_r1 phi1.0_r2 phi1.0_r3 phi1.0_r4 \
+          phi1.2_r0 phi1.2_r1 phi1.2_r2 phi1.2_r3 phi1.2_r4 )
+
+if [ ${#NODES[@]} -lt ${#CONFIGS[@]} ]; then
+  echo "FATAL: only ${#NODES[@]} unique nodes, need ${#CONFIGS[@]}"
+  exit 3
+fi
+
+launch_one() {
+  local cfg="$1"
+  local node="$2"
+  local rundir="$RUNS_DIR/$cfg"
+  cd "$rundir" || { echo "[$cfg] FATAL: cannot cd $rundir"; return 1; }
+
+  # Restart from latest checkpoint if present.
+  local latest_chk restart_arg=""
+  latest_chk=$(ls -d chk?????? 2>/dev/null | sort | tail -1 || true)
+  if [ -n "$latest_chk" ]; then
+    restart_arg="amr.restart=$latest_chk"
+    echo "[$cfg] restart from $latest_chk"
+  fi
+
+  echo "[$cfg] launch on $node at $(date)" >> run.log
+  mpiexec -n 6 --ppn 6 --hosts="$node" -d 1 --cpu-bind depth \
+      "$GPU_SCRIPT" "$EXE" inputs.inp $restart_arg \
+      >> run.log 2>&1
+  local rc=$?
+  echo "[$cfg] finished rc=$rc at $(date)" >> run.log
+  return $rc
+}
+export -f launch_one
+export EXE GPU_SCRIPT RUNS_DIR
+
+echo "=== Launching ${#CONFIGS[@]} concurrent runs ==="
+for i in "${!CONFIGS[@]}"; do
+  CFG=${CONFIGS[$i]}
+  NODE=${NODES[$i]}
+  echo "launch [$i] $CFG -> $NODE"
+  launch_one "$CFG" "$NODE" &
+done
+
+echo "=== All backgrounded; waiting (parent pid $$) ==="
+wait
+echo "=== All runs finished at $(date) ==="
+
+# Summary
+echo "=== Per-run exit summary ==="
+for cfg in "${CONFIGS[@]}"; do
+  tail -3 "$RUNS_DIR/$cfg/run.log" 2>/dev/null | sed "s|^|[$cfg] |"
+done
