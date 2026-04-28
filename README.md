@@ -31,7 +31,7 @@ This project contains independent replications of published computational scienc
 | 14 | 1484740 | Electronic/Optical Properties of 2D GaN | DFT/Materials | ✅ Complete (9/9 — monolayer + bilayer fully converged on uicgpu QE 7.4.1 GPU; bilayer F_max=0.000598 Ry/Bohr; plasmons ωp ≈ 10 eV match paper Fig 5; PBE-vs-LDA gap discrepancy documented; GW/BSE out of scope) |
 | 15 | 1559043 | Ignition Kernel in Turbulent Flow | CFD/Combustion | ✅ Complete (4/5 — PeleC v3, Polaris ensemble 4φ×5 realizations, ignition-propensity curve reproduced, paper Fig.3 analog) |
 | 16 | 1275503 | Cosmic Reionization on Computers | Astrophysics | ✅ Complete |
-| 17 | 1868518 | Graph-RL for Grid Restoration | ML/Power Systems | ✅ Complete |
+| 17 | 1868518 | Graph-RL for Grid Restoration | ML/Power Systems | ✅ Complete (8/7 — IEEE-33/123 + headline IEEE 8500-Node replicated: 578-cell partition, GCN-DQN 99.67% restored at 2.39s vs paper 100%/2.02s; MLP-DQN collapses to 55% confirming graph structure necessity) |
 | 18 | 3003857 | Chaotic Dynamics via Multi-Step Penalty Neural ODEs | ML/Math | ✅ Complete |
 | 19 | 2587225 | ScaWL: Scaling k-WL Weisfeiler-Lehman in Distributed Memory | Graph Algorithms / HPC | ✅ Complete (9/10 — independent C++17/MPI/OpenMP 3-WL on chiatta00; 26.4× strong scaling at 128 cores; memory myth busted (8MB actual vs claimed 100GB); multi-node IB at ~10³ ranks parked for Polaris/Aurora) |
 | 20 | 1412756 | Chiral Spin Order in Kondo-Heisenberg Systems | Condensed Matter Theory | ✅ Complete (4/5) |
