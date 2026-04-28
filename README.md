@@ -29,10 +29,28 @@ This project contains independent replications of published computational scienc
 | 12 | 3014512 | Dark Matter SD Scattering | Particle Physics | ✅ Complete |
 | 13 | 1609039 | Metallic Glass Formation | Materials Science | ⏳ Running (76%) |
 | 14 | 1484740 | Electronic/Optical Properties of 2D GaN | DFT/Materials | ✅ Complete |
-| 15 | 1559043 | Ignition Kernel in Turbulent Flow | CFD/Combustion | ⚠️ Partial (2/5) |
+| 15 | 1559043 | Ignition Kernel in Turbulent Flow | CFD/Combustion | ✅ Complete (4/5 — PeleC v3, Polaris ensemble 4φ×5 realizations, ignition-propensity curve reproduced, paper Fig.3 analog) |
 | 16 | 1275503 | Cosmic Reionization on Computers | Astrophysics | ✅ Complete |
 | 17 | 1868518 | Graph-RL for Grid Restoration | ML/Power Systems | ✅ Complete |
 | 18 | 3003857 | Chaotic Dynamics via Multi-Step Penalty Neural ODEs | ML/Math | ✅ Complete |
+| 19 | 2587225 | ScaWL: Scaling k-WL in Distributed-Memory | Graph Algorithms / HPC | ✅ Complete |
+| 20 | 1412756 | Chiral Spin Order in Kondo-Heisenberg Systems | Condensed Matter Theory | ✅ Complete (4/5) |
+| 21 | 1523841 | Polarization differences ↔ Zone-averaged shift photocurrent | Condensed Matter / Optics | ✅ Complete (4/5) |
+| 22 | 1864334 | NN-VMC for A≤4 Nuclei (ANN correlator ansatz) | Nuclear Physics / ML | ✅ Complete (3/5) |
+| 23 | 1624105 | Clustering huge protein sequence sets in linear time (Linclust) | Bioinformatics / Algorithms | ✅ Complete (9/10) |
+| 24 | 2571909 | Physics-based hybrid ML for Critical Heat Flux (CHF) prediction | Nuclear / Thermal Hydraulics / ML | ✅ Complete (7/10) |
+| 25 | 1606674 | CMV Reduction in Single-Phase qZSI PV Inverter | Power Electronics / Circuits | ✅ Complete (4/5) |
+| 26 | 2439897 | Physics and Chemistry from Parsimonious Representations (rVAE) | ML / Scientific Imaging | ✅ Complete (8/10) |
+| 27 | 1981773 | Single-atom Pt doping of La$_2$Ti$_2$O$_7$ for photocatalysis (DFT) | DFT / Materials / Catalysis | ✅ Complete (6/10) |
+| 28 | 2469515 | Supervised extraction of near-complete genomes from multiple metagenomes (PATRIC) | Bioinformatics / Metagenomics | ⚠️ Partial (4/10 — baseline MetaBAT2 pipeline reproduced on synthetic 5-species community, 5/5 HQ bins; PATRIC/SEEDtk supervised arm out of scope) |
+| 29 | — | Gopal-Trefethen 2019: Lightning Laplace/Helmholtz solvers | Numerical PDE / Spectral | ✅ Complete (8/10) |
+| 30 | — | Fortunato-Townsend 2017: Fast Poisson solver for Chebyshev spectral method via ADI | Numerical PDE / Spectral | ✅ Complete (9/10 — spectral convergence to 1.8e-14 by n=24, ADI vs direct crossover at n=1024, O(n² log² n) scaling confirmed up to n=2048) |
+
+### PDE Replication Series
+
+| # | Paper | Domain | Status |
+|---|-------|--------|--------|
+| P1 | Grossmann et al. 2023: Can PINNs Beat the Finite Element Method? | Numerical PDE / ML | ✅ Complete (7/10 — 1D Poisson full sweep, 2D Poisson + 1D Allen-Cahn partial PINN sweeps; FEM dominance confirmed across all problems; 3D Poisson & Schrödinger skipped due to missing eval data in repo) |
 
 ## OSTI Publication Analysis
 

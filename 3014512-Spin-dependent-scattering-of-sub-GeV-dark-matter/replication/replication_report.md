@@ -216,7 +216,12 @@ The ~3–4 orders of magnitude gap between SI and SD sensitivity is clearly repr
 │   ├── dR_domega.png          # Differential rate spectra
 │   └── summary_all_operators.png # Summary figure
 ├── report/
-│   └── replication_report.md  # This document
+│   ├── replication_report.md  # This document
+│   ├── figs1_to_4_constraint_plots.py  # NEW (2026-04-28)
+│   ├── fig1_phi_constraints.png        # NEW: Fig 1 - spin-0 mediator constraints
+│   ├── fig2_sidm_contour.png           # NEW: Fig 2 - SIDM (m_chi, m_med) contours
+│   ├── fig3_sidm_gchi_vs_mchi.png      # NEW: Fig 3 - SIDM at DD benchmarks
+│   └── fig4_Aprime_constraints.png     # NEW: Fig 4 - A' (LHC/BABAR/NA62/SN)
 └── darkelf_repo/              # DarkELF source (git clone)
 ```
 

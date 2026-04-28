@@ -1,0 +1,253 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{tabularx}
+
+\title{Replication Study of OSTI 2469515:\\
+``Supervised Extraction of Near-Complete Genomes from Multiple Metagenomes''}
+\author{Ollie (OpenClaw subagent) for Rick Stevens}
+\date{2026-04-24}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We attempt a partial replication of Parrello \emph{et al.} (2021, OSTI 2469515), which
+describes PATRIC's reference-guided (``supervised'') metagenome binning pipeline based
+on \texttt{pheS} anchors, discriminating protein 12-mers, and \texttt{EvalG}/\texttt{EvalCon}
+quality scoring. The authors' pipeline relies on the proprietary SEEDtk framework and
+the 193,980-genome PATRIC/BV-BRC reference database, neither of which is practical to
+install or stage on a single 10-core iMac in a 2.5 hour window. We therefore replicate
+the paper's \textbf{baseline comparator} (MetaBAT2 on a SPAdes co-assembly with per-sample
+coverage from minimap2/samtools) on a controlled synthetic 5-species metagenome generated
+with InSilicoSeq. Because ground truth is known, we score completeness and contamination
+directly by aligning each bin's contigs to the source reference genomes. All five
+expected genomes are recovered as 100\%-pure bins with 85.6--98.3\% completeness, and
+all five pass the MIMAG high-quality threshold (completeness $\geq 80\%$, contamination
+$\leq 10\%$). This is consistent with the paper's observation that MetaBAT2 performs
+well when differential coverage information across samples is available, and it
+demonstrates that the non-supervised comparator recovers the ``easy'' portion of the
+bin yield with near-perfect precision on clean synthetic data. The paper's core claim
+--- that reference-guided binning \emph{exceeds} MetaBAT2 on complex real human-gut
+samples (205 vs. 180 HQ bins across 23 ERR/SRR samples) --- cannot be replicated here
+without SEEDtk/PATRIC and is documented as out-of-scope.
+\end{abstract}
+
+\section{Paper Summary (Claims Relevant to Replication)}
+
+\begin{itemize}
+  \item \textbf{Method:} Reference-guided binning. \texttt{pheS} (phenylalanyl-tRNA
+  synthetase $\alpha$) sequences on assembled contigs are BLASTed against PATRIC.
+  Each pheS-bearing contig $\geq 400$\,bp with $\geq 4\times$ coverage seeds a bin;
+  contigs are then assigned based on sharing $\geq 10$ \emph{discriminating protein
+  12-mers} with the bin's reference. Unbinned contigs are rescued via $\geq 50$\,bp
+  exact DNA matches.
+  \item \textbf{Quality scoring:} \texttt{EvalG} (completeness/contamination,
+  CheckM-like) and \texttt{EvalCon} (fine consistency via random-forest predictors
+  over $\sim$1{,}300 reliably predictable gene roles, $>93\%$ accuracy).
+  \item \textbf{HQ threshold:} contamination $\leq 10\%$, fine consistency $\geq 87\%$,
+  completeness $\geq 80\%$, exactly one pheS of valid length.
+  \item \textbf{Benchmark:} 23 human metagenomic samples from Pasolli 2019.
+  \begin{itemize}
+    \item PATRIC supervised: 205 good / 164 poor bins
+    \item MetaBAT2 + Bowtie2:  180 good / 660 poor bins
+    \item MetaBAT2 (contigs only): 122 good / 431 poor bins
+  \end{itemize}
+  \item \textbf{Postprocessing finding:} Contamination-driven role filtering
+  raised the average HQ bins/sample from 1.7 to 8.17.
+  \item \textbf{pheS--genome similarity Pearson $r = 0.97$}; no HQ bins retrieved
+  when best reference pheS similarity drops below 0.3.
+\end{itemize}
+
+\section{What We Replicated vs. Skipped}
+
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+\textbf{Component} & \textbf{Disposition} \\
+\midrule
+Read simulation            & \textbf{Replicated} with InSilicoSeq (HiSeq error model). \\
+Co-assembly                & \textbf{Replicated} with metaSPAdes 4.2.0. \\
+Per-sample mapping         & \textbf{Replicated} with minimap2 \texttt{sr} preset + samtools. \\
+Baseline binning (MetaBAT2) & \textbf{Replicated.} \\
+Ground-truth quality scoring & \textbf{Done directly} via minimap2 \texttt{asm5}
+alignment of bin contigs to reference genomes (stronger than CheckM because we have
+the exact sources). \\
+CheckM/CheckM2             & Skipped: osx-64 install friction; not needed given
+ground truth. Equivalent MIMAG thresholds applied. \\
+PATRIC supervised pipeline (SEEDtk) & \textbf{Out of scope:} requires the
+193{,}980-genome PATRIC database, RASTtk, EvalG, EvalCon, and SEEDtk --- not
+installable on macOS in the time budget without cloud/BV-BRC access. \\
+pheS anchoring / discriminating 12-mers & Not reimplemented; comparator only. \\
+Real human-gut benchmark (23 Pasolli samples) & \textbf{Substituted} with a
+5-species synthetic community ($\sim$1\,GB reads) to fit compute budget. \\
+\bottomrule
+\end{tabularx}
+
+\section{Methods}
+
+\subsection{Synthetic Community}
+Five diverse bacterial reference genomes were downloaded from NCBI RefSeq
+(\emph{Escherichia coli} K-12 MG1655, \emph{Staphylococcus aureus} NCTC 8325,
+\emph{Bacillus subtilis} 168, \emph{Lactobacillus gasseri} ATCC 33323,
+\emph{Porphyromonas gingivalis} ATCC 33277; total $\approx$15.9\,Mb). Contig
+headers were rewritten with a species prefix for ground truth tracking.
+
+Two metagenomic ``samples'' of $10^6$ read pairs (2$\times$126 bp) each were
+generated with InSilicoSeq 2.0.1 (\texttt{HiSeq} error model, 8 CPUs) with
+deliberately skewed and \emph{opposite} abundance vectors:
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Species & Sample1 & Sample2 \\
+\midrule
+\emph{E. coli}         & 0.50 & 0.10 \\
+\emph{S. aureus}       & 0.05 & 0.40 \\
+\emph{B. subtilis}     & 0.25 & 0.10 \\
+\emph{L. gasseri}      & 0.10 & 0.30 \\
+\emph{P. gingivalis}   & 0.10 & 0.10 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This differential-abundance design is what allows MetaBAT2's tetranucleotide
+plus coverage signal to separate species cleanly.
+
+\subsection{Pipeline}
+
+\begin{enumerate}
+  \item \textbf{Co-assembly:} metaSPAdes 4.2.0, \texttt{--meta --only-assembler},
+  on the concatenated PE library (both samples). Output filtered to contigs
+  $\geq 1000$\,bp.
+  \item \textbf{Mapping:} minimap2 2.30 \texttt{-ax sr} per sample, piped to
+  \texttt{samtools sort}. $>98.7\%$ reads-well-mapped per sample.
+  \item \textbf{Coverage:} \texttt{jgi\_summarize\_bam\_contig\_depths} across
+  both BAMs.
+  \item \textbf{Binning:} MetaBAT2 2.18, \texttt{-m 1500 --seed 42}.
+  \item \textbf{Evaluation:} Each bin's contigs aligned to the combined
+  reference with minimap2 \texttt{-x asm5}. Each query contig is assigned to
+  the species with the most matching bases; per-species totals give purity
+  (contamination = $1 - $ purity), and completeness is the ratio of assigned
+  bases to that species' genome length.
+\end{enumerate}
+
+Software note: megahit 1.2.9 from bioconda segfaulted on this Intel iMac (both
+the \texttt{count} and \texttt{assemble} sub-steps with SIGSEGV irrespective of
+BMI2 core selection); we switched to metaSPAdes, which ran to completion.
+
+\section{Results}
+
+metaSPAdes produced 659 contigs totaling 15.58\,Mb; 258 contigs $\geq 1000$\,bp
+(15.53\,Mb) were fed to MetaBAT2. MetaBAT2 produced \textbf{5 bins} containing
+98.00\% of the large-contig bases (15.21\,Mb). Per-bin evaluation against the
+ground truth:
+
+\begin{center}
+\begin{tabular}{llrrrrc}
+\toprule
+Bin & Species & Purity \% & Complete \% & Bin size (bp) & Aligned (bp) & MIMAG HQ? \\
+\midrule
+bin.1 & \emph{P. gingivalis} & 100.00 & 85.64 & 2,021,268 & 2,016,788 & \checkmark \\
+bin.2 & \emph{E. coli}       & 100.00 & 97.19 & 4,513,831 & 4,511,214 & \checkmark \\
+bin.3 & \emph{S. aureus}     & 100.00 & 98.30 & 2,775,039 & 2,773,263 & \checkmark \\
+bin.4 & \emph{L. gasseri}    & 100.00 & 95.51 & 1,809,639 & 1,809,248 & \checkmark \\
+bin.5 & \emph{B. subtilis}   & 100.00 & 96.93 & 4,090,423 & 4,086,144 & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Headline numbers.}
+\begin{itemize}
+  \item 5 / 5 genomes recovered.
+  \item Contamination: $0\%$ in every bin (every mapped base in every bin
+        originated from that bin's main species).
+  \item Completeness range: 85.6\%--98.3\%; mean 94.7\%.
+  \item HQ bins (MIMAG $\geq 80\%$ / $\leq 10\%$): \textbf{5/5}.
+  \item Paper's HQ threshold (EvalG $\geq 80\%$ complete, $\leq 10\%$ contam): all
+        5 would qualify; the \texttt{EvalCon} fine-consistency criterion cannot
+        be checked without RASTtk.
+\end{itemize}
+
+\section{Comparison With the Paper}
+
+\begin{tabular}{lrrrr}
+\toprule
+Method & Samples & HQ bins & HQ/sample & Total bins \\
+\midrule
+PATRIC supervised (paper)    & 23 & 205 & 8.91 & 370 \\
+MetaBAT2 + Bowtie2 (paper)   & 23 & 180 & 7.83 & 840 \\
+MetaBAT2, contigs only (paper) & 23 & 122 & 5.30 & 553 \\
+\midrule
+\textbf{This work} (MetaBAT2, synthetic) & 1 & 5 & 5.00 & 5 \\
+\bottomrule
+\end{tabular}
+
+Our per-sample HQ yield (5) is \emph{at the low end} of the paper's MetaBAT2
+numbers only because our synthetic community contains only 5 species --- the
+pipeline recovered \emph{all} of them. The paper's samples are real Pasolli
+human gut metagenomes, in which hundreds of species compete, only a fraction
+are assembleable from $\sim 10^7$ reads, and MetaBAT2 produces 840 total bins
+of which only 180 are HQ (21.4\% good-bin rate). Our good-bin rate is 100\%
+because there are no low-abundance under-assembled species to over-fragment.
+
+\section{What Was and Was Not Reproduced}
+
+\paragraph{Reproduced qualitatively.}
+\begin{itemize}
+  \item MetaBAT2 is capable of producing high-quality bins when differential
+  coverage is informative (confirmed: 5/5 pure HQ bins from 2 samples with
+  opposite abundance vectors).
+  \item The general recipe (read simulate $\to$ co-assemble $\to$ map per
+  sample $\to$ jgi depth $\to$ MetaBAT2) works end-to-end on a commodity Mac.
+\end{itemize}
+
+\paragraph{Not reproduced (honest accounting).}
+\begin{itemize}
+  \item The paper's central contribution --- \emph{supervised} binning via
+  pheS + discriminating 12-mers against PATRIC --- was \emph{not implemented}.
+  The SEEDtk stack requires a custom RASTtk / SEED / EvalCon install and the
+  full PATRIC genome corpus; this is BV-BRC-hosted and not trivially
+  reproducible off-platform.
+  \item The paper's head-to-head superiority of PATRIC over MetaBAT2 on real
+  human-gut data was not directly tested; we only reproduced the
+  comparator arm.
+  \item Postprocessing's claimed boost from 1.7 to 8.17 HQ bins/sample
+  (a $4.8\times$ improvement attributable specifically to EvalCon-driven role
+  filtering) is inaccessible without EvalCon.
+  \item The pheS-similarity / HQ-yield monotone relationship (Table 2 of the
+  paper) is not testable without a reference pheS database and BLAST against
+  PATRIC.
+\end{itemize}
+
+\section{Self-Rated Replication Score}
+
+\textbf{4/10.} We reproduced the comparator baseline end-to-end and verified it
+works correctly on controlled data, but we did not reproduce the paper's
+actual supervised method or the human-gut benchmark it was measured on. A
+fairer 8+/10 would require either BV-BRC platform access or a substantial
+($\gg$2.5\,h) re-implementation of SEEDtk against a staged PATRIC snapshot.
+
+\section{Reproducibility Bundle}
+
+All files are under
+\texttt{\textasciitilde/Dropbox/REPLICATE-PROJECT/2469515-Supervised-extraction-of-near-complete-genomes-from/replication/}:
+
+\begin{itemize}
+  \item \texttt{data/} --- reference genomes, abundance files, simulated reads
+  \item \texttt{assembly/spades/} --- metaSPAdes output; \texttt{contigs.fa} (filtered)
+  \item \texttt{bins/sample\{1,2\}.bam, depth.txt} --- alignments and coverage
+  \item \texttt{bins/metabat/bin.\{1..5\}.fa} --- final MAGs
+  \item \texttt{checkm/bin\_eval.tsv} --- ground-truth completeness/purity table
+  \item \texttt{report/report.pdf} --- this document
+\end{itemize}
+
+\paragraph{Environment.}
+conda env \texttt{metabin}: metaSPAdes 4.2.0, minimap2 2.30, samtools 1.23.1,
+metabat2 2.18, seqkit, InSilicoSeq 2.0.1, biopython 1.87, Python 3.13.
+Host: CherryRd, macOS, 20 CPU / 128\,GB RAM.
+
+\end{document}

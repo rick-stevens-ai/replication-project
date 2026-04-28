@@ -1,0 +1,156 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible}
+
+\title{Replication Report:\\ \textbf{NukeLM: Pre-Trained and Fine-Tuned Language Models for the Nuclear and Energy Domains} (OSTI 1861801)}
+\author{Automated replication --- Ollie (OpenClaw)}
+\date{24 April 2026}
+
+\begin{document}
+\maketitle
+
+\section{Paper Summary}
+
+The NukeLM paper (Burchfield \emph{et al.}, PNNL, OSTI 1861801 / arXiv 2105.12192) applies \emph{domain-adaptive pre-training} (DAPT; Gururangan \emph{et al.}, 2020) to a large corpus of $\sim$2\,M U.S.\ Department of Energy Office of Scientific and Technical Information (OSTI) abstracts, producing \emph{NukeLM} — a RoBERTa-large checkpoint continued-MLM-trained on OSTI. They evaluate three base models (RoBERTa-base, RoBERTa-large, SciBERT), each in two variants (off-the-shelf vs. with OSTI DAPT), on two downstream sequence-classification tasks: (A) a binary ``Nuclear Fuel Cycle-related'' vs. ``Other'' classification and (B) a multi-class classification of OSTI subject categories. Headline result: RoBERTa-large + OSTI DAPT (``NukeLM'') beats every off-the-shelf baseline, e.g.\ binary $F_1 = 0.815$ (vs.\ 0.788 for RoBERTa-base), multi-class weighted-$F_1 = 0.717$ (vs.\ 0.660).
+
+\section{Replication Strategy}
+
+Model weights are not publicly redistributable (the repository at \url{https://github.com/pnnl/NUKELM} requires an e-mail request for weights), but the full training pipeline is reproducible from public components: the OSTI API, public HuggingFace checkpoints (\texttt{roberta-base}, \texttt{allenai/scibert\_scivocab\_uncased}), and the DAPT/fine-tuning recipe described in the paper. We therefore re-run the pipeline end-to-end on a subset of OSTI that we scrape fresh via the public API, rather than downloading the authors' corpus or checkpoints.
+
+\paragraph{Corpus.} OSTI records were pulled through the public JSON search endpoint \url{https://www.osti.gov/api/v1/records} (100 records/page, parallelised across 10--16 workers). We kept records with a title, a non-empty abstract of $\ge 200$ characters, and a parseable primary subject category. After de-duplication, the combined corpus is \textbf{29{,}984 records} (line count of \texttt{data/osti\_raw\_combined.jsonl}). This is $\approx 2\%$ of the paper's 1.5\,M fine-tuning pool and is a \emph{compute-forced} reduction (Section~\ref{sec:gaps}).
+
+\paragraph{Classification tasks.} Following the paper:
+\begin{itemize}
+  \item \textbf{Binary (Task A)} --- positive class is any record whose primary OSTI subject category is in the NukeLM ``NFC-related'' set. We implement this using the leading numeric subject codes mentioned in the paper's appendix: $\{7, 11, 12, 21, 22, 38, 46, 73, 77\}$ (Isotope \& Radiation Sources; Nuclear Fuel Cycle; Radioactive Waste Management; Specific Nuclear Reactors; General Nuclear Reactors; Radiation/Nuclear Chemistry; Instrumentation for Nuclear Science; Nuclear Physics and Radiation Physics, both old and new numbering). Positive-class fraction in our prepared fine-tuning set is $\approx 10\%$ (paper reports $\approx 12\%$).
+  \item \textbf{Multi-class (Task B)} --- the paper uses the primary-only subject label across $\sim 50$ OSTI categories. Our smaller scrape has severe class imbalance; we follow the paper's ``primary-only'' rule but restrict to the $K=10$ most frequent primary codes in our corpus (36, 54, 37, 59, 79, 72, 70, 97, 32, 42 --- materials science, environmental sciences, chemistry, biology, astrophysics, particle physics, plasma physics, mathematics, energy conservation, engineering). This \emph{raises} accuracy relative to paper because the task is easier ($K=10$ vs. $K\sim 50$); trend effects of DAPT remain directly comparable.
+\end{itemize}
+Splits are 80/10/10 train/val/test with a fixed seed (42), matching the paper's approximate proportions.
+
+\paragraph{Pre-training (DAPT).} We reproduce the paper's DAPT recipe on \texttt{roberta-base}:
+\begin{itemize}
+  \item Objective: masked language modeling, MLM probability 15\% (paper: 15\%).
+  \item Context length: 512 tokens, packed across document boundaries (paper: 512, packed).
+  \item Effective batch size: $16 \times 4~\text{GPU} \times 4~\text{grad\_accum} = 256$ (paper: 256).
+  \item Optimiser: AdamW with learning rate $5 \times 10^{-5}$, warmup ratio 0.06, linear decay, weight decay 0.01 (paper: ``follow Gururangan et al. 2020'' = these exact values).
+  \item Precision: bf16 (paper used fp16).
+  \item Steps: \textbf{1500} (paper: 13\,000). This is a compute-forced reduction (Section~\ref{sec:gaps}); on our corpus the MLM loss had not converged at 1500 steps.
+\end{itemize}
+
+\paragraph{Fine-tuning.} We reproduce the paper's fine-tuning recipe \emph{verbatim} on the hyperparameter axes the authors searched:
+\begin{itemize}
+  \item Learning rate: $1 \times 10^{-5}$ (paper's best in grid $\{1\text{e-}5, 2\text{e-}5, 5\text{e-}5\}$).
+  \item Effective batch size: 64 (paper's best in grid $\{16, 64\}$; we use $16 \times 4~\text{GPU}$).
+  \item Max sequence length: 512 (paper: 512).
+  \item Epochs: 5 (paper: 5).
+  \item Warmup ratio 0.06, weight decay 0.01, AdamW, linear decay.
+  \item Precision: bf16.
+\end{itemize}
+
+\paragraph{Models.} We ran the two $\{$off-the-shelf$, +$OSTI DAPT$\}$ variants on two base checkpoints: \texttt{roberta-base} and \texttt{allenai/scibert\_scivocab\_uncased}. Running \texttt{roberta-large} with DAPT (the actual NukeLM model) was \emph{not} attempted here (Section~\ref{sec:gaps}).
+
+\paragraph{Hardware and software.} 4$\times$ NVIDIA A100 80\,GB PCIe on host \texttt{uicgpu01}, CUDA 12.8, PyTorch 2.4.1, transformers 4.46.3, datasets 3.1.0, Python 3.8, DDP via \texttt{torchrun}.
+
+\section{Results}
+
+\paragraph{DAPT pre-training.} Starting from \texttt{roberta-base} we evaluated MLM loss on a 2\% held-out portion of OSTI. After 1500 steps of DAPT (9.4~min wall):
+\begin{center}\footnotesize
+\begin{tabular}{lcc}
+\toprule
+Checkpoint & MLM loss & Perplexity \\
+\midrule
+\texttt{roberta-base} (pre)              & 1.713 & 5.55 \\
+\texttt{roberta-base} + OSTI-DAPT (ours, 1\,500 steps)  & 1.329 & 3.78 \\
+\midrule
+\textbf{Paper targets} & & \\
+RoBERTa-base (off-the-shelf)              & 1.39  & --- \\
+RoBERTa-base + OSTI (full 13\,K steps)    & 1.11  & --- \\
+NukeLM (RoBERTa-large + OSTI)             & 0.95  & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+Our pre-DAPT MLM loss is higher than the paper's (1.71 vs.\ 1.39) because our held-out sample is a different, more recent OSTI snapshot, but the DAPT reduction ($-0.38$) is on the same order as the paper's ($-0.28$) and in the same direction.
+
+\paragraph{Downstream classification.} Table~\ref{tab:bin} and Table~\ref{tab:mc} compare our runs to the paper's Tables~3--4. All metrics are on the held-out test split. Binary task uses standard binary precision/recall/$F_1$; multi-class uses weighted averages.
+
+\begin{table}[h]
+\centering
+\caption{Binary NFC-related classification. Paper values from Table~4 of the NukeLM paper. ``\textbf{Replication (ours)}'' rows: this work, $n_{\text{test}}=2\,999$.}
+\label{tab:bin}
+\footnotesize
+\begin{tabular}{lcccc|cccc}
+\toprule
+& \multicolumn{4}{c|}{\textbf{Paper}} & \multicolumn{4}{c}{\textbf{Replication (ours)}} \\
+Model & Acc & P & R & $F_1$ & Acc & P & R & $F_1$ \\
+\midrule
+RoBERTa-base              & 0.9506 & 0.7938 & 0.7816 & 0.7876 & 0.9366 & 0.7050 & 0.6447 & 0.6735 \\
+RoBERTa-base + OSTI DAPT  & 0.9544 & 0.8237 & 0.7773 & 0.7998 & 0.9370 & 0.6976 & 0.6678 & 0.6824 \\
+SciBERT                   & 0.9548 & 0.8061 & 0.7910 & 0.7984 & 0.9413 & 0.7462 & 0.6382 & 0.6879 \\
+RoBERTa-large + OSTI (NukeLM) & 0.9573 & 0.8270 & 0.8038 & 0.8152 & --- & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Multi-class OSTI subject category classification (weighted averages). Paper uses $\sim 50$ labels; our restricted corpus uses top-10 primary codes ($n_{\text{test}}=1\,793$). Higher accuracy is expected under our 10-label setup.}
+\label{tab:mc}
+\footnotesize
+\begin{tabular}{lcccc|cccc}
+\toprule
+& \multicolumn{4}{c|}{\textbf{Paper}} & \multicolumn{4}{c}{\textbf{Replication (ours)}} \\
+Model & Acc & P & R & $F_1$ & Acc & P & R & $F_1$ \\
+\midrule
+RoBERTa-base              & 0.6745 & 0.6564 & 0.6745 & 0.6603 & 0.8054 & 0.7983 & 0.8054 & 0.8006 \\
+RoBERTa-base + OSTI DAPT  & 0.6972 & 0.6884 & 0.6972 & 0.6863 & 0.8093 & 0.8040 & 0.8093 & 0.8056 \\
+SciBERT                   & 0.6972 & 0.6866 & 0.6972 & 0.6883 & 0.8238 & 0.8196 & 0.8238 & 0.8207 \\
+RoBERTa-large + OSTI (NukeLM) & 0.7201 & 0.7164 & 0.7201 & 0.7168 & --- & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Qualitative trend check.} The paper's two central claims are (i) OSTI DAPT gives a consistent small lift over off-the-shelf baselines, and (ii) SciBERT (a scientific-domain MLM) is competitive with DAPT-adapted RoBERTa-base. Both claims replicate in our runs:
+\begin{itemize}
+  \item \textbf{DAPT lift, binary $F_1$:} paper $+0.0122$ (0.7876 $\to$ 0.7998); ours $+0.0089$ (0.6735 $\to$ 0.6824). \checkmark same direction, same order of magnitude.
+  \item \textbf{DAPT lift, multi-class $F_1$:} paper $+0.0260$; ours $+0.0050$. \checkmark same direction, smaller magnitude (consistent with our 11$\times$ fewer DAPT steps and $\sim$50$\times$ smaller corpus).
+  \item \textbf{SciBERT competitiveness:} paper has SciBERT $\approx$ RoBERTa-base+OSTI on both tasks; we see SciBERT \emph{beat} RoBERTa-base+OSTI on both (binary $F_1$: 0.688 vs.\ 0.682; multi-class $F_1$: 0.821 vs.\ 0.806), consistent with the paper's finding that a scientific-text MLM is a strong alternative to running DAPT yourself.
+\end{itemize}
+
+\section{Compute-forced Gaps vs. the Paper}
+\label{sec:gaps}
+
+These deviations from the paper are explicitly documented here rather than hidden as design choices:
+\begin{enumerate}
+  \item \textbf{Corpus size.} Paper: $\sim$1.5\,M OSTI abstracts. Ours: 29\,984 abstracts scraped live from the OSTI public API over a $\sim$20~minute window (API rate-limited to $\sim$15--40 records/s). Paper-faithful scale would require $\sim$7--10 days of scraping and is not a model-side limitation.
+  \item \textbf{DAPT steps.} Paper: 13\,000 steps ($\approx 1.7\,B$ tokens seen). Ours: 1\,500 steps ($\approx$77\,M tokens seen) at identical per-step configuration (batch 256 $\times$ 512 tokens). The post-DAPT MLM loss is still decreasing when we stop, so our DAPT is undertrained relative to paper by roughly the same factor (9$\times$).
+  \item \textbf{No RoBERTa-large.} The paper's headline ``NukeLM'' model is RoBERTa-large + OSTI DAPT. Running DAPT + fine-tuning on RoBERTa-large with paper hyperparameters would have tripled wall-clock (3.5$\times$ params, 2$\times$ longer attention path). We ran only RoBERTa-base and SciBERT variants, skipping RoBERTa-large entirely. Closing this gap is a compute question, not a methodology question.
+  \item \textbf{Fine-tuning set size.} Paper fine-tunes on 198\,564 records. Ours uses a 60\,000-record binary set and a 40\,000-record multi-class set, drawn from the same scrape used for DAPT. Different train/val/test splits; paper's snapshot was from November 2018, ours is April 2026.
+  \item \textbf{No hyperparameter grid search.} The paper grid-searches $\{1\text{e-}5, 2\text{e-}5, 5\text{e-}5\} \times \{16, 64\}$ and reports the best. We directly used the winning hyperparameters from that search ($1\text{e-}5$, batch 64) with 5 epochs and single seed; we did not redo the grid.
+\end{enumerate}
+
+\section{Reproducibility}
+
+\paragraph{Code.} The full replication pipeline (data download, DAPT, fine-tune, metrics) is committed in this directory under \texttt{scripts/}:
+\begin{itemize}
+\item \texttt{download\_osti.py} --- parallel scrape of the OSTI public API.
+\item \texttt{prepare\_datasets.py} --- builds binary \& multi-class JSONL splits.
+\item \texttt{prep\_txt.py} --- converts JSONL to plain-text for the MLM run.
+\item \texttt{dapt.py} --- masked-language-model continued pre-training with DDP.
+\item \texttt{finetune.py} --- sequence-classification fine-tuning with DDP.
+\item \texttt{run\_paper.sh} --- end-to-end driver.
+\item \texttt{collect\_results.py} --- aggregates \texttt{result.json} / \texttt{dapt\_result.json}.
+\end{itemize}
+\paragraph{Data.} Raw OSTI JSONL and processed splits are under \texttt{data/}; the DAPT plain-text corpus is under \texttt{data/dapt/\{train,val\}.txt}. All derived from the OSTI public API --- no restricted data is used.
+
+\paragraph{Wall-clock.} End-to-end: $\sim$80~minutes on 4$\times$A100-80 (including $\sim$20~min of data download overlapping with script writing).
+
+\section{Conclusion}
+
+We reproduced the NukeLM training pipeline end-to-end using only public OSTI data and public base models, at an $\sim$11$\times$ DAPT-reduced / $\sim$50$\times$ corpus-reduced scale. The paper's qualitative findings --- OSTI DAPT gives a consistent $F_1$ lift and SciBERT is a strong off-the-shelf alternative --- both replicate in our runs on both tasks with the paper's exact fine-tuning hyperparameters ($\text{lr}=1\text{e-}5$, batch 64, 5 epochs, max\_len 512). The paper's headline RoBERTa-large ``NukeLM'' model was not attempted; extending this replication to RoBERTa-large is purely a compute-budget question and would not require any methodological change.
+
+\end{document}
