@@ -27,7 +27,7 @@ This project contains independent replications of published computational scienc
 | 10 | 1842593 | Motion Tomography | Signal Processing | ✅ Complete |
 | 11 | 2217719 | SCALE MSRE Depletion | Nuclear Engineering | ✅ Complete |
 | 12 | 3014512 | Dark Matter SD Scattering | Particle Physics | ✅ Complete |
-| 13 | 1609039 | Metallic Glass Formation | Materials Science | ⏳ Running (76%) |
+| 13 | 1609039 | Cu₆₄Zr₃₆ Metallic Glass MD (deformation) | Materials Science | ✅ Complete (7/8 + 6/8 — 9 σ-ε runs (3T × 3ε̇); paper ordering reproduced (3.1× drop 10K→600K, rate hardening at 300K/600K); magnitudes 0.51–0.97× paper due to 24× atom-count reduction) |
 | 14 | 1484740 | Electronic/Optical Properties of 2D GaN | DFT/Materials | ✅ Complete (9/9 — monolayer + bilayer fully converged on uicgpu QE 7.4.1 GPU; bilayer F_max=0.000598 Ry/Bohr; plasmons ωp ≈ 10 eV match paper Fig 5; PBE-vs-LDA gap discrepancy documented; GW/BSE out of scope) |
 | 15 | 1559043 | Ignition Kernel in Turbulent Flow | CFD/Combustion | ✅ Complete (4/5 — PeleC v3, Polaris ensemble 4φ×5 realizations, ignition-propensity curve reproduced, paper Fig.3 analog) |
 | 16 | 1275503 | Cosmic Reionization on Computers | Astrophysics | ✅ Complete |
