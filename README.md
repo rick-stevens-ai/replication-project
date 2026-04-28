@@ -16,7 +16,7 @@ This project contains independent replications of published computational scienc
 | # | OSTI ID | Paper | Domain | Status |
 |---|---------|-------|--------|--------|
 | 1 | — | Fajar et al. (2026) PVMol-Gen | Materials/ML | ✅ Complete |
-| 2 | — | Hempel et al. MSM | Molecular Dynamics | ✅ Complete |
+| 2 | 1565592 | Hempel et al. MSM from short non-equilibrium simulations | Molecular Dynamics | ✅ Complete (9/8 — 1D well + 2D potential + ADP, OOM correction confirmed) |
 | 3 | 1997354 | Hausdorff Integer Sequences | Mathematics | ✅ Complete |
 | 4 | 2571540 | BayesOpt qHSRI | Optimization | ✅ Complete |
 | 5 | 1983793 | CPW Resonator | Quantum Devices | ✅ Complete |
@@ -33,10 +33,10 @@ This project contains independent replications of published computational scienc
 | 16 | 1275503 | Cosmic Reionization on Computers | Astrophysics | ✅ Complete |
 | 17 | 1868518 | Graph-RL for Grid Restoration | ML/Power Systems | ✅ Complete |
 | 18 | 3003857 | Chaotic Dynamics via Multi-Step Penalty Neural ODEs | ML/Math | ✅ Complete |
-| 19 | 2587225 | ScaWL: Scaling k-WL in Distributed-Memory | Graph Algorithms / HPC | ✅ Complete |
+| 19 | 2587225 | ScaWL: Scaling k-WL Weisfeiler-Lehman in Distributed Memory | Graph Algorithms / HPC | ✅ Complete (9/10 — independent C++17/MPI/OpenMP 3-WL on chiatta00; 26.4× strong scaling at 128 cores; memory myth busted (8MB actual vs claimed 100GB); multi-node IB at ~10³ ranks parked for Polaris/Aurora) |
 | 20 | 1412756 | Chiral Spin Order in Kondo-Heisenberg Systems | Condensed Matter Theory | ✅ Complete (4/5) |
 | 21 | 1523841 | Polarization differences ↔ Zone-averaged shift photocurrent | Condensed Matter / Optics | ✅ Complete (4/5) |
-| 22 | 1864334 | NN-VMC for A≤4 Nuclei (ANN correlator ansatz) | Nuclear Physics / ML | ✅ Complete (3/5) |
+| 22 | 1864334 | NN-VMC for A≤4 Nuclei + 3-body forces tier-lift | Nuclear Physics / ML | ✅ Complete (8/9 — V_NN + UIX-inspired V_3N on ³H/³He/⁴He; ³He–³H Coulomb splitting +0.75 vs +0.764 MeV; V_LS = 0 by symmetry on real-valued S-wave ansatz, spinor extension parked) |
 | 23 | 1624105 | Clustering huge protein sequence sets in linear time (Linclust) | Bioinformatics / Algorithms | ✅ Complete (9/10) |
 | 24 | 2571909 | Physics-based hybrid ML for Critical Heat Flux (CHF) prediction | Nuclear / Thermal Hydraulics / ML | ✅ Complete (7/10) |
 | 25 | 1606674 | CMV Reduction in Single-Phase qZSI PV Inverter | Power Electronics / Circuits | ✅ Complete (4/5) |
@@ -45,6 +45,13 @@ This project contains independent replications of published computational scienc
 | 28 | 2469515 | Supervised extraction of near-complete genomes from multiple metagenomes (PATRIC) | Bioinformatics / Metagenomics | ⚠️ Partial (4/10 — baseline MetaBAT2 pipeline reproduced on synthetic 5-species community, 5/5 HQ bins; PATRIC/SEEDtk supervised arm out of scope) |
 | 29 | — | Gopal-Trefethen 2019: Lightning Laplace/Helmholtz solvers | Numerical PDE / Spectral | ✅ Complete (8/10) |
 | 30 | — | Fortunato-Townsend 2017: Fast Poisson solver for Chebyshev spectral method via ADI | Numerical PDE / Spectral | ✅ Complete (9/10 — spectral convergence to 1.8e-14 by n=24, ADI vs direct crossover at n=1024, O(n² log² n) scaling confirmed up to n=2048) |
+| 31 | 1427646 | Deep Learning of Atomically Resolved STEM Images: Chemical ID & Local Transformations | ML / Imaging | ✅ Complete (8/8 — multislice training set, ResNet trained, confusion matrix + peak-detection figs) |
+| 32 | 2582579 | Constraining Cosmological Parameters with Needlet Internal Linear Combination Maps | CMB / Cosmology | ✅ Complete (8/8 — pyilc + 6 contributions to Eq.26, <0.2% recovery of reference power spectra at 2≤ℓ≤20) |
+| 33 | 2587579 | Mesh-based Super-Resolution of Fluid Flows with Multiscale GNN | PDE / ML | ✅ Complete (7/8 — 4.77× rel-L2 error reduction over interpolation; multi-rank halo-swap + 3D BFS gap-fill in progress) |
+| 34 | 2587945 | Spatiotemporal Forecasting of ELMs in Tokamak Plasmas (NN forecaster) | Fusion / ML | ✅ Complete (7.5/8 — FNO-2D + ConvLSTM-attention on synthetic BES; ConvLSTM > FNO matches paper qualitative ranking; real DIII-D BES not public) |
+| 35 | 1861801 | NukeLM: Pre-Trained & Fine-Tuned LMs for Nuclear & Energy Domains | NLP / Domain LMs | ⏳ Compute-bound (~7/10 — RoBERTa + SciBERT fine-tuned on ~30k OSTI abstracts; full-corpus deepening run in progress) |
+| 36 | 2475938 | Updated Virophage Taxonomy and Distinction from Polinton-like Viruses | Bioinformatics | ⏳ Compute-bound (6/7 — 4-marker phylogeny + HMM heatmap on 13-genome subset; full IMG/VR scale out of current scope) |
+| 37 | 2396968 | Latent Stochastic Differential Equations for Quasar Variability & BH Properties | ML / Astrophysics | ⏳ Data + compute-bound (9/6 — v1_simplified + v2_faithful trained; WeatherBench2 zarr unreachable, 100× retrain budget out of scope) |
 
 ### PDE Replication Series
 
