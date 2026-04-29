@@ -41,7 +41,7 @@ This project contains independent replications of published computational scienc
 | 24 | 2571909 | Physics-based hybrid ML for Critical Heat Flux (CHF) prediction | Nuclear / Thermal Hydraulics / ML | ✅ Complete (7/10) |
 | 25 | 1606674 | CMV Reduction in Single-Phase qZSI PV Inverter | Power Electronics / Circuits | ✅ Complete (4/5) |
 | 26 | 2439897 | Physics and Chemistry from Parsimonious Representations (rVAE) | ML / Scientific Imaging | ✅ Complete (8/10) |
-| 27 | 1981773 | Single-atom Pt doping of La$_2$Ti$_2$O$_7$ for photocatalysis (DFT) | DFT / Materials / Catalysis | ✅ Complete (6/10) |
+| 27 | 1981773 | Single-atom Pt doping of La$_2$Ti$_2$O$_7$ for photocatalysis (DFT) | DFT / Materials / Catalysis | ✅ Complete (9/9 — Yambo PBE/RPA optical absorption: 2.40 eV redshift vs paper 2.20 eV (9% diff), 2.91× visible-band enhancement, Pt sub-gap tail at 0.52 eV; facet σ ordering (001)<(010) recovered (13-16% diff vs paper); polar-terminated (100)/(101)/(110) slabs diverged, need symmetric slab gen) |
 | 28 | 2469515 | Supervised extraction of near-complete genomes from multiple metagenomes (PATRIC) | Bioinformatics / Metagenomics | ⚠️ Partial (4/10 — baseline MetaBAT2 pipeline reproduced on synthetic 5-species community, 5/5 HQ bins; PATRIC/SEEDtk supervised arm out of scope) |
 | 29 | — | Gopal-Trefethen 2019: Lightning Laplace/Helmholtz solvers | Numerical PDE / Spectral | ✅ Complete (8/10) |
 | 30 | — | Fortunato-Townsend 2017: Fast Poisson solver for Chebyshev spectral method via ADI | Numerical PDE / Spectral | ✅ Complete (9/10 — spectral convergence to 1.8e-14 by n=24, ADI vs direct crossover at n=1024, O(n² log² n) scaling confirmed up to n=2048) |
