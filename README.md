@@ -53,6 +53,7 @@ This project contains independent replications of published computational scienc
 | 36 | 2475938 | Updated Virophage Taxonomy and Distinction from Polinton-like Viruses | Bioinformatics | ✅ Complete (8/10 — 279-genome NCBI scale-up (21× the 13-genome baseline); 70-taxon 4-marker partitioned ML tree recovers Mavirus/Sputnik/Aquatic-Lavidaviridae clades + Maveriviricetes/Polintoviricetes boundary; IMG/VR uncultivated tail skipped) |
 | 37 | 2396968 | Latent Stochastic Differential Equations for Quasar Variability & BH Properties | ML / Astrophysics | ⏳ Data + compute-bound (9/6 — v1_simplified + v2_faithful trained; WeatherBench2 zarr unreachable, 100× retrain budget out of scope) |
 | 38 | 1578031 | Joint Emulation of Earth System Model Temperature-Precipitation (fldgen v2.0) | Climate / Stats | ✅ Complete (8/8 — Python re-impl all 8 algorithm steps (pattern scaling, EOF/PCA, Fourier phase randomization, quantile mapping); spatial-rank-corr RMSE 0.056, marginal KS 100% pass, cross-var corr r=0.93; synthetic ESM input not actual CMIP5) |
+| 39 | 1993311 | DMQMC + Gaussian Process Regression for Specific Heat / Entropy from Noisy Energy Data | DFT / Stats | ✅ Complete (8/8 — GPR composite-kernel beats finite differences on C_V(T) by 14.6× (Hubbard U/t=4) and 44× (U/t=8); noise sweep ratio 0.37–0.52 across levels; synthetic data only, no real HANDE-QMC) |
 
 ### PDE Replication Series
 
