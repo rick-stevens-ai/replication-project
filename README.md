@@ -52,6 +52,7 @@ This project contains independent replications of published computational scienc
 | 35 | 1861801 | NukeLM: Pre-Trained & Fine-Tuned LMs for Nuclear & Energy Domains | NLP / Domain LMs | ✅ Complete (8/10 — DAPT on RoBERTa-large with 325K OSTI abstracts (114M tokens); MLM loss 0.641 (ppl 1.90) surpasses paper's 0.95; NukeLM Binary F₁=0.710 tops ranking; all paper trends reproduce) |
 | 36 | 2475938 | Updated Virophage Taxonomy and Distinction from Polinton-like Viruses | Bioinformatics | ✅ Complete (8/10 — 279-genome NCBI scale-up (21× the 13-genome baseline); 70-taxon 4-marker partitioned ML tree recovers Mavirus/Sputnik/Aquatic-Lavidaviridae clades + Maveriviricetes/Polintoviricetes boundary; IMG/VR uncultivated tail skipped) |
 | 37 | 2396968 | Latent Stochastic Differential Equations for Quasar Variability & BH Properties | ML / Astrophysics | ⏳ Data + compute-bound (9/6 — v1_simplified + v2_faithful trained; WeatherBench2 zarr unreachable, 100× retrain budget out of scope) |
+| 38 | 1578031 | Joint Emulation of Earth System Model Temperature-Precipitation (fldgen v2.0) | Climate / Stats | ✅ Complete (8/8 — Python re-impl all 8 algorithm steps (pattern scaling, EOF/PCA, Fourier phase randomization, quantile mapping); spatial-rank-corr RMSE 0.056, marginal KS 100% pass, cross-var corr r=0.93; synthetic ESM input not actual CMIP5) |
 
 ### PDE Replication Series
 
