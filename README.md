@@ -54,6 +54,7 @@ This project contains independent replications of published computational scienc
 | 37 | 2396968 | Latent Stochastic Differential Equations for Quasar Variability & BH Properties | ML / Astrophysics | ⏳ Data + compute-bound (9/6 — v1_simplified + v2_faithful trained; WeatherBench2 zarr unreachable, 100× retrain budget out of scope) |
 | 38 | 1578031 | Joint Emulation of Earth System Model Temperature-Precipitation (fldgen v2.0) | Climate / Stats | ✅ Complete (8/8 — Python re-impl all 8 algorithm steps (pattern scaling, EOF/PCA, Fourier phase randomization, quantile mapping); spatial-rank-corr RMSE 0.056, marginal KS 100% pass, cross-var corr r=0.93; synthetic ESM input not actual CMIP5) |
 | 39 | 1993311 | DMQMC + Gaussian Process Regression for Specific Heat / Entropy from Noisy Energy Data | DFT / Stats | ✅ Complete (8/8 — GPR composite-kernel beats finite differences on C_V(T) by 14.6× (Hubbard U/t=4) and 44× (U/t=8); noise sweep ratio 0.37–0.52 across levels; synthetic data only, no real HANDE-QMC) |
+| 40 | 1984484 | DRAS: Deep Reinforcement Learning for Cluster Scheduling in HPC | Systems / RL | ✅ Complete (8/8 — event-driven simulator + FCFS/EASY-BF/SJF baselines + DQN + PPO; PPO avg slowdown 125.8 vs SJF 166.3 (24% better) and FCFS 675.9; HPC2N trace 5K jobs × 240 nodes) |
 
 ### PDE Replication Series
 
