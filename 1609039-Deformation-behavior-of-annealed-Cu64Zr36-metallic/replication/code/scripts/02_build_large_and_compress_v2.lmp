@@ -1,0 +1,74 @@
+# =============================================================================
+# Stage 2+3 (REDUCED PROTOCOL for GPU-time budget)
+# 40,500 atoms (2x3x1), dt=0.002 ps, 1e13 K/s cooling.
+# Variables: TEMP, SRATE
+# =============================================================================
+units           metal
+atom_style      atomic
+boundary        s p p
+
+read_data       annealed_950K_120ns.data
+
+mass            1 63.546
+mass            2 91.224
+
+replicate       1 2 1
+
+pair_style      eam/fs
+pair_coeff      * * ../../potentials/Cu-Zr_Mendelev2009.eam.fs Cu Zr
+
+timestep        0.002
+
+thermo          5000
+thermo_style    custom step temp press pe ke etotal vol density pxx pyy pzz lx ly lz
+
+# ----- Relax replicated system at 950 K for 100 ps -----
+velocity        all create 950 98765 dist gaussian
+fix             relax_rep all npt temp 950 950 0.2 y 0 0 2.0 z 0 0 2.0
+run             25000
+unfix           relax_rep
+
+# ----- Cool to TEMP at 1e13 K/s -----
+variable        TEMP index 300
+variable        SRATE index 1e8
+
+variable        dT equal 950-${TEMP}
+variable        cool_steps equal v_dT*25    # 1e13 K/s, dt=0.002
+
+fix             cool_target all npt temp 950 ${TEMP} 0.2 y 0 0 2.0 z 0 0 2.0
+run             ${cool_steps}
+unfix           cool_target
+
+# ----- Short equilibration at TEMP for 25 ps -----
+fix             equil_target all npt temp ${TEMP} ${TEMP} 0.2 y 0 0 2.0 z 0 0 2.0
+run             6250
+unfix           equil_target
+
+write_data      large_${TEMP}K.data
+
+# ----- Uniaxial compression along y -----
+variable        erate equal ${SRATE}*1e-12          # 1/ps
+variable        total_time equal 0.10/v_erate
+variable        total_steps equal round(v_total_time/0.002)
+
+fix             compress all npt temp ${TEMP} ${TEMP} 0.2 z 0 0 2.0
+fix             deform_y all deform 1 y erate -${erate} remap x
+
+compute         stress all stress/atom NULL
+compute         p all reduce sum c_stress[1] c_stress[2] c_stress[3]
+
+# Output every 0.2% strain
+variable        out_freq equal round(0.001/v_erate/0.002)
+variable        strain equal -step*dt*v_erate
+variable        syy equal -pyy/10000
+
+fix             ss_out all print ${out_freq} "${strain} ${syy}" file stress_strain_${TEMP}K_${SRATE}.dat screen no title "strain stress_GPa"
+
+run             ${total_steps}
+
+unfix           compress
+unfix           deform_y
+unfix           ss_out
+
+write_data      compressed_${TEMP}K_${SRATE}_15pct.data
+print "=== Compression complete: T=${TEMP}K, rate=${SRATE}/s ==="

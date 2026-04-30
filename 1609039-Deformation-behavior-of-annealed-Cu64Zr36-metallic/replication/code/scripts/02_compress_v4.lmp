@@ -1,0 +1,48 @@
+# v4: minimal protocol from glass_300K_final.data (already cooled to 300K)
+units           metal
+atom_style      atomic
+boundary        s p p
+read_data       ../../scripts/glass_300K_final.data
+mass            1 63.546
+mass            2 91.224
+pair_style      eam/fs
+pair_coeff      * * ../../potentials/Cu-Zr_Mendelev2009.eam.fs Cu Zr
+timestep        0.002
+
+thermo          2500
+thermo_style    custom step temp press pe pyy ly
+thermo_modify   flush yes
+
+variable        TEMP index 300
+variable        SRATE index 1e8
+
+# Quick re-thermalize to TEMP (cool/heat from 300 K)
+velocity        all create ${TEMP} 98765 dist gaussian
+fix             prep all npt temp 300 ${TEMP} 0.2 y 0 0 2.0 z 0 0 2.0
+run             5000           # 10 ps
+unfix           prep
+
+fix             equil all npt temp ${TEMP} ${TEMP} 0.2 y 0 0 2.0 z 0 0 2.0
+run             5000
+unfix           equil
+
+write_data      large_${TEMP}K.data
+
+variable        erate equal ${SRATE}*1e-12
+variable        total_time equal 0.06/v_erate
+variable        total_steps equal round(v_total_time/0.002)
+
+fix             compress all npt temp ${TEMP} ${TEMP} 0.2 z 0 0 2.0
+fix             deform_y all deform 1 y erate -${erate} remap x
+
+variable        out_freq equal round(0.0006/v_erate/0.002)
+variable        strain equal -step*dt*v_erate
+variable        syy equal -pyy/10000
+fix             ss_out all print ${out_freq} "${strain} ${syy}" file stress_strain_${TEMP}K_${SRATE}.dat screen no title "strain stress_GPa"
+
+run             ${total_steps}
+
+unfix           compress
+unfix           deform_y
+unfix           ss_out
+print "=== Done T=${TEMP}K rate=${SRATE}/s ==="

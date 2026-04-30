@@ -1,0 +1,108 @@
+# =============================================================================
+# Stage 2+3: Build large system and run uniaxial compression
+#
+# Protocol:
+#   1. Read annealed 6750-atom config
+#   2. Replicate 4x6x1 → 162,000 atoms
+#   3. Relax at 950 K for 0.5 ns
+#   4. Cool to target temperature at 10^12 K/s
+#   5. Uniaxial compression along y to 15% strain
+#
+# Variables (set via command line):
+#   TEMP   = target temperature (10, 300, or 600)
+#   SRATE  = strain rate (5e7, 1e8, or 5e8 s^-1)
+# =============================================================================
+
+units           metal
+atom_style      atomic
+boundary        s p p       # Free surface in x, periodic in y,z
+
+# Read annealed structure
+read_data       annealed_950K_120ns.data
+
+mass            1 63.546    # Cu
+mass            2 91.224    # Zr
+
+# Replicate: 4 x 6 x 1
+replicate       4 6 1
+
+# Potential
+pair_style      eam/fs
+pair_coeff      * * ../potentials/Cu-Zr_Mendelev2009.eam.fs Cu Zr
+
+timestep        0.001
+
+thermo          10000
+thermo_style    custom step temp press pe ke etotal vol density pxx pyy pzz pxy pxz pyz lx ly lz
+
+# =========================================
+# Relax replicated system at 950 K for 0.5 ns
+# =========================================
+velocity        all create 950 98765 dist gaussian
+fix             relax_rep all npt temp 950 950 0.1 y 0 0 1.0 z 0 0 1.0
+run             500000     # 0.5 ns
+unfix           relax_rep
+
+# =========================================
+# Cool to target temperature
+# =========================================
+variable        TEMP index 300
+variable        SRATE index 1e8
+
+variable        dT equal 950-${TEMP}
+variable        cool_steps equal ${dT}*1000   # 10^12 K/s = 1 K/ps
+
+fix             cool_target all npt temp 950 ${TEMP} 0.1 y 0 0 1.0 z 0 0 1.0
+run             ${cool_steps}
+unfix           cool_target
+
+# Short equilibration at target temp
+fix             equil_target all npt temp ${TEMP} ${TEMP} 0.1 y 0 0 1.0 z 0 0 1.0
+run             50000      # 50 ps
+unfix           equil_target
+
+write_data      large_${TEMP}K.data
+
+# =========================================
+# Uniaxial compression along y
+# =========================================
+# Strain rate in LAMMPS: erate in 1/ps
+# Paper rates: 5e7 s^-1 = 5e-5 /ps, 1e8 = 1e-4 /ps, 5e8 = 5e-4 /ps
+variable        erate equal ${SRATE}*1e-12   # convert s^-1 to ps^-1
+
+# Total strain = 15%, time = 0.15/erate
+variable        total_time equal 0.15/v_erate  # in ps
+variable        total_steps equal round(v_total_time/0.001)
+
+# Set up compression
+fix             compress all npt temp ${TEMP} ${TEMP} 0.1 z 0 0 1.0
+fix             deform_y all deform 1 y erate -${erate} remap x  # negative = compression
+
+# Compute stress (virial)
+compute         stress all stress/atom NULL
+compute         p all reduce sum c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
+
+# Per-atom strain for shear band analysis
+compute         disp all displace/atom
+
+# Output stress-strain data every 0.1% strain
+variable        out_freq equal round(0.001/v_erate/0.001)  # steps per 0.1% strain
+variable        strain equal -step*dt*v_erate               # engineering strain (positive)
+variable        syy equal -pyy/10000                         # stress in GPa (pyy is in bar)
+
+fix             ss_out all print ${out_freq} "${strain} ${syy}" file stress_strain_${TEMP}K_${SRATE}.dat screen no title "strain stress_GPa"
+
+# Dump for visualization (every 1% strain)
+variable        dump_freq equal round(0.01/v_erate/0.001)
+dump            compress_dump all custom ${dump_freq} dump_compress_${TEMP}K_${SRATE}.lammpstrj id type x y z c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
+
+run             ${total_steps}
+
+unfix           compress
+unfix           deform_y
+unfix           ss_out
+undump          compress_dump
+
+write_data      compressed_${TEMP}K_${SRATE}_15pct.data
+
+print "=== Compression complete: T=${TEMP}K, rate=${SRATE}/s ==="
