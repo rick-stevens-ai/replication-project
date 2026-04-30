@@ -145,36 +145,36 @@ def bfs_like_field(pos, t=0.0, kx=1.5, kz=1.5, step_h=0.5, step_x=1.0, phase=0.0
 
 # ----------------- 3D coarsen / prolongate ----------------------
 
-def trilinear_resample(F_src, xi_src, dst_xi, dst_eta, dst_zeta):
-    """F_src shape (nz_s, ny_s, nx_s, k); resample to (nz_d, ny_d, nx_d, k).
-    Sources are tensor-product on xi_src in each axis.
+def trilinear_resample(F_src, xi_src_x, dst_xi, dst_eta, dst_zeta, xi_src_y=None, xi_src_z=None):
+    """Vectorized trilinear resample. F_src shape (nz_s, ny_s, nx_s, k).
+    Sources can have different src grids per axis (default same as xi_src_x).
     """
-    nz_s, ny_s, nx_s, kk = F_src.shape
+    if xi_src_y is None: xi_src_y = xi_src_x
+    if xi_src_z is None: xi_src_z = xi_src_x
     def find_brackets(dst, src):
         idx = np.searchsorted(src, dst, side='right') - 1
         idx = np.clip(idx, 0, len(src) - 2)
         a = src[idx]; b = src[idx + 1]
         t = (dst - a) / (b - a + 1e-12)
         return idx, t
-    ix, tx = find_brackets(dst_xi, xi_src)
-    iy, ty = find_brackets(dst_eta, xi_src)
-    iz, tz = find_brackets(dst_zeta, xi_src)
-    nz_d = len(dst_zeta); ny_d = len(dst_eta); nx_d = len(dst_xi)
-    out = np.zeros((nz_d, ny_d, nx_d, kk), dtype=F_src.dtype)
-    for kk_ in range(nz_d):
-        for jj_ in range(ny_d):
-            for ii_ in range(nx_d):
-                kkk = iz[kk_]; jjj = iy[jj_]; iii = ix[ii_]
-                a = tx[ii_]; b = ty[jj_]; c = tz[kk_]
-                v = 0.0
-                for dk in (0, 1):
-                    for dj in (0, 1):
-                        for di in (0, 1):
-                            w = ((a if di else 1 - a) *
-                                 (b if dj else 1 - b) *
-                                 (c if dk else 1 - c))
-                            v = v + w * F_src[kkk + dk, jjj + dj, iii + di]
-                out[kk_, jj_, ii_] = v
+    ix, tx = find_brackets(dst_xi, xi_src_x)
+    iy, ty = find_brackets(dst_eta, xi_src_y)
+    iz, tz = find_brackets(dst_zeta, xi_src_z)
+    # vectorized 8-corner gather
+    II = ix[None, None, :]   # (1,1,nx_d)
+    JJ = iy[None, :, None]   # (1,ny_d,1)
+    KK = iz[:, None, None]   # (nz_d,1,1)
+    A = tx[None, None, :]
+    B = ty[None, :, None]
+    C = tz[:, None, None]
+    out = 0.0
+    for dk in (0, 1):
+        for dj in (0, 1):
+            for di in (0, 1):
+                w = ((A if di else 1 - A) *
+                     (B if dj else 1 - B) *
+                     (C if dk else 1 - C))[..., None]
+                out = out + w * F_src[KK + dk, JJ + dj, II + di]
     return out
 
 
