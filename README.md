@@ -57,6 +57,7 @@ This project contains independent replications of published computational scienc
 | 40 | 1984484 | DRAS: Deep Reinforcement Learning for Cluster Scheduling in HPC | Systems / RL | ✅ Complete (8/8 — event-driven simulator + FCFS/EASY-BF/SJF baselines + DQN + PPO; PPO avg slowdown 125.8 vs SJF 166.3 (24% better) and FCFS 675.9; HPC2N trace 5K jobs × 240 nodes) |
 | 41 | — | NANOGrav 15-yr Stochastic Gravitational-Wave Background (Agazie+ 2023) | Astrophysics / GW | ✅ Complete (8/8 — 67-pulsar Hellings-Downs replication; γ=3.35 vs paper 3.2 (within 0.5σ), log₁₀A=−14.17 vs −14.19 (within 0.2σ), MCOS SNR 2.94σ; used DR3 pre-sampled chains, did not redo Bayesian inference from scratch) |
 | 42 | — | Box Least Squares Transit Detection (Kovács/Zucker/Mazeh 2002 + Hartman/Bakos 2016) | Astrophysics / Exoplanets | ✅ Complete (8/8 — from-scratch BLS impl; recovered 6 known Kepler planets to <0.012% period error incl. Kepler-10 b at 150 ppm/0.84d; beats astropy BoxLeastSquares mean accuracy 0.007% vs 0.026%) |
+| 43 | — | Cosmological P(k) Emulator (CosmoPower / CAMELS-style) | Cosmology / ML | ✅ Complete (8/8 — 4-layer MLP trained on 400 CAMB-generated cosmologies; 0.93% mean / 3.4% p95 error in matter power spectrum; 277,000× speedup over CAMB; linear z=0 only) |
 
 ### PDE Replication Series
 
