@@ -150,3 +150,33 @@ With the 10 new biology papers included:
 ---
 
 *Audit method: individual REPORT.md files read for each of 10 new papers; cross-referenced with AUDIT_PROTOCOL.md verdict criteria. Prior audit entries carried forward from STATUS_AUDIT_2026-04-30.md.*
+
+---
+
+## 2026-05-07 Addendum: Report Modularization
+
+On 2026-05-07, the monolithic `REPLICATION_EVALUATION_REPORT.tex` (89 pages, 2506 lines) was
+refactored into a modular structure:
+
+### New structure
+- **`common/`** — shared LaTeX chunks: `preamble.tex`, `abstract.tex`, `how_to_read.tex`,
+  `methodology.tex`, `aggregate.tex`, `cross_cutting.tex`, `wave_summaries.tex`,
+  `top_line_table.tex`, `deferred.tex`, `conclusions.tex`, `followon_questions.tex`,
+  `recommendations.tex`, `appendix.tex`
+- **`papers/`** — 60 individual `.tex` files, one per paper (extracted from the monolith)
+- **`master_slim.tex`** → builds **`REPLICATION_EVALUATION_REPORT_slim.pdf`** (~19 pages):
+  aggregate stats, cross-cutting findings, wave summaries, top-line table, conclusions
+- **`master_full.tex`** → builds **`REPLICATION_EVALUATION_REPORT_full.pdf`** (~99 pages):
+  everything in slim + all 60 per-paper evaluations + follow-on questions + recommendations
+- **`REPLICATION_EVALUATION_REPORT.pdf`** — alias for the slim version (existing links unbroken)
+- **`Makefile`** — `make slim`, `make full`, `make all`, `make clean`
+
+### Per-paper REPORT.md status
+- **58/60 papers** have a canonical `REPORT.md` at a known path
+- **2 papers** use alternative report names (flagged with † in the table):
+  - `1565592` (MSM-Hempel): `replication/replication_report.md`
+  - `PVMol-Gen`: `replication_report.md`
+
+### Backup of original monolith
+- `REPLICATION_EVALUATION_REPORT_FULL.tex.bak.20260507-modularize`
+- `REPLICATION_EVALUATION_REPORT_FULL.pdf.bak.20260507-modularize`
