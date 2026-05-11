@@ -1,0 +1,52 @@
+# LI model for Re=4000 Kolmogorov flow.
+# Mirrors public dataset config (jax-cfd kolmogorov_re_4000): 4π domain,
+# wavenumber-2 forcing, linear damping -0.05, viscosity 5e-4.
+import jax_cfd.ml.advections
+import jax_cfd.ml.decoders
+import jax_cfd.ml.diffusions
+import jax_cfd.ml.encoders
+import jax_cfd.ml.equations
+import jax_cfd.ml.forcings
+import jax_cfd.ml.interpolations
+import jax_cfd.ml.model_builder
+import jax_cfd.ml.physics_specifications
+import jax_cfd.ml.pressures
+import jax_cfd.ml.towers
+
+FORCING_MODULE = @forcings.kolmogorov_forcing
+forcings.kolmogorov_forcing.scale = 0.5
+forcings.kolmogorov_forcing.wavenumber = 2
+forcings.kolmogorov_forcing.linear_coefficient = -0.05
+
+NavierStokesPhysicsSpecs.density = 1.0
+NavierStokesPhysicsSpecs.viscosity = 0.0005
+NavierStokesPhysicsSpecs.forcing_module = %FORCING_MODULE
+get_physics_specs.physics_specs_cls = @NavierStokesPhysicsSpecs
+
+C_INTERPOLATION_MODULE = @interpolations.FusedLearnedInterpolation
+U_INTERPOLATION_MODULE = @interpolations.linear
+
+FusedLearnedInterpolation.tower_factory = @towers.forward_tower_factory
+FusedLearnedInterpolation.stencil_size = 4
+forward_tower_factory.num_hidden_channels = 64
+forward_tower_factory.num_hidden_layers = 6
+forward_tower_factory.kernel_size = 3
+
+CONVECTION_MODULE = @advections.self_advection
+advections.self_advection.advection_module = @advections.modular_advection
+modular_advection.c_interpolation_module = %C_INTERPOLATION_MODULE
+modular_advection.u_interpolation_module = %U_INTERPOLATION_MODULE
+
+PRESSURE_MODULE = @pressures.fast_diagonalization
+DIFFUSION_MODULE = @diffusions.solve_fast_diag
+
+NS_MODULE = @equations.modular_navier_stokes_model
+modular_navier_stokes_model.convection_module = %CONVECTION_MODULE
+modular_navier_stokes_model.pressure_module = %PRESSURE_MODULE
+modular_navier_stokes_model.equation_solver = @equations.implicit_diffusion_navier_stokes
+implicit_diffusion_navier_stokes.diffusion_module = %DIFFUSION_MODULE
+
+ModularStepModel.advance_module = %NS_MODULE
+ModularStepModel.encoder_module = @encoders.aligned_array_encoder
+ModularStepModel.decoder_module = @decoders.aligned_array_decoder
+get_model_cls.model_cls = @ModularStepModel
