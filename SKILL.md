@@ -41,6 +41,27 @@ results/ or data/          # generated outputs or small input data
 
 Keep heavyweight generated data out of Git unless it is small and essential. For large artifacts, record the external location and checksums in the README/report.
 
+## ⚠️ MANDATORY 8-Artifact Completion Standard (Rick, 2026-07-05)
+
+Every paper-replication working directory MUST contain ALL 8 of these before it is "done." Hard
+completion bar for EVERY set (QC-100, QC-200, LUCID, PDE, BVBRC, OSTI, all future sets). Canonical
+spec: `scripts/REPLICATION_DIR_STANDARD_2026-07-05.md`. Audit: `scripts/check_repl_dir_standard.py`.
+Backfill of existing dirs: `scripts/BACKFILL_BRIEF_2026-07-05.md` + the backfill cron driver.
+
+1. **Original PDF** — `paper.pdf`.
+2. **Marker text extraction** — `extraction/marker.md` (pull from central Eagle corpus if parsed; else run Marker / pdftotext fallback, labeled as fallback).
+3. **Nougat text extraction** — `extraction/nougat.mmd` (pull from central corpus if parsed; Nougat is GPU-only — if unavailable leave a stub noting sha256/DOI for a later corpus sweep; do not block the replication on it).
+4. **Detailed LaTeX replication report** — `report/REPORT.tex` (→ `REPORT.pdf` when latex available). Section-by-section: summary; claims table; numbered method (tools+versions+commands); results-vs-paper tables; **per-claim what-worked / what-didn't**; **a genuine CRITIQUE of the replication** (evidence strength, shortcuts, unverified claims); verdict + justification; Open Questions.
+5. **Five open questions (heavy-duty, important, NOT superficial), each with next steps** — `report/open_questions.json` = 5 × `{"q":..., "basis":..., "next_steps":...}` + `## Open Questions` (Q1..Q5) in the report. **RE-READ the paper when writing these** — they are used later to open NEW work, so they must be genuinely open, important problems grounded in what the paper leaves unresolved AND what the replication surfaced. Rolled up into `OPEN_QUESTIONS_CORPUS.jsonl` via `scripts/harvest_open_questions.py`.
+6. **Comprehensive workflow + tools/codes + effort estimate** — `report/workflow.md`.
+7. **Artifacts summary + traces** — `report/artifacts_summary.md`.
+8. **Failure analysis** — `report/failure_analysis.md` (required even for clean REPLICATED verdicts).
+
+Items 4-8 for existing dirs are generated from the existing report + evidence + a fresh paper re-read
+(do NOT re-run the sim unless there is no report at all). New replications must produce all 8 before
+printing the `WAVE_RESULT` line. The Standard Workflow below is HOW you replicate; the 8 artifacts are
+WHAT the finished directory must contain (they extend the older Report Writing / Repository Layout sections).
+
 ## Standard Workflow
 
 ### 1. Intake and Triage
@@ -206,6 +227,16 @@ Before marking a replication complete:
 - [ ] Final verdict is justified by evidence in the report.
 - [ ] Any LLM-based scoring used the no-regex-final-scorer rule.
 - [ ] Git status is clean after commit, or remaining untracked artifacts are intentional.
+
+### The 8 mandatory artifacts (see standard above) — all required
+- [ ] 1. `paper.pdf` present.
+- [ ] 2. `extraction/marker.md` present (or labeled fallback).
+- [ ] 3. `extraction/nougat.mmd` present (or stub noting sha256/DOI for later corpus sweep).
+- [ ] 4. `report/REPORT.tex` — detailed, section-by-section, with per-claim what-worked/didn't + genuine critique.
+- [ ] 5. `report/open_questions.json` — 5 heavy-duty open questions w/ next_steps (paper re-read).
+- [ ] 6. `report/workflow.md` — workflow + tools/codes + effort estimate.
+- [ ] 7. `report/artifacts_summary.md` — artifact inventory + traces.
+- [ ] 8. `report/failure_analysis.md` — honest failure analysis + critique.
 
 ## Suggested README Skeleton
 
