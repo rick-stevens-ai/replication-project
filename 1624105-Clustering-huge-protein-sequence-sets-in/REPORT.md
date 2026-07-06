@@ -77,3 +77,13 @@ Naive was capped at N = 4,000 (would have required ~40,000 s at N = 64,000 by ex
 | Formal replication report (PDF) | `report/1624105_replication_report.pdf` |
 | Replication plan (PDF) | `replication_plan_1624105.pdf` |
 | Source paper (PDF) | `1624105.pdf` |
+
+## Open Questions & Reproducibility Blockers
+
+- **Verdict PARTIAL — exact missing artifacts named below.** The Linclust algorithm itself was reimplemented from scratch in pure Python + NumPy and the **scaling-exponent claim reproduces precisely** (log-log slope 1.31 ≈ linear vs naive 2.08 ≈ quadratic; 241× speedup at N=4 000; F₁ ≥ 0.987 vs ground truth). What is NOT reproduced:
+- **UniRef / Metaclust 10⁸–10⁹-sequence benchmark blocker:** the paper's marquee runs are on UniRef30 (~30M seqs) and Metaclust (~1.6B seqs), requiring **hundreds of GB of RAM** and the production C++ MMseqs2 binary. Our pure-Python Linclust topped out at N = 64 000 (~130 s). Closing this needs (a) the production `mmseqs linclust` binary (open-source, https://github.com/soedinglab/MMseqs2), (b) ≥256 GB RAM node, and (c) one of the actual input datasets (UniRef30 FASTA from UniProt FTP, or Metaclust release from the paper's Supplementary Data, not redistributed in the OSTI bundle).
+- **CD-HIT / UCLUST / DIAMOND / kClust head-to-head blocker:** paper Fig 2 compares Linclust against specific competing tools at fixed input size. We only compared against an in-house naive O(N²) baseline (not CD-HIT proper). Closing this needs CD-HIT (v4.8.1+), UCLUST (USEARCH binary), and DIAMOND (≥v2.0) installs + a shared input FASTA.
+- **Memory-footprint claim blocker:** paper reports peak RSS for each tool on UniRef datasets. We did not profile memory (`/usr/bin/time -v` not captured); needs re-run with memory monitoring on the same input scale.
+- **Cascaded Linclust → MMseqs2 iterative pipeline:** not tested; requires the full MMseqs2 binary chain and a sensitivity-vs-runtime sweep.
+- **Real protein-family validation:** our F₁ ≥ 0.987 is against **synthetic ground truth** (controlled 15 % substitution from 100-residue centres). Paper validates against real UniRef / Pfam family boundaries; needs Pfam release as gold standard.
+- **Open question:** the paper's "linear time" claim depends on m (bottom-m k-mers) and k being held constant. Empirically, at what N does the constant-but-large memory cost of the m-k-mer hash table dominate runtime over the algorithmic O(N) scan? Our scaling data shows slope 1.31 not 1.00 — is the residual sub-linear deviation an artifact of CPython hash-table overhead, or a real algorithmic constant?

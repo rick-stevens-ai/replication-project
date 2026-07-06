@@ -115,3 +115,14 @@ The paper reports an averaged 11.5% improvement. Our averaged ~18% across two be
 3. Run 3–5 seeds for statistical confidence intervals
 4. Tackle elasticity and pipe-flow benchmarks (data generation is straightforward)
 5. Compare against paper's exact data (downloadable from the FNO benchmark suite if network is available)
+
+---
+
+## Open Questions & Reproducibility Blockers
+
+- **Blocking artifact (paper benchmark datasets for 5 of 7 PDEs):** elasticity, plasticity, pipe-flow, airfoils, and the 3D channel-flow datasets used in the paper are hosted on the FNO benchmark suite distribution (Google Drive / Tsinghua share links), which is not reachable from the uicgpu compute node we ran on (no outbound internet). We generated our own Darcy 2D and NS-2D datasets from scratch via FD / pseudo-spectral solvers, so coverage is 2/7 of the paper's benchmark grid and our absolute L2 numbers are NOT directly comparable to the paper's Table 2.
+- **Blocking artifact (paper Table 2 exact numbers):** the paper does not deposit its trained model checkpoints; only relative-error tables are published. Without checkpoints we cannot confirm whether our 9.3 % (Darcy) and 27.8 % (NS) LSM-over-FNO gaps would match the paper's exact-data values, only that they bracket the paper's reported average 11.5 %.
+- **Blocking artifact (parameter-matched NS comparison):** we trained NS LSM at 19.2 M params vs NS FNO at 4.7 M, because a scaled FNO-big NS variant was not in the upstream `thuml/Latent-Spectral-Models` config tree. The 27.8 % advantage may overstate the architectural contribution. A fair comparison needs an FNO-d96-m16 NS config matching LSM's parameter count.
+- **Open question:** does the LSM advantage hold when the spectral-block latent dimension is shrunk to match FNO's parameter budget exactly? The Darcy result (d=64 LSM beats d=96 FNO at 18.9 M vs 19.2 M params) suggests yes, but a single benchmark is not decisive.
+- **Open question:** are the dramatic step-LR-induced LSM accuracy jumps (test L2 halving in ~5 epochs after the gamma=0.5 drop at epoch 100) reproducible across seeds, or are they a single-trajectory artifact? Paper-reported ~5 % run-to-run noise on a single seed is below the magnitude of these jumps but warrants a 3–5 seed sweep.
+

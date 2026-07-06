@@ -52,3 +52,12 @@
 2. Re-run with FNO architecture
 3. Try entropy-condition penalty as separate term
 4. Multi-seed statistics
+
+## Open Questions & Reproducibility Blockers
+
+- Primary blocker (FAILED verdict driver): the **actual paper PDF** ("Godunov loss for hyperbolic conservation laws", ~2024) was never located by the subagent. Without the paper there is no canonical loss specification — our `Godunov_hybrid = MSE + λ·flux-divergence + λ·TV` is a best-effort reconstruction from the title + general physics-informed-loss literature, and the paper's actual entropy-condition enforcement at the discrete cell-interface level is the most likely source of the qualitative-claim mismatch on `strong_step`, `bump_to_shock`, and `n_wave`.
+- Secondary missing artifacts (would only matter once the paper is in hand): the **author-reported NN architecture** (whether MLP, FNO, DeepONet, or graph-stencil), **training hyperparameters** (epochs, batch, lr, seeds, IC sampling protocol), **exact reference solver settings** (FV scheme, limiter, CFL, Nx — we used Godunov at Nx=256), and the **held-out test-case definitions** (we synthesized `strong_step`, `bump_to_shock`, `n_wave`; the paper's actual benchmarks are unknown).
+- Tertiary blocker: **no statistical replicates**. Single-seed runs cannot distinguish "Godunov loss is genuinely worse for this MLP" from "this particular seed happened to land badly". A multi-seed (n ≥ 5) re-run is required before the negative result is publishable.
+- Open question: with the same Burgers + reference + ICs but an **FNO or DeepONet backbone** (which has a stronger inductive bias for hyperbolic operators), does the Godunov-flux loss outperform plain MSE, recovering the paper's qualitative claim? Our MLP-only result hints that architecture, not loss, is the dominant variable here.
+- Open question: is the right discrete enforcement of the entropy condition a hard constraint at the cell-interface flux (Godunov upwind) rather than a soft TV penalty? Reframing the loss as a projection step instead of an additive regularizer is the most physically defensible next attempt.
+

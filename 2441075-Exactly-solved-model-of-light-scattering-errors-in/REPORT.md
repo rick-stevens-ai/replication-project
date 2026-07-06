@@ -95,3 +95,14 @@ The paper derives an **exact analytic solution** to the Lindblad master equation
 | LaTeX report | `report/2441075_replication_report.tex` + `.pdf` |
 | Replication plan | `replication_plan.tex` + `.pdf` |
 | This report | `REPORT.md` |
+
+---
+
+## Open Questions & Reproducibility Blockers
+
+- **Blocking artifact (2D Penning-trap equilibrium ion-crystal positions and resulting J_ij coupling matrix):** the paper's Figs 2–4 (GHZ fidelity, m-body correlations, spin-squeezing) use J_ij couplings derived from a 2D triangular-lattice equilibrium ion-crystal calculation referenced to Wang et al. PRA 2013 (Ref. [20]). The actual J_ij matrices, the equilibrium positions, and the trap parameters (laser power P, beam waist w₀, exact ω_z and ω_r) are NOT given in this paper — they are cited to Ref. [20]. We substituted a 1D-chain J_ij approximation, which preserves all qualitative trends but shifts N-threshold crossovers. Without the actual 2D crystal-mode J_ij matrix, exact quantitative reproduction of Figs 2–4 axis values is blocked.
+- **Blocking artifact (Supplementary Information spin-echo derivation, SI Sec. C):** the SI's spin-echo pulse-sequence correction is described but its full algebraic implementation (the explicit echo-cycle bookkeeping of I/R/L/B per spectator ion) is not given as code or tabulated coefficients. We did not reproduce it.
+- **Documented scope-shrink (not blocking the headline result):** the paper's central analytical claims — the exact closed-form for the open-system m-body correlator (Eqs. 6–10), the I/R/L/B decomposition, the 94.5 / 3.9 / 1.6 % ⁴⁰Ca⁺ branching, the ∣1⟩ dark-state selection rule, machine-precision analytic vs numerical Lindblad cross-validation — are all independently verified with errors 10⁻¹¹–10⁻¹³. So the model is replicated; only the figure-specific quantitative axis values are blocked by the Ref. [20] J_ij gap.
+- **Open question:** how does the analytic solution extend to ¹³⁸Ba⁺ (~70 % leakage branching ratio per the paper text)? The mathematical structure is identical, but the four atomic constants (and the larger leakage fraction) would change the postselection penalty and the N → N_max trade-off. We implemented only ⁴⁰Ca⁺.
+- **Open question:** does the postselection-on-no-leakage strategy still recover fidelity in the presence of finite-efficiency leakage detection (e.g. 95 % rather than 100 % single-shot leakage discrimination)? The paper assumes ideal detection; a realistic-detector analysis is a natural next pass.
+

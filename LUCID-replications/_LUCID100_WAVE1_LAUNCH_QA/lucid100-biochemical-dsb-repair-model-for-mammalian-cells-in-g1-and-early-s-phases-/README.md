@@ -1,46 +1,49 @@
-# Biochemical DSB-repair model for mammalian cells in G1 and early S phases of the cell cycle.
+# Biochemical DSB-repair model for mammalian cells in G1 and early S phases of the cell cycle
 
-## LUCID100 curated Wave 1 replication brief
+LUCID100 Wave-1 replication slot **10** (master rank 41, Tier A, score 19).
 
-- **Rank:** 41
-- **Tier/score:** A / 19
-- **DOI:** 10.1016/j.mrgentox.2013.06.004
-- **Year / venue:** 2013 / Mutation research
-- **Themes:** DNA repair / DDR; radiation quality / RBE; computational model / simulation
-- **Worktype:** simulation/model replication
-- **Source:** dropbox_pdf
-- **PDF / URL:** /Users/stevens/Dropbox/REPLICATE-PROJECT/LUCID-replications/lucid-slow-fast-nhej/artifacts/mdpi-supplement/extracted/cancers-1190122-supplementary.pdf
-- **QA decision:** KEEP: relevant and replication-plausible
+## Paper
 
-## Replication target
+- **Title:** Biochemical DSB-repair model for mammalian cells in G1 and early S phases of the cell cycle
+- **Authors:** R. Taleei, H. Nikjoo
+- **Affiliation:** Radiation Biophysics Group, Department of Oncology-Pathology, Karolinska Institute, Stockholm
+- **Year / venue:** 2013 / Mutation Research/Genetic Toxicology and Environmental Mutagenesis 756(1-2):206-212
+- **DOI:** [10.1016/j.mrgentox.2013.06.004](https://doi.org/10.1016/j.mrgentox.2013.06.004)  ·  **PMID:** 23792210
+- **OA status:** **CLOSED** (Elsevier paywall, no PMC/preprint, no Karolinska open repo). Source PDF listed in `LUCID100_SOLID_MASTER_QA.tsv` is actually the Qi et al. 2021 supplement (which cites this paper) — the master TSV link is mislabelled. See `PROGRESS.md` §"State after first pass" for the correction.
 
-TODO during artifact harvest:
+## What is in this folder
 
-1. Extract central quantitative/mechanistic claims.
-2. Identify public code, data, supplement, tables, and figures.
-3. Decide strict scope: exact rerun, independent reimplementation, table/figure digitization, or no-go.
-4. Define acceptance criteria before running.
+| File | What it contains |
+|---|---|
+| `README.md` | This file. |
+| `PROGRESS.md` | Run log & open blockers. |
+| `FIRST_PASS_REPORT.md` | Verdict, claim-by-claim acceptance table, limitations. |
+| `artifacts/ARTIFACT_MANIFEST.md` | Inventory of all evidence used. |
+| `artifacts/pubmed_abstract.txt` | Cached PubMed abstract + editorial comment refs. |
+| `artifacts/semantic_scholar.json` | S2 record (citations, refs, OA status). |
+| `artifacts/unpaywall.json` | Unpaywall record confirming closed access. |
+| `artifacts/SHA256SUMS.txt` | SHA-256 of every artifact/code/result/figure file. |
+| `code/taleei_nikjoo_2013_minimal.py` | Minimal independent compartmental-ODE reimplementation (9 states, NHEJ + MMEJ, G1/early-S). Smoke driver included. |
+| `results/smoke_summary.json` | JSON with WT/Artemis-def/Lig4-def/Lig3-def/0.5-2-4 Gy snapshots. |
+| `figures/fig_smoke_kinetics.png` | Two-panel summary plot. |
+| `logs/`  | (Empty; smoke output written to stdout, captured in this README's "Reproducibility" block.) |
 
-## Artifact harvest checklist
+## Quick reproduce
 
-- [ ] Source PDF saved locally
-- [ ] Full text extracted
-- [ ] Supplementary files found/downloaded
-- [ ] Code repository found/cloned, if any
-- [ ] Public data accession found/downloaded, if any
-- [ ] Environment plan written
-- [ ] Acceptance metrics defined
-- [ ] Blockers listed explicitly
+```bash
+cd /Users/stevens/Dropbox/REPLICATE-PROJECT/LUCID-replications/_LUCID100_WAVE1_LAUNCH_QA/lucid100-biochemical-dsb-repair-model-for-mammalian-cells-in-g1-and-early-s-phases-
+python3 code/taleei_nikjoo_2013_minimal.py
+# -> writes results/smoke_summary.json + figures/fig_smoke_kinetics.png
+```
 
-## Execution checklist
+Requires only `numpy`, `scipy`, `matplotlib` (already in CherryRd's `python3`). No GPU, no HPC.
 
-- [ ] Smoke test / minimal calculation
-- [ ] Main replication run
-- [ ] Figures/tables regenerated or digitized comparison done
-- [ ] Logs, hashes, environment, and provenance captured
-- [ ] `REPORT.md` written
-- [ ] Progress JSON written under OpenClaw memory
+## Verdict
 
-## Initial abstract/notes
+> **PARTIAL** — qualitative kinetic behaviour reproduced (biphasic WT, dose-linear, Artemis-def residual, Lig4 KO ≈ 95% unrepaired, MMEJ-only-loss ≲ 10%, high-complex-DSB slowdown). **No claim-by-claim Figure agreement** because the paper PDF is paywalled and we are not allowed to contact the authors. Next-step list in `FIRST_PASS_REPORT.md` §8.
 
-1 2 3 Figure S1. Comparison of the recruitment kinetics of 8 types of irradiationapplied on the normal tissue cellssimulated in Models A, and B.Figure A1(a)-(d)are results for photons with 0.5, 1.3, 2and 4Gy doses; (e)-(h) are results for protons with 0.5, 2and3Gydoses. 4 5 Figure S2. The recruitment kinetics of Arteims-deficient and XLF-deficient cell system corresponding to the repair kinetics in Figure 7. Figure S3. Recruitment kinetics of proteins when irradiated with laser and 4Gy proton(7.5MeV).Each DSB is scored as occurring within heterochromatin or euchromatin. The exact proportion of the genome comprising of either form of chromatin compaction varies within the literature. 6 Figure S4.The recruitment kinetics of “Parallel” pathway assigned with 25% and 48% heterochromatin (forced to recruit DNA-PKcs only, and euchromatin is forced to recruit CtIP) under 2Gy photon/1Gy 1.7keV/um
+## Cross-references inside the LUCID workspace
+
+- **`lucid-slow-fast-nhej/`** — Qi et al. 2021 NHEJ ODE replica. Same kinetic skeleton; the parameter values used here are the values that group also adopts.
+- **`lucid-medras-mc/`** — McMahon Medras Monte Carlo (independent NHEJ implementation), useful sanity comparison.
+- **`lucid-dsb-repair-history-review-triage/`** — Berthel 2019 DSB-repair history review; already triaged as no-go.

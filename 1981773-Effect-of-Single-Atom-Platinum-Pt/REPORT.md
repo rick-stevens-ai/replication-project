@@ -129,3 +129,14 @@ unrelaxed slabs in the available 5-hour budget. Closing the remaining facet
 sub-gaps requires a non-polar slab regeneration (pymatgen `SlabGenerator` with
 `symmetrize=True`) followed by full ionic relaxation — an estimated additional
 8–12 h on 4×A100.
+
+---
+
+## Open Questions & Reproducibility Blockers
+
+- **Blocking artifact (Pt-doped (010), (100), (101), (110) slab SCF results):** the paper's facet trend rests on σ values for at least four LTO facets including the high-energy (101) surface (σ=1.67 J/m² in the paper). Our (010)+Pt SCF and the ASE-cleaved (100)/(101)/(110) clean slabs all diverged because pymatgen/ASE produced polar terminations whose net dipole is incompatible with periodic SCF without a non-polar reconstruction or `assume_isolated="2D"` + dipole correction starting from a relaxed geometry. The paper does NOT publish its slab input files (POSCARs / pw.x input decks) or the non-polar termination algorithm it used. Without the actual paper slab geometries we cannot finish the facet trend.
+- **Blocking artifact (Bader vs Loewdin reference charges):** the paper reports Bader cation charges on Pt; our pipeline only generated Loewdin charges. Bader analysis requires either the all-electron post-processing (`bader` code by Henkelman) or VASP CHGCAR output, neither of which is in the paper's deposit. Qualitative match (Pt > Ti as cation) holds; exact numerical match is blocked.
+- **Blocking artifact (Yambo PBE/RPA dielectric data for non-(001) facets):** our Yambo runs cover bulk, (001) clean, and (001)+Pt only. The paper does not deposit per-facet dielectric files; reproducing them for the missing (010)/(100)/(101) facets would need both converged slab geometries (above) AND multi-day Yambo q→Γ sweeps per facet.
+- **Open question:** does the bulk-vs-slab ~3.4× reduction in Imε peak (6.98 → 2.08) at ~4.5 eV reflect physical surface depletion of the optically active Ti-d ↔ O-p transitions, or is it an artifact of slab thickness (single-layer vs multi-layer slab convergence)? A thickness-convergence Yambo run on the (001) clean slab would resolve this and is well within reach.
+- **Open question:** is the 9 % residual disagreement on the Pt-induced redshift (2.40 eV vs 2.20 eV paper) due to the PBE/RPA functional choice (the paper used HSE06 for gaps), or to k-mesh / ω-grid convergence? A G0W0 single-shot on the (001)+Pt slab would settle the functional question.
+

@@ -62,3 +62,13 @@ The paper presents a finite-difference time-domain (FDTD) solver for a complex-v
 - **Code:** `src/fdtd_numba.py` (JIT solver), `src/parallel_bench.py` (scaling benchmark)
 - **Results:** `results/numba_bench.json`, `results/parallel_scaling.json`
 - **Original paper:** `1475143.pdf`
+
+## Open Questions & Reproducibility Blockers
+
+- **Verdict PARTIAL — exact missing artifacts named below.** 5 of 6 paper figures reproduce (Fig 5 max\|ψ\| matches to 6+ digits; Figs 6, 7 g₂ correlations within 5–10 %). Outstanding gaps:
+- **Fig 8 (non-Markovian regime, k₀a = 10.5π and 20.5π) blocker:** the regime requires N_x = 6.48 × 10⁴ × N_y = 6 × 10⁴ FDTD grid, ≈ **125 GB RAM** for the complex two-photon wavefunction — beyond CherryRd's commodity memory. Closing this needs either (a) an out-of-core storage backend (zarr / dask with chunked time-stepping), or (b) a high-memory compute node (≥256 GB). The paper itself doesn't release a reduced-grid version or the raw `psi` array; we'd have to re-run from scratch on appropriate hardware.
+- **Ref [8] scattering-theory g₂ overlay blocker:** paper Figs 6–7 compare FDTD g₂(τ) to a numerically-exact scattering-theory curve from Ref [8] (Shi & Sun 2009 / Fang & Baranger 2015). That scattering-theory implementation is not shipped with the paper, and we did not reimplement it; pointwise FDTD-vs-theory deviation therefore cannot be quantified — we only show internal FDTD consistency.
+- **True pipeline parallelism (paper's core algorithmic novelty) blocker:** the paper's pthreads "swarm" and OpenMP "wavefront" intra-timestep schedulers are described but the actual C source code is not in any public repo we found. Our `parallel_bench.py` only does embarrassingly-parallel parameter sweeps (1.31× over 4 workers), not the paper's claimed ~2× single-problem speedup with 16 threads. Replicating the parallel claim needs the original C/pthread/OpenMP code or a from-scratch reimplementation of the wavefront scheduler.
+- **GPU/CUDA port:** paper does not include GPU results; this is a natural follow-on, not a paper gap.
+- **Visual-only reference values:** paper reports g₂ curves graphically only — no tabulated values — so our 5–10 % agreement is inherently approximate (digitization noise floor).
+- **Open question:** does the Numba-JIT solver's 52× speedup over pure Python (with identical 6+-digit numerical agreement) generalize to the 2-photon non-Markovian regime, or does the JIT-compiled allocator hit a memory-fragmentation wall at N_x · N_y > 10⁹? Worth testing on a memory-tiered node before scaling further.

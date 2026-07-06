@@ -304,3 +304,14 @@ The 2 previously NOT_REPLICATED claims are now both VERIFIED. Combined with the 
 
 ---
 *Phase 2 phylogeny extension generated 2026-05-10 by chiatta00 OrthoFinder + RAxML pipeline. Sync to Dropbox completed manually after subagent gateway-close at 40m.*
+
+---
+
+## Open Questions & Reproducibility Blockers
+
+- **Fully reproducible at the in-silico level — no blockers for the genomic claims.** SCNJ1 chromosome + pVir-SCNJ1 + pNDM5-SCNJ1 are public via NCBI; all 19 testable in-silico claims (ST29 assignment, K54 capsular type, blaNDM-5 on IncX3, rmpA/iucABCD/iutA/iroBCDN virulence cluster, rmpA2 truncation, plasmid similarities to pNDM_MGR194 and pLVPK, chromosomal SHV-187/oqxA-B/fosA) were verified using open tools (Kleborate, abricate/ResFinder/VFDB/PlasmidFinder, BLAST, Parsnp→Gubbins→RAxML-NG, mash). Phase-2 phylogenies (60-genome ST29, 231-plasmid IncX3) closed the only previously NOT_REPLICATED items.
+- **Wet-lab artifacts NOT in this replication scope (by design, flagged as NOT_TESTED):** the four wet-lab claims (string test for hypermucoviscosity, *Galleria mellonella* virulence assay, conjugation frequency, MIC determinations) require in-vitro bacteriology and cannot be reproduced from sequence data alone. These are appropriately marked NOT_TESTED rather than counted as blockers.
+- **Minor methodological loose end (non-blocking):** SCNJ1↔SCLZ15-011 SNP count is 53 (our Parsnp→Gubbins, 368,803 bp recombinant masked) vs paper's 198 (CSI Phylogeny, no recombination filter). Topology is consistent (same clade); the numerical difference is a known difference between MUM-based core alignment + recombination filtering vs CSI's unfiltered SNP calling. Reconciling would require either re-running CSI Phylogeny on the same input or re-running the paper's analysis with Gubbins masking — either is feasible, neither is blocked.
+- **Open question:** the pgi=2 (our Kleborate) vs pgi=3 (paper) discrepancy resolves to the same ST29 assignment, but reflects a PubMLST database version difference. Pinning the exact PubMLST snapshot date the paper used would clarify whether new pgi alleles have been added since 2019.
+- **Open question (extension):** with the IncX3 phylogeny (231 plasmids) now reproduced, a forward-looking question is whether the blaNDM-5 → IncX3 → ST29 K54 *K. pneumoniae* lineage has spread beyond the Sichuan / China hospital network the paper describes, into US / EU surveillance genomes added to NCBI since 2019. Re-running the mash + abricate pipeline on a 2026-vintage IncX3 pull would test this directly.
+

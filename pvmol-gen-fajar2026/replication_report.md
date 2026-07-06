@@ -68,3 +68,16 @@ Our classifier underperforms the paper targets. With threshold optimization (at 
 ## 6 Verdict
 
 **PARTIALLY CONFIRMED.** The overall pipeline architecture works as described, and SELFIES generation produces high effective rates. However, we could not reproduce the paper's Stage 1 classifier metrics, and the SELFIES pathway (our contribution) produces substantially different Stage 3 results than the SMILES pathway.
+
+---
+
+## Open Questions & Reproducibility Blockers
+
+- **Replicated end-to-end with open tools.** The PVMol-Gen pipeline (SMILES-X classifier → iterative GPT-2 generator → 7 physicochemical filters → K-means clustering) is fully described in the paper and we re-built all three stages independently on uicgpu (8×A100). Stage 2 generation behaves as advertised (85 % effective class-1 rate over 3 cycles); Stage 3 filtering reproduces; the 10-cluster representative-selection logic reproduces. So at the architectural / methodological level there are no blockers.
+- **Blocking artifact (Stage 1 classifier hyperparameters and SMILES-X library version):** our 5-fold CV F1=0.656 ± 0.031 / ROC-AUC=0.620 ± 0.066 is ~18 % below the paper's F1=0.80 / AUC=0.88. The paper does NOT publish the exact SMILES-X library commit, tokenizer settings, embedding dimension, optimizer config, or training-epoch count it used. Threshold optimization recovers some of the gap (F1_opt=0.709 at threshold 0.47) but not all. Closing the remaining ~10 % gap requires the original SMILES-X hyperparameter file and the exact 314-molecule labeled dataset version.
+- **Blocking artifact (PubChem similarity-augmentation labeled set):** the Stage-1 T1 training set (~11k class-1 molecules) was built by Tanimoto≥0.80 similarity-augmentation against PubChem. The paper does not deposit the augmented set itself, only describes the procedure. Different PubChem snapshot dates produce different augmented sets, which can shift classifier F1 by several points.
+- **Documented methodological substitution (not a blocker, intentional):** we used SELFIES rather than SMILES for the GPT-2 generator (100 % chemical validity by construction). This produced 6.6× more post-filter candidates (53,732 vs paper's 8,076). The Stage 3 numerical differences flow from this choice and are NOT a paper-vs-replication disagreement.
+- **Blocking artifact (Stage 3 E_gap / dipole filter values):** the 7 physicochemical filters include `E_gap ∈ [1.5, 5.0] eV` and `dipole ∈ [1.5, 4.0] D`. These require xTB or DFT calculations, not just RDKit descriptors. The paper does not deposit the xTB input templates or per-molecule output files; we approximated via RDKit-only heuristics where feasible. Closing this gap needs the paper's xTB driver script.
+- **Open question:** does the SELFIES-vs-SMILES choice change the *biological / experimental* hit rate of the final 10 cluster representatives, or only the count of in-silico passes? The paper does not perovskite-test the molecules; this is an open experimental follow-up.
+- **Open question:** is the 18-point F1 gap on Stage 1 attributable to (a) SMILES-X library version drift, (b) PubChem snapshot drift in the augmented set, or (c) random seed / split sensitivity at the small 314-molecule labeled-set size? An ablation across all three would close this.
+

@@ -68,3 +68,11 @@ Coverage 9/10: All core content replicated—algebraic structures, all 11 operat
 - `replication/src/operations.py` — 11 core GraphBLAS operations with masking/accumulation (319 lines)
 - `replication/src/algorithms.py` — 6 graph algorithms in pure GraphBLAS primitives (293 lines)
 - `replication/tests/test_all.py` — 67 tests across 4 phases + NetworkX cross-validation (734 lines)
+
+## Open Questions & Reproducibility Blockers
+
+- **Fully reproducible — paper is purely definitional/algorithmic with worked examples on a 7-vertex graph; all needed data is in the paper figures themselves.** No external datasets, no proprietary code, no compute constraints. 67/67 tests pass, all 8 figures + 6 algorithms reproduced exactly, cross-validated against NetworkX. No blockers.
+- **Optional un-executed component (not a blocker for the paper's contribution):** Phase 5 of the replication plan — performance/scalability benchmarking against SuiteSparse:GraphBLAS on SNAP / Graph500 datasets — was deliberately skipped because the paper itself reports no performance numbers (the contribution is the formal algebra, not benchmarks). A future pass could add this if a portable benchmark suite (a la GAP Benchmark Suite or LAGraph examples) is desired.
+- **Minor un-implemented algorithm:** k-Truss was listed as optional and not implemented; the paper sketches it but does not benchmark it, so this is a coverage gap rather than a replication failure.
+- **Open question 1:** Does our pure-Python prototype produce the *same* per-step intermediate matrices as SuiteSparse:GraphBLAS on the paper's 7-vertex example (e.g., comparing the BFS step from vertex 4 between python-graphblas and our implementation)? This would extend "reproduces NetworkX outputs" to "matches the official GraphBLAS C API at primitive granularity."
+- **Open question 2 / extension:** The paper's algebraic framework is presented over generalized semirings. A natural next step is to verify that GraphBLAS-expressed *biology* algorithms (e.g., k-clique enumeration for PPI motifs, or random-walk centrality on signaling networks) compose correctly using our 11 primitives over non-standard semirings (e.g., a max-product semiring for trust propagation) — exercising the paper's claim that the algebra is general.

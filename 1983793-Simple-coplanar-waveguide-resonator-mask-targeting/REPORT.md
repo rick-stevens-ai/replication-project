@@ -87,3 +87,13 @@ The replication proceeded in two phases:
 | — Palace run logs | `tier-lift-v2.5/1983793/results/run_*.log` |
 | — Summary sweep table | `tier-lift-v2.5/1983793/results/sweep.csv` |
 | — Tier-lift report | `tier-lift-v2.5/1983793/REPORT.md` |
+
+## Open Questions & Reproducibility Blockers
+
+- Primary missing artifact (the dominant PARTIAL driver): the **experimental Q_i measurements + two-level-system loss-budget decomposition** from Yan et al. 2022. The paper presents both designed/simulated quantities (which we reproduced — frequencies to <0.05% after geometry correction, Q = 1.087×10⁵ exactly, p_MS/p_SA = 2.09 vs 2.00) AND cryogenic measurement data + fitted TLS interface tan δ values for the fabricated chip. The OSTI deposit (1983793) ships only the manuscript; the raw S-parameter measurement traces, the fabricated chip's exact dielectric losses per interface, and the fitted TLS decomposition are not provided.
+- Secondary missing artifact: **sub-nm interface meshing for the full 3D FEM**. Our 3D eigenmode mesh (~13k tetrahedra in Palace 0.13) cannot directly resolve 3 nm metal–substrate / substrate–air / metal–air interface layers — p_MS, p_SA, p_MA values came from a 2D Laplace solver (`cpw-resonator/src/cpw_fast.py`) rather than the 3D mode shape, which is why p_MS/p_MA = 10.0 vs paper's 32.5 (MA interface is a field-singularity region needing adaptive sub-nm refinement). Re-running Palace with adaptive p-refinement at the corners would close this gap on compute alone (no author artifact needed).
+- Tertiary missing artifact: the **driven multi-resonator S-parameter simulation** showing all 8 quarter-wave resonators on a single feedline as a transmission spectrum (S₂₁ peaks). We ran each resonator individually in eigenmode (gives f and Q) but not the multiplexed S-parameter problem; the paper's full layout-on-feedline simulation file is not in the OSTI deposit.
+- Quaternary missing artifact: the **kinetic-inductance two-fluid model integrated into the 3D eigenmode solver**. We applied the KI correction analytically (Z₀: 48.32 → 49.26 Ω) but Palace's eigenmode runs purely dielectric loss; the paper's KI-aware 3D simulation setup is not published.
+- Open question: would adaptive sub-nm mesh refinement around the gap/edge regions of the Palace 3D model — keeping the chip otherwise identical — pull p_MS, p_SA, p_MA into agreement with the paper's published values, and would the predicted Q then track the substrate-loss-limited Q = 1.1×10⁵?
+- Open question (extension): how sensitive is the p_MS/p_SA ≈ 2.0 ratio (the key TLS-targeting headline) to deviations from the idealised rectangular trench profile we modelled — does a realistic isotropic-etch curved profile shift the ratio enough to change the mask-design choice?
+

@@ -96,3 +96,12 @@ python feature_ablation.py         # ~16 min on 8-core CPU — ablation
 Outputs: `results.json`, `feature_ablation_results.json`,
 `feature_ablation_bars.png`, `feature_ablation_table.md`,
 `parity_80pct.png`, `parity_9pt.png`, `report.tex`.
+
+## Open Questions & Reproducibility Blockers
+
+- **Verdict REPLICATED but with explicit dataset substitution — exact missing artifact named below.** The Biasi-hybrid-DNN residual architecture (`y = y_Biasi(x) + f_NN(x)`) reproduces qualitatively (Biasi-hybrid < pure DNN < Biasi-bare for both data scenarios, with the gap widening dramatically under data scarcity — 9-pt pure DNN at 159 % rRMSE vs hybrid 10.4 %). Numbers match paper trends within rounding for ensemble means.
+- **NRC public CHF database blocker:** the paper trains on the **NRC public CHF database** (~7 350 dryout points), which is not redistributed as a single download with the paper. We used a documented synthetic surrogate that preserves the residual-learning structure (Table 2 input ranges respected) so absolute numbers don't bit-match the paper, but ordering and qualitative trends do. Closing this needs the specific NRC database release (or the curated subset Furlong/Zhao/Salko/Wu used; emailing the corresponding author at NCSU/UTK/ORNL is the most direct path).
+- **BNN / DGP / Bowring UQ variants and full calibration analysis (~half of the paper's UQ contribution):** not reproduced this pass — the residual-only deterministic ensemble was prioritized for the headline replication. Closing this needs (a) a Bayesian-NN library choice (Pyro / TensorFlow Probability) matching the paper's UQ tool stack, and (b) the calibration plots in the paper's Fig 6–8 to compare against.
+- **Ensemble size caveat:** paper uses 20-model ensembles; we used 10 (F5 hyperparameter-budget friction). Doesn't change sign of any conclusion but tightens the noise floor on per-fold rRMSE differences.
+- **Open question:** the feature-ablation table (added 2026-04-28) shows the hybrid *advantage over Biasi-bare* is dominated by the thermo-physical channel (`x_out`) while *robustness over pure ML* is dominated by the correlation's geometric prior. Is this role split universal across other empirical-correlation + residual-NN combinations (e.g. Groeneveld 2006 LUT + residual NN), or specific to Biasi's functional form?
+- **Open question:** does an OOD test (predict CHF at geometry/pressure ranges outside Table 2) widen the hybrid's lead further, or does the empirical correlation start mispredicting and drag the hybrid down with it?

@@ -145,3 +145,14 @@ The fldgen v2.0 algorithm is well-designed and mathematically principled. The co
 - **Physical constraints:** non-negative precipitation ✅
 
 The algorithm is computationally efficient — the entire training + 10 realizations + validation pipeline runs in under 30 seconds on a laptop CPU for a 24×48 grid over 95 years.
+
+---
+
+## Open Questions & Reproducibility Blockers
+
+- **Fully reproducible at the algorithm level — no blockers for the methodological claims.** The fldgen v2.0 R package, source code, and CMIP/ESM input NetCDFs (`tas_annual_esm_rcp_r2i1p1_2006-2100.nc` + matching `pr`) are public on GitHub + Git-LFS, and the Zenodo validation suite (DOI 10.5281/zenodo.3372579) is open. Our Python re-implementation was built from the R source and validates against synthetic ESM-like data; every key statistical guarantee (Spearman-corr preservation RMSE 0.056, KS marginal pass-rate 100 %, T–P cross-corr r=0.93, ACF MAE 0.067, variance ratio ≈0.98) is independently confirmed.
+- **Documented scope-shrink (not a blocker, just a gap):** we did NOT run the R fldgen v2.0 package side-by-side with our Python re-implementation on the bundled 42 MB ESM ensemble NetCDF for cell-by-cell numerical comparison. That would require the R + devtools + ncdf4 + Git-LFS toolchain. The methodology is identical; the residual question is per-grid-cell numerical equivalence, not algorithmic equivalence.
+- **Documented scope-shrink (not a blocker):** we did NOT download the Zenodo validation suite ("many hours of rank-correlation validation" referenced in the paper). Our own rank-correlation checks confirm the mathematical guarantee that the empirical CDF → N(0,1) → empirical-quantile pipeline preserves rank order, but exact reproduction of the published validation tables is a future-work item.
+- **Open question:** do the rank-correlation and ACF preservation guarantees degrade when the joint state vector is extended beyond 2 variables (T + P) to e.g. T + P + surface humidity + winds? The paper handles only T + P; the algorithmic generalization is straightforward but the variance-ratio diagnostics could shift.
+- **Open question:** is the choice between Method 1 (fully random Fourier phases) and Method 2 (phase-shift only) consequential for downstream impact-model use (crop, hydrology), or are the two indistinguishable in practice? Our implementation supports both, but the paper does not provide a quantitative criterion for choosing.
+

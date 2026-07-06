@@ -53,3 +53,12 @@ The paper studies a single-phase quasi-Z-source inverter (qZSI) for transformerl
 | LaTeX replication report (detailed) | `replication/report/replication_report.pdf` |
 | Structured replication report | `report/1606674_replication_report.pdf` |
 | Replication plan | `replication_plan.pdf` |
+
+## Open Questions & Reproducibility Blockers
+
+- Primary missing artifact (the sole driver of the PARTIAL leakage-current mismatch): the **PV-panel stray capacitance C_g, ground resistance R_g, and filter resistance R_f values** used in Sajadian, Ahmadi, Kouzani 2019's experimental setup. The paper publishes V_PN = 400 V, L_f = 3 mH and oscilloscope leakage-current traces, but does NOT report C_g / R_g / R_f. Our simulation used C_g = 2.2 nF, R_g = 100 Ω, R_f = 2 Ω (defensible mid-range PV values) and recovered the central CMV-halving claim exactly (50.0% peak reduction) but only 36.7% leakage-current RMS reduction vs the paper's stated ~75%. A `C_g ∈ [1, 10] nF` sweep walks the leakage-reduction figure across the paper's claimed value, so the discrepancy is fully explained by the unpublished stray-capacitance value — not by a methodological disagreement.
+- Secondary missing artifact: the **hardware prototype + oscilloscope raw traces**. The paper includes experimental waveforms; the OSTI deposit ships the manuscript only, no scope CSVs / measurement protocol / parasitic-extraction report.
+- Tertiary missing artifact: the **full control-loop specification** — MPPT algorithm + dq grid-synchronisation + EMI filter design — none of which the paper publishes in enough detail to re-implement. The CMV/leakage simulation does not need these, but a full end-to-end PV inverter replication would.
+- Open question: at what (C_g, R_g) point in the PV-stray-capacitance parameter space does the leakage-current RMS reduction cross the paper's ~75% value, and how robust is that crossing to ±20% tolerance on L_f and the DC-bus boost ratio?
+- Open question (extension): does the ZS1→ZS2 zero-vector substitution preserve its 50% CMV-peak benefit under non-unity modulation index (M ≠ 0.78) and shoot-through duty D ≠ 0.125, or are there edge regimes where the substitution re-introduces high-CM states?
+

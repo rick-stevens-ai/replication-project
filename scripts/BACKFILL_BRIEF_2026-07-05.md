@@ -16,6 +16,47 @@ existing report at all. Work from what was actually done + re-reading the paper.
 
 ## Free endpoints only (Argo localhost:44497 key=stevens). Never paid APIs.
 
+## CONTEXT DIET (mandatory — read this FIRST before any exploration)
+DO NOT read raw sequence/data files into context. Specifically avoid:
+- Anything in `work/` that is `.fna`, `.fa`, `.fasta`, `.gb`, `.gbk`, `.gff`, `.vcf`, `.bam`, `.sam`, `.bed`, or `.tsv` >50KB. These are megabytes of raw genome data that will burn 300-500K input tokens for zero writing value.
+- Any file `>200KB` in general unless it's the extraction/marker.md or the paper.pdf.
+- `.DS_Store` and other Mac metadata.
+
+DO read (and ONLY these) for context grounding:
+- `report/REPORT.md` (the existing summary) — this is your primary source
+- `extraction/marker.md` if present (paper text)
+- `extraction/nougat.mmd` if present + non-stub
+- Small summary files in `report/` like `attempt_log.md`, `artifact_harvest.md`
+- A `head -50` of `work/analysis_output.txt` if you need to sanity-check numbers
+
+Budget: total input context should stay under 100K tokens. If you exceed 200K input tokens on read-in, you have already failed the run. Prior failures at 344K and 466K input tokens were caused by ingesting raw .gb/.fna files from `work/`.
+
+## RESUME MODE + REPORT-FIRST (mandatory ordering to survive timeouts)
+Subagent runs get cut around 4-5 minutes with high probability. The failure pattern: agent spends first ~4 min chasing PDF/extraction, then hits a ceiling before writing items 4-8 (the highest-value deliverables). To survive this, follow this ORDER STRICTLY:
+
+1. First, `ls` the target dir. Note which of the 8 artifacts already exist. SKIP those.
+2. **WRITE items 4-8 (report/REPORT.tex, report/open_questions.json, report/workflow.md, report/artifacts_summary.md, report/failure_analysis.md) FIRST**, before any PDF-fetch or extraction attempt. Read the existing REPORT.md + any evidence in the dir + any already-present extraction/marker.md to ground the write. If no marker.md exists, use the existing REPORT.md as the paper summary source — the paper's identity is in there.
+3. After all 5 report items are on disk, THEN attempt paper.pdf fetch (90s cap). If it fails, write `paper.pdf.MISSING.md` marker noting source + why fetch failed and move on. Do not retry.
+4. THEN attempt extraction/marker.md + extraction/nougat.mmd. Fallback to pdftotext or a labeled stub if tools/PDF unavailable.
+
+This ordering means even a 4-minute timeout leaves all 5 valuable report items on disk.
+
+### WRITE ONE FILE AT A TIME + CHECKPOINT (proven 2026-07-05)
+Do NOT batch all 5 writes into one final "write everything in parallel" tool block — if the run
+terminates before that block executes, ALL work is lost (this failure mode killed 3 consecutive
+backfill attempts on BVBRC-103). Instead: call the write tool SEPARATELY for each of the 5 files,
+most-valuable-first (REPORT.tex, then open_questions.json, then the 3 md files). After each write,
+print `wrote <filename>` as a checkpoint. This pattern succeeded on BVBRC-37 (4m24s) and BVBRC-39
+(4m19s) at ~4 min each after the same dirs' "parallel" attempts had failed.
+
+### When REPORT.md is already rich, this is a PURE-WRITE task
+If `report/REPORT.md` already contains the full narrative (paper summary, claims, methods, results,
+verdict), you do NOT need to fetch the PDF, re-run analysis, or read `work/` at all. Read ONLY
+`report/REPORT.md` + `extraction/marker.md` (if tiny), then write the 5 files grounded entirely in
+REPORT.md. Do not fabricate numbers not in REPORT.md; where REPORT.md is silent, state qualitatively.
+
+You still must RE-READ the paper (using whatever is available: existing REPORT.md, marker.md, or the abstract from a metadata lookup) before writing the 5 open questions. The questions must be truly OPEN, important, non-superficial problems for future new work — each with concrete next_steps.
+
 ## Steps
 1. **Read the target dir**: existing REPORT.md, evidence/, code, logs, verdict. Understand what was
    claimed, what was actually run, and how strong the evidence is.
