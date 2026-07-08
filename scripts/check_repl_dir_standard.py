@@ -13,7 +13,8 @@ from collections import defaultdict
 BASE = os.path.expanduser("~/Dropbox/REPLICATE-PROJECT")
 
 # Container sets (dir-of-dirs) vs flat prefix sets (top-level SET-* dirs)
-CONTAINERS = {"QC-100": "QC-100", "QC-200": "QC-200", "LUCID": "LUCID-replications"}
+CONTAINERS = {"QC-100": "QC-100", "QC-200": "QC-200", "LUCID": "LUCID-replications",
+              "OTHER": "OTHER-100"}
 FLAT_PREFIXES = {"PDE": "PDE-", "BVBRC": "BVBRC-", "OSTI": "OSTI-"}
 
 def big(f, n=1500):
@@ -82,7 +83,7 @@ def main():
     rows = []
     print("8-artifact standard audit (Rick 2026-07-05)\n"+"="*70)
     gtot = defaultdict(int); gn = 0
-    for key in ("QC-100","QC-200","LUCID","PDE","BVBRC","OSTI"):
+    for key in ("QC-100","QC-200","LUCID","PDE","BVBRC","OSTI","OTHER"):
         subs = groups.get(key, [])
         if not subs: continue
         counts = defaultdict(int); complete = 0

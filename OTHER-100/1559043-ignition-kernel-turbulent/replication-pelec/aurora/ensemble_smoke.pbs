@@ -1,0 +1,90 @@
+#!/bin/bash -l
+#PBS -N pelec_smoke
+#PBS -l select=2
+#PBS -l walltime=01:00:00
+#PBS -l filesystems=home:flare
+#PBS -q debug-scaling
+#PBS -A datascience_collab
+#PBS -j oe
+#PBS -o /lus/flare/projects/datascience_collab/stevens/replicate-1559043/logs/ensemble_smoke.out
+#
+# SMOKE TEST: mirrors ensemble_packed.pbs multi-host mpiexec backgrounding
+# pattern exactly, but on 2 nodes with 2 concurrent runs, short stop_time.
+# Goal: verify the --hosts= + & + wait pattern before burning 3072 node-hrs.
+
+cd "$PBS_O_WORKDIR"
+echo "=== Smoke $PBS_JOBID start $(date) on $(hostname) ==="
+echo "PBS_NODEFILE=$PBS_NODEFILE"
+NODE_TOTAL=$(wc -l < "$PBS_NODEFILE")
+echo "PBS_NODEFILE entries: $NODE_TOTAL"
+
+module load oneapi/release/2025.3.1 mpich/opt/5.0.0.aurora_test.3c70a61 2>/dev/null || true
+module list 2>&1
+
+EXE=/home/stevens/software/PeleC-aurora/Exec/Production/IgnitionKernel/PeleC3d.sycl.TPROF.MPI.ex
+GPU_SCRIPT=/soft/tools/mpi_wrapper_utils/gpu_tile_compact.sh
+RUNS_DIR=/lus/flare/projects/datascience_collab/stevens/replicate-1559043/runs
+
+if [ ! -x "$EXE" ]; then echo "FATAL: EXE missing: $EXE"; exit 2; fi
+if [ ! -x "$GPU_SCRIPT" ]; then echo "FATAL: gpu_tile_compact.sh missing"; exit 2; fi
+
+# Unique hostnames from PBS_NODEFILE
+mapfile -t NODES < <(awk '!seen[$0]++' "$PBS_NODEFILE")
+echo "Unique nodes allocated: ${#NODES[@]}"
+printf '  %s\n' "${NODES[@]}"
+
+CONFIGS=( smoke_phi0.6_r0 smoke_phi1.0_r0 )
+
+if [ ${#NODES[@]} -lt ${#CONFIGS[@]} ]; then
+  echo "FATAL: only ${#NODES[@]} unique nodes, need ${#CONFIGS[@]}"
+  exit 3
+fi
+
+launch_one() {
+  local cfg="$1"
+  local node="$2"
+  local rundir="$RUNS_DIR/$cfg"
+  cd "$rundir" || { echo "[$cfg] FATAL: cannot cd $rundir"; return 1; }
+
+  echo "[$cfg] launch on $node at $(date +%s.%N) ($(date))" >> smoke.log
+  mpiexec -n 6 --ppn 6 --hosts="$node" -d 1 --cpu-bind depth \
+      "$GPU_SCRIPT" "$EXE" inputs.inp stop_time=5e-6 max_step=200 \
+      >> smoke.log 2>&1
+  local rc=$?
+  echo "[$cfg] finished rc=$rc at $(date +%s.%N) ($(date))" >> smoke.log
+  return $rc
+}
+export -f launch_one
+export EXE GPU_SCRIPT RUNS_DIR
+
+echo "=== Launching ${#CONFIGS[@]} concurrent runs ==="
+for i in "${!CONFIGS[@]}"; do
+  CFG=${CONFIGS[$i]}
+  NODE=${NODES[$i]}
+  echo "launch [$i] $CFG -> $NODE at $(date +%s.%N)"
+  launch_one "$CFG" "$NODE" &
+done
+
+echo "=== All backgrounded; waiting (parent pid $$) at $(date) ==="
+wait
+echo "=== All runs finished at $(date) ==="
+
+# Summary
+echo "=== Per-run tail ==="
+for cfg in "${CONFIGS[@]}"; do
+  echo "--- $cfg smoke.log (tail 20) ---"
+  tail -20 "$RUNS_DIR/$cfg/smoke.log" 2>/dev/null
+done
+
+echo "=== T_max extraction ==="
+for cfg in "${CONFIGS[@]}"; do
+  echo "--- $cfg ---"
+  grep -E "max.*Temp|Temp.*max|maximum of Temp" "$RUNS_DIR/$cfg/smoke.log" | tail -5 || echo "(none found)"
+  echo "final STEP lines:"
+  grep "^STEP = " "$RUNS_DIR/$cfg/smoke.log" | tail -3
+done
+
+echo "=== Outputs present? ==="
+for cfg in "${CONFIGS[@]}"; do
+  echo "$cfg: $(ls -d "$RUNS_DIR/$cfg"/plt* "$RUNS_DIR/$cfg"/chk* 2>/dev/null | wc -l) plot/chk dirs"
+done
