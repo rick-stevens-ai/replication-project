@@ -1,102 +1,105 @@
 # Replication Project
 
-Systematic replication of computational science papers using AI-assisted reproducibility methods.
+**Systematic, AI-assisted replication of published computational-science papers.**
 
-## Overview
+Each replication is an *independent* reimplementation (not the authors' code), run to real
+output, and scored for reproducibility with an honest account of what did and didn't reproduce.
 
-This project contains independent replications of published computational science papers across multiple domains. Each replication includes:
+---
 
-- **Code**: Independent implementation (not copied from original authors)
-- **Data**: Generated results and comparisons
-- **Figures**: Reproduced plots from the papers
-- **Report**: Analysis of reproducibility, discrepancies, and lessons learned
+## 🚀 New here? Start with these
 
-## Completed Replications
+| I want to… | Read |
+|---|---|
+| Understand the project and reproduce a paper myself | **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** |
+| Get quick answers (how scoring works, tooling, gotchas) | **[docs/FAQ.md](docs/FAQ.md)** |
+| Follow the full operating procedure ("the skill") | **[SKILL.md](SKILL.md)** |
+| See the big-picture talks | `Can_a_Robot_Replicate_Science.pptx`, `Reproducing_1000_Papers_in_10_Days.pptx` |
+| Know exactly what a finished replication must contain | **[scripts/REPLICATION_DIR_STANDARD_2026-07-05.md](scripts/REPLICATION_DIR_STANDARD_2026-07-05.md)** |
+| See current status of everything | **[STATUS_AUDIT.md](STATUS_AUDIT.md)** + newest `RECONCILED_MASTER_*.csv` |
 
-| # | OSTI ID | Paper | Domain | Status |
-|---|---------|-------|--------|--------|
-| 1 | — | Fajar et al. (2026) PVMol-Gen | Materials/ML | ✅ Complete |
-| 2 | 1565592 | Hempel et al. MSM from short non-equilibrium simulations | Molecular Dynamics | ✅ Complete (9/8 — 1D well + 2D potential + ADP, OOM correction confirmed) |
-| 3 | 1997354 | Hausdorff Integer Sequences | Mathematics | ✅ Complete |
-| 4 | 2571540 | BayesOpt qHSRI | Optimization | ✅ Complete |
-| 5 | 1983793 | CPW Resonator | Quantum Devices | ✅ Complete |
-| 6 | 1475143 | FDTD Delay PDE | Numerical Methods | ✅ Complete |
-| 7 | 1461824 | Photo-z PDFs | Astrophysics | ✅ Complete |
-| 8 | 1379592 | GraphBLAS Foundations | Graph Algorithms | ✅ Complete |
-| 9 | 2441075 | Trapped-Ion Qubits | Quantum Computing | ✅ Complete |
-| 10 | 1842593 | Motion Tomography | Signal Processing | ✅ Complete |
-| 11 | 2217719 | SCALE MSRE Depletion | Nuclear Engineering | ✅ Complete |
-| 12 | 3014512 | Dark Matter SD Scattering | Particle Physics | ✅ Complete |
-| 13 | 1609039 | Cu₆₄Zr₃₆ Metallic Glass MD (deformation) | Materials Science | ✅ Complete (7/8 + 6/8 — 9 σ-ε runs (3T × 3ε̇); paper ordering reproduced (3.1× drop 10K→600K, rate hardening at 300K/600K); magnitudes 0.51–0.97× paper due to 24× atom-count reduction) |
-| 14 | 1484740 | Electronic/Optical Properties of 2D GaN | DFT/Materials | ✅ Complete (9/9 — monolayer + bilayer fully converged on uicgpu QE 7.4.1 GPU; bilayer F_max=0.000598 Ry/Bohr; plasmons ωp ≈ 10 eV match paper Fig 5; PBE-vs-LDA gap discrepancy documented; GW/BSE out of scope) |
-| 15 | 1559043 | Ignition Kernel in Turbulent Flow | CFD/Combustion | ✅ Complete (4/5 — PeleC v3, Polaris ensemble 4φ×5 realizations, ignition-propensity curve reproduced, paper Fig.3 analog) |
-| 16 | 1275503 | Cosmic Reionization on Computers (CROC) | Astrophysics | ⚠️ Partial (5/4 — FGPA semi-analytic surrogate; replicates analysis pipelines but NOT the radiation-hydro CROC simulation; ⟨τ_eff⟩ diverges 30–300%, gap counts off ~10×) |
-| 17 | 1868518 | Graph-RL for Grid Restoration | ML/Power Systems | ✅ Complete (8/7 — IEEE-33/123 + headline IEEE 8500-Node replicated: 578-cell partition, GCN-DQN 99.67% restored at 2.39s vs paper 100%/2.02s; MLP-DQN collapses to 55% confirming graph structure necessity) |
-| 18 | 3003857 | Chaotic Dynamics via Multi-Step Penalty Neural ODEs (MP-NODE) | ML/Math | ⏳ Mixed (7/5 — KS short-term NRMSE 0.08 matches paper's 0.1–0.2; Kolmogorov misses (corr 0.17 vs >0.9) due to 16× smaller DNS; ERA5 data-blocked) |
-| 19 | 2587225 | ScaWL: Scaling k-WL Weisfeiler-Lehman in Distributed Memory | Graph Algorithms / HPC | ✅ Complete (9/10 — independent C++17/MPI/OpenMP 3-WL on chiatta00; 26.4× strong scaling at 128 cores; memory myth busted (8MB actual vs claimed 100GB); multi-node IB at ~10³ ranks parked for Polaris/Aurora) |
-| 20 | 1412756 | Chiral Spin Order in Kondo-Heisenberg Systems | Condensed Matter Theory | ✅ Complete (8/8 — mean-field framework reproduced to machine precision; T=0 phase progression + T_c ∝ (J_H−J_c)² + Wolff-cluster MC universality β/ν=0.128 vs exact 0.125) |
-| 21 | 1523841 | Polarization differences ↔ Zone-averaged shift photocurrent | Condensed Matter / Optics | ✅ Complete (8/10 — central identity e R̄_cv = a(P_c−P_v) + W_cv·ea verified to machine precision (~10⁻¹⁶) on 11 paper-vs-ours comparisons; DFT+Wannier materials calc skipped) |
-| 22 | 1864334 | NN-VMC for A≤4 Nuclei + 3-body forces tier-lift | Nuclear Physics / ML | ✅ Complete (8/9 — V_NN + UIX-inspired V_3N on ³H/³He/⁴He; ³He–³H Coulomb splitting +0.75 vs +0.764 MeV; V_LS = 0 by symmetry on real-valued S-wave ansatz, spinor extension parked) |
-| 23 | 1624105 | Clustering huge protein sequence sets in linear time (Linclust) | Bioinformatics / Algorithms | ✅ Complete (9/10) |
-| 24 | 2571909 | Physics-based hybrid ML for Critical Heat Flux (CHF) prediction | Nuclear / Thermal Hydraulics / ML | ✅ Complete (7/10) |
-| 25 | 1606674 | CMV Reduction in Single-Phase qZSI PV Inverter | Power Electronics / Circuits | ✅ Complete (8/9 — CMV peak halving 400V→200V exact match (50.0%); ~40 dB attenuation at switching frequency; leakage 36.7% vs paper's ~75% (gap traced to under-specified parasitics)) |
-| 26 | 2439897 | Physics and Chemistry from Parsimonious Representations (rVAE) | ML / Scientific Imaging | ✅ Complete (8/10) |
-| 27 | 1981773 | Single-atom Pt doping of La$_2$Ti$_2$O$_7$ for photocatalysis (DFT) | DFT / Materials / Catalysis | ✅ Complete (9/9 — Yambo PBE/RPA optical absorption: 2.40 eV redshift vs paper 2.20 eV (9% diff), 2.91× visible-band enhancement, Pt sub-gap tail at 0.52 eV; facet σ ordering (001)<(010) recovered (13-16% diff vs paper); polar-terminated (100)/(101)/(110) slabs diverged, need symmetric slab gen) |
-| 28 | 2469515 | Supervised extraction of near-complete genomes from multiple metagenomes (PATRIC) | Bioinformatics / Metagenomics | ⚠️ Partial (4/10 — baseline MetaBAT2 pipeline reproduced on synthetic 5-species community, 5/5 HQ bins; PATRIC/SEEDtk supervised arm out of scope) |
-| 29 | — | Gopal-Trefethen 2019: Lightning Laplace/Helmholtz solvers | Numerical PDE / Spectral | ✅ Complete (8/10) |
-| 30 | — | Fortunato-Townsend 2017: Fast Poisson solver for Chebyshev spectral method via ADI | Numerical PDE / Spectral | ✅ Complete (9/10 — spectral convergence to 1.8e-14 by n=24, ADI vs direct crossover at n=1024, O(n² log² n) scaling confirmed up to n=2048) |
-| 31 | 1427646 | Deep Learning of Atomically Resolved STEM Images: Chemical ID & Local Transformations | ML / Imaging | ✅ Complete (8/8 — multislice training set, ResNet trained, confusion matrix + peak-detection figs) |
-| 32 | 2582579 | Constraining Cosmological Parameters with Needlet Internal Linear Combination Maps | CMB / Cosmology | ✅ Complete (8/8 — pyilc + 6 contributions to Eq.26, <0.2% recovery of reference power spectra at 2≤ℓ≤20) |
-| 33 | 2587579 | Mesh-based Super-Resolution of Fluid Flows with Multiscale GNN | PDE / ML | ✅ Complete (8/8 — 4.77× rel-L2 reduction over interp; distributed halo-swap validated bitwise vs single-rank across 3 configs (rel L2 ≤5.4e-9); 3D BFS hex SE mesh runs, 1.11× over trilinear at ep 30) |
-| 34 | 2587945 | Spatiotemporal Forecasting of ELMs in Tokamak Plasmas (NN forecaster) | Fusion / ML | ✅ Complete (8/8 — FNO-2D + ConvLSTM-attention + Chronos-T5 + Temporal-VAE on synthetic BES; paper's RNN > FNO ranking triangulated across 5 models; real DIII-D BES not public) |
-| 35 | 1861801 | NukeLM: Pre-Trained & Fine-Tuned LMs for Nuclear & Energy Domains | NLP / Domain LMs | ✅ Complete (8/10 — DAPT on RoBERTa-large with 325K OSTI abstracts (114M tokens); MLM loss 0.641 (ppl 1.90) surpasses paper's 0.95; NukeLM Binary F₁=0.710 tops ranking; all paper trends reproduce) |
-| 36 | 2475938 | Updated Virophage Taxonomy and Distinction from Polinton-like Viruses | Bioinformatics | ✅ Complete (8/10 — 279-genome NCBI scale-up (21× the 13-genome baseline); 70-taxon 4-marker partitioned ML tree recovers Mavirus/Sputnik/Aquatic-Lavidaviridae clades + Maveriviricetes/Polintoviricetes boundary; IMG/VR uncultivated tail skipped) |
-| 37 | 2396968 | Latent Stochastic Differential Equations for Quasar Variability & BH Properties | ML / Astrophysics | ⏳ Data + compute-bound (9/6 — v1_simplified + v2_faithful trained; WeatherBench2 zarr unreachable, 100× retrain budget out of scope) |
-| 38 | 1578031 | Joint Emulation of Earth System Model Temperature-Precipitation (fldgen v2.0) | Climate / Stats | ✅ Complete (8/8 — Python re-impl all 8 algorithm steps (pattern scaling, EOF/PCA, Fourier phase randomization, quantile mapping); spatial-rank-corr RMSE 0.056, marginal KS 100% pass, cross-var corr r=0.93; synthetic ESM input not actual CMIP5) |
-| 39 | 1993311 | DMQMC + Gaussian Process Regression for Specific Heat / Entropy from Noisy Energy Data | DFT / Stats | ✅ Complete (8/8 — GPR composite-kernel beats finite differences on C_V(T) by 14.6× (Hubbard U/t=4) and 44× (U/t=8); noise sweep ratio 0.37–0.52 across levels; synthetic data only, no real HANDE-QMC) |
-| 40 | 1984484 | DRAS: Deep Reinforcement Learning for Cluster Scheduling in HPC | Systems / RL | ✅ Complete (8/8 — event-driven simulator + FCFS/EASY-BF/SJF baselines + DQN + PPO; PPO avg slowdown 125.8 vs SJF 166.3 (24% better) and FCFS 675.9; HPC2N trace 5K jobs × 240 nodes) |
-| 41 | — | NANOGrav 15-yr Stochastic Gravitational-Wave Background (Agazie+ 2023) | Astrophysics / GW | ✅ Complete (8/8 — 67-pulsar Hellings-Downs replication; γ=3.35 vs paper 3.2 (within 0.5σ), log₁₀A=−14.17 vs −14.19 (within 0.2σ), MCOS SNR 2.94σ; used DR3 pre-sampled chains, did not redo Bayesian inference from scratch) |
-| 42 | — | Box Least Squares Transit Detection (Kovács/Zucker/Mazeh 2002 + Hartman/Bakos 2016) | Astrophysics / Exoplanets | ✅ Complete (8/8 — from-scratch BLS impl; recovered 6 known Kepler planets to <0.012% period error incl. Kepler-10 b at 150 ppm/0.84d; beats astropy BoxLeastSquares mean accuracy 0.007% vs 0.026%) |
-| 43 | — | Cosmological P(k) Emulator (CosmoPower / CAMELS-style) | Cosmology / ML | ✅ Complete (8/8 — 4-layer MLP trained on 400 CAMB-generated cosmologies; 0.93% mean / 3.4% p95 error in matter power spectrum; 277,000× speedup over CAMB; linear z=0 only) |
-| 44 | — | Poisson Flow Generative Models (Xu et al. 2022 NeurIPS) | ML / PDE | ✅ Complete (7/8 — from-scratch PFGM + diffusion baseline on 2D toy; PFGM SWD 0.049 vs diffusion 0.059; PFGM 1.2–1.4× more step-size robust at 20–50 NFE; image-gen benchmarks (CIFAR/CelebA) skipped) |
+> **One-sentence version:** point a capable AI agent at a paper, make it *independently rebuild
+> the method and run real code*, then make it write an honest, scored report — including
+> everything it could **not** reproduce.
 
-### PDE Replication Series
+---
 
-| # | Paper | Domain | Status |
-|---|-------|--------|--------|
-| P1 | Grossmann et al. 2023: Can PINNs Beat the Finite Element Method? | Numerical PDE / ML | ✅ Complete (7/10 — 1D Poisson full sweep, 2D Poisson + 1D Allen-Cahn partial PINN sweeps; FEM dominance confirmed across all problems; 3D Poisson & Schrödinger skipped due to missing eval data in repo) |
+## What a replication contains (the 8-artifact bar)
 
-## OSTI Publication Analysis
+A replication is **not done** until its directory has all 8 (audit with
+`python scripts/check_repl_dir_standard.py`):
 
-Analysis of Argonne's full OSTI publication record (2016-2025, ~30,000 papers) shows:
-- **~400 papers/year** are computationally replicable without experimental facilities
-- **~3,500 papers** over the last 10 years form the replicable corpus
-- 70% discovery science, 23% applied science/engineering, 6% facility/methods
-- This project has replicated papers spanning 15 of Argonne's OSTI subject categories
+```
+<SET>/<paper-dir>/
+  paper.pdf                        # 1. source paper
+  extraction/marker.md             # 2. Marker text extraction
+  extraction/nougat.mmd            # 3. Nougat math-text extraction
+  report/REPORT.tex (+ REPORT.pdf) # 4. detailed section-by-section report + critique
+  report/open_questions.json       # 5. five heavy-duty open questions + next steps
+  report/workflow.md               # 6. workflow, tools/versions, effort estimate
+  report/artifacts_summary.md      # 7. artifact inventory + traces
+  report/failure_analysis.md       # 8. honest failure/gap analysis
+  report/evidence/                 # real outputs (json/csv/logs/figures/code)
+  work/                            # code + data + intermediates
+```
 
-## Methodology
+---
 
-Each replication follows a standard process:
-1. Read and analyze the original paper
-2. Implement the methods independently (from equations, not source code)
-3. Reproduce key results (figures, tables, numerical values)
-4. Document discrepancies and assess reproducibility
-5. Write a structured report
+## How the repo is organized
 
-Replications are performed using a mix of Python, Fortran, LAMMPS, OpenMC, and other domain-specific tools, running on GPU clusters (NVIDIA A100, Intel PVC) and workstations.
+Replications are grouped into **sets**. Most sets are directory-prefixed at the top level; the
+newer QC sets use container directories.
 
-## Tools & Infrastructure
+| Set | Domain | Papers | Where |
+|---|---|---|---|
+| **LUCID-100** | Radiation biology / low-dose | ~142 | `LUCID-replications/` |
+| **OSTI-100** | Mixed DOE/OSTI computational science | 111 | `OSTI-*` (top level) |
+| **PDE-100** | PDE solvers, numerical methods, SciML | ~131 | `PDE-*` + `PDE-replications/` |
+| **BVBRC-100** | Bacterial genomics / AMR | 127 | `BVBRC-*` (top level) |
+| **QC-100** | Quantum computing / quantum chemistry | ~141 | `QC-100/` |
+| **QC-200** | Quantum computing (second wave) | 105 | `QC-200/` |
+| *(legacy)* | Original numeric-ID entries | 42 | `NNNNNNN-*` (top level) |
 
-- **AI Assistant**: Ollie (OpenClaw + Claude Opus)
-- **Compute**: Argonne ALCF (Polaris, Aurora), UIC GPU cluster (8× A100), DGX Spark
-- **Languages**: Python, C++, Fortran
-- **Domain codes**: OpenMC, LAMMPS, DarkELF, OpenMM, MDAnalysis
+**Reconciliation status** (from `RECONCILED_MASTER_2026-06-24.csv`, 729 rows):
+**275 REPLICATED · 371 PARTIAL · 48 spot-check** (plus a handful NO-GO / blocked / contradicted).
+"Solid" = REPLICATED + PARTIAL. Numbers move as waves complete — always trust the newest census.
 
-## Author
+Supporting locations:
+- **`docs/`** — getting-started, FAQ, and planning archive.
+- **`scripts/`** — reconciliation & audit tooling (below).
+- **`SKILL.md`** — the replication operating procedure.
+- **`STATUS_AUDIT.md`, `CENSUS_*.csv`, `RECONCILED_MASTER_*.csv`** — living status.
 
-Rick Stevens, Argonne National Laboratory  
-AI-assisted by Ollie (OpenClaw)
+---
 
-## License
+## Tooling (`scripts/`)
 
-Research use. Individual replications may reference GPL/MIT/BSD licensed tools.
+| Script | What it does | Usage |
+|---|---|---|
+| `census.py` | Builds the status census from reports on disk (ground truth) | `python3 scripts/census.py --csv CENSUS_$(date +%F).csv` |
+| `rebuild_reconciled.py` | Rebuilds the reconciled master from a census | `python3 scripts/rebuild_reconciled.py CENSUS_$(date +%F).csv` |
+| `reconcile_reports.py` | Harvests verdict + coverage/agreement from every report | `python3 scripts/reconcile_reports.py` |
+| `check_repl_dir_standard.py` | Audits each dir for the 8 required artifacts | `python3 scripts/check_repl_dir_standard.py --missing` |
+| `harvest_open_questions.py` | Rolls per-paper open questions into a corpus | `python3 scripts/harvest_open_questions.py` |
+| `harvest_repass_scores.py` | Collects re-pass re-scoring results | `python3 scripts/harvest_repass_scores.py` |
+
+**End-of-day reconciliation** (do this before launching new work):
+```bash
+python3 scripts/census.py --csv CENSUS_$(date +%F).csv
+python3 scripts/rebuild_reconciled.py CENSUS_$(date +%F).csv
+```
+
+---
+
+## Principles
+
+- **Independent reimplementation**, not authors' code re-run.
+- **Real code to real output**, compared with units and tolerances.
+- **LLM-as-judge scoring** — never regex/substring for final scores.
+- **Honesty over fidelity theater** — partial/failed reproduction, documented well, is valuable.
+- **Every replication carried to a written, scored report.** No unfinished shells.
+
+---
+
+*A slide-deck history of the effort lives in `docs/planning-archive/` alongside dated launch/audit
+notes. For the current state, use `STATUS_AUDIT.md` and the newest reconciled master CSV.*
