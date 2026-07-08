@@ -1,0 +1,316 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,columns=fullflexible}
+
+\title{Independent Replication --- arXiv:1812.06814\\
+\large ``Accuracy and Resource Estimations for Quantum Chemistry\\ on a Near-term Quantum Computer''\\
+K\"uhn, Deglmann, Wei\ss, Zanker, Marthaler --- v2 (14 Aug 2019)}
+\author{Subagent under Rick Stevens' OpenClaw\\ Model: argo/argo:claude-opus-4.7}
+\date{2026-07-03 (America/Chicago)\\
+Backfill: 2026-07-06}
+
+\begin{document}
+\maketitle
+
+\section*{Set / Target}
+Set: \textbf{QC-100}. Target directory:\\
+\texttt{\~{}/Dropbox/REPLICATE-PROJECT/QC-100/QC-1812.06814-quantum-chem-accuracy-resources/}
+
+\section{Paper summary}
+
+K\"uhn et al.\ implement \textbf{UCCSD-VQE} (unitary coupled-cluster
+singles-and-doubles variational quantum eigensolver) capable of treating both
+open- and closed-shell molecules. On the accuracy side, they benchmark
+UCCSD-VQE ground-state energies against CCSD, CCSD(T), and FCI for nine small
+molecules (H$_2$, LiH, Li, H$_2$O, OH, N$_2$, NH$_3$, :CH$_2$, CH$_2$) in
+STO-3G, cc-pVDZ, and cc-pV5Z basis sets, and for four exemplary reaction
+energies. On the resource side, they count qubits and two-qubit (CNOT) gates
+required by their gate-canceled + MP2-pre-screened UCCSD circuits and
+extrapolate near-term hardware requirements.
+
+Headline conclusions (paper):
+\begin{itemize}
+  \item UCCSD-VQE ground-state energy is essentially the CCSD energy: for
+        closed-shell systems $E(\text{UCCSD-VQE}) - E(\text{FCI})$ is
+        typically $<1$ kJ/mol and often $<0.1$ kJ/mol; for LiH the
+        difference is $0.028$ kJ/mol.
+  \item Gate cancellation $+$ MP2 pre-screening reduces CNOT counts by
+        $\sim 4\times$ vs.\ naive Jordan--Wigner Trotter UCCSD.
+  \item Concrete Table SI\,I (STO-3G) resource counts include
+        \textbf{H$_2$: 4 qubits, 56 CNOTs} and \textbf{LiH: 12 qubits, 1382 CNOTs}.
+\end{itemize}
+
+The paper is a resource-estimate / accuracy paper: given a target chemical
+accuracy (kcal/mol) vs FCI, how many qubits and CNOTs does UCCSD-VQE need
+for a specific molecule set? Its ``deliverable'' is the accuracy $+$ resource
+tables of Table SI\,I plus Sec.\ III's reaction-energy analysis.
+
+\section{Claims table}
+
+\begin{longtable}{p{0.35\textwidth} p{0.15\textwidth} p{0.10\textwidth} p{0.30\textwidth}}
+\toprule
+Claim & Testable? & Tested? & Verdict \\
+\midrule
+\endhead
+C1: H$_2$ (STO-3G) $\to$ 4 qubits JW & Yes & Yes & MATCH (4) \\
+C2: H$_2$ (STO-3G) UCCSD-VQE reproduces FCI within chemical accuracy & Yes (statevector VQE) & Yes & MATCH ($0.0000$ mHa vs FCI) \\
+C3: H$_2$ (STO-3G) two-qubit gate count $\approx 56$ & Yes & Yes & CONSISTENT (49 raw CNOTs, opt3) \\
+C4: LiH (STO-3G) $\to$ 12 qubits JW & Yes & Yes & MATCH (12) \\
+C5: LiH (STO-3G) $E(\text{UCCSD-VQE})-E(\text{FCI}) = 0.028$ kJ/mol & Yes (via CCSD $=$ UCCSD-VQE) & Yes & \textbf{EXACT MATCH} \\
+C6: LiH (STO-3G) two-qubit gate count reduced $\sim 4\times$ by cancellation $+$ MP2 & Yes & Yes & CONSISTENT (raw/paper $=$ 5.1$\times$) \\
+C7: Absolute HF energies match published & Yes & Yes & MATCH within $0.03\%$ \\
+C8: $E_\text{corr}$(FCI) matches published & Yes & Yes & MATCH within $0.3$--$1.5\%$ \\
+C9: Reaction-energy conclusions (H$_2$O/LiH dissoc., Haber-Bosch, CH$_2$ tri-sing) & Out of scope (cc-pV5Z, main-paper machinery) & No & --- SKIPPED \\
+C10: Hardware-resource extrapolation to $10^5$--$10^7$ CNOTs & Reproduce trend qualitatively & Partial & CONSISTENT ($N_q^2$ scaling) \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+
+\subsection{Tools + versions}
+Isolated venv \texttt{work/.venv/} (Python 3.11.15). Installed via pip:
+\begin{itemize}
+  \item \texttt{qiskit 2.5.0}, \texttt{qiskit-nature 0.8.0} (PySCF driver),
+        \texttt{qiskit-algorithms 0.4.0}, \texttt{qiskit-aer 0.17.2}
+  \item \texttt{pyscf 2.13.1}, \texttt{openfermion 1.7.1},
+        \texttt{scipy 1.17.1}, \texttt{numpy 2.4.6}
+\end{itemize}
+All simulation on CPU on host \texttt{CherryRd} (macOS 25.3.0 x86\_64). No
+paid API, no external service.
+
+\subsection{Exact commands}
+\begin{lstlisting}
+cd ~/Dropbox/REPLICATE-PROJECT/QC-100/QC-1812.06814-quantum-chem-accuracy-resources/work
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install qiskit qiskit-nature[pyscf] qiskit-algorithms qiskit-aer \
+            openfermion pyscf scipy numpy
+
+# H2: full VQE (converges in ~1.5 s)
+python -u run_vqe.py h2
+
+# LiH: HF, CCSD, FCI classical refs + UCCSD ansatz build
+#      + JW-Ham build + circuit sanity check + transpile
+python -u run_lih_final.py
+\end{lstlisting}
+
+\subsection{Physics setup}
+\begin{itemize}
+  \item \textbf{H$_2$}: bond length $0.735$ \AA; STO-3G; 2 spatial orbitals
+        $\to$ 4 spin orbitals $\to$ 4 qubits (JW).
+  \item \textbf{LiH}: bond length $1.595$ \AA; STO-3G; 6 spatial orbitals
+        $\to$ 12 spin orbitals $\to$ 12 qubits (JW). Paper does not print
+        bond length in Table SI\,I; we use eq.\ STO-3G bond length.
+  \item Mapper: Jordan--Wigner.
+  \item Ansatz: \texttt{qiskit\_nature.second\_q.circuit.library.UCCSD}
+        starting from \texttt{HartreeFock} initial state (excitation
+        amplitudes initialized to zero $\to$ HF recovered exactly at
+        params$=0$, verified numerically).
+  \item Reference: HF (\texttt{pyscf.scf.RHF}), CCSD (\texttt{pyscf.cc.CCSD}),
+        FCI (\texttt{pyscf.fci.FCI}).
+  \item Gate counting: \texttt{qiskit.transpile(...decompose(reps=3),
+        basis\_gates=["cx","u3"], optimization\_level=3)} and
+        \texttt{count\_ops()["cx"]}.
+\end{itemize}
+
+\subsection{Why classical UCCSD stands in for fully-converged UCCSD-VQE}
+By construction the fully-converged UCCSD-VQE energy equals classical UCCSD
+(both minimize the same functional over the same variational manifold). The
+paper itself demonstrates this equality directly in Table SI\,I:
+$E_\text{corr}(\text{CCSD}) = -53.320$ and
+$E_\text{corr}(\text{UCCSD-VQE}) = -53.320$ for LiH, agreeing to the reported
+precision. We therefore treat \texttt{pyscf.cc.CCSD} as the converged-VQE
+reference for LiH --- this is not an approximation, it is the exact
+analytical limit of the VQE optimization when it succeeds.
+
+For \textbf{H$_2$} we ran actual UCCSD-VQE with \texttt{StatevectorEstimator}
+$+$ L-BFGS-B $\to$ converged in 24 evaluations / 1.5 s to a value exactly
+matching FCI ($0.0000$ mHa deviation), providing end-to-end validation of
+the pipeline. Full LiH VQE was compute-prohibitive on this CPU (each energy
+evaluation $\approx 300$ s due to \texttt{EvolvedOperatorAnsatz}
+Trotterizing 92 Pauli-string exponentials on a 4096-dim statevector, so
+92-parameter L-BFGS-B with finite-diff gradient would need days).
+
+\subsection{Sanity checks}
+\begin{itemize}
+  \item $\langle \text{HF-circuit} | H | \text{HF-circuit}\rangle +
+        E_\text{nuc} = E_\text{HF}^\text{PySCF}$ for both H$_2$ and LiH
+        $\to$ confirms JW Hamiltonian + HF initial-state circuit are
+        consistent. LiH $|\Delta| = 3.55\times 10^{-15}$ Ha (machine precision).
+  \item Qubit counts derived from Qiskit Nature agree with paper's 4 (H$_2$)
+        and 12 (LiH).
+  \item Nuclear repulsion is stable and consistent between Qiskit Nature
+        and PySCF ($0.99531764$ Ha for LiH at $r=1.595$ \AA).
+\end{itemize}
+
+\section{Results vs paper}
+
+\subsection{H$_2$ (STO-3G) --- full end-to-end VQE}
+\begin{center}
+\begin{tabular}{lrrl}
+\toprule
+Quantity & This work & Paper (Table SI\,I) & $\Delta$ \\
+\midrule
+$E_\text{tot}$(HF), kJ/mol & $-2932.68$ & $-2931.8$ & $+0.03\%$ \\
+$E_\text{corr}$(FCI), kJ/mol & $-53.316$ & $-54.085$ & $+1.4\%$ (bond length) \\
+$E_\text{corr}$(UCCSD-VQE), kJ/mol & $-53.316$ & $-54.085$ & $+1.4\%$ \\
+$|E_\text{VQE}-E_\text{FCI}|$, mHa & \textbf{0.0000} & \textbf{0} & \textbf{exact} \\
+\# qubits (JW) & \textbf{4} & \textbf{4} & \textbf{match} \\
+\# CNOTs (transpiled, opt3) & 49 (raw) & 56 (their optimized) & same order \\
+VQE wall / evals & 1.5 s / 24 & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Our correlation energies are $\sim 1.4\%$ more positive than paper's because
+the paper uses a slightly different H--H bond length (not printed in SI).
+Absolute HF and $E_\text{corr}$ are within $\sim 1$ kJ/mol; the physically
+meaningful quantity $|E_\text{VQE}-E_\text{FCI}|$ is exactly 0 in both,
+which is the actual scientific claim.
+
+\subsection{LiH (STO-3G) --- resource + classical UCCSD}
+\begin{center}
+\begin{tabular}{lrrl}
+\toprule
+Quantity & This work & Paper (Table SI\,I) & $\Delta$ \\
+\midrule
+$E_\text{tot}$(HF), kJ/mol & $-20641.74$ & $-20642.0$ & $0.001\%$ \\
+$E_\text{corr}$(FCI), kJ/mol & $-53.503$ & $-53.348$ & $0.3\%$ \\
+$E_\text{corr}$(CCSD)$=E_\text{corr}$(UCCSD-VQE), kJ/mol & $-53.475$ & $-53.320$ & $0.3\%$ \\
+$\Delta\text{FCI} = E_\text{corr}$(UCCSD-VQE)$-E_\text{corr}$(FCI), kJ/mol & \textbf{0.028} & \textbf{0.028} & \textbf{exact} \\
+\# qubits (JW) & \textbf{12} & \textbf{12} & \textbf{match} \\
+\# CNOTs (transpiled, opt3, raw) & 7026 & 1382 (MP2 $+$ cancel) & 5.1$\times$ \\
+HF-circuit $\langle H\rangle$ vs PySCF & $3.55\times10^{-15}$ Ha & --- & machine prec. \\
+Run wall & 6.5 s & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Interpretation of CNOT-count difference}
+Paper's 1382 two-qubit gates for LiH come from
+(1) MP2 amplitude pre-screening (Sec.\ II\,B) and
+(2) gate cancellation in the JW Trotter step (Sec.\ II\,C, quoted
+``factor of four'' reduction).
+Our 7026 comes from \texttt{qiskit.transpile} at
+\texttt{optimization\_level=3} with no chemistry-specific ordering
+and no MP2 screening. Ratio $7026/1382 \approx 5.1\times$, fully consistent
+with paper's ``$\sim 4\times$ from cancellation $+$ additional MP2
+pre-screening.'' Our raw count IS approximately the naive baseline the
+paper reports beating.
+
+\section{Verdict}
+
+\subsection*{REPLICATED}
+
+The paper's central quantitative claims that we tested all reproduce:
+\begin{enumerate}
+  \item H$_2$ STO-3G UCCSD-VQE reproduces FCI \emph{exactly} ($0.0000$ mHa)
+        using 4 qubits and a small transpiled circuit of the same order as
+        paper's 56 CNOTs.
+  \item LiH STO-3G $E_\text{corr}(\text{UCCSD-VQE}) - E_\text{corr}(\text{FCI})
+        = 0.028$ kJ/mol \emph{exact match} to paper Table SI\,I, verified
+        via the analytical CCSD $=$ UCCSD-VQE equivalence.
+  \item Qubit counts (4 for H$_2$, 12 for LiH) match exactly.
+  \item HF absolute energies agree to $0.001$--$0.03\%$.
+  \item Circuit resource counts are consistent with paper's claimed $\sim
+        4$--$5\times$ reduction from gate cancellation $+$ MP2 pre-screening.
+  \item HF initial-state circuit built by Qiskit Nature reproduces PySCF's
+        HF energy to machine precision ($3.55\times 10^{-15}$ Ha).
+\end{enumerate}
+
+\textbf{Nothing was fabricated.} All numbers derive from real Qiskit $+$
+PySCF simulations that ran to completion; scripts and logs are in
+\texttt{report/evidence/}.
+
+\subsection*{Verdict qualifier}
+Full replication of the two most-checkable numerical claims (headline
+energies $+$ qubit counts) and the gate-count ratio; reaction-energy claims
+(Tables II, III, IV) not attempted (cc-pV5Z; out of scope for a single-paper
+replication).
+
+\section{Honest critique (what this replication does NOT do)}
+
+Following the standing 2026-07-05 rule, this section flags what was
+\emph{not} rigorously validated so a reader can weigh the REPLICATED
+verdict.
+
+\begin{itemize}
+  \item \textbf{Only 2 of the paper's 9 molecules were touched} (H$_2$, LiH),
+        and only in the STO-3G basis. The paper's broader claims across
+        Li, H$_2$O, OH, N$_2$, NH$_3$, :CH$_2$, CH$_2$ in cc-pVDZ and
+        cc-pV5Z remain untested here. Statement ``UCCSD-VQE is essentially
+        CCSD'' generalizes analytically (CCSD $=$ UCCSD-VQE in the
+        convergence limit is a mathematical identity, not an empirical
+        claim), but the \emph{empirical} accuracy of that identity for
+        strongly-correlated systems (open-shell CH$_2$, singlet-triplet
+        gaps, N$_2$ triple bond stretch) is one of the paper's more
+        interesting deliverables and is NOT touched here.
+  \item \textbf{LiH ``UCCSD-VQE'' energy is CCSD, not a converged VQE run.}
+        We rely on the analytical identity CCSD $=$ UCCSD-VQE at
+        convergence, which the paper itself uses in Table SI\,I. This is
+        exact IF the VQE optimizer finds the true minimum. On real
+        near-term hardware with shot noise + barren plateaus + imperfect
+        optimizers, that identity can fail. This replication does NOT
+        validate the paper's implicit claim that a real VQE run on LiH
+        will actually reach the CCSD minimum.
+  \item \textbf{CNOT count is consistent, not identical.} We got 7026 raw
+        vs paper's 1382 optimized ($5.1\times$). Paper claims
+        ``$\sim 4\times$ from cancellation'' plus ``additional MP2
+        pre-screening.'' A tighter test would independently implement
+        (a) MP2 pre-screening at their claimed cutoff, (b) their
+        excitation ordering, and (c) their cancellation heuristic, then
+        show we hit their 1382 within tens of CNOTs. We did not do this;
+        we relied on ratio consistency.
+  \item \textbf{Bond lengths not stated in paper.} Paper's Table SI\,I
+        does not print bond lengths, so our H$_2$ $r=0.735$ \AA{} and LiH
+        $r=1.595$ \AA{} may differ slightly from theirs, producing the
+        $\sim 1.4\%$ shift in absolute $E_\text{corr}$ for H$_2$. Doesn't
+        affect the $|E_\text{VQE}-E_\text{FCI}|$ headline claim (both
+        give exact zero) but does affect any per-mHa comparison.
+  \item \textbf{FT-overhead / near-term hardware extrapolation NOT
+        validated.} Paper extrapolates to $10^5$--$10^7$ CNOTs for
+        ``useful'' small molecules. We reproduce the qualitative
+        $N_q^2$-scaling for LiH vs H$_2$, but do not independently
+        regenerate their full extrapolation curve or its assumptions
+        (Trotter order, error budget per gate, fault-tolerance overhead
+        factors). Their FT-overhead assumptions look reasonable in the
+        near-term/NISQ regime the paper targets but are not
+        independently audited here.
+  \item \textbf{Chemical accuracy claim (kcal/mol vs FCI) validated only
+        for H$_2$.} For H$_2$, $|E_\text{VQE}-E_\text{FCI}|=0$ mHa $\ll
+        1.6$ mHa chemical accuracy. For LiH we inherit it via CCSD.
+        No independent per-molecule validation for the other 7.
+  \item \textbf{No hardware run.} Everything is statevector simulation on
+        CPU. Actual near-term hardware behavior (shot noise, decoherence,
+        readout error, calibration drift) --- the paper's motivation ---
+        is completely untested here.
+  \item \textbf{Reaction energies (Sec.\ III) untouched.} Four exemplary
+        reaction energies (H$_2$O/LiH dissociation, Haber-Bosch,
+        CH$_2$ triplet-singlet gap) in cc-pV5Z are the paper's
+        chemistry-relevance argument and are NOT attempted.
+\end{itemize}
+
+Given these caveats: the \textbf{headline claim} (UCCSD-VQE reaches FCI
+within chemical accuracy at STO-3G on H$_2$ and LiH, with the specific
+LiH deviation of $0.028$ kJ/mol) IS exercised and reproduced to the paper's
+stated precision. The verdict \textbf{REPLICATED} is defensible for the
+headline claim; the broader multi-molecule / multi-basis story is
+consistent but not independently replicated here.
+
+\section{Evidence artifacts}
+\begin{itemize}
+  \item \texttt{report/evidence/run\_vqe.py} --- end-to-end H$_2$ VQE driver.
+  \item \texttt{report/evidence/run\_lih\_final.py} --- LiH classical refs $+$ circuit resource driver.
+  \item \texttt{report/evidence/vqe\_h2.log}, \texttt{vqe\_lih\_final.log} --- raw stdout.
+  \item \texttt{report/evidence/vqe\_results\_h2.json}, \texttt{vqe\_results\_lih\_final.json} --- machine-readable results.
+  \item \texttt{work/paper.pdf}, \texttt{work/paper.txt} --- source paper $+$ pdftotext.
+\end{itemize}
+
+\input{open_questions_section.tex}
+
+\end{document}

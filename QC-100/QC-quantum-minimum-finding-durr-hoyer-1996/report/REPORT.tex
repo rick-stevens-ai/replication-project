@@ -1,0 +1,244 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\small, breaklines=true, columns=fullflexible,
+        commentstyle=\color{gray!70!black}, keywordstyle=\color{blue!50!black}}
+\title{Independent Replication of D\"urr \& H\o yer (1996):\\
+       ``A Quantum Algorithm for Finding the Minimum''\\
+       \normalsize{arXiv:quant-ph/9607014}}
+\author{Independent replicator (subagent)}
+\date{2026-07-06}
+
+\begin{document}
+\maketitle
+
+\section{Paper summary}
+
+Let $T[0..N-1]$ be an unsorted table of $N$ distinct comparable values. The
+minimum-searching problem is to find the index $y^\star$ such that $T[y^\star]
+= \min_j T[j]$. Classically this takes $\Theta(N)$ probes on any deterministic
+or randomized Turing machine, and a linear-lower-bound argument matches it.
+D\"urr \& H\o yer\footnote{Also known as Grover-based amplitude amplification
+in the pre-BBHT era; the paper's subroutine is what became Boyer--Brassard--H\o yer--Tapp
+``exponential searching''.} present a quantum algorithm running in
+$O(\sqrt{N})$ Grover queries, matching the known $\Omega(\sqrt{N})$ lower bound
+up to constant factor.
+
+The algorithm:
+\begin{enumerate}
+    \item Draw an initial threshold index $y$ uniformly from $\{0,\dots,N-1\}$.
+    \item Repeat until total running time exceeds $22.5\sqrt{N} + 1.4\lg^2 N$:
+    \begin{enumerate}
+        \item Prepare the uniform superposition $\frac{1}{\sqrt{N}}\sum_j |j\rangle$.
+        \item Mark every $j$ with $T[j] < T[y]$.
+        \item Apply the quantum exponential searching (BBHT) subroutine.
+        \item Measure the first register; call the outcome $y'$. If $T[y'] < T[y]$
+              set $y \gets y'$.
+    \end{enumerate}
+    \item Return $y$.
+\end{enumerate}
+
+The paper's Theorem 1 states that the returned $y$ is the index of the minimum
+with probability at least $\tfrac{1}{2}$.
+
+\section{Claims and testability}
+
+\begin{tabular}{@{}llll@{}}
+\toprule
+\# & Claim & Type & Tested? \\
+\midrule
+C1 & Success prob.\ $\geq 1/2$ within the budget (Thm.\ 1). & correctness & yes \\
+C2 & Budget expression is $\lceil 22.5\sqrt{N} + 1.4\lg^2 N\rceil$. & formula  & yes \\
+C3 & BBHT expected iters $= O(\sqrt{N/t})$ for $t \geq 1$ marked. & complexity & yes \\
+C4 & Classical baseline: $\Theta(N)$ probes. & baseline & yes \\
+\bottomrule
+\end{tabular}
+
+\section{Method (numbered)}
+
+\begin{enumerate}
+    \item \textbf{Environment.} Python 3.14.6 (Homebrew), NumPy 2.4.3.
+    Pure state-vector simulation on $n = \log_2 N$ qubits; no external quantum SDK
+    (Qiskit/Cirq/PennyLane) was used, on purpose --- this ensures the replication
+    is genuinely independent and cannot inherit any bugs from those libraries.
+
+    \item \textbf{Grover core.}
+    \begin{itemize}
+        \item State: $|s\rangle = \frac{1}{\sqrt{N}}\sum_{j=0}^{N-1}|j\rangle$
+              --- a length-$N$ \verb|complex128| array.
+        \item Oracle: phase flip of amplitudes at marked indices
+              (\verb|state[mask] *= -1|).
+        \item Diffusion: reflection about the mean amplitude
+              (\verb|2*state.mean() - state|), i.e.\ $2|s\rangle\langle s| - I$.
+        \item Measurement: inverse-CDF sampling from the discrete distribution
+              $\{|\psi_j|^2\}$.
+    \end{itemize}
+
+    \item \textbf{Independent Grover sanity check.}
+    For $(N,k)$ on a 12-cell grid, ran $r^* = \mathrm{round}(\tfrac{\pi}{4}\sqrt{N/k})$
+    Grover iterations 2000 times each and compared the empirical success rate to
+    the closed-form $\sin^2((2r+1)\theta)$ with $\sin\theta = \sqrt{k/N}$.
+    Worst deviation was $|\Delta| = 0.027$, mean $|\Delta| = 0.008$.
+
+    \item \textbf{BBHT subroutine.}
+    Standard BBHT ``exponential searching'':
+    initialise $m \gets 1$; on each round pick $r$ uniformly from
+    $\{0, \dots, \lceil m \rceil - 1\}$, run $r$ Grover iterations on the current
+    uniform superposition + marker, measure, and check whether the observed index is
+    marked. On failure, $m \gets \min(\lambda m, \sqrt N)$ with $\lambda = 6/5$;
+    otherwise return the marked index. If no items are marked (the initial threshold
+    $y$ already equals the minimum), the subroutine runs until the caller-supplied
+    Grover budget is exhausted --- faithful to the paper's ``infinite algorithm''
+    idealization.
+
+    \item \textbf{Outer D\"urr--H\o yer loop.}
+    Uniform-random initial $y$; while total Grover iterations used $<$ budget,
+    build \verb|marked_mask = values < values[y]|, call BBHT with the remaining
+    Grover budget, and adopt any returned index whose value is strictly smaller
+    than $T[y]$.
+
+    \item \textbf{Budget.}
+    Implemented exactly as \verb|ceil(22.5*sqrt(N) + 1.4*log2(N)**2)|
+    (see Table~\ref{tab:budget}).
+
+    \item \textbf{Main experiment.}
+    5 sizes $N \in \{4,8,16,32,64\}$, 300 trials each, random permutation
+    $T[j] = \pi(j)$ where $\pi$ is a fresh Fisher--Yates shuffle of
+    $\{0,\dots,N-1\}$. Recorded per-trial: correctness, Grover iterations used
+    (always equals budget since we don't early-stop), Grover iterations until $y$
+    first equals the true min, and number of outer threshold updates.
+    Seeded with $20260706$; deterministic re-run.
+
+    \item \textbf{BBHT $t$-sweep.}
+    $N \in \{16, 32, 64, 128\}$, $t \in \{1, 2, 4, N/8, N/4, N/2\}$, 300 trials
+    per cell. Each trial samples a random $t$-subset of $\{0,\dots,N-1\}$ as the
+    marked set, gives BBHT a Grover ceiling of $100\lceil\sqrt{N/t}\rceil + 200$
+    iterations (never exhausted in practice), records the total Grover iterations
+    used until a marked index was observed.
+
+    \item \textbf{Classical baseline.}
+    Deterministic linear scan: track running argmin, probe every element.
+    100 trials per $N \in \{4,\dots,512\}$.
+
+    \item \textbf{LLM judge.}
+    POST paper text + all evidence blobs to Argo
+    (\verb|http://localhost:44497/v1/chat/completions|, free key \verb|stevens|)
+    with a strict per-claim rubric. First-preference model
+    \verb|argo:claude-opus-4.7| returned HTTP 502 (upstream); fell back to
+    \verb|argo:gpt-5.2|. Parsed JSON verdict.
+\end{enumerate}
+
+\section{Results}
+
+\subsection{C1 --- Success probability}
+
+Empirical success proportion across 300 trials per $N$ was exactly $1.000$ at
+every tested size. The paper's guarantee is $\geq 0.5$; the empirical value
+comfortably clears it. No failure trial was observed.
+
+\subsection{C2 --- Iteration budget}
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}rrrr@{}}
+\toprule
+$N$ & $22.5\sqrt{N}$ & $1.4\lg^2 N$ & budget \\
+\midrule
+4   &  45.00 &  5.60 &  51 \\
+8   &  63.64 & 12.60 &  77 \\
+16  &  90.00 & 22.40 & 113 \\
+32  & 127.28 & 35.00 & 163 \\
+64  & 180.00 & 50.40 & 231 \\
+\bottomrule
+\end{tabular}
+\caption{Paper budget formula versus implementation. Exact match.}
+\label{tab:budget}
+\end{table}
+
+\subsection{C3 --- BBHT subroutine scaling}
+
+Ratio $\bar\imath / \sqrt{N/t}$ where $\bar\imath$ is the empirical mean Grover
+iterations for BBHT to hit a marked item:
+
+\begin{center}
+\begin{tabular}{@{}rrrrr@{}}
+\toprule
+$N$ & $t$ & $\bar\imath$ & $\sqrt{N/t}$ & ratio \\
+\midrule
+16  & 1  & 1.85 &  4.00 & 0.463 \\
+16  & 4  & 0.67 &  2.00 & 0.333 \\
+32  & 1  & 3.31 &  5.66 & 0.585 \\
+64  & 1  & 5.89 &  8.00 & 0.737 \\
+64  & 4  & 1.67 &  4.00 & 0.417 \\
+128 & 1  & 9.09 & 11.31 & 0.803 \\
+128 & 4  & 3.35 &  5.66 & 0.593 \\
+128 & 32 & 0.68 &  2.00 & 0.342 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+All 21 measured cells have ratio $\leq 0.81$. Consistent with $O(\sqrt{N/t})$.
+
+\subsection{C4 --- Classical baseline}
+
+Mean probes are exactly $N$ for all tested $N$; success prob $1.0$; matches the
+$\Theta(N)$ reference.
+
+\section{What worked / what didn't (per claim)}
+
+\begin{description}
+\item[C1 --- worked.] The full end-to-end algorithm returns the true minimum on
+every one of the $5\times 300 = 1500$ trials. The paper's $\geq 1/2$ guarantee is
+massively exceeded on small $N$.
+\item[C1 --- didn't (fully).] The judge is correct that observing 300/300 does
+not \emph{test tightness} of the $\geq 1/2$ bound --- a stress test would need
+regimes where the algorithm sometimes fails. Small $N$ (up to 64) doesn't
+provide that regime. Would require reducing the iteration budget below the paper
+value, or scaling $N$ several orders of magnitude.
+\item[C2 --- worked.] Formula match.
+\item[C3 --- worked.] $t$-sweep clean, ratios bounded.
+\item[C3 --- didn't (fully).] Mild upward drift of the ratio at fixed $t$ as $N$
+grows (0.46 $\to$ 0.80 for $t=1$, $N=16 \to 128$). Consistent with the
+$O(\log)$ lower-order term in BBHT but I didn't quantify it against the paper's
+exact constant.
+\item[C4 --- worked.] Trivially and exactly.
+\end{description}
+
+\section{Verdict + justification}
+
+\textbf{PARTIAL} (LLM-judge \verb|argo:gpt-5.2|). The paper's central operational
+claim (success $\geq 1/2$ within the stated budget) is reproduced with margin at
+five tested sizes; the budget formula, the BBHT subroutine's $O(\sqrt{N/t})$
+scaling, and the classical $\Theta(N)$ baseline are all directly and quantitatively
+confirmed. The verdict is PARTIAL rather than REPLICATED because the empirical
+range ($N \leq 64$) is too narrow to stress the $\geq 1/2$ bound and no
+confidence intervals are reported.
+
+\section{Open Questions}
+
+\begin{enumerate}
+    \item \textbf{Q1.} At what $N$ (or reduced iteration budget) does the
+    empirical success prob start dropping toward the $\geq 1/2$ bound? See
+    \verb|open_questions.json| for the concrete parameter sweep.
+    \item \textbf{Q2.} The BBHT ratio $\bar\imath / \sqrt{N/t}$ drifts upward at
+    fixed $t$ with $N$; is this the $O(\log)$ lower-order term BBHT predicts or
+    an artifact of the small-$m$ start?
+    \item \textbf{Q3.} What is the empirical distribution of the number of
+    outer-loop threshold updates, and does it match the harmonic-number
+    $H_N$ analysis in the paper's lemma 2?
+    \item \textbf{Q4.} How does the algorithm degrade under ties (non-distinct
+    $T$)? Paper explicitly assumes distinct values.
+    \item \textbf{Q5.} Sensitivity of BBHT to $\lambda$ (I used $6/5$): does
+    another $\lambda \in (1, \sqrt{2})$ meaningfully improve total Grover-iters?
+\end{enumerate}
+
+\section{Reproducibility}
+
+All code and evidence in \verb|~/Dropbox/REPLICATE-PROJECT/QC-quantum-minimum-finding-durr-hoyer-1996/|.
+Re-run: \verb|python3 work/durr_hoyer_independent.py --Ns 4 8 16 32 64 --trials 300 --out report/evidence/results.json|.
+Total wall time on M1 Mac Mini (via CherryRd): $< 2$ s including all experiments.
+
+\end{document}

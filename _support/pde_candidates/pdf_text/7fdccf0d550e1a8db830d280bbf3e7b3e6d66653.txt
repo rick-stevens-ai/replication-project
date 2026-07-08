@@ -1,0 +1,1520 @@
+                                             Learning in Modal Space: Solving Time-Dependent Stochastic PDEs
+                                                         Using Physics-Informed Neural Networks
+
+                                                                          Dongkun Zhanga , Ling Guob , George Em Karniadakisa,∗
+                                                                           a Division of Applied Mathematics, Brown University, Providence RI, USA
+                                                                          b Department of Mathematics, Shanghai Normal University, Shanghai, China
+
+
+
+
+                                        Abstract
+
+
+
+
+arXiv:1905.01205v2 [cs.LG] 3 Sep 2019
+                                        One of the open problems in scientific computing is the long-time integration of nonlinear stochastic partial
+                                        differential equations (SPDEs), especially with arbitrary initial data. We address this problem by taking
+                                        advantage of recent advances in scientific machine learning and the spectral dynamically orthogonal (DO)
+                                        and bi-orthogonal (BO) methods for representing stochastic processes. The recently introduced DO/BO
+                                        methods reduce the SPDE into solving a system of deterministic PDEs and a system of stochastic ordinary
+                                        differential equations. Specifically, we propose two new Physics-Informed Neural Networks (PINNs) for
+                                        solving time-dependent SPDEs, namely the NN-DO/BO methods. The proposed methods incorporate the
+                                        DO/BO constraints into the loss function (along with the modal decomposition of the SPDE) with an implicit
+                                        form instead of generating explicit expressions for the temporal derivatives of the DO/BO modes. Hence, the
+                                        NN-DO/BO methods can overcome some of the drawbacks of the original DO/BO methods. For example,
+                                        we do not need the assumption that the covariance matrix of the random coefficients is invertible as in
+                                        the original DO method, and we can remove the assumption of no eigenvalue crossing as in the original
+                                        BO method. Moreover, the NN-DO/BO methods can be used to solve time-dependent stochastic inverse
+                                        problems with the same formulation and same computational complexity as for forward problems. We
+                                        demonstrate the capability of the proposed methods via several numerical examples, namely: (1) A linear
+                                        stochastic advection equation with deterministic initial condition: we obtain good results with the proposed
+                                        methods while the original DO/BO methods cannot be applied directly in this case. (2) Long-time integration
+                                        of the stochastic Burgers’ equation: we show the good performance of NN-DO/BO methods, especially the
+                                        effectiveness of the NN-BO approach for such problems with many eigenvalue crossings during the whole
+                                        time evolution, while the original BO method fails. (3) Nonlinear reaction diffusion equation: we consider
+                                        both the forward problem and the inverse problems, including very noisy initial point values, to investigate
+                                        the flexibility of the NN-DO/BO methods in handling inverse and mixed type problems. Taken together,
+                                        these simulation results demonstrate that the NN-DO/BO methods can be employed to effectively quantify
+                                        uncertainty propagation in a wide range of physical problems but future work should address the efficiency
+                                        issue of PINNs for forward problems.
+                                        Keywords: scientific machine learning, data-driven modeling, dynamical orthogonality, bi-orthogonality,
+                                        uncertainty quantification, inverse problems
+
+
+                                        1. Introduction
+
+                                            Physics-informed neural networks (PINNs) [1] are a special class of PDE-induced networks that encode
+                                        the physics (expressed by the PDE) into a deep neural network (DNN) that shares parameters with a standard
+                                        DNN that approximates the quantity of interest (QoI), e.g. the solution of the PDE. In practice, this implies
+                                        that the loss function that expresses mismatch in the labelled data is augmented by the residual of the PDE,
+                                        which is represented efficiently by automatic differentiation and is evaluated at random points in the time-
+                                        space domain. This approximation of the nonlinear operators by the DNN is justified theoretically based on
+
+
+                                           ∗ Corresponding Author
+
+                                            Email address: george_karniadakis@brown.edu (George Em Karniadakis )
+
+
+
+                                        Preprint submitted to arXiv.org                                                                              September 4, 2019
+the pioneering work of [2, 3], which goes well beyond the universal function approximation theorem of [4].
+This simple and easy to program algorithm has been shown to be successful for diverse problems in physics
+and fluid mechanics [5, 6, 7], especially for inverse problems and even for discovering hidden physics [8].
+The advantages of encoding the PDE itself into a DNN are multiple: (1) we require much less data to train
+the DNN since we are searching for the minima on the manifold-solution of the PDE; (2) we respect the
+conservation laws of mass, momentum and energy; and most importantly, (3) we can truly predict the state
+of the system, unlike the DNNs driven solely by data that can interpolate accurately only within the training
+domain. While there is still a lot of work to be done to make PINNs efficient simulation machines, one of
+the main open issues is uncertainty quantification in predicting the QoI, which will reflect the various sources
+of uncertainty, i.e., from the approximation of the DNN to the data and physical model uncertainties.
+    In [9] we addressed the issue of total uncertainty for first time and combined dropout and arbitrary polynomial
+chaos to model stochasticity in steady SPDEs. Here, we consider the more difficult case of time-dependent
+nonlinear SPDEs and hence we need to introduce a more effective way of dealing with the complexity of
+long-time integration of stochastic systems. To this end, we employ a generalized form of time-dependent
+Karhunen-loève (KL) decomposition, first introduced in [10], appropriate for second-order random fields,
+which has the form:
+                                                   ∞
+                                                   X
+                                      u(x, t; ω) ≈    ui (x, t)Yi (t; ω), ω ∈ Ω.                                (1)
+                                                 i=1
+
+This approach can evolve the time-dependent basis of modes ui (x, t) and stochastic coefficients Yi (t; ω)
+simultaneously, and it is different than the standard polynomial chaos methods [11, 12, 13, 14]. To remove
+the redundancy in this representation, we need some constraints. For example, this can be achieved by
+imposing dynamical constraints on the spatial basis, which is the so-called “dynamically orthogonal" (DO)
+methodology first proposed in [15, 16]. Alternatively, by imposing static constraints on both the spatial
+and stochastic basis, the “bi-orthogonal" (BO) methodology was developed in [17, 18]. For both DO and
+BO we need to derive explicitly the evolution equations for all the components involved, i.e. the mean,
+spatial basis, and stochastic basis. The DO and BO formulations are mathematically equivalent [19], but
+they exhibit computationally complimentary properties. Specifically, the BO formulation may fail due to
+crossing of the eigenvalues of the covariance matrix [19], while both BO and DO become unstable when
+there is a high condition number of the covariance matrix or zero eigenvalues. A rigorous and sharp error
+bounds of DO method was first given by Zhou et al. in [20], where it was shown that the DO modes can
+capture the effective directions. For more applications and improvements of DO/BO methods, we refer to
+[21, 19, 22, 23] and references therein.
+    The purpose of this paper is to combine PINNs and the DO/BO methodologies together to obtain new
+effective methods for solving time-dependent SPDEs – we will refer to them as NN-DO/BO methods.
+Concretely, we first build a surrogate neural net for the solution of the time-dependent SPDEs based on the
+generalized KL expansion (Eq. 1). Then the DO/BO constraints are included into the loss function and we
+train the neural network by minimizing this loss function to obtain the solution. Compared with the original
+DO/BO method, the merits of the proposed methods are the following:
+
+   • We do not need the assumption in our NN-DO approach that the covariance matrix of the random
+     coefficients is invertible, even for SPDEs with deterministic initial conditions.
+   • We can deal with eigenvalue crossing in the given time domain when applying our NN-BO approach.
+   • The same NN-DO/BO formulation and computer code can be applied for solving time-dependent
+     stochastic inverse problems or problems driven by sparse noisy data, with the same computational
+     complexity.
+    The organization of this paper is as follows. In Section 2, we set up the time-dependent stochastic prob-
+lems. In Section 3, we give a brief review of the dynamically orthogonal and bi-orthogonal methodologies.
+In Section 4, we formulate our NN-DO/BO framework after the introduction of the PINNs for solving deter-
+ministic differential equations. In Section 5, we provide a detailed study of the accuracy and performance of
+the NN-DO/BO approach with numerical examples. We include two benchmark cases that are specifically
+designed to have exact solution for the DO and BO representations, followed by a nonlinear stochastic
+forward problem with high input stochastic dimensionality and noisy data as the initial condition, and a
+
+
+                                                        2
+nonlinear inverse problem where we try to identify the model parameters. Finally, we conclude with a brief
+discussion in Section 6.
+
+
+2. Problem Setup
+
+    Let (Ω, F , P) be a probability space, where Ω is the sample space, F is the σ-algebra of subsets of Ω, and
+P is a probability measure. Let D be a bounded domain in IRd (d = 1, 2, or 3) whose boundary is denoted by
+∂D, and [0, T] be the time domain of interest. We consider the following time-dependent SPDE:
+
+                                      ∂u
+                                         = Nx [u(x, t; ω)],            x ∈ D, t ∈ [0, T], ω ∈ Ω,                  (2)
+                                      ∂t
+with initial and boundary conditions:
+
+                                  u (x, t; ω) = u0 (x; ω),                                           t = t0 ,     (3)
+                              Bx [u(x, t; ω)] = h(x, t; ω),                                          x ∈ ∂D,      (4)
+
+where Nx is a differential operator and Bx is a linear differential operator acting on the domain boundary.
+Assume that our quantity of interest, u(x, t; ω), is a second-order random field. The initial and boundary
+conditions for Eq. 2 are denoted by u0 (x; ω) and h(t, x; ω). Our aim is to solve Eq. 2, and specifically, to
+evaluate the mean and standard deviation of the solution u(x, t; ω).
+
+
+3. An Overview of the DO and BO Decomposition Methods
+
+   For a random field u(x, t; ω) that evolves in time, the generalized Karhunen-Loève (KL) expansion at a
+given time t is
+                                                    ∞ p
+                                                    X
+                             u(x, t; ω) = u(x, t) +    λi φi (x, t)ξi (t; ω), ω ∈ Ω,                  (5)
+                                                              i=1
+
+where u is the mean, ξi (t; ω) (i = 1, 2, 3, 1...) are zero-mean independent random variables, λi and φi are
+the ith largest eigenvalue and the corresponding eigenfunction of the covariance kernel, i,e., they solve the
+following eigenproblem:             Z
+                                                Cu(x1 ,t)u(x2 ,t) φi (x2 , t)dx2 = λi φi (x1 , t).                (6)
+                                            D
+
+Here Cu(x1 ,t)u(x2 ,t) = E (u(x1 , t; ω) − u(x1 , t))(u(x2 , t; ω) − u(x2 , t)) is the covariance kernel of u.
+                                                                              
+   Next we consider a generalized expansion first proposed in [15]:
+                                                                 ∞
+                                                                 X
+                                     u(x, t; ω) = u(x, t) +            ui (x, t)Yi (t; ω),    ω ∈ Ω.              (7)
+                                                                 i=1
+
+Similar to the KL expansion, the random field u(x, t; ω) is decomposed into two parts: (i) the determin-
+istic mean field function u(x, t), and (ii) the random fluctuation part consists of an infinite summation of
+deterministic orthogonal fields ui (x, t) with 0-mean stochastic coefficients Yi (t; ω). Formally, we have
+                                                             Z
+                                   u(x, t) = E[u(x, t; ω)] =   u(x, t; ω) dP(ω) ,                          (8)
+                                                                           Ω
+
+
+                                         hui , u j i = 0,    for i , j and i, j = 1, 2, . . . ,                   (9)
+and
+                                                  E[Yi ] = 0,        for i = 1, 2, . . . .                       (10)
+   We define the linear subspace VS = span {ui (x, t)}N
+                                                      i=1 as the linear space spanned by the first N deterministic
+bases. For now let us assume that Yi (t; ω) are linearly independent and ΩS = span {Yi (t; ω)}N    i=1 is the linear
+
+
+
+                                                                       3
+subspace in L2 (Ω) spanned by the first N stochastic coefficients. The truncated expansion uN (x, t; ω), defined
+by
+                                                            N
+                                                            X
+                                   uN (x, t; ω) = u(x, t) +   ui (x, t)Yi (t; ω),                            (11)
+                                                                        i=1
+
+is the projection of u(x, t; ω) to the subspace VS × ΩS . Without making any assumptions on their form, the
+governing equations Eq. 2 and Eq. 8–10 represent the only information that can be utilized to derive the
+evolution equations of ui and Yi . Note that both the stochastic coefficients Yi (t; ω) and the orthogonal bases
+ui (x, t) are time-dependent (and they are evolving according to the system dynamics), unlike the standard
+polynomial chaos where the stochastic coefficients are time-independent. There exists some redundancy
+in the Eq. 11, and therefore, additional constraints need to be imposed in order to formulate a well posed
+problem for the unknown quantities. Here we review the DO and BO approaches, which have different
+assumptions on the constraints.
+
+3.1. Dynamically Orthogonal (DO) Representation
+     As first proposed in [15], a natural constraint to overcome redundancy is that the evolution of the bases
+{ui (x, t)}N
+           i=1 be orthogonal to the space VS ; this can be expressed through the following dynamically orthogonal
+(DO) condition:
+                                                             ∂ui (x, t)
+                                                          *                           +
+                                     dVS
+                                             ⊥ VS ⇐⇒                      , u j (x, t) = 0 i, j = 1, . . . , N.                   (12)
+                                       dt                         ∂t
+                                                                                        R
+Here hu(x, t), v(x, t)i is defined as the spatial inner product D u(x, t)v(x, t) dx. Comparing Eq. 11 with the
+standard KL expansion Eq. 5, in the DO representation, we set ui to have unit length and Yi carries the
+scaling coefficient as the result of the eigenvalues. Note that the DO condition preserves the orthonormality
+and the length of the bases {ui (x, t)}N       i=1 since
+
+                     ∂ D                          ∂ui (·, t)                              ∂u j (·, t)
+                                                *                        + *                          +
+                                             E
+                        ui (·, t), u j (·, t) =              , u j (·, t) + ui (·, t),                  = 0, i, j = 1, . . . , N. (13)
+                     ∂t                              ∂t                                     ∂t
+
+It is proved in [15] that the DO condition leads to a set of independent and explicit evolution equations for
+all the unknown quantities. Here we state the DO evolution equations without proof:
+
+Theorem 3.1 (see [15]). Under the assumptions of the DO representation, the original SPDE (Eq. 2) is reduced to
+the following system of equations:
+
+                           ∂u(t, x)
+                                     = E[Nx [u(·, t; ω)],
+                              ∂t
+                           dYi (t; ω)
+                                       = hNx [u(·, t; ω)] − E[Nx [u(·, t; ω)], ui (·, t)i,      i = 1, . . . , N,
+                               dt                                                                                                (14)
+                            N
+                           X                  ∂ui (t, x) Y h                     i
+                               CYi (t)Y j (t)           =   E Nx [u(·, t; ω)] Y j ,             j = 1, . . . , N.
+                                                 ∂t       ⊥
+                            i=1                           Vs
+
+
+   The projection in the orthogonal complement of the linear subspace VS is defined as V⊥ F(x) = F(x) −
+                                                                                                        Q
+                                                                                                            S
+                        PN
+           =                                                                                                  is CYi (t)Y j (t) =
+Q
+  V F(x)        F(x) −    k=1 hF(·), uk (·, t)i uk (·, t), and the covariance of the stochastic coefficients
+ hs                  i
+E Yi (t; ω)Y j (t; ω) . The associated boundary conditions are determined by
+
+                                               Bx u(x, t; ω) |x∈∂D = E[h(x, t; ω)],
+                                                             
+                                                   h                   i                                                         (15)
+                          Bx [ui (x, t)] |x∈∂D = E Y j (t; ω)h(x, t; ω) C−1
+                                                                         Yi (t)Y j (t) , for i = 1, 2, . . . , N,
+
+
+
+
+                                                                    4
+and the initial conditions at t = t0 for the DO components are given by
+
+                                             u (x, t0 ) = E [u0 (x; ω)] ,
+                                             Yi (t0 ; ω) = hu0 (·, ω) − u (x, t0 ) , vi (·)i,                         (16)
+                                             ui (x, t0 ) = vi (x),
+
+for all i = 1, . . . , N, where vi (x) is the eigenfields of the standard KL expansion of u(x, t0 ; ω).
+    It is shown in [15] that by imposing suitable restrictions on the DO representation, the equations for
+methods such as Polynomial Chaos (PC) or Proper Orthogonal Decomposition (POD) can be recovered
+from the DO evolution equations. For example, PC can be recovered by setting Yi (t; ω) = Ψi (ξ(ω)), where
+Ψi (ξ) is an orthogonal polynomial in terms of ξ. Moreover, it is shown in [24] that there exists an one-
+to-one correspondence between the eigenvalues of the KL expansion for u(x, t; ω) and the eigenvalues
+of the covariance matrix CYi (t)Y j (t) in the DO representation given any fixed time t. Thus, the stochastic
+coefficients Yi together with the modes ui provide the necessary information to describe both the shape and
+the magnitude of the uncertainty that characterizes a stochastic field but also the principle directions in
+which the stochasticity is distributed.
+    The moments of u(x, t; ω) can be readily computed from the DO representation. For example, the first
+moment, i.e., the mean, can be trivially obtained from the first term u(x, t), and the variance can be calculated
+as follows:                                                                  2 
+                                               h        i     X N            XN
+                                Var[u] = E (u − u) = E 
+                                                      2
+                                                                      ui Yi   =   ui E[Yi Y j ]u j .  (17)
+                                                               
+                                                                                   
+                                                                      i=1                  i, j=1
+
+
+3.2. Bi-Orthogonal (BO) Representation
+    An alternative way to overcome the aforementioned redundancy in Eq. 11 is the Bi-Orthogonal (BO)
+condition, which imposes the static constraint that both the spatial basis functions and stochastic coefficients
+are orthogonal in time [18]. In other words, we have the following conditions:
+
+                            hui (·, t), u j (·, t)i = λi (t)δi j ,   E[Yi Y j ] = δi j ,       i, j = 1, . . . , N,   (18)
+
+where the λi s are eigenvalues of the covariance kernel and δi j is the Dirac’s delta function. There is a slight
+difference between the DO and BO representation: the stochastic coefficients carry the eigenvalues of the
+covariance operator in the DO representation while the spatial bases carry the eigenvalues of the covariance
+operator in the BO representation.
+    Next, we define the matrix S and M whose entries are
+
+                                                  ∂u j
+                                            *          +           "        #
+                                                                       dY j
+                                      Si j = ui ,        , Mi j = E Yi        .                              (19)
+                                                   ∂t                   dt
+
+Then by taking the time derivative of Eq. 18, we have
+
+                                               ∂u j       ∂ui
+                                         *          + *            +
+                            Si j + S ji = ui ,       +        , u j = 0,      for i , j,
+                                                ∂t        ∂t
+                                   1 dλi (t)
+                            Si j =           ,                                for i = j,                              (20)
+                                   2 dt "               #
+                                                   dY j        
+                                                                 dYi
+                                                                        
+                            Mi j + M ji = E Yi            +E         Y j = 0.
+                                                    dt           dt
+
+Here we state the BO evolution equations without proof:
+
+Theorem 3.2 (see [17]). We assume that the bases and stochastic coefficients satisfy the BO condition. Then, the
+
+
+
+
+                                                                      5
+original SPDE (Eq. 2) is reduced to the following system of equations:
+
+                       ∂u(t, x)
+                                  = E[Nx [u(·, t; ω)]],
+                          ∂t
+                                          N
+                          dYi (t; ω)     X
+                       λi            =−      Si j Y j + hNx [u] − E [Nx [u]] , ui (·, t)i ,   i = 1, . . . , N,
+                             dt                                                                                      (21)
+                                             j=1
+                                        N
+                       ∂ui (t, x)    X
+                                  =−   Mi j u j + E [Nx [u]Yi ] ,                             i = 1, . . . , N.
+                          ∂t
+                                       j=1
+
+
+Moreover, if λi , λ j for i , j, i, j, = 1, 2, . . . , N, the N-by-N matrices S and M have closed form expression:
+                                                            G +G
+                                                            −λi +λ j ,
+                                                              ij   ji
+                                                                            if i , j
+                                                   Mi j =                             ,
+                                                           
+                                                           0,               if i = j
+                                                           
+                                                                                                                    (22)
+                                                          Gi j + λi Mi j , if i , j
+                                                          
+                                                   Si j =                            ,
+                                                          
+                                                          Gii ,
+                                                                           if i = j
+                                   D h         i E
+where the matrix Gi j is defined as E Nx [u]Y j , ui .
+
+   Similar to the DO method, the boundary condition is given by
+
+                                              Bx u(x, t; ω) |x∈∂D = E[h(x, t; ω)],
+                                                           
+                                                                                                                     (23)
+                             Bx [ui (x, t)] |x∈∂D = E [Yi (t; ω)h(x, t; ω)] , for i = 1, 2, . . . , N,
+
+and the initial condition is generated from the KL expansion of u0 (x; ω).
+
+3.3. A Brief Summary of DO/BO Methods
+    Let us note the following difference between the DO and BO condition: the spatial bases, ui , under
+the DO condition evolve to the direction which is normal to the space VS they expand (orthogonality is
+automatically maintained), while under the BO condition, only the mutual orthogonality within ui and
+within Yi are required and there is no restriction to the direction of their evolution. As a compensation to
+the lack of constraints in spatial bases, the BO condition puts an additional orthogonality restriction on the
+random coefficients Yi . However, Choi et al. [19] have proved theoretically the equivalence between the
+DO and the BO methods, in a sense that one method is an exact reformulation of the other via a differential
+transformation.
+    Each method can be applied to a limited range of problems since the evolution equations are valid
+only if certain assumptions are satisfied. For the DO method, it is assumed that the covariance matrix
+of random coefficients, CYi Y j , is invertible. Therefore, it fails when applied to some benchmark problems
+such as a stochastic PDE with deterministic initial condition. This is because all coefficients Yi are equal
+to 0 at the initial state and their covariance matrix is singular. For the BO method, it is assumed that
+there is no eigenvalue crossing in the given time domain in order to calculate the explicit expression of
+Mij and Sij . However, some strategies have been proposed to get around those issues, e.g., the hybrid
+gPC-DO method [25] and the psedo-inverse hybrid BO-DO method [23] are developed to address the above
+limitations.
+    Inspired by the DO and BO methods, we introduce a new procedure for solving time-dependent stochastic
+PDEs within the framework of Physics-Informed Neural Networks (PINNs). The proposed methods inherit
+the similarities between the DO and the BO methods and can be implemented with either the DO or the BO
+version that are free from the aforementioned restrictions.
+
+
+
+
+                                                                    6
+4. Methodology
+
+4.1. Physics-informed neural network
+    In this part, we briefly review using DNNs to solve the deterministic differential equations [26, 27, 28], and
+its generalization for solving deterministic inverse problems in [6]. Suppose that we have a parameterized
+deterministic differential equation:
+
+                                                 N[u; η] = 0,      x ∈ D,
+                                                                                                                 (24)
+                                             B.C.:       Bx [u] = 0,    x ∈ Γ,
+
+where u(x) is the solution and η denotes the parameters.
+     A DNN, denoted by û(x; θ), is constructed as a surrogate of the solution u(x), and it takes the coordinate
+x as the input and outputs a vector that has the same dimension as u. Here we use θ to denote the DNN
+parameters that will be tuned at the training stage, namely, θ contains all the weights w and biases b in
+û(x; θ). For this surrogate network û, we can take its derivatives with respect to its input by applying
+the chain rule for differentiating compositions of functions using the automatic differentiation, which is
+conveniently integrated in many machine learning packages such as Tensorflow [29]. The restrictions on
+û is two-fold: first, given the set of scattered data of the u(x) observations, the network should be able to
+reproduce the observed value, when taking the associated x as input; second, û should comply with the
+physics imposed by Eq. 24. The second part is achieved by defining a residual network:
+
+                                               fˆ(x; θ, η) := N[û(x; θ); η],                                    (25)
+
+which is computed from û straightforwardly with automatic differentiation. This residual network fˆ, also
+named the physics-informed neural network (PINN), shares the same parameters θ with network û and
+should output the constant 0 for any input x ∈ D. Figure 1 shows a sketch of the PINN. At the training stage,
+the shared parameters θ (and also η, if it is also to be inferred) are fine-tuned to minimize a loss function
+that reflects the above two constraints.
+
+
+
+
+                             Figure 1: Schematic of the PINN for solving differential equations.
+
+                                                                                                   (i)
+    Suppose we have a total number of Nu observations on u, collected at location {xu }N           u
+                                                                                                 i=1
+                                                                                                     , and Nc is the
+                              (i) Nc                                   (i)
+number of training points {x f }i=1 where we evaluate the residual fˆ(x f ; θ, η). We shall use (x , y∗ ) to represent
+                                                                                                  ∗
+
+a single instance of training data, where the first entry x∗ denotes the input and the second entry y∗ denotes
+the anticipated output (also called “label”). The workflow of solving a differential equation with PINN can
+
+
+
+
+                                                             7
+be summarized as follows:
+ Algorithm 1: PINN for solving deterministic PDEs
+   Step 1: Specify the training set:
+                                                (i)   (i)                        (i)     N
+                               û network: {(xu , u(xu ))}N u
+                                                          i=1
+                                                              ,   fˆ network: {(x f , 0)}i=1f ;
+
+   Step 2: Construct a DNN û(x; θ) with random initialized parameters θ;
+   Step 3: Construct the residual network fˆ(x; θ, η) by substituting the surrogate û into the governing
+    equation (Eq. 25) via automatic differentiation and arithmetic operations;
+   Step 4: Specify a loss function by summing the mean squared error of both the u observations and the
+    residual:
+                                            Nu                             Nc
+                                        1 X         (i)         (i)     1 X ˆ (i)
+                         LOSS(θ, η) =          [û(xu ; θ) − u(xu )]2 +       f (x f ; θ, η)2 ;          (26)
+                                        Nu                              Nc
+                                                i=1                              i=1
+
+   Step 5: Train the DNN to find the best parameters θ and η by minimizing the loss function:
+
+                                               θ = arg min LOSS(θ, η).                                   (27)
+
+
+
+4.2. A weak formulation interpretation of the DO and BO methods
+    The derivation of equations for both the DO and the BO methods can be summarized into four steps as
+follows:
+  1. Apply operator E[·] on both sides of the SPDE and replace u by the finite expansion in Eq. 11. Notice
+     that E[Yi ] = 0. This leads to the first equation in Eq. 14 and Eq. 20:
+
+                                               ∂u     ∂u
+                                              " #
+                                            E      =      = E [Nx [u(x, t; ω)]]                       (28)
+                                                ∂t    ∂t
+
+  2. Apply operator h·, ui i on both sides of the SPDE:
+
+                                              ∂u
+                                            *        +
+                                                 , ui = hNx [u(x, t; ω)], ui i                             (29)
+                                              ∂t
+
+  3. Apply operator E[·Yi ] on both sides of the SPDE:
+
+                                             ∂u
+                                           "      #
+                                         E      Yi = E [Nx [u(x, t; ω)]Yi ]                                (30)
+                                             ∂t
+
+  4. Substitute u by the truncated expansion in Eq. 11, and use the DO and BO constraints (Eq. 12 and
+     Eq. 18) to simplify Eq. 29 and Eq. 30.
+Due to the orthogonality of ui (x, t), they form a valid set of basis in the physical space D. The random
+coefficients Yi (t; ω) are also linearly independent as they are orthogonal under the BO representation, and
+the DO representation is equivalent to the BO representation so Yi will not degenerate in the DO expansion
+either. Therefore, the random coefficients Yi (t; ω) form a valid set of basis in the probability space L2 (Ω).
+Consequently, Eq. 28–30 are the weak formulation of the original SPDE in the physical space and the
+probability space (note that Eq. 28 is the inner product of both side of the original SPDE on constant 1, which
+can be regarded as the 0th basis in the probability space), and they provide all the necessary information to
+find the solution uN in VS × ΩS .
+
+
+
+
+                                                            8
+4.3. NN-DO/BO Methods
+   In this section we formalize the algorithm of solving time-dependent stochastic PDEs using PINNs. First,
+we rewrite Eq. 11 as
+                                                           N
+                                                           X
+                                  uN (x, t; ω) = u(x, t) +   ai (t)ui (x, t)Yi (t; ω),                (31)
+                                                                   i=1
+
+while enforcing hui , ui i = 1 and E[Yi2 ] = 1. The time-dependent coefficients ai (t) are scaling factors and play
+           √
+the role of λi when we compare Eq. 31 with the standard KL expansion Eq. 5. Suppose that the original
+SPDE is parameterized into a PDE that involves a finite set of random variables ξ(ω), then u(x, t; ω) can be
+written as u(x, t; ξ) and Yi (t; ω) can be written as Yi (t; ξ). Four separate neural networks are constructed:
+   1. The neural net unn (x, t) that takes x and t as the input and outputs E[u(x, t; ω)];
+   2. The neural net Ann (t) that takes t as the input and outputs a N-dimensional vector representing ai (t),
+      for i = 1, 2, . . . , N;
+   3. The neural net Unn (x, t) that takes x and t as the input and outputs a N-dimensional vector representing
+      ui (x, t), for i = 1, 2, . . . , N;
+   4. The neural net Ynn (ξ, t) that takes ξ and t as the input and outputs a N-dimensional vector representing
+      Yi (t; ξ), for i = 1, 2, . . . , N.
+A surrogate neural net for the solution uN (x, t; ω) can be constructed from those four neural nets by substi-
+tuting them into Eq. 31, yielding
+                                                                   N
+                                                                   X
+                                           unn (x, t; ξ) = unn +          Ann,i Unn,i Ynn,i .                 (32)
+                                                                    i=1
+
+Since the weak formulation of SPDE involves integration in both the physical and the probability spaces,
+the neural nets are evaluated at the physical training points {xkc }nk=1
+                                                                       x
+                                                                         and the probabilistic training points
+     n
+   l ξ
+{ξc }l=1 , where nx and nξ are the numbers of training points. In the time domain [0, T] we uniformly sample
+nt random points {tsc }ns=1
+                         t
+                            . Once we have constructed the computation graph, the derivatives of the quantity
+of interest with respect to time t and space coordinate x can be easily obtained via the auto-differentiation
+algorithm, and the integration terms can be evaluated by using a numerical quadrature rule.
+     The loss function is a weighted summation of four components: the weak formulation of SPDE, ini-
+tial/boundary conditions, constraints on Unn and Ynn , and the additional regularization terms. The loss
+function in each part consists of mean squared errors (MSEs) associated with the prescribed constraints,
+calculated from the sampled training points. Next, we will illustrate each of these four components of loss
+function and write down their explicit expressions.
+
+4.3.1. Loss Function for the Weak Formulation of SPDE
+    The weak form of the SPDE, i.e., Eq. 28–Eq. 30 can be rewritten as
+
+                                          ∂unn k s
+                                        "                                          #
+                                 1 B E
+                                  ks
+                                               (x , t ; ξ) − Nx [unn (xc , tc ; ξ)] = 0,
+                                                                       k s
+                                                                                                              (33)
+                                           ∂t c c
+
+                                     ∂unn
+                                       *                                                        +
+                              sl2 B      (x, tc ; ξc ) − Nx [unn (x, tc ; ξc )], Unn,i (x, tc ) = 0,
+                                               s l                     s l                   s
+                                                                                                              (34)
+                                      ∂t
+
+                                      ∂unn k s
+                                    "                                             !               #
+                             3 B E
+                              ks
+                                            (x , t ; ξ) − Nx [unn (xc , tc ; ξ)] Ynn,i (tc ; ξ) = 0,
+                                                                       k s                  s
+                                                                                                              (35)
+                                       ∂t c c
+where the integration in the physical space and the probability space shall be evaluated by using a numerical
+quadrature rule. The first part of the loss function is calculated by
+
+                                            1 X  ks 2  1 X  sl 2  1 X  ks 2
+                             MSEw =              1 +         2 +         3 .                               (36)
+                                           nx nt        nt nξ        nx nt
+                                                k,s                      s,l                    k,s
+
+
+
+                                                                9
+4.3.2. Loss Function for Initial and Boundary Conditions
+    Let t0 be the initial time of computation. The initial condition for the representation in Eq. 31 is similar
+to Eq. 16. The only difference is that Yi are normalized to have unit variance, and the standard deviation of
+hu0 (x; ξ) − u(x, t0 ), vi (x)i is assigned to be the initial value for ai . Here vi (x) are the normalized KL modes for
+u(x, t0 ; ω), and they are the initial value for ui . That is,
+
+                                        u(x, t0 ) = E [u(x, t0 ; ξ)] ,
+                                        ui (x, t0 ) = vi (x),
+                                                    q h
+                                                                                                                                      (37)
+                                                                                           i
+                                        ai (t0 ) = E hu(x, t0 ; ξ) − E[u(x, t0 ; ξ)], vi i2 ,
+                                                           1
+                                        Yi (t0 ; ξ) =            hu(x, t0 ; ξ) − E[u(x, t0 ; ξ)], vi i .
+                                                        ai (t0 )
+
+For deterministic initial condition, ui (x, t0 ) are set to be orthonormal bases satisfying the boundary condition,
+Yi (t0 ; ξ) are set to be the gPC bases of ξ with unit variance, and ai (t0 ) is set to be 0. The initial condition shall
+be imposed to the neural network by adding an extra penalty term MSEIC , and it is calculated as follows:
+                                  nx                                      N nx
+                               1 X                                2  1 XX                                     2
+                  MSEIC =            unn (xkc , t0 ) − u(xkc , t0 ) +          Unn,i (xkc , t0 ) − ui (xkc , t0 )
+                               nx                                     Nnx
+                                  k=1                                             i=1 k=1
+                                                                                                                                      (38)
+                                 1
+                                     N
+                                     X                           2  1          X n
+                                                                                N   Xξ
+                                                                                                                           2
+                               +           Ann,i (t0 ) − ai (t0 ) +                        Ynn,i (t0 ; ξlc ) − Yi (t0 ; ξlc )    .
+                                 N                                  Nnξ
+                                     i=1                                         i=1 l=1
+
+   The boundary condition is imposed by taking the weak formulation of Eq. 4 in the random space, i.e.,
+
+                            E [Bx [u(xb , t; ξ)]] = E[h(xb , t; ξ)] ⇒ Bx u(xb , t) = E[h(xb , t; ξ)],
+                                                                                 
+
+                    E [Bx [u(xb , t; ξ)]Yi (t; ξ)] = E[h(xb , t; ξ)Yi (t; ξ)]
+                                                            N
+                                                            X                     h          i                                        (39)
+                                                        ⇒         CYi Y j a j (t)Bx u j (xb , t) = E[h(xb , t; ξ)Yi (t; ξ)].
+                                                            j=1
+
+
+Thus, the loss associated with the boundary condition is
+                           nt
+                       1 X                                               2
+            MSEBC =           Bx [unn (xb , tsc )] − E [h(xb , t; ξ)]
+                       nt
+                          s=1
+                                                                                                                                2   (40)
+                               N nt       N
+                           1 X X X                                      h               i                                
+                       +                       CYi Y j (tc )Ann, j (tc )Bx Unn, j (xb , tc ) − E h(xb , tc ; ξ)Ynn,i (tc ; ξ)  ,
+                                                         s           s                   s               s             s
+                                                                                                
+                          Nnt
+                                       
+                                                                                                                                
+                                 i=1 s=1     j=1
+
+
+where the expectations and covariance matrix shall be evaluated by using a numerical quadrature rule.
+    Note that the periodic boundary condition can be strictly imposed by modifying the neural nets unn and
+Unn by replacing the input x with the combination of sin(2πx/L) and cos(2πx/L), where L is the length of
+domain D. This is because any continuous 2π-periodic function can be written as a nonlinear function of
+sin(x) and cos(x). This modification simplifies the loss function by removing the loss due to the periodic
+boundary condition.
+
+4.3.3. Loss Function for the Constraints on Unn and Ynn
+    This is the part where we can have different implementations in favor of the DO or the BO method. Both
+DO and BO representations require that E[Yi ] = 0, and thus the loss functions in both implementations
+                                                  2
+should involve the term n1t ns=1   E[Yi (tsc ; ξ)] . For the DO constraint, Eq. 12 should be satisfied. In addition,
+                             Pt
+we require that
+                                              dYi (t; ξ)
+                                   "                     #
+                                E Yi (t; ξ)                = 0, ∀t and i = 1, 2, . . . , N,
+                                                  dt
+
+
+                                                                        10
+so that Yi stay normalized with unit variance. The loss function for DO is:
+                                                 N  t n
+                                           1 XX                      2
+                              MSEDO =                 E[Yi (tsc ; ξ)]
+                                          Nnt
+                                              i=1 s=1
+                                                   N N nt *                                 +2
+                                              1 X X X dUnn,i (x, tsc )
+                                          + 2                             , Unn, j (x, tc )
+                                                                                        s
+                                                                                                                       (41)
+                                            N nt                       dt
+                                                      i=1 j=1 s=1
+                                                 N nt                                   #2
+                                                                       dYnn,i (tsc ; ξ)
+                                                       "
+                                              1 XX
+                                           +          E Ynn,i (tc ; ξ)
+                                                                s
+                                                                                           .
+                                             Nnt                           dt
+                                                     i=1 s=1
+
+For the BO constraints, Eq. 20 generates the following loss function:
+                              N  t n
+                        1 XX                      2
+             MSEBO =               E[Yi (tsc ; ξ)]
+                       Nnt
+                           i=1 s=1
+                                N N nt *                                                                      +!2
+                           1 X X X dUnn,i (x, tsc )                          dUnn,j (x, tsc )
+                                                                         + *
+                       + 2                              , Unn, j (x, tc ) +
+                                                                      s
+                                                                                              , Unn,i (x, tc )
+                                                                                                           s
+                                                                                                                       (42)
+                         N nt                        dt                          dt
+                                   i=1 j=1 s=1
+                              N N nt                                                                           #!2
+                                                      dYnn, j (tsc ; ξ)                       dYnn,i (tsc ; ξ)
+                                      "                                 #    "
+                           1 XXX
+                        +            E Ynn,i (tc ; ξ)
+                                               s
+                                                                          + E Ynn, j (tc ; ξ)
+                                                                                       s
+                                                                                                                   .
+                          Nnt                             dt                                      dt
+                                  i=1 j=1 s=1
+
+
+Since we put all the scaling factor to a(t) and keep ui (x, t) normalized, Si j + S ji = 0 in Eq. 20 still holds true
+when i is equal to j.
+
+4.3.4. Loss Function for Additional Regularization
+    Additional regularization terms shall be added to the loss function to reduce the risk of overfitting. Here
+we remark that it is helpful to add a penalty term from the original equation (Eq. 2) to speed up the training.
+The loss from the original equation is:
+                                                 nx nt nξ                               i 2
+                                           1 X X X ∂unn
+                                                                                         !
+                                                                 h
+                             MSE0 =                          − Nx unn (xkc , tsc ; ξlc ) .                             (43)
+                                        nx nt nξ          ∂t
+                                                 k=1 s=1 l=1
+
+
+4.3.5. Putting the Loss Functions Together
+    A sketch of the computation graph for the loss functions MSEw and MSEDO/BO is shown in Figure 2.
+The loss function used for training the PINNs is the weighted summation of the aforementioned MSEs.
+Intuitively, we want to train the networks to gradually satisfy the weak formulation of the SPDE, while
+not violating the physical restrictions and the DO/BO constraints, as these are the cornerstones of the weak
+formulation. Therefore, we put a relatively large weight in front of MSEIC , MSEBC and MSEDO/BO , making
+their scale the same as that of MSEw , if not slightly larger. The idea behind this is to remove the redundancy
+of Eq. 31 in the first place. We put a small weight for the regularization term since it is only used to help
+speedup the training process, and is not essential. Nevertheless, the distribution of weights is still an open
+question for future research. In the numerical tests we train our neural nets by minimizing the following
+loss function:
+                     LOSS = MSEw + 100 × (MSEIC + MSEBC + MSEDO/BO ) + 0.1 × MSE0 .                         (44)
+   This proposed algorithm can be implemented with the DO or the BO constraints, and we name them the
+
+
+
+
+                                                               11
+Figure 2: Schematic of the NN-DO/BO for solving time-dependent stochastic differential equations, where the blocks Weak1 , Weak2 ,
+and Weak3 correspond to the three right-hand side terms in Eq. 36, and blocks DO/BO1 , DO/BO2 , and DO/BO3 correspond to the three
+right-hand side terms in Eq. 41/Eq. 42, respectively.
+
+
+
+NN-DO or NN-BO method, respectively. The proposed algorithm is summarized as follows:
+  Algorithm 2: NN-DO/BO for solving time-dependent stochastic PDEs
+    Step 1: Build the neural networks for unn (x, t), Ann (t), Unn (x, t) and Ynn (t; ξ);
+    Step 2: Select nx training points in the physical domain D, nξ training points in the stochastic space Ω.
+     Randomly pick nt points in the time domain [0, T] from a uniform distribution;
+    Step 3: Specify the method to use (DO or BO) and calculate the loss function in Eq. 44;
+    Step 4: Train the neural networks by minimizing the loss function;
+    Step 5: Reconstruct the SPDE solution using Eq. 32.
+   We remark that the bottleneck of the original DO/BO method is to generate an explicit expression for the
+temporal derivatives of the bases (Step 4 in Section 4.2). For the standard DO method, it involves calculating
+the inverse of a covariance matrix which could be singular, and for the standard BO method, to obtain
+explicit expression for matrices S and M (Eq. 19), one has to assume no eigenvalue crossing. In the proposed
+NN-DO/BO algorithm, there is no need to derive explicit expressions from constraints, instead we only need
+to write the constraints into the loss functions as they are.
+
+5. Simulation Results
+
+    We first test our NN-DO/BO methods with two benchmark cases that are especially designed to have exact
+solutions for the DO and BO representations. To demonstrate the advantage of the NN-DO/BO methods
+over the standard methods, we then solve a nonlinear diffusion-reaction equation with a 19-dimensional
+random input, where the problem is solved with very rough initial conditions given as discrete point values.
+Finally, an inverse problem is also considered to demonstrate the new capacity of the proposed NN-DO/BO
+methods. For all test cases we use deep feed-forward neural networks for unn (x, t), Ann (t), Unn (x, t) and
+Ynn (t; ξ). The loss functions are defined in Eq. 44, and the Adam optimizer with learning rate 0.001 is used
+to train the networks.
+
+5.1. Application to a Linear Stochastic Problem
+    In this section we present a pedagogical example by solving the linear stochastic advection equation
+using the NN-DO/BO methods. The stochastic advection equation with a random advection coefficient has
+
+
+                                                               12
+the form
+                               ∂u(x, t; ξ)     ∂u(x, t; ξ)
+                                           +ξ              = 0, ∀(x, t) ∈ D × [0, T],
+                                   ∂t             ∂x                                                        (45)
+                               u(x, 0; ξ) = − sin(x), ∀x ∈ D,
+where the physical domain D is [−π, π] and we obtain the solution until final time T = π. Periodic boundary
+conditions are considered, such that u(−π, t) = u(π, t), ∀t ∈ [0, T]. The randomness comes from the advection
+velocity, which is modeled as a Gaussian random variable ξ ∼ N(0, σ2 ) where we set σ to be 0.8.
+    The exact solutions for the mean and variance of the stochastic advection equation, Eq. 45, can be
+calculated, and the closed form formulas of the DO and BO expansion components ui and Yi , i = 1, 2, . . . , N
+can be derived [24]. Here we write down the exact solution and the expansion components without giving
+details of the derivation:
+   • Exact solutions:
+                                      u(x, t; ξ) = − sin(x − ξt)
+                                                                 σ2 t2
+                                                                       !
+                                   E[u](x, t) = − sin(x) exp −                                              (46)
+                                                                  2
+                                                 1h                       i
+                                  Var[u](x, t) =    1 − cos(2x) exp −2σ2 t2 − E[u]2
+                                                 2
+   • DO components:
+
+                                                       1 (x, t)Y1 (t; ξ) + u2 (x, t)Y2 (t; ξ),
+                            u(x, t; ξ) = E[u](x, t) + uDO       DO          DO       DO
+                                                                                                            (47)
+
+     where
+                                         1                         1
+                          1 (x, t) = − √ cos(x),
+                         uDO                         2 (x, t) = − √ sin(x),
+                                                    uDO
+                                          π                         π
+                                                                                                            (48)
+                                                                                    σ2 t2
+                                                                                          !!
+                                        √                        √
+                         Y1DO (t; ξ) = − π sin(ξt), Y2DO (t; ξ) = π cos(ξt) − exp −          .
+                                                                                     2
+
+   • BO components:
+                                                        1 (x, t)Y1 (t; ξ) + u2 (x, t)Y2 (t; ξ),
+                             u(x, t; ξ) = E[u](x, t) + uBO       BO          BO       BO
+                                                                                                            (49)
+     where
+                                     α1 (t)                        α2 (t)
+                         1 (x, t) = − √
+                        uBO                            2 (x, t) = − √
+                                             cos(x), uBO                  sin(x),
+                                        π                              π
+                                       √                           √                                        (50)
+                                         π                           π                    σ2 t2
+                                                                                                !!
+                        Y1 (t; ξ) = −
+                         BO
+                                             sin(ξt), Y2 (t; ξ) =
+                                                       BO
+                                                                          cos(ξt) − exp −          ,
+                                      α1 (t)                      α2 (t)                   2
+     and the normalizing factors
+                                                                s                              !!2 
+                                 p                                                         σ2 t2 
+                         α1 (t) = πE [sin2 (ξt)],    α2 (t) =       πE  cos (ξt) − exp −          .
+                                                                        
+                                                                            2
+                                                                                            2
+
+    We set nt , nx and nξ all to be 50. The data points in the time domain {tsc }ns=1
+                                                                                   t
+                                                                                      are sampled from a uniform
+                                       k nx
+distribution. The training points {xc }k=1 are equidistantly distributed in [−π, π]. For the training points in
+                                                                                                  nξ
+the stochastic space, instead of using the Gauss-Hermite quadrature rule, we generate {ξlc }l=1      by applying
+the inverse cumulative distribution function of the standard normal distribution to the Gauss-Legendre
+quadrature points in [0, 1], because the generated ξ will be more concentrated near the origin, making it
+easier to train the neural networks. The neural networks are trained with an Adam optimizer (learning rate
+0.001) for 300000 epochs.
+
+5.1.1. Case 1: NN-DO Method
+    The standard DO method cannot be directly applied to this SPDE with deterministic initial condition.
+However, by applying the NN-DO method we obtain good results. Considering Eq. 31, the initial conditions
+
+
+                                                         13
+are
+                                   u(x, 0) = u(x, 0),    a1 (0) = a2 (0) = 0,
+                                                1                    1
+                                   u1 (x, 0) = − cos(x), u2 (0) = − sin(x),
+                                                π                    π                                     (51)
+                                                                        √
+                                                                          2 2
+                                   Y1 (0; ξ) = −ξ,       Y2 (0; ξ) = −      (ξ − 1),
+                                                                         2
+where we use the periodic orthonormal bases in the [−π, π] interval as the initial conditions for u1 and u2 ,
+and we use the normalized Hermite polynomials for the initial conditions of Y1 and Y2 . The neural networks
+unn (x, t) and Unn (x, t) have three hidden layers with 32 neurons per hidden layer, the network Ann (t) has
+three hidden layers with 16 neurons per hidden layer, and the network Ynn (t; ξ) has four hidden layers
+with 64 neurons in each hidden layer. The reference solutions for the mean, variance, and the modes ui are
+taken directly from Eq. 46 and Eq. 48. The reference values for the normalizing factors, ai , are the standard
+deviations of YiDO in Eq. 48, and the reference values for Yi are calculated by YiDO /ai .
+
+
+
+
+                                 (a)                                                                    (b)
+
+Figure 3: Stochastic advection equation (NN-DO). Left: Plot of the evolution of the scaling factors ai . They start from zero because of
+the deterministic initial condition, and increase with time, indicating that the randomness in the SPDE solution accumulates as time
+grows; Right: Plot of the bases ui at the final time T = π versus the exact solutions. The scattered points for ui denote the training points
+in the physical space.
+
+    We compare the results obtained from the NN-DO method with the exact solutions. Figure 3a shows
+the evolution of the scaling factors ai (i = 1, 2) with time; they increase monotonically and converge at
+T = π, indicating that the randomness in the system grows from zero to fully developed state during the
+time period t ∈ [0, π], as a result of the stochastic advection coefficient. Figure 3b shows the comparison
+of the DO bases obtained from the NN-DO method and the exact bases at T = π. The DO bases generated
+by the neural networks agree well with the reference solutions. Figure 4 shows the comparison of the
+stochastic coefficients Yi (i = 1, 2) versus the normalized exact DO coefficients YiDO at four different times
+t = 0, π/3, 2π/3 and π. The random coefficients as functions of the random variable ξ evolve with time
+and develop a subtle wavy structure, while preserving the orthogonality. The NN-DO method uncovers
+the evolution behavior of Yi . Figure 5 shows the mean and variance of the NN-DO solution versus the
+exact ones, at t = 2π/3 and t = π. Apparently, the scale of variance is large compared to the scale of mean,
+indicating that the random fluctuation dominates the averaged solution profile. Table 1 summarizes the L2
+error (defined by k fNN − fexact k2 for any function f ) and the relative L2 error (defined by k fNN − fexact k2 /k fexact k2 )
+of the NN-DO results versus the exact solutions at the final time T = π, indicating the good performance of
+the NN-DO method.
+
+5.1.2. Case 2: NN-BO Method
+    We solve the same problem (Eq. 45) again, but this time we use the BO constraints by including Eq. 42
+as part of the loss function. The initial conditions and reference solutions for the BO components, i.e., ai ,
+
+
+                                                                     14
+                               (a)                                                              (b)
+
+
+
+
+                               (c)                                                              (d)
+
+Figure 4: Stochastic advection equation (NN-DO). Solutions for the random coefficients Y1 and Y2 at four different times
+t = 0, π/3, 2π/3 and π. Both of them agree with the exact solution. The scattered points denote the training points in the proba-
+bilistic space.
+
+
+
+
+                                     E[u]     Var[u]      a1         a2         u1         u2          Y1        Y2
+
+                L2 error             0.0006   0.0006    0.0010      0.0051    0.0001     0.0002       0.0007   0.0013
+           Relative L2 error         1.96%    0.11%     0.09%       0.55%     0.04%      0.04%        0.52%    0.93%
+
+Table 1: Stochastic advection equation (NN-DO). The L2 and relative L2 errors of NN-DO solutions versus the exact solutions at the
+final time T = π.
+
+
+
+
+                                                               15
+                                 (a)                                                                  (b)
+
+Figure 5: Stochastic advection equation (NN-DO). Mean and variance of the solution at time T = 2π/3 and T = π. The scattered points
+denote the training points in the physical space.
+
+
+ui and Yi , are the same as those of the previous case, and the neural networks used to approximate the BO
+components have the same size with the networks used in the previous case.
+    Similarly, we compare the results obtained using the NN-BO method with the exact solutions. Figure 6a
+and Figure 6b display the scaling factors ai (i = 1, 2) at t ∈ [0, π] and the BO bases ui (i = 1, 2) at t = π,
+respectively. Figure 7 shows the stochastic coefficients Yi (i = 1, 2) versus the normalized exact BO coefficients
+YiBO at four different times: t = 0, π/3, 2π/3 and π. Figure 8 shows the mean and variance calculated by
+the NN-BO method at t = 2π/3 and t = π. They all show good agreement of the BO solutions with the
+exact reference solutions. Table 2 summarizes the errors of the BO components at the final time T = π. The
+NN-BO method demonstrates very good performance similar to the NN-DO method.
+
+
+
+
+                                 (a)                                                                  (b)
+
+Figure 6: Stochastic advection equation (NN-BO). Left: Plot of the evolution of the scaling factors ai ; Right: Plot of the bases ui at the
+final time T = π versus the exact solutions. The scattered points for ui denote the training points in the physical space.
+
+    To illustrate the effectiveness of the choice of weights in Eq. 44, we plot the value for each component
+of the loss function during the first 100000 epochs of training in Figure 9. The decay of the loss associated
+with the weak formulation MSEw (from more than 0.1 to less than 0.001) is the main effect of the training
+process. The loss for the initial conditions (MSEIC ) and the BO conditions (MSEBO ) are kept small (around
+10−5 to 10−4 ), which shows that the whole training process is governed by the initial condition and the BO
+
+
+                                                                    16
+                               (a)                                                             (b)
+
+
+
+
+                               (c)                                                             (d)
+
+Figure 7: Stochastic advection equation (NN-BO). Solutions for the random coefficients Y1 and Y2 at four different times
+t = 0, π/3, 2π/3 and π. Both of them agree with the exact solutions. The scattered points denote the training points in the proba-
+bilistic space.
+
+
+
+
+                                                               17
+                               (a)                                                                (b)
+
+Figure 8: Stochastic advection equation (NN-BO). Mean and variance of the solution at time T = 2π/3 and T = π. The scattered points
+denote the training points in the physical space.
+
+
+                                     E[u]     Var[u]        a1         a2           u1       u2          Y1         Y2
+
+               L2 error              0.0006   0.0006      0.0009      0.0054    0.0051     0.0047       0.0019     0.0019
+          Relative L2 error          1.98%     0.13%      0.08%       0.59%     1.27%      1.18%        1.33%      1.36%
+
+Table 2: Stochastic advection equation (NN-BO). The L2 and relative L2 errors of NN-BO solutions versus the exact solutions at the
+final time T = π.
+
+
+condition. The loss associated with the original equation (MSE0 ) is decaying, indicating that the result is
+getting closer to the desired solution, but due to the small weight, the contribution of this loss to the total
+loss is very limited.
+
+5.2. Application to Nonlinear Stochastic Problem
+    In this section, we apply the NN-DO/BO methods to solve nonlinear stochastic problems by considering
+the following stochastic Burgers’ equation:
+
+                               ∂u    ∂u    ∂2 u
+                                  +u    = ν 2 + f (x, t; ω),          ∀t ∈ [0, T]    and    x ∈ D,                            (52)
+                               ∂t    ∂x    ∂x
+where the physical domain D is [−π, π], and ν = 0.1 is the viscosity coefficient. Suppose that the random
+forcing term f (x, t; ω) is parameterized by two identically independent uniformly distributed random vari-
+ables in [0, 1], denoted by ξ1 (ω) and ξ2 (ω). Then, the stochastic behavior of solution u(x, t; ω) can be fully
+described by ξ1 and ξ2 , too. In this example, we create a manufactured solution u(x, t; ξ1 , ξ2 ) such that the
+exact DO and BO components can be calculated explicitly. The manufactured solution is
+                                                              √
+                            u(x, t; ξ1 , ξ2 ) = − sin(x − t) − 3(1.5 + sin(t)) cos(x − t)(2ξ1 − 1)
+                                                  √                                                                           (53)
+                                                + 3(1.5 + cos(3t)) cos(2x − 3t)(2ξ2 − 1).
+
+The random forcing term f (x, t; ω) can be calculated given the manufactured solution. Due to its lengthy
+expression, here we omit writing down the explicit formula for f (x, t; ω). Without going into too much detail,
+Eq. 53 can be rewritten as either a DO expansion or a BO expansion, given by:
+    • DO components:
+
+                         u(x, t; ξ1 , ξ2 ) = E[u](x, t) + uDO
+                                                           1 (x, t)Y1 (t; ξ1 , ξ2 ) + u2 (x, t)Y2 (t; ξ1 , ξ2 ),
+                                                                    DO                 DO       DO
+                                                                                                                              (54)
+
+
+                                                                 18
+      Figure 9: Stochastic advection equation (NN-BO). Various components of the loss function during the training process.
+
+
+
+     where
+                                                  1                           1
+                                   1 (x, t) = − √ cos(x − t), u2 (x, t) = √ cos(2x − 3t),
+                                  uDO                             DO
+                                                    π                          π
+                                                             √                                                                (55)
+                                         Y1 (t; ξ1 , ξ2 ) = 3π(1.5 + sin(t))(2ξ1 − 1),
+                                           DO
+                                                            √
+                                        Y2DO (t; ξ1 , ξ2 ) = 3π(1.5 + cos(3t))(2ξ2 − 1);
+
+   • BO components:
+
+                                                           1 (x, t)Y1 (t; ξ1 , ξ2 ) + u2 (x, t)Y2 (t; ξ1 , ξ2 ),
+                         u(x, t; ξ1 , ξ2 ) = E[u](x, t) + uBO       BO                 BO       BO
+                                                                                                                              (56)
+
+     where
+                                                1 (x, t) = −(1.5 + sin(t)) cos(x − t),
+                                               uBO
+                                               2 (x, t) = (1.5 + cos(3t)) cos(2x − 3t),
+                                              uBO                                                                             (57)
+                                                    √                                √
+                                  Y1 (t; ξ1 , ξ2 ) = 3(2ξ1 − 1), Y2BO (t; ξ1 , ξ2 ) = 3(2ξ2 − 1).
+                                   BO
+
+
+   If we normalize the bases and the random coefficients, and write the above expansions in the form of
+Eq. 31, both the DO expansion and the BO expansion yield the same expression:
+
+                                             1                                  1
+                               u1 (x, t) = − √ cos(x − t),          u2 (x, t) = √ cos(2x − 3t),
+                                              π                                  π
+                                         √                                    √                                               (58)
+                               a1 (t) = π(1.5 + sin(t)),            a2 (t) = π(1.5 + cos(3t)),
+                               Y1 (t; ξ1 , ξ2 ) = 2ξ1 − 1,          Y2 (t; ξ1 , ξ2 ) = 2ξ2 − 1.
+
+    We obtain the solution until T = 10π to demonstrate the long-term performance of the NN-DO/BO
+method. In practice, we divide the time domain into ten non-overlapping subdomains of equal length,
+each of which has the length π. In each subdomain the components of Eq. 31 are approximated by an
+independent set of feed-forward neural networks. We train the time domains one-after-another and use the
+results from the previous interval at the end time as the initial conditions for the next subdomain. This domain
+decomposition strategy circumvents the difficulty of approximating functions of massive fluctuations with
+a single neural network, and thus will make the training process easier. We use an equal number of training
+points for all time subdomains, and set nt = 30 and nx = 50. Again, the samples of {tsc }ns=1 t
+                                                                                                are drawn from a
+                                                           k nx
+uniform distribution, and the spatial training points {xc }k=1 are equidistantly distributed in [−π, π]. For the
+training points in the stochastic space, we use eighth-order Gauss-Legendre quadrature rule for both ξ1 and
+
+
+                                                               19
+ξ2 , generating 64 points in the probabilistic space. The same neural network setups are implemented for
+the following two test cases: the unn , Ann and Ynn networks all have three hidden layers, each of which has
+32 neurons, and the Unn network is constructed with 3 hidden layers and 64 neurons per hidden layer. We
+only change the loss function in favor of either the DO or the BO condition. The neural networks are trained
+with an Adam optimizer (learning rate 0.001) for 50000 epochs.
+
+5.2.1. Case 1: NN-DO Method
+
+
+
+
+Figure 10: Stochastic Burgers’ equation (NN-DO). A comparison of neural network approximations and exact solutions of the scaling
+factors ai (i = 1, 2), as functions of t (t ∈ [0, 10π]).
+
+
+
+
+                               (a)                                                              (b)
+
+Figure 11: Stochastic Burgers’ equation (NN-DO). A comparison of neural network approximations and exact solutions of the bases ui
+(i = 1, 2) at the final time t = 10π. The red stars denote the training points in the physical space.
+
+
+    First, we test the NN-DO method. The initial conditions are taken directly from Eq. 58. Figure 10 shows
+the evolution of ai (i = 1, 2) as time grows, where the low frequency component, a1 , and the high frequency
+component, a2 , co-exist at the same amplitude. They do not decay with time, indicating that the stochasticity
+in the system has already reached a fully developed state. In Figure 11, we compare the bases ui (i = 1, 2)
+at t = 10π obtained from the NN-DO method to the exact solutions, and in Figure 12, we plot the NN-DO
+solution mean and variance at two times, t = 10π and t = 5π, versus the exact values. It is evident that
+the NN-DO solutions agree with the exact reference solutions very well. From Figure 12b we can observe
+that the solution variance evolves from t = 5π to t = 10π to develop a greater magnitude range and a more
+complex shape, and the NN-DO method precisely captures this progress. Figure 13 shows the relative L2
+
+
+                                                               20
+                                (a)                                                                (b)
+
+Figure 12: Stochastic Burgers’ equation (NN-DO). Mean and variance of the solution at time t = 5π and t = 10π, obtained using the
+NN-DO method. Both of them show good agreement with the reference exact value. The scattered points denote the training points
+in the physical space.
+
+
+
+
+Figure 13: Stochastic Burgers’ equation (NN-DO). The L2 and relative L2 errors in the mean and variance obtained by the NN-DO
+method. The relative error in variance is slightly higher than the relative error in mean, and both errors are below 2% for most of the
+time.
+
+
+
+
+                                                                  21
+errors of the solution mean and variance, and in Table 3 we report both errors for all the DO components at
+the final time T = 10π. All relative L2 errors are around or less than 1%, indicating the good performance of
+the proposed NN-DO method.
+
+                                     E[u]       Var[u]        a1         a2         u1          u2         Y1         Y2
+
+                L2 error            0.0029      0.0278     0.0104       0.0084    0.0042     0.0021      0.0008     0.0004
+          Relative L2 error          0.40%      0.57%       0.35%       0.28%     1.04%       0.53%      0.62%      0.34%
+
+Table 3: Stochastic Burgers’ equation (NN-DO). The L2 and relative L2 errors of NN-DO solutions versus the exact solutions at the final
+time T = 10π.
+
+
+
+5.2.2. Case 2: NN-BO Method
+    In this section we use the BO constraints to train the neural networks. Similar to its NN-DO counterpart,
+here we provide all the figures (Figure 14–Figure 17) showing a comparison between the NN-BO results
+and the reference exact solutions. To avoid redundancy, we refer the readers to read the captions below the
+figures and will skip explaining each of them one-by-one. However, we would like to note that in Figure 14,
+the scaling factors ai correspond to the eigenvalues in the standard BO method, and there is a significant
+amount of eigenvalue crossings during the whole time evolution, and also within each time subdomain. In
+this situation, the standard BO method would fail due to the lack of explicit formulas for matrices M and S
+in Eq. 19. The proposed NN-BO method does not suffer from this issue. In Table 4 we report both the L2
+and relative L2 errors for all the BO components at the final time T = 10π. As with the NN-DO method, all
+relative L2 errors are less than 1%, indicating the good performance of the NN-BO method.
+
+
+
+
+Figure 14: Stochastic Burgers’ equation (NN-BO). A comparison of neural network approximations and exact solutions of the scaling
+factors ai (i = 1, 2) as functions of t (t ∈ [0, 10π]). They correspond to the eigenvalues in the standard BO method. As we can see,
+there is a significant amount of eigenvalue crossings during the whole time evolution and also within each subdomain. Therefore, the
+standard BO method cannot be directly applied to this problem.
+
+
+
+                                     E[u]       Var[u]        a1         a2         u1          u2         Y1         Y2
+
+                L2 error            0.0032      0.0267     0.0055       0.0073    0.0018     0.0020      0.0007     0.0005
+          Relative L2 error          0.45%      0.55%       0.19%       0.25%     0.45%       0.49%      0.59%      0.39%
+
+Table 4: Stochastic Burgers’ equation (NN-BO). The L2 and relative L2 errors of NN-BO solutions versus the exact solutions at the final
+time T = 10π.
+
+
+
+
+                                                                   22
+                                (a)                                                                (b)
+
+Figure 15: Stochastic Burgers’ equation (NN-BO). A comparison of neural network approximations and exact solutions of the bases ui
+(i = 1, 2) at the final time t = 10π. The red stars denote the training points in the physical space.
+
+
+
+
+                                (a)                                                                (b)
+
+Figure 16: Stochastic Burgers’ equation (NN-BO). Mean and variance of the solutions at time t = 5π and t = 10π, obtained using the
+NN-BO method. Both of them show good agreement with the reference exact values.
+
+
+
+
+Figure 17: Stochastic Burgers’ equation (NN-BO). The L2 and relative L2 errors in the mean and variance calculated by the NN-BO
+method. The relative error in variance is slightly higher than the relative error in mean, and both errors are below 2% for most of the
+time.
+
+
+
+                                                                  23
+5.3. Application to Nonlinear Diffusion-Reaction Equation
+    Consider the following reaction diffusion equation with a nonlinear source term:
+
+                              ∂u
+                                 = auxx + bu2 + f (x; ω),        ∀t ∈ [0, 1] and x ∈ [−1, 1],                     (59)
+                              ∂t
+where the random force f (x; ω) = (1 − x2 )g(x; ω) is the source of randomness, while a and b are time-
+independent diffusion and reaction coefficients, respectively. The random process g(x; ω) is modeled as a
+Gaussian random field, i.e., g(x; ω) ∼ GP(1, C(x1 , x2 )), where C(x1 , x2 ) is a squared exponential kernel with
+standard deviation σ g and correlation length lc :
+
+                                                                    (x1 − x2 )2
+                                                                                !
+                                          C(x1 , x2 ) = σ2g exp −                 .                               (60)
+                                                                        l2c
+
+The solution satisfies the Dirichlet boundary conditions, u(−1, t; ω) = u(1, t; ω) = 0, and the deterministic
+initial condition u(x, 0; ω) = − sin(πx). We consider two different scenarios here:
+   • Forward problem: the coefficients a and b are given, and we solve for u(x, t; ω).
+   • Inverse problem: the coefficients a and b are unknown but additional information for u(x, t; ω) is given;
+     we solve for u(x, t; ω) while we also aim to identify a and b.
+For brevity, here we only show the results obtained from the NN-BO method as the NN-DO method exhibits
+a similar performance.
+
+5.3.1. Forward Problem
+     We set the diffusion coefficient a = 0.1 and the reaction coefficient b = 0.5. For the random force f (x; ω),
+we set σ g = 1 and lc = 0.1, thus requiring 19 KL modes to capture at least 98% of the fluctuation energy of
+ f (x; ω). The neural networks used in the NN-BO method are built as follows: unn has three hidden layers
+with 32 neurons per layer, Unn and Ynn have three hidden layers with 64 neurons per layer, and Ann is
+composed of N independent neural networks (N is the number of BO expansion terms), each of which has
+three hidden layers and four neurons per layer, approximating one single scaling factor ai . This is because
+we expect that ai may oscillate greatly in vastly different scales during the time evolution. We use nx = 51
+equidistantly distributed training points {xkc }nk=1
+                                                  x
+                                                     in space, nt = 50 uniformly distributed training points {tsc }nk=1
+                                                                                                                     t
+
+                                                            l nξ
+in the time domain, and nl = 1000 random samples {ξc }l=1 in the 19-dimensional random space. The neural
+networks are trained with an Adam optimizer (learning rate 0.001) for 300000 epochs.
+     First, we investigate the performance of NN-BO method using six BO expansion terms. To obtain the
+reference solution for the BO decomposition, we numerically solved the original BO equations with the finite
+difference scheme in space and a 3rd-level Adam-Bashforth scheme in time. Due to the deterministic initial
+condition, in practice we start with a Monte Carlo method until t = 0.01, and then switch to solving the BO
+equations. To obtain the reference for the solution statistics we solve the SPDE using a Monte Carlo method
+with 1000 samples.
+     Figure 18a shows the NN-BO solution mean at t = 0.1 and t = 1.0, and Figure 18b shows the evolution of
+the scaling factors ai , where the first four BO modes gradually pick up energy as the result of the nonlinear
+source term, while the energy in the fifth and sixth modes is relatively stable in time. This illustrates the
+efficiency of the BO representation, i.e., only a small number of modes is necessary to capture most of the
+stochasticity in this 19-dimensional SPDE. Figure 19 compares the modal functions learned from the NN-BO
+method with the reference, and Table 5 displays the root mean squared error of the random coefficients Yi .
+The proposed NN-BO method generates accurate predictions at both the early stage of the solution (t = 0.1)
+and the end time (t = 1.0).
+     Next, we analyze the effect of the number of BO expansion modes by comparing the variances of solution
+calculated using five, six and seven BO modes, and moreover, we solve the diffusion-reaction equation with
+noisy sensor data as the initial condition. Figure 20a shows the noisy sensor measurements of u(x, t = 0),
+where the 30 sensors are uniformly placed in the domain, and the red dots are perturbed measurements
+generated by artificially adding independent Gaussian random noise of standard deviation 0.1 to the hidden
+true values. Figure 20b shows a comparison of the NN-BO solution mean and standard deviation, calculated
+
+
+                                                            24
+                                (a)                                                                  (b)
+
+Figure 18: Stochastic diffusion-reaction equation (forward problem). Left: Solution mean at t = 0.1 and t = 1.0. The reference mean
+is calculated from a Monte Carlo simulation; Right: Scaling factors ai at different time steps. The reference ai are calculated using the
+standard numerical BO method.
+
+
+
+
+Figure 19: Stochastic diffusion-reaction equation (forward problem). The BO modes ui at t = 0.1 and t = 1.0; the reference ui are
+calculated using the standard numerical BO method.
+
+
+
+
+                                                                   25
+                                  RMSE           Y1        Y2        Y3        Y4         Y5        Y6
+
+                                  t = 0.1      0.098     0.175     0.225      0.292     0.237     0.275
+                                  t = 1.0      0.042     0.039     0.045      0.050     0.061     0.057
+
+Table 5: Stochastic diffusion-reaction equation (forward problem). Root mean squared error of the random coefficients Yi calculated
+using the NN-BO method at t = 0.1 and t = 1.0; the reference Yi are calculated using the standard numerical BO method.
+
+
+
+
+                                 (a)                                                                   (b)
+
+Figure 20: Stochastic diffusion-reaction equation with noisy data as initial condition. Left: Noisy sensor data as initial condition; Right:
+Mean and standard deviation of the predicted solution u(x, t; ω) versus the reference mean and standard deviation.
+
+
+
+based on noisy sensor data, and the reference mean and standard deviation, obtained with the Monte Carlo
+simulation. Figure 21a shows the predicted variance at time t = 1.0 versus the reference solution. The NN-
+BO method slightly underestimates the variance due to the truncated expansion, and using noisy sensor
+measurements as the initial condition does not change the prediction at final time too much. Figure 21b
+compares the relative L2 error of the solution variance at t = 1.0 obtained using three different methods: NN-
+BO, gPC and the standard BO. The gPC method generates the largest error as it fails to capture the evolution
+of the system’s stochastic structure due to the non-linearity, therefore, to achieve the same accuracy, one
+has to include a larger number of modes using the gPC method than using the BO method. Again, we
+can observe that better accuracy can be achieved when more modes are included, and we obtain similar
+accuracy when using noisy sensor data as the initial condition. The NN-BO method is less accurate than
+the standard numerical BO method due to dominant optimization errors. However, it circumvents the need
+to generate artificial stochastic initial conditions and can make use of scattered, noisy sensor measurements
+as constraints, rather than explicit mathematical expressions. Another advantage of the NN-BO method
+over the standard BO method is that it can solve efficiently a time-dependent nonlinear inverse stochastic
+problem.
+
+5.3.2. Inverse Problem
+    Here again we solve Eq. 59 but this time we assume that we do not know the exact diffusion and reaction
+coefficients a and b. Some extra information about u(x, t; ω) is provided to help us infer these two coefficients.
+In this example, the extra information is the mean value of u(x, t; ω) evaluated at three locations x = −0.5, 0, 0.5
+and at two times t = 0.1, 0.9, i.e., a total of six measurements of E[u]. We set σ g = 1 and lc = 0.4, and the
+“hidden" values of a and b are selected to be 0.5 and 0.3, respectively. To solve this inverse problem, we use
+a BO representation with four modes, and adopt the same setup of the neural networks and training points
+employed in the forward problem. When setting up the PINNs, a and b are coded as "variables" instead of
+as "constants" so that they will be tuned at the training stage. Meanwhile, we include an additional term
+in the loss function that calculates the MSE of the predicted unn (x, t) versus the measurement data, so that
+
+
+                                                                    26
+                               (a)                                                               (b)
+
+Figure 21: Stochastic diffusion-reaction equation (forward). Left: Variance of the NN-BO solution calculated using 5, 6 and 7 modes;
+the reference variance is calculated from the Monte Carlo simulation; Right: Comparison of the L2 errors of the solution variance
+calculated by the NN-BO method, standard numerical BO method and the gPC method. The gPC method generates the largest error
+since it fails to capture the dynamic evolution of stochastic basis for nonlinear problems.
+
+
+
+the loss function will make use of the extra information to infer the coefficients. Without loss of generality,
+we choose both the initial values of a and b to be 1.0, and in practice these values could be chosen based
+on reasonable guesses. The neural networks are trained with the Adam optimizer (learning rate 0.001) for
+300000 epochs. Same as in the forward problem, the reference solution statistics are calculated with Monte
+Carlo simulation and the reference BO components are generated by numerically solving the BO equations.
+
+
+
+
+                               (a)                                                               (b)
+
+Figure 22: Stochastic diffusion-reaction equation (inverse problem). Mean (a) and variance (b) of the NN-BO solution at t = 0.1 and
+t = 1.0; the reference solutions are calculated from the forward problem using the Monte Carlo method.
+
+
+    Figure 22a and Figure 22b shows the predicted solution mean and variance, respectively. Figure 23 and
+Figure 24a show the predicted BO modes ui and the scaling factors ai . Table 6 displays the root mean squared
+errors of the random coefficients Yi . It is evident that when compared to the reference solutions, the NN-BO
+method is still accurate at solving the inverse problem. Finally, we display the convergence history of the
+predicted a and b in Figure 24b, and we can observe that the inferred values converge to the true values after
+less than 100000 training epochs.
+
+
+
+                                                                27
+Figure 23: Stochastic diffusion-reaction equation (inverse problem). The BO modes ui at t = 0.1 and t = 1.0; the reference ui are
+calculated from the forward problem using the standard numerical BO method.
+
+
+
+
+                                          RMSE         Y1        Y2        Y3       Y4
+
+                                          t = 0.1     0.061     0.088    0.075     0.084
+                                          t = 1.0     0.019     0.041    0.039     0.060
+
+Table 6: Stochastic diffusion-reaction equation (inverse problem). Root mean squared error of the random coefficients Yi calculated
+using the NN-BO method at t = 0.1 and t = 1.0; the reference Yi are calculated from the forward problem using the standard numerical
+BO method.
+
+
+
+
+                                                                28
+                                (a)                                                                (b)
+
+Figure 24: Stochastic diffusion-reaction equation (inverse). Left: Evolution of scaling factors ai by NN-BO compared with the reference
+ai calculated using the standard numerical BO method for a forward problem; Right: Convergence of predicted a and b to the true
+hidden values during the training process.
+
+
+
+6. Summary
+
+    To summarize, in this paper we presented two methods for solving time-dependent stochastic partial
+differential equations (SPDEs), i.e. the NN-DO method and the NN-BO method. They both make use of
+the expressiveness of Physics-Informed Neural Networks (PINNs). Similar to the standard dynamically
+orthogonal (DO) and bi-orthogonal (BO) methods, the proposed methods use either dynamical constraints
+on the spatial bases (NN-DO), or static constraints on both the spatial and the stochastic bases (NN-BO)
+to remove the time redundancy of the generalized Karhunen-Lòeve expansion. Since the loss functions of
+neural networks can be directly established from an implicit form of the DO/BO constraints, the proposed
+methods are free from the assumptions needed for deriving the standard DO and BO equations, and
+thus they can be applied to a broader range of UQ problems. We demonstrated the performance of the
+NN-DO/BO methods with two artificially designed benchmark cases where exact DO/BO solutions can
+be derived, and we applied the NN-BO method to solve a time-dependent nonlinear diffusion reaction
+equation. Our numerical results show that the proposed NN-DO/BO methods are accurate for SPDEs with
+deterministic initial conditions and frequent eigenvalue crossings, and are reliable for long-time integration
+and high-dimensional random input. Moreover, additional flexibility over the standard BO/DO methods
+was demonstrated of the proposed methods in solving SPDEs by making direct use of the noisy scattered
+measurement data. They can seamlessly solve the time-dependent stochastic inverse problems by encoding
+the extra information into the loss function while tuning the hidden parameters at the training stage. These
+advantages were demonstrated in the last numerical example, and they exhibit the true potential of the
+NN-DO/BO method when applied to real physics/engineering applications.
+    However, there are two main current limitations of the NN-DO/BO methods and of PINNs in general. The
+first limitation is related to limited accuracy, i.e., the absolute errors cannot reach levels below about 10−5 , due
+to the inherent inaccuracy of solving a non-convex optimization problem with no theoretical guarantees of a
+global minimum. Another limitation is the excessive cost associated with training the NN-DO/BO methods,
+especially for long-time integration. To this end, a promising approach is the use of parallel algorithms in
+time, such as the parareal algorithm [30]. For example, in the Burgers’ equation example we could train
+all ten time-subdomains simultaneously and use the parareal algorithm iteration to obtain continuous in
+time solutions. This will be particularly effective if we use a lot of time-subdomains that can be trained in
+parallel. In fact, our preliminary experiments suggest that PINN training can be greatly accelerated using
+this approach for time-dependent PDEs, and this concept can also be extended to domain decomposition in
+space as well.
+
+
+
+
+                                                                  29
+Acknowledgement
+
+  This work is supported by ARL-Utah No.100028801-BROWN-APP (a sub-award of Cooperative Agree-
+ment W911NF-12-2-0023), NSF of China (No. 11671265) and the Science Challenge Project (No. TZ2018001).
+
+References
+
+References
+
+ [1] M. Raissi, G. E. Karniadakis, Hidden physics models: Machine learning of nonlinear partial differential
+     equations, Journal of Computational Physics 357 (2018) 125–141.
+ [2] T. Chen, H. Chen, Approximations of continuous functionals by neural networks with application to
+     dynamic systems, IEEE Transactions on Neural Networks 4 (1993) 910–918.
+ [3] T. Chen, H. Chen, Universal approximation to nonlinear operators by neural networks with arbitrary
+     activation functions and its application to dynamical systems, IEEE Transactions on Neural Networks
+     6 (1995) 911–917.
+ [4] G. Cybenko, Approximation by superpositions of a sigamoidal function, Math. Contr., Signals Syst., 2
+     (1989) 303–314.
+
+ [5] M. Raissi, Forward-backward stochastic neural networks: Deep learning of high-dimensional partial
+     differential equations, arXiv e-prints (2018) 1804.07010.
+ [6] M. Raissi, P. Perdikaris, G. E. Karniadakis, Physics informed deep learning (part II): Data-driven
+     discovery of nonlinear partial differential equations, arXiv e-prints (2017) 1711.10566.
+ [7] M. Raissi, Z. Wang, M. S. Triantafyllou, G. E. Karniadakis, Deep learning of vortex-induced vibrations,
+     Journal of Fluid Mechanics 861 (2019) 119–137.
+ [8] A. Yazdani, M. Raissi, G. E. Karniadakis, Hidden fluid mechanics: Navier-Stokes informed deep
+     learning from the passive scalar transport, arXiv preprint (2018) arXiv:1808.04327.
+ [9] D. Zhang, L. Lu, L. Guo, G. E. Karniadakis, Quantifying total uncertainty in physics-informed neural
+     networks for solving forward and inverse stochastic problems, Journal of Computational Physics 397
+     (2019) 108850.
+[10] T. P. Sapsis, Dynamically orthogonal field equations for stochastic fluid flows and particle dynamics,
+     Ph.D. thesis, MIT, 2011.
+[11] D. Xiu, G. E. Karniadakis, The Wiener–Askey polynomial chaos for stochastic differential equations,
+     SIAM Journal on Scientific Computing 24 (2002) 619–644.
+[12] D. Xiu, J. S. Hesthaven, High-order collocation methods for differential equations with random inputs,
+     SIAM Journal on Scientific Computing 27 (2005) 1118–1139.
+[13] D. Xiu, Numerical methods for stochastic computations: A spectral method approach, Princeton Uni-
+     versity Press, 2010.
+[14] A. Narayan, T. Zhou, Stochastic collocation on unstructured multivariate meshes, Commun. Comput.
+     Phys. 18 (2015) 1–36.
+[15] T. P. Sapsis, P. Lermusiaux, Dynamically orthogonal field equations for continuous stochastic dynamical
+     systems, Physica D: Nonlinear Phenomena 238 (2009) 2347–2360.
+
+[16] T. P. Sapsis, P. F. J. Lermusiaux, Dynamical criteria for the evolution of the stochastic dimensionality in
+     flows with uncertainty, Physica D: Nonlinear Phenomena 241 (2012) 60–76.
+
+
+
+
+                                                      30
+

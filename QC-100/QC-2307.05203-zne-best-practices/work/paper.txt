@@ -1,0 +1,700 @@
+                                                 Best practices for quantum error mitigation with
+                                                         digital zero-noise extrapolation
+                                                      Ritajit Majumdar∗∗¶ , Pedro Rivero∗¶ , Friederike Metz∗†‡ , Areeq Hasan∗§ , and Derek S. Wang∗∥
+                                                                                         ∗∗ IBM Quantum, IBM India Research Lab
+                                                                                    ∗ IBM Quantum, IBM T. J. Watson Research Center
+                                                                             † Institute of Physics, École Polytechnique Fédérale de Lausanne
+                                                              ‡ Center for Quantum Science and Engineering, École Polytechnique Fédérale de Lausanne
+                                                                       § Department of Electrical and Computer Engineering, Princeton University
+                                                                                                      ¶ Equal contribution
+                                                                                                ∥ Email: derek.wang@ibm.com
+
+
+
+
+arXiv:2307.05203v2 [quant-ph] 20 Jul 2023
+                                               Index Terms—zero-noise extrapolation, gate folding, identity
+                                            insertion, quantum error mitigation, quantum software, quantum
+                                            applications
+                                               Abstract—Digital zero-noise extrapolation (dZNE) has
+                                            emerged as a common approach for quantum error mitigation
+                                            (QEM) due to its conceptual simplicity, accessibility, and
+                                            resource efficiency. In practice, however, properly applying
+                                            dZNE to extend the computational reach of noisy quantum
+                                            processors is rife with subtleties. Here, based on literature review
+                                            and original experiments on noisy simulators and real quantum
+                                            hardware, we define best practices for QEM with dZNE for each
+                                            step of the workflow, including noise amplification, execution on
+                                            the quantum device, extrapolation to the zero-noise limit, and
+                                            composition with other QEM methods. We anticipate that this
+                                            effort to establish best practices for dZNE will be extended to
+                                            other QEM methods, leading to more reproducible and rigorous
+                                            calculations on noisy quantum hardware.
+                                                                                                                       Fig. 1. Zero-noise extrapolation is a quantum error mitigation technique,
+                                                                                                                       where the zero-noise result E ∗ of a quantum computation is estimated by
+                                                                   I. I NTRODUCTION                                    extrapolating from the result at multiple different noise levels [λ1 , λ2 , λ3 , ...].
+                                               Today, quantum computers are too noisy to run fault-
+                                            tolerant error correcting codes, so quantum error mitigation
+                                            (QEM) methods are necessary for extending the reach of                     focus on the insertion of identities due to the simplicity of
+                                            small, noisy quantum devices [1, 2]. Such methods typically                implementation, although quasi-probability-based approaches
+                                            involve running additional or modified mitigation circuits in              are possible as well [10, 11]. Importantly, this method can be
+                                            addition to or instead of the target circuits. Therefore, the              resource-efficient in the low-noise limit by invoking moderate
+                                            use of QEM techniques generally results in longer execution                overhead. Error bounds, however, are less certain given the
+                                            times or requires access to additional qubits for increased                rather liberal assumptions about the underlying device noise.
+                                            accuracy. An example of the former is probabilistic error                  In addition, it is especially accessible to application developers
+                                            cancellation [3, 4] where the noise of the target circuit is               compared to analog zero-noise extrapolation (aZNE) where
+                                            learned layer by layer and then cancelled in a probabilistic               noise is tuned at the hardware-level by, e.g., stretching and
+                                            manner with an exponential overhead to control the subsequent              scaling the pulses themselves. aZNE therefore requires deep
+                                            spread in the variance of expectation values. An example of                knowledge of and access to the underlying device physics [12].
+                                            the latter is virtual distillation that requires high connectivity         Given these advantages of dZNE, several hardware-agnostic
+                                            to ‘distill’ multiple copies of the noisy quantum state into a             implementations exist [13, 14] that have been leveraged in
+                                            pure one [5, 6, 7].                                                        previous scientific works [15, 7, 16], suggesting dZNE is the
+                                               One of the most common methods for QEM that in-                         industry standard for QEM.
+                                            volves running additional mitigation circuits is zero-noise                   While dZNE can be conceptually straightforward, there are
+                                            extrapolation (ZNE) [3, 8], as shown in Fig. 1. In digital                 myriad subtleties in its practical application. Therefore, in this
+                                            ZNE (dZNE) [9], the “zero-noise” expectation value of the                  work, we suggest best practices for dZNE. We first outline
+                                            target circuit is extrapolated from the expectation values of              a general and flexible workflow for dZNE in Fig. 2, and
+                                            mitigation circuits where the noise has been amplified by                  then we evaluate how to best configure each step within this
+                                            inserting additional digital quantum gates. In this work, we               framework. These steps include noise amplification, execution
+
+
+
+                                                                                                                   1
+Fig. 2. Schematic of an error-mitigated Estimator pipeline [17, 18] for noisy quantum computations that takes quantum circuits as inputs and returns
+expectation values. Depicted QEM methods include digital zero-noise extrapolation (stages {B, I}), readout error mitigation (stages {C, H}), and Pauli
+twirling (stages {D, F }). Stages {A, E, G} comprise the unmitigated base pipeline to which additional mitigation techniques can be injected. Arrows signify
+functional requirements, while dotted arrows signify partial or optional dependencies.
+
+
+
+on quantum hardware, and extrapolation to the zero-noise ex-                     These steps include mapping logical qubits to device qubits
+pectation value. We also discuss ways to augment this pipeline                   based on connectivity requirements and decomposing the gates
+to mitigate other sources of noise, such as measurement and                      into hardware-native digital gates. If amplification were to
+coherent gate errors.                                                            occur before transpilation, then it is possible that folding would
+   We benchmark with circuits for spin dynamics and run                          under- or over-represent the noise, leading to a potential bias in
+calculations on both noisy quantum simulators and real quan-                     the extrapolation process. It could also be the case that Û and
+tum hardware as concrete examples. From these examples, we                       Û † , perhaps due to stochastic algorithms commonly used for
+find, for instance, that multiple noise-amplified circuits should                transpilation [21], result in circuits with drastically different
+be sampled for partial noise factors; the noise factors and                      structures and, therefore, noise profiles.
+extrapolator can be chosen based on a calibration; and that
+ZNE fails for flat noise profiles when noise saturates given
+practical limits on shots. Notably, we emphasize that these
+conclusions are highly context-dependent—our conclusions
+are a good starting point and expected to be widely applicable,
+but they are subject to change based on differences in the
+device noise model, the structure of the target circuit, the
+software implementation, and advancements in the theory of
+dZNE. Nonetheless, we anticipate that this effort to establish
+best practices for dZNE will enable more reproducible and
+higher-quality computations on noisy quantum devices, as well
+as inspire similar efforts for other QEM approaches.                             Fig. 3. Global (upper) vs. local (lower) folding for digital noise amplification.
+
+                     II. N OISE AMPLIFICATION                                       Local and global folding. Next is the question of fold-
+   In the most popular implementation of dZNE, we assume                         ing globally or locally. For a target circuit Û = Û1 Û2 Û3 ,
+that the noise can be amplified digitally by “folding” each                      we refer to global folding (to a noise factor of 3 in this
+gate to reach a desired noise level. For instance, in the ideal                  case) as Û Û † Û = (Û1 Û2 Û3 )(Û3† Û2† Û1† )(Û1 Û2 Û3 ) and local
+case, the noise of a target circuit Û would be amplified three-                 folding as (Û1 Û1† Û1 )(Û2 Û2† Û2 )(Û3 Û3† Û3 ); see Fig. 3. For
+fold in Û Û † Û , where Û † Û resolve to identity. Amplifying               simple noise models, such as global depolarizing noise, these
+the noise digitally in this fashion, however, requires several                   two approaches should result in identical noise amplification.
+assumptions to hold true, in particular that Û and Û † contain                 However, in the presence of more complex noise, this is not
+the same levels of incoherent noise. (We note that amplifying                    necessarily the case. For instance, in Ref. [22], the authors
+noisy hardware-native gates is especially convenient on IBM’s                    find that global folding amplifies the noise more reliably than
+superconducting devices because the noisiest gate, CNOT, is                      local folding in the presence of time-correlated noise. While
+its own inverse, although more precise pulse-level inverses that                 global folding confers resistance to time-correlated noise,
+require some calibration can enable even more accurate noise                     it is conceptually more straightforward to locally amplify
+amplification [19].) Therefore, in this section, we discuss how                  the noise to factors that are not odd, positive integers in
+best to implement dZNE to adhere to these assumptions as                         {1, 3, 5, ..., 2n + 1}. Therefore, within this manuscript, we
+closely as possible.                                                             locally fold circuits.
+   Transpile first. First, noise should be amplified in circuits                    Partially folding. Locally amplifying noise to factors that
+that have already been transpiled to a particular device, where                  are not {1, 3, 5, ..., 2n + 1} is also known as partially folding
+transpilation (or “quantum compilation”) refers to the process                   circuits because gates in the original circuit are not all folded
+of preparing a circuit to run on actual quantum hardware [20].                   an equal number of times. Partially folding is useful for
+
+
+
+                                                                             2
+                                                                                                                  III. E XECUTION
+                                                                                         In a typical quantum computing workflow, one submits a
+                                                                                      batch of multiple circuits to the device to compute the expec-
+                                                                                      tation value of each. Then, to find the zero-noise extrapolated
+                                                                                      value, one also submits batches of folded circuits to compute
+                                                                                      the expectation values at various noise factors.
+                                                                                         Interleaved execution. One subtle but practically relevant
+                                                                                      question is the order in which these target and amplified
+                                                                                      circuits should be run on the device. Given that quantum
+                                                                                      device noise is subject to change over time, we suggest to
+                                                                                      interleave the folded circuits with the target circuits, as also
+                                                                                      suggested in Ref. [19], so that observables are computed
+                                                                                      sequentially.
+                                                                                         Shots. Another important consideration is the shot overhead.
+Fig. 4. Partial folding should be executed with care. Because not all gates
+                                                                                      It is well known that shot noise in the expectation values
+are folded, we suggest to sample multiple partially folded circuits at each           of Pauli observables without zero-noise extrapolation can be
+noise factor. In this example, for a circuit over 6 qubits with either 15 or 30                                                                  −1/2
+                                                                                      modeled with a binomial distribution and scales as Nshots .
+CNOT gates whose errors are different for each qubit and range between 1%
+to 10%, we find that increasing the number of circuits randomly sampled at a
+                                                                                      The standard deviation of the zero-noise extrapolated value
+noise factor of 1 and 1.1 decreases the standard deviation σ of the zero-noise        with a linear extrapolator due to shot noise follows the same
+expectation value ⟨Z0 Z1 Z2 Z3 Z4 Z5 ⟩ for fewer total CNOT.                          relationship, as we show in Fig. 5. Here, Nshots refers to the
+                                                                                      number of shots at each noise factor, and we evaluate the
+                                                                                      standard deviation σ for ⟨Z⟩ = ⟨Z ⊗n ⟩ on a 6-qubit circuit for
+                                                                                      spin dynamics with a 2-qubit depth of 10 and noise factors of
+                                                                                      1, 3, and 5. We also show the scaling of the shot noise with the
+amplifying noise with a finer resolution or to smaller factors                        number of shots for different depolarization error probabilities.
+when circuit noise is large, as we demonstrate in further detail                      We observe that in all the cases, the shot noise follows the
+in Section IV. In this case, the best practices for doing so are                         −1/2
+                                                                                      Nshots scaling.
+less obvious. There have been several previous proposals—
+for instance, the circuits can be folded globally right-to-left or
+left-to-right [9] or randomly [9, 23] with weights based on the
+relative error of each gate [24, 14].
+
+   Although these approaches can account for instances in
+which noise is amplified differently when gates are folded
+earlier vs. later in the circuit and in which each gate on
+each qubit has different errors, respectively, they are less
+broadly generalizable—for instance, gate calibrations can be-
+come stale. Therefore, we suggest to randomly sample multiple
+partially folded circuits at each noise factor [23]. Here, we do
+so with the Qiskit Prototype for ZNE [13], although additional
+implementations are available, e.g. Ref [14]. Doing so incurs
+a minimal overhead, as while the number of circuits increases,
+the number of shots per circuit can be decreased proportionally
+to conserve the overall shot overhead. We demonstrate con-
+cretely in Fig. 4 that this approach can decrease the variance
+of expectation value estimates. Here, we run a brickwork                              Fig. 5. The standard deviation of ⟨Z⟩ with number of shots scales as √ a
+                                                                                                                                                             N shots
+circuit of CZ on noisy simulators with depolarizing gate errors                       (fitted curve) for different depolarization error probabilities. Although the
+                                                                                      order of the scaling remains invariant with the error probability, the scaling
+between pairs of qubits ranging from 1% to 10% with noise                             factor a increases with the error probability.
+factors of 1 and 1.1, and we measure ⟨Z⟩ = ⟨Z ⊗n ⟩; see
+Appendix B for further details on the circuits. Although the
+mean expectation value is the same regardless of the number                                                   IV. E XTRAPOLATION
+of partially folded samples, we find that sampling multiple                             A priori, it is challenging to select the best settings for
+partially folded circuits is necessary when proportionally few                        extrapolation, in particular the noise factors and form of the
+of the total gates are folded. As the total number of gates                           extrapolation function. For instance, consider cases where
+increases, we see a comparatively smaller benefit to sampling                         the exact form of the extrapolation function is even known:
+noise-amplified circuits at each partial noise factor.                                exponential extrapolation in the presence of certain incoherent
+
+
+
+                                                                                  3
+noise [25, 9, 26, 19]. Intuitively, it is desirable to choose noise       extrapolation will be unstable, which we define as extrapola-
+factors that span the largest possible range without creeping             tion error in the zero-noise expectation value that lies outside
+into the noise-saturated regime to minimize the variance in the           of the range of allowed values for the Pauli observables studied
+extrapolated value, but doing so requires some knowledge of               here, due to shot noise. While additional shots may diminish
+the decay rate of the expectation value with the noise factor. To         this instability, the overhead required scales exponentially
+address these issues, there do exist adaptive approaches [9, 19].         with the noise of the target circuit, regardless of the QEM
+In the former, the shots are dynamically allocated between                method [7]. For this experiment, we have marked a region
+circuits with a range of noise factors, but they are accompanied          as NF (no fit) if the expectation value provided by dZNE
+by certain assumptions, such as the form of the extrapolation             differs from the ideal expectation value by 0.4. We discuss
+function, and require interactive access to a quantum device.             the breakdown of extrapolation in further detail in Appendix
+   Therefore, dZNE is typically executed in a “batched” man-              A.
+ner, where the target and noise-amplified circuits are executed
+sequentially, so the noise factors and extrapolation function
+should be carefully chosen beforehand. One approach is to
+simply guess, and if the uncertainty of the fit is too large
+or if the resulting expectation does not make sense based on
+problem-specific knowledge, then the calculation can be re-
+submitted. This approach, however, does not scale towards
+larger systems of the imminent future where the ideal values
+cannot be computed classically for verification.
+   Calibration. A more informed approach is to calibrate
+dZNE by running circuits similar to the target circuits for
+which the ideal expectation values are known, determining the
+best settings for zero-noise extrapolation, and using these for
+dZNE on the target circuit. Ref. [27] introduces such a method,
+where target circuits with gates that make the target non-
+trivial to simulate on classical computers are transformed into
+classically simulable Clifford circuits, and dZNE is calibrated
+on those.
+   To further illustrate the point that different combinations of
+noise factors and extrapolation functions perform best for dif-
+ferent circuits, we systematically find the best combination for
+6-qubit brickwork circuits for spin dynamics with varying two-
+qubit depth (0 to 40), depolarizing gate error (0.1% to 4%),
+and 8,000 shots per noise factor. The circuits are described in
+further detail in Appendix B. In Fig. 6 we plot the results as
+a “calibration phase diagram”. In (a), the noise-factors are 1,
+3, and 5. We find that at smaller two-qubit gate depths and
+errors, where the noise is weak, linear extrapolation (L) with
+a wide range of noise factors performs the best. As the circuit
+area and noise increase, more and more curvature is required
+in the extrapolation function to extrapolate to the correct
+zero-noise value, thus showing preference for quadratic (Q)
+and exponential (E) extrapolators. We compare examples of
+extrapolations for select regions of these calibration diagrams           Fig. 6. Calibration phase diagrams for dZNE showing the best extrapolator
+                                                                          for 6-qubit brickwork circuits with increasing two-qubit gate depth and
+in Appendix A.                                                            depolarizing gate error. The regions are linear (“L”), quadratic (“Q”), and
+   An important region of this calibration phase diagram is               mono-exponential (“E”) extrapolators, as well as “no fit” (“NF”). The best
+toward the upper-right corner, marked as NF (no fit) in Fig. 6,           extrapolator has the lowest root-mean-square error (RMSE) of the ideal and
+                                                                          mitigated expectation value over multiple randomly sampled circuits with
+for large circuit areas and errors. In this limit, the depolarizing       8,000 shots per noise factor. Low-degree extrapolators are preferred unless
+noise is completely saturated, so the expectation values of the           the higher degree one can lower the RMSE by a threshold of 0.001 in this
+consequent completely mixed states for traceless observables              experiment. A region is said to be NF if the expectation value provided by
+                                                                          dZNE differs from the ideal expectation value by 0.4. In (a), the noise factors
+(e.g. all Pauli operators except the identity) will converge              are 1, 3, and 5, and in (b), the noise factors are 1, 1.1, and 1.2. For smaller
+to 0. In this regime, it is straightforward to see that linear            noise factors, low-degree extrapolators are preferred for larger circuit areas
+extrapolation will always result in a low-uncertainty, zero-              and errors, and the “NF” region is smaller.
+noise expectation value of 0 regardless of the ideal value,
+which is clearly a negative outcome. Meanwhile, exponential                  In Fig. 6(b), we compute the calibration phase diagram for
+
+
+
+                                                                      4
+a smaller range of noise factors of 1, 1.1, and 1.2. Within
+this smaller range of noise factors, although there exist a few
+anomalous entries due to random sampling, we find that the
+decay of the expectation value can be more appropriately de-
+scribed by a linear extrapolator, which is generally more stable
+and faster to fit, for both larger circuit areas and error rates
+compared to the case of noise factors of 1, 3, and 5 in Fig. 6(a).
+In addition, the “no fit” (NF) region shrinks, suggesting that
+amplifying the noise to smaller factors enables the application
+of dZNE for deeper circuits. However, in the case of using
+noise factors that are not odd, positive integers, one should
+consider sampling multiple partially folded circuits; see Fig. 4.
+Finally, we note that the optimal number of noise factors,
+where the minimum depends on the extrapolation function,
+is problem-dependent and, therefore, can also be calibrated in
+a similar manner.
+      V. C OMPOSITE ERROR MITIGATION STRATEGIES                          Fig. 7. Readout error mitigation can be straightforward concatenated with
+                                                                         dZNE. We plot the expectation value ⟨Z⟩ = ⟨Z1 Z2 Z3 Z4 Z5 Z6 ⟩ with and
+   A crucial assumption of dZNE is that folding the gates am-            without dZNE for a noise model with both depolarizing gate errors and readout
+plifies all sources of noise, enabling the decay of expectation          errors. With readout mitigation, dZNE results are close to the ideal result and
+                                                                         deviate as circuit depth increases and noisy gates dominate the total error.
+values with increasing noise to be fitted to simple functions
+when the type of noise is assumed to be incoherent. In practice,
+both assumptions are often challenged, so we discuss ways to
+compose other error mitigation methods with dZNE to form                     0.50
+composite strategies.
+   Readout error. In conventional approaches to unitary fold-                0.55
+ing, state preparation and measurement (SPAM) error is not                   0.60
+amplified. Instead, other error mitigation techniques known to
+mitigate these types of errors can be injected into the dZNE                 0.65
+workflow. In particular, we consider readout error mitigation,       Z       0.70
+where it is well known that readout errors can be corrected on                                       0.10
+noisy bitstrings by measuring the readout calibration matrix                 0.75                    0.08
+[28, 29, 30], which can be simplified with twirling [31], or                                  RMSE
+                                                                             0.80                    0.06
+training a model to do so [32]. With the readout-corrected                                                                        Ideal
+                                                                                                     0.04                         Noisy
+bitstrings, expectation values can then be computed in advance               0.85                           1 5    10 15 20       ZNE w/o twirl
+of zero-noise extrapolation. In Fig. 7, we demonstrate the                                                        Twirls          ZNE w/ 20 twirls
+                                                                             0.90
+importance of augmenting dZNE with readout error mitigation                         0   4    8       12 16 20 24 28 32 36 40
+by comparing the performance of dZNE on a noisy simulator                                                     2Q depth
+with depolarizing error and either with mitigated or unmit-
+                                                                         Fig. 8. The noise model of the device can be shaped to more closely
+igated readout errors. For this experiment, we considered a              adhere to assumptions underlying zero-noise extrapolation as a technique for
+depolarization noise with probability 0.01 on each CNOT gate,            quantum error mitigation. In particular, coherent gate errors can be mitigated
+and a measurement error with p(0|1) = 0.02 and p(1|0) =                  by randomly compiling, or ‘twirling,’ them. Here, twirling the folded 6-qubit
+                                                                         circuits for spin dynamics results in more accurate observables. The inset
+0.01; here p(i|j) denotes the probability of measuring i when            shows that, for this degree of coherent gate error, the RMSE converges after
+the outcome was actually j. At low depths, dZNE without                  sampling 10 twirled circuits.
+readout mitigation performs comparatively worse for circuits
+run on a noisy simulator with both depolarizing noise and
+readout errors, and the gap between the readout mitigated and            at large noise factors is a tell-tale sign of coherent error.
+unmitigated cases shrinks with increasing depth as gate errors           This matter is further complicated by the ambiguity of noise
+become the major source of error.                                        amplification for gates with coherent errors, as the outcome
+   Coherent error. Another type of error that is less straight-          depends on device physics-level understanding of the digital
+forward to account for within dZNE is coherent error. The                gates. Consider the case of IBM’s superconducting devices,
+theory of zero-noise extrapolation with exponential functions            where we noted previously that the noise of the hardware-
+typically assumes only the presence of incoherent errors, so             native and self-inverse CNOT gate can be amplified by applying
+in the presence of coherent error, the analytically correct              more CNOT gates. In this case, coherent errors, say additional
+extrapolation function is generally unknown, although conver-            single-qubit rotations, could cancel out or stack depending on
+gence of traceless operators to non-zero expectation values              whether sequential CNOT pulses are echoed [33].
+
+
+
+                                                                     5
+   Therefore, as a best practice, we suggest to randomly                a)                                     = [1, 3, 5]
+compile, or “twirl,” gates to remove their coherent noise.
+                                                                              0.5
+Seminal references and applications of twirling in general
+include Refs. [34, 35, 4], and Refs. [36, 37] apply twirling
+specifically to dZNE. Briefly, randomly compiling means that                  0.4
+random single-qubit Pauli gates, assumed to be noiseless, are
+applied before and after each noisy gate in a target circuit,           avg   0.3
+and averaging over multiple randomly compiled target circuits                                                                                 no mit
+                                                                                                                                              RO+RC
+results in the asymptotic removal of coherent error.                          0.2
+                                                                                                                                              +L
+   In Fig. 8, we compare the results of dZNE with and without
+                                                                                                                                              +Q
+twirling on a device with both depolarizing and coherent                      0.1                                                             +E
+gate errors for the same circuit described in Fig. 7. Without
+twirling, the mitigated values are hardly improved with dZNE,                       0     10        20        30    40            50        60        70
+but with twirling, dZNE performs much better. Theoretically,                                                  2Q Depth
+
+the number of possible twirled circuits scales exponentially            b)                                  = [1, 1.1, 1.2]
+with the number of two-qubit gates, but in practice, we notice
+that a modest number of twirls are sufficient for the circuit                 0.5
+and noise model considered here to converge. For instance, in
+the inset of Fig. 8, we find that only 10 twirls are sufficient.              0.4
+Twirling also does not require a drastic overhead—although
+twirling requires more circuits to be run, each circuit can be
+                                                                        avg   0.3
+run with proportionally fewer shots, ultimately conserving the
+shot overhead.
+   Finally, we note that beyond readout mitigation and twirling,              0.2
+
+it is possible to compose other error mitigation techniques,
+such as post-selection based on symmetries and conserva-                      0.1
+tion laws [16, 38], the insertion of dynamical decoupling
+pulses [39, 40, 41, 42], or virtual distillation [43].                              0     10        20        30    40            50        60        70
+                                                                                                              2Q Depth
+   Benchmarking on real quantum hardware. We demonstrate
+that a composite error mitigation strategy, in conjunction with         Fig. 9. We benchmark the proposed composite error mitigation strategy on a
+several “best practices” described previously, can drastically          cloud-accessible quantum computer, ibm_washington, for a 104-qubit 1D
+improve results on real hardware. The composite strategy                chain up to a depth of 70 two-qubit (2Q) gates for noise factors of (a) [1, 3, 5]
+                                                                        and (b) [1, 1.1, 1.2]. For the latter, we sample only one partially folded circuit
+consists of readout mitigation and twirling, as well as zero-           for each noise factor. We compare the cases of no mitigation (“no mit”), with
+noise extrapolation with different extrapolation functions. The         readout mitigation (“RO”) and randomized compiling or twirling (“RC”), and
+specific system we study is a 104-qubit 1D chain embed-                 applying ZNE on top of “RO+RC” with linear (“+L”), quadratic (“+Q”), or
+                                                                        exponential (“+E”) extrapolation. The expectation value at each noise factor
+ded in the 127-qubit cloud-hosted digital quantum computer              is measured with 16,384 shots.
+ibm_washington. We set the initial state to |01...01⟩, and
+we apply a repeated quantum circuit similar to the many-body
+dynamics circuit used in Fig. 6-8, except that the coupling             continuous, likely due to an insufficient number of partial
+angle θ is set to 0 such that the expectation values of single-         folds. In both cases, applying readout mitigation (‘RO’) and
+qubit Zi operators are conserved and can be straightforwardly           twirling (‘RC’) improves the unmitigated results, and then
+classically computed to serve as an ideal benchmark.                    applying ZNE further improves them.
+   In Fig. 9, we show the average root-mean-square error ϵavg
+over all single-qubit ⟨Zi ⟩ up to a depth of 70 two-qubit gates,                        VI. C ONCLUSIONS AND DISCUSSION
+or 35 Floquet cycles. As we observed in the noisy simulations
+in Fig. 6, for noise factors of [1, 3, 5], we find that the                Here, we discuss best practices for digital zero-noise ex-
+extrapolation functions with larger curvature (i.e. exponential         trapolation (dZNE) for QEM. During the noise amplification
+or ‘E’) produces better results at larger depths. For a smaller         step, we choose local folding to enable more straightforward
+range of noise factors of [1, 1.1, 1.2] with a single partial           partial folding. We also emphasize the need to transpile circuits
+fold, linear (‘L’) extrapolation is the only viable extrapolation       to specific devices before amplification to amplify the noise
+function, as quadratic (‘Q’) and exponential extrapolations are         more predictably. During circuit execution, we highlight the
+too unstable. At the largest depths, we see that ZNE with               importance of interleaving target and amplified circuits to
+the smaller range of noise factors [1, 1.1, 1.2] gives overall          minimize the impact of time-varying noise and discuss shot
+less error than ZNE with the larger range of noise factors              overhead considerations and the scaling of shot noise in the
+[1, 3, 5], as the noise is less saturated in the former case.           case of zero-noise extrapolation. We then provide insights
+However, the depth-dependent error in the former case is less           into the extrapolation process and demonstrate a method of
+
+
+
+                                                                    6
+calibrating the best settings for extrapolation, such as noise            for error probability 0.031, none of the extrapolators are close
+factors and the form of the extrapolation function.                       to the ideal expectation value; the exponential extrapolator
+   To address the limitations of dZNE in handling errors                  drifts off to a totally wrong value. This region corresponds
+beyond incoherent ones, such as SPAM errors and coherent                  to ’NF’ in Fig. 6 (a).
+errors, we propose composite error mitigation strategies that                 For noise factors [1, 1.1, 1.2] (bottom row), i.e., partial
+combine dZNE with other error mitigation techniques. For                  folding, we see that the linear extrapolator remains the best
+SPAM errors, we recommend augmenting dZNE with readout                    for both error probabilities 0.001 and 0.018. Furthermore, for
+error mitigation techniques. We highlight the importance of               error probability 0.031, where for noise factors [1, 3, 5] no
+this approach by comparing the performance of dZNE on a                   fit was obtained, the quadratic extrapolator is able to reach
+noisy simulator with depolarizing error and readout errors. We            a value close to the ideal expectation value. This re-affirms
+then discuss the challenges in accounting for coherent errors             that partial folding to a smaller range of noise factors enables
+within the dZNE framework, particularly due to the ambiguity              the application of ZNE up to a higher error rate. However, a
+of noise amplification for gates with coherent errors. As a best          drawback is that the standard deviation of all the extrapolators
+practice, we suggest randomly compiling, or “twirling,” gates             is much higher for partial folding, thus requiring multiple
+to remove their coherent errors.                                          samples of partially folded circuits as discussed in Section II.
+   In the future, we expect studies that extend these best                    As we show in Section IV, when the circuit area and error
+practices to more specific contexts, such as particular circuit           become too large, the exponential extrapolator often fails to
+classes, device noise profiles, or gate sets, to be fruitful. These       converge on a reasonable estimate for the zero-noise value.
+studies could provide a deeper understanding of the method’s              This failure is due to numerical instabilities that make such
+limitations and suggest improvements to its robustness. We                extrapolators difficult to fit [44]. Here, we describe the onset
+also anticipate that further development of dZNE will re-                 of these numerical instabilities and what can be done to detect
+define best practices. Specific approaches that warrant further           and correct for them in practice.
+exploration include adaptive dZNE for dynamically allocating                  For a general quantum observable Ô, the exponential extrap-
+shots between circuits with a range of noise factors, and                 olator is often the most natural for ZNE [26]. For simplicity,
+machine learning and data-driven approaches for optimizing                we assume a mono-exponential form for the decay of the
+dZNE parameters, such as noise factors, extrapolation func-               expectation value: ⟨Ô⟩ = S + Ae−iλ/L . Three degrees of
+tions, and folding techniques.                                            freedom are required to fit this curve as a function of the
+                                                                          noise λ: the shift coefficient S, the amplitude A, and the decay
+                    ACKNOWLEDGEMENTS                                      length L.
+  We acknowledge Mirko Amico, Paul Nation, Zlatko Minev,                      The exponential model is intrinsically unstable when fitting
+and Sanket Panda for valuable discussions. This work was sup-             to expectation values that are λ-independent within estimation
+ported by the Swiss State Secretariat for Education, Research,            error including, for instance, shot noise. Such results can
+and Innovation (SERI) under contract number MB22.00051.                   occur either when the noise has saturated (λmin ≫ L) or
+                                                                          is too low (λmin ≪ L), and both situations can lead to
+                         A PPENDIX A                                      possibly misleading results without properly accounting for
+                       E XTRAPOLATION                                     this instability. The latter situation, however, is comparatively
+   Here, we develop further understanding of the trends ob-               benign—one can simply decide not to use ZNE at all or switch
+served in the calibration phase diagrams of Fig. 6 by analyzing           to a linear extrapolator. The former situation can be especially
+extrapolation plots in Fig. 10. These trends include that low-            misleading because instabilities can manifest in multiple ways,
+order extrapolation functions are preferred at low 2Q depth,              depending on the noise model and observable. For instance, in
+low error probability, and smaller ranges of noise factors,               the case where there is coherent error or the observable is not
+as well as that smaller ranges of noise factors enable lower              traceless, such that S may not be 0, then there is ambiguity in
+errors at large circuit areas. In particular, we show the zero-           fitting S and A. Even when S is known, there is ambiguity in
+noise expectation values from different extrapolators for noise           L and A, since any small L ≪ λmin could result in expectation
+factors [1, 3, 5] (top row) and [1, 1.1, 1.2] (bottom row). We            values that are virtually λ-independent. In both cases, because
+choose three probabilities of error such that they correspond             the correct value of A is ambiguous, the zero-noise expectation
+to regions ‘L’, ‘E’ and ‘NF’ of Fig. 6(a).                                value is unstable.
+   First, we discuss noise factors [1, 3, 5] (top row). For low               While detecting and correcting instabilities is likely context-
+probability of error (0.001) on the left, all three extrapolators         dependent, we suggest some general strategies. After extrap-
+have comparable performance in terms of the extrapolated                  olation, we recommend comparing extrapolation functions,
+value, with the linear extrapolator having the smallest standard          e.g. linear, quadratic, and exponential, and choosing the result
+deviation. This changes as the error probability is increased.            based on metrics such as the standard error of the extrapolated
+For error probability 0.018, exponential extrapolator is the              value or goodness of fit. Before extrapolation, one should
+best, although it has a higher standard deviation than both lin-          determine whether expectation values vary sufficiently with the
+ear and quadratic. We also note that the standard deviation for           degree of noise amplication, or whether the noise is too high or
+all the extrapolators increases with increasing noise. Finally,           low for stable extrapolation. We anticipate the development of
+
+
+
+                                                                      7
+a)                                                                                       Error probability 0.001                    b)                          Error probability 0.018                                                                             c)                                   Error probability 0.031
+       0.5
+                                                                                                                           Ideal                    Ideal                                                                                                                                Ideal
+                                                                                                                                          0.0                                                                                                                             0.0
+                                                                                                                           L                        L                                                                                                                                    L
+
+
+
+
+                 Std Dev of extrapolation
+                                                  0.008                                                                    Q                        Q                                                                                                                                    Q
+       0.6
+                                                                                                                           E                        E
+                                                  0.006                                                                                   0.2                                                                                                                             0.2
+
+
+       0.7                                        0.004
+                                                                                                                                          0.4                                                                                                                             0.4
+                                                  0.002
+
+
+
+
+                                                                                                                                                                                                                                                                                                                      Std Dev of extrapolation
+                                                                                                                                                                                    Std Dev of extrapolation
+E( )   0.8
+                                                  0.000                                                                            E( )                                                                        0.0075                                              E( )              0
+                                                                                                                                                                                                                                                                                                              E                                          0.02
+                                                                                 L             Q             E
+                                                                                                                                          0.6
+                                                                                          Extrapolator                                                                                                         0.0050                                                     0.6    100
+
+                                                                                                                                                                                                               0.0025                                                                                                                                    0.01
+       0.9                                                                                                                                                                                                                                                                       200
+                                                                                                                                          0.8
+                                                                                                                                                                                                               0.0000                                                     0.8
+                                                                                                                                                                                                                             L        Q             E                            300                                                                     0.00
+                                                                                                                                                                                                                                 Extrapolator                                                    1       3        5                                                  L                   Q
+       1.0                                                                                                                                1.0                                                                                                                                                                                                                            Extrapolator
+                                                                                                                                                                                                                                                                          1.0
+
+             0                                                               1                                   3           5                  0           1                                                       3                                   5                        0                   1                                                         3                             5
+
+
+
+d)                                                                                       Error probability 0.001                   e)                           Error probability 0.018                                                                             f)                                   Error probability 0.031
+       0.6
+                                                                                                                           Ideal                    Ideal                                                                                                                            Ideal
+                                                                                                                                          0.4       L                                                                                                                     0.2
+                                                                                                                           L                                                                                                                                                         L
+                                                                                                                                                    Q
+
+
+
+
+                                            Std Dev of extrapolation
+                                                                                                                           Q                                                                                                                                                         Q
+       0.7                                                                                                                                0.6
+                                                                                                                                                                                                                                                                          0.4
+                                                                       0.4
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                    Std Dev of extrapolation
+                                                                                                                                                                                                                                                                                                                                                               1.5
+                                                                                                                                          0.8
+
+                                                                       0.2                                                                                                                                                                                                0.6                                                                                  1.0
+       0.8
+
+E( )                                                                                                                               E( )                                                                                                                            E( )
+                                                                                                                                          1.0
+
+
+
+
+                                                                                                                                                                       Std Dev of extrapolation
+                                                                                                                                                                                                                                                                                                                                                               0.5
+                                                                       0.0
+                                                                                     L                   Q                                1.2                                                                                                                             0.8
+                                                                                          Extrapolator                                                                                                    1.0                                                                                                                                                  0.0
+       0.9                                                                                                                                                                                                                                                                                                                                                           L                   Q
+                                                                                                                                          1.4                                                                                                                                                                                                                             Extrapolator
+                                                                                                                                                                                                          0.5                                                             1.0
+
+                                                                                                                                          1.6
+       1.0                                                                                                                                                                                                0.0
+                                                                                                                                                                                                                        L                     Q                           1.2
+                                                                                                                                          1.8                                                                               Extrapolator
+
+             0                                                                                                       1   1.1 1.2                0                                                                                         1       1.1 1.2                        0                                                                                            1    1.1 1.2
+
+
+
+
+Fig. 10. Extrapolation for different regions of the calibration phase diagrams in Fig. 6. The top (bottom) row is for noise factors of [1, 3, 5] ([1, 1.1, 1.2]),
+and the depolarizing gate error probability increases from left to right. As the error increases, extrapolation functions with more curvature (e.g. exponential)
+are required to minimize the bias compared to an extrapolation function with less curvature (e.g. linear). However, such functions have more variance in the
+extrapolated value. Additionally, smaller noise factors enable ZNE to be used for larger circuit areas.
+
+
+
+formal protocols for choosing the extrapolation function and
+noise factors to be a valuable contribution.                                                                                                                                                                                q0                              U3 (θ1 , θ2 , θ3 )             P (ϕ1 )
+
+                                                                                                  A PPENDIX B                                                                                                               q1        X                     U3 (θ1 , θ2 , θ3 )                                U3 (θ1 , θ2 , θ3 )                                                P (ϕ2 )
+                                                                                             E XPERIMENTAL DETAILS
+A. Circuits for spin dynamics                                                                                                                                                                                               q2                              U3 (θ1 , θ2 , θ3 )                                U3 (θ1 , θ2 , θ3 )                                                P (ϕ3 )
+
+   The results in Fig. 6, 7, and 8 were performed on brickwork                                                                                                                                                              q3        X                     U3 (θ1 , θ2 , θ3 )                                U3 (θ1 , θ2 , θ3 )                                                P (ϕ4 )
+circuits for spin dynamics as shown in Fig. 11. These circuits
+are parametrized by disorder ϕi for each qubit i and interaction                                                                                                                                                            q4                              U3 (θ1 , θ2 , θ3 )                                U3 (θ1 , θ2 , θ3 )                                                P (ϕ5 )
+strength θ1 . We set θ2 = θ3 = 0. The disorders are randomly
+sampled from a uniform distribution between −π and π, and                                                                                                                                                                   q5        X                     U3 (θ1 , θ2 , θ3 )             P (ϕ6 )
+θ1 is set to 0.05π, such that local charges do not decay too
+quickly. Each time-evolution step in the dotted box in Fig. 11                                                                                                                                                   Fig. 11. A 6-qubit circuit for spin dynamics. The boxed region denotes one
+has a two-qubit depth of 2. In our calculations, we study                                                                                                                                                        time-evolution step with a two-qubit depth of two that can be repeated to
+                                                                                                                                                                                                                 increase the depth of the circuit. This figure was drawn using Quantikz [45].
+circuits with up to 35 steps, or two-qubit depth of 70. For the
+104-qubit example run on real quantum hardware, the largest
+circuit contains 3, 605 two-qubit gates.
+                                                                                                                                                                                                                       superconducting qubits,” Journal of Applied Physics,
+B. Software implementation                                                                                                                                                                                             vol. 132, no. 16, p. 160902, Oct. 2022. [Online].
+   For this study we have used a number of open-source                                                                                                                                                                 Available: https://doi.org/10.1063/5.0082975
+tools. Zero-noise extrapolation was performed using the open-                                                                                                                                                      [2] A. Kandala, A. Mezzacapo, K. Temme, M. Takita,
+source prototype-zne [13], which wraps the Estimator                                                                                                                                                                   M. Brink, J. M. Chow, and J. M. Gambetta, “Hardware-
+primitive as defined in Qiskit’s standard BaseEstimator                                                                                                                                                                efficient variational quantum eigensolver for small
+interface [17]. Much of the functionality discussed is also                                                                                                                                                            molecules and quantum magnets,” Nature, vol. 549,
+available to users via IBM’s Qiskit Runtime.                                                                                                                                                                           no. 7671, pp. 242–246, Sep. 2017. [Online]. Available:
+                                                                                                                                                                                                                       https://doi.org/10.1038/nature23879
+                                                                                                             R EFERENCES                                                                                           [3] K. Temme, S. Bravyi, and J. M. Gambetta, “Error mitiga-
+ [1] S. Bravyi, O. Dial, J. M. Gambetta, D. Gil, and                                                                                                                                                                   tion for short-depth quantum circuits,” Physical Review
+     Z. Nazario, “The future of quantum computing with                                                                                                                                                                 Letters, vol. 119, no. 18, Nov. 2017. [Online]. Available:
+
+
+
+                                                                                                                                                                                          8
+     https://doi.org/10.1103/physrevlett.119.180509                       Aug. 2022. [Online]. Available: https://doi.org/10.22331/
+ [4] E. van den Berg, Z. K. Minev, A. Kandala, and                        q-2022-08-11-774
+     K. Temme, “Probabilistic error cancellation with sparse         [15] V. Russo, A. Mari, N. Shammah, R. LaRose, and
+     pauli–lindblad models on noisy quantum processors,”                  W. J. Zeng, “Testing platform-independent quantum
+     Nature Physics, May 2023. [Online]. Available: https:                error mitigation on noisy quantum computers,” 2022.
+     //doi.org/10.1038/s41567-023-02042-2                                 [Online]. Available: https://arxiv.org/abs/2210.07194
+ [5] M. Huo and Y. Li, “Dual-state purification for                  [16] A. Kirmani, D. S. Wang, P. Ghaemi, and A. Rahmani,
+     practical quantum error mitigation,” Physical Review A,              “Braiding fractional quantum hall quasiholes on a
+     vol. 105, p. 022427, Feb 2022. [Online]. Available:                  superconducting quantum processor,” 2023. [Online].
+     https://link.aps.org/doi/10.1103/PhysRevA.105.022427                 Available: https://arxiv.org/abs/2303.04806
+ [6] W. J. Huggins, S. McArdle, T. E. O’Brien, J. Lee,               [17] Qiskit contributors, “Qiskit: An open-source framework
+     N. C. Rubin, S. Boixo, K. B. Whaley, R. Babbush,                     for quantum computing,” 2023.
+     and J. R. McClean, “Virtual distillation for quantum            [18] P. Rivero, “Staged primitives,” 2023. [Online]. Available:
+     error mitigation,” Physical Review X, vol. 11, no. 4,                https://doi.org/10.5281/zenodo.7613387
+     Nov. 2021. [Online]. Available: https://doi.org/10.1103/        [19] I. Henao, J. P. Santos, and R. Uzdin, “Adaptive
+     physrevx.11.041036                                                   quantum error mitigation using pulse-based inverse
+ [7] Z. Cai, R. Babbush, S. C. Benjamin, S. Endo, W. J.                   evolutions,” arXiv, 2023. [Online]. Available: https:
+     Huggins, Y. Li, J. R. McClean, and T. E. O’Brien,                    //arxiv.org/abs/2303.05001
+     “Quantum error mitigation,” 2022. [Online]. Available:          [20] M. Maronese, L. Moro, L. Rocutto, and E. Prati,
+     https://arxiv.org/abs/2210.00921                                     “Quantum compiling,” 2021. [Online]. Available: https:
+ [8] Y. Li and S. C. Benjamin, “Efficient variational quantum             //arxiv.org/abs/2112.00187
+     simulator incorporating active error minimization,”             [21] G. Li, Y. Ding, and Y. Xie, “Tackling the qubit mapping
+     Physical Review X, vol. 7, p. 021050, Jun 2017. [Online].            problem for nisq-era quantum devices,” 2018. [Online].
+     Available: https://link.aps.org/doi/10.1103/PhysRevX.7.              Available: https://arxiv.org/abs/1809.02573
+     021050                                                          [22] K. Schultz, R. LaRose, A. Mari, G. Quiroz, N. Shammah,
+ [9] T. Giurgica-Tiron, Y. Hindy, R. LaRose, A. Mari,                     B. D. Clader, and W. J. Zeng, “Impact of time-correlated
+     and W. J. Zeng, “Digital zero noise extrapolation for                noise on zero-noise extrapolation,” Physical Review
+     quantum error mitigation,” 5 2020. [Online]. Available:              A, vol. 106, no. 5, nov 2022. [Online]. Available:
+     http://arxiv.org/abs/2005.10921                                      https://doi.org/10.1103%2Fphysreva.106.052406
+[10] A. Mari, N. Shammah, and W. J. Zeng, “Extending                 [23] A. He, B. Nachman, W. A. de Jong, and C. W.
+     quantum probabilistic error cancellation by noise                    Bauer, “Zero-noise extrapolation for quantum-gate error
+     scaling,” Physical Review A, vol. 104, p. 052607,                    mitigation with identity insertions,” Physical Review
+     Nov 2021. [Online]. Available: https://link.aps.org/doi/             A, vol. 102, no. 1, Jul. 2020. [Online]. Available:
+     10.1103/PhysRevA.104.052607                                          https://doi.org/10.1103/physreva.102.012426
+[11] Y. Kim, A. Eddins, S. Anand, K. X. Wei, E. van den              [24] V. R. Pascuzzi, A. He, C. W. Bauer, W. A. de Jong,
+     Berg, S. Rosenblatt, H. Nayfeh, Y. Wu, M. Zaletel,                   and B. Nachman, “Computationally efficient zero-
+     K. Temme, and A. Kandala, “Evidence for the utility                  noise extrapolation for quantum-gate-error mitigation,”
+     of quantum computing before fault tolerance,” Nature,                Physical Review A, vol. 105, no. 4, apr 2022.
+     vol. 618, no. 7965, pp. 500–505, Jun. 2023. [Online].                [Online]. Available: https://doi.org/10.1103%2Fphysreva.
+     Available: https://doi.org/10.1038/s41586-023-06096-3                105.042406
+[12] Y. Kim, C. J. Wood, T. J. Yoder, S. T. Merkel,                  [25] S. Endo, S. C. Benjamin, and Y. Li, “Practical quantum
+     J. M. Gambetta, K. Temme, and A. Kandala,                            error mitigation for near-future applications,” Physical
+     “Scalable error mitigation for noisy quantum                         Review X, vol. 8, p. 031027, Jul 2018. [Online].
+     circuits produces competitive expectation values,”                   Available: https://link.aps.org/doi/10.1103/PhysRevX.8.
+     Nature Physics, Feb. 2023. [Online]. Available:                      031027
+     https://doi.org/10.1038/s41567-022-01914-3                      [26] Z. Cai, “Multi-exponential error extrapolation
+[13] P. Rivero, F. Metz, A. Hasan, A. M. Brańczyk, and                   and combining error mitigation techniques for
+     C. Johnson, “Zero noise extrapolation prototype,” https:             nisq applications,” 2020. [Online]. Available:
+     //github.com/qiskit-community/prototype-zne, 2022.                   https://arxiv.org/abs/2007.01265
+[14] R. LaRose, A. Mari, S. Kaiser, P. J. Karalekas,                 [27] A. Lowe, M. H. Gordon, P. Czarnik, A. Arrasmith,
+     A. A. Alves, P. Czarnik, M. E. Mandouh, M. H.                        P. J. Coles, and L. Cincio, “Unified approach to
+     Gordon, Y. Hindy, A. Robertson, P. Thakre, M. Wahl,                  data-driven quantum error mitigation,” Physical Review
+     D. Samuel, R. Mistri, M. Tremblay, N. Gardner,                       Research, vol. 3, no. 3, Jul. 2021. [Online]. Available:
+     N. T. Stemen, N. Shammah, and W. J. Zeng,                            https://doi.org/10.1103/physrevresearch.3.033098
+     “Mitiq: A software package for error mitigation on              [28] M. R. Geller, “Rigorous measurement error correction,”
+     noisy quantum computers,” Quantum, vol. 6, p. 774,                   Quantum Science and Technology, vol. 5, no. 3,
+
+
+
+                                                                 9
+     p. 03LT01, Jun. 2020. [Online]. Available: https:                [40] P. Jurcevic, A. Javadi-Abhari, L. S. Bishop, I. Lauer, D. F.
+     //doi.org/10.1088/2058-9565/ab9591                                    Bogorin, M. Brink, L. Capelluto, O. Günlük, T. Itoko,
+[29] S. Bravyi, S. Sheldon, A. Kandala, D. C. Mckay,                       N. Kanazawa, A. Kandala, G. A. Keefe, K. Krsulich,
+     and J. M. Gambetta, “Mitigating measurement errors                    W. Landers, E. P. Lewandowski, D. T. McClure,
+     in multiqubit experiments,” Physical Review A, vol.                   G. Nannicini, A. Narasgond, H. M. Nayfeh, E. Pritchett,
+     103, p. 042605, Apr 2021. [Online]. Available: https:                 M. B. Rothwell, S. Srinivasan, N. Sundaresan, C. Wang,
+     //link.aps.org/doi/10.1103/PhysRevA.103.042605                        K. X. Wei, C. J. Wood, J.-B. Yau, E. J. Zhang, O. E.
+[30] P. D. Nation, H. Kang, N. Sundaresan, and J. M.                       Dial, J. M. Chow, and J. M. Gambetta, “Demonstration
+     Gambetta, “Scalable mitigation of measurement errors                  of quantum volume 64 on a superconducting quantum
+     on quantum computers,” PRX Quantum, vol. 2,                           computing system,” Quantum Science and Technology,
+     p. 040326, Nov 2021. [Online]. Available: https:                      vol. 6, no. 2, p. 025020, Mar. 2021. [Online]. Available:
+     //link.aps.org/doi/10.1103/PRXQuantum.2.040326                        https://doi.org/10.1088/2058-9565/abe519
+[31] E. van den Berg, Z. K. Minev, and K. Temme, “Model-              [41] N. Ezzell, B. Pokharel, L. Tewala, G. Quiroz, and
+     free readout-error mitigation for quantum expectation                 D. A. Lidar, “Dynamical decoupling for superconducting
+     values,” Physical Review A, vol. 105, no. 3, mar 2022.                qubits: a performance survey,” 2022. [Online]. Available:
+     [Online]. Available: https://doi.org/10.1103%2Fphysreva.              https://arxiv.org/abs/2207.03670
+     105.032620                                                       [42] E. Pelofske, V. Russo, R. LaRose, A. Mari, D. Strano,
+[32] J. Kim, B. Oh, Y. Chong, E. Hwang, and D. K.                          A. Bärtschi, S. Eidenbenz, and W. J. Zeng, “Increasing
+     Park, “Quantum readout error mitigation via deep                      the measured effective quantum volume with zero
+     learning,” New Journal of Physics, vol. 24, no. 7,                    noise extrapolation,” 2023. [Online]. Available: https:
+     p. 073009, Jul. 2022. [Online]. Available: https:                     //arxiv.org/abs/2306.15863
+     //doi.org/10.1088/1367-2630/ac7b3d                               [43] D.     Bultrini,    M.    H.    Gordon,      P.   Czarnik,
+[33] S. Sheldon, E. Magesan, J. M. Chow, and J. M.                         A. Arrasmith, M. Cerezo, P. J. Coles, and
+     Gambetta, “Procedure for systematically tuning up                     L. Cincio, “Unifying and benchmarking state-of-
+     cross-talk in the cross-resonance gate,” Physical Review              the-art quantum error mitigation techniques,” Quantum,
+     A, vol. 93, p. 060302, Jun 2016. [Online]. Available:                 vol. 7, p. 1034, Jun. 2023. [Online]. Available:
+     https://link.aps.org/doi/10.1103/PhysRevA.93.060302                   https://doi.org/10.22331/q-2023-06-06-1034
+[34] J. J. Wallman and J. Emerson, “Noise tailoring                   [44] C. Bi, K. Fishbein, M. Bouhrara, and R. G. Spencer,
+     for scalable quantum computation via randomized                       “Stabilization of parameter estimates from multiexpo-
+     compiling,” Physical Review A, vol. 94, p. 052325,                    nential decay through extension into higher dimensions,”
+     Nov 2016. [Online]. Available: https://link.aps.org/doi/              Scientific Reports, vol. 12, no. 1, Apr. 2022. [Online].
+     10.1103/PhysRevA.94.052325                                            Available: https://doi.org/10.1038/s41598-022-08638-7
+[35] Z. Cai and S. C. Benjamin, “Constructing smaller                 [45] A. Kay, “Tutorial on the quantikz package,” 2018.
+     pauli twirling sets for arbitrary error channels,”                    [Online]. Available: https://arxiv.org/abs/1809.03842
+     Scientific Reports, vol. 9, 2019. [Online]. Available:
+     www.nature.com/scientificreports/
+[36] T. Kurita, H. Qassim, M. Ishii, H. Oshima, S. Sato,
+     and J. Emerson, “Synergetic quantum error mitigation
+     by randomized compiling and zero-noise extrapolation
+     for the variational quantum eigensolver,” 2022. [Online].
+     Available: https://arxiv.org/abs/2212.11198
+[37] I.-C. Chen, B. Burdick, Y. Yao, P. P. Orth, and
+     T. Iadecola, “Error-mitigated simulation of quantum
+     many-body scars on quantum computers with pulse-
+     level control,” Physical Review Research, vol. 4,
+     p. 043027, Oct 2022. [Online]. Available: https:
+     //link.aps.org/doi/10.1103/PhysRevResearch.4.043027
+[38] K. J. Sung, M. J. Rančić, O. T. Lanes, and N. T.
+     Bronn, “Simulating majorana zero modes on a noisy
+     quantum processor,” Quantum Science and Technology,
+     vol. 8, no. 2, p. 025010, Feb. 2023. [Online]. Available:
+     https://doi.org/10.1088/2058-9565/acb796
+[39] L. Viola, E. Knill, and S. Lloyd, “Dynamical decoupling
+     of open quantum systems,” Phys. Rev. Lett., vol. 82,
+     pp. 2417–2421, Mar 1999. [Online]. Available: https:
+     //link.aps.org/doi/10.1103/PhysRevLett.82.2417
+
+
+
+                                                                 10
+

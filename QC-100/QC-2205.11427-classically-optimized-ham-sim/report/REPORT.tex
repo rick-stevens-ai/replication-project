@@ -1,0 +1,122 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\title{Replication Report --- arXiv:2205.11427 \\
+\large Classically Optimized Hamiltonian Simulation (Mc Keever \& Lubasch, Quantinuum)}
+\author{Ollie (subagent), QC-100 wave}
+\date{2026-07-03 (report), 2026-07-06 (LaTeX packaging)}
+
+\begin{document}
+\maketitle
+
+\section{Overview and verdict}
+
+\textbf{Verdict: REPLICATED.} The paper's central claim --- that classically-optimized brickwall
+quantum circuits reach approximation error $\varepsilon_{\text{approx}}$ up to two orders of
+magnitude smaller than depth-matched Trotter product formulas at brickwall depth $L \geq 2$ ---
+is directly reproduced on a small ($n=3$) instance of the paper's own transverse-field-plus-longitudinal
+Ising Hamiltonian, in real numpy/scipy simulation, and independently cross-checked with a
+bit-identical Qiskit 2.5 circuit.
+
+The paper (Mc Keever \& Lubasch 2023, PRR) proposes fitting a shallow brickwall ansatz
+$U(\theta)$ to $\exp(-i t H)$ using classical tensor-network optimization (MPO contraction with
+Newton / L-BFGS on a Frobenius-norm objective), producing an ``optimized Trotter product formula''
+that is either fewer-gate-at-fixed-fidelity or higher-fidelity-at-fixed-gate-count than canonical
+Trotter I / Trotter II.
+
+\section{Central Hamiltonian and metric}
+
+The paper's benchmark Hamiltonian (Eq.~7):
+\[
+H = J \sum_{k=1}^{n-1} Z_k Z_{k+1} + g \sum_{k=1}^{n} X_k + h \sum_{k=1}^{n} Z_k,
+\qquad (J,g,h) = (2,1,1), \ \text{open BC}.
+\]
+Approximation error (Eq.~2):
+\[
+\varepsilon_{\text{approx}} = \sqrt{1 - \operatorname{Re}\!\bigl[\operatorname{Tr}\!\bigl(U(\theta)^\dagger e^{-itH}\bigr)\bigr] / 2^n}.
+\]
+
+\section{Headline reproduction (from \texttt{sweep.csv})}
+
+Speedup $\varepsilon_{\text{Trotter-II}}/\varepsilon_{\text{opt}}$ at matched brickwall depth:
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+$t$ & $L=1$ & $L=2$ & $L=3$ \\
+\midrule
+0.1 & 1.9$\times$ & \textbf{43}$\times$   & 13$\times$ \\
+0.2 & 1.7$\times$ & \textbf{64}$\times$   & \textbf{74}$\times$ \\
+0.4 & 1.5$\times$ & 10$\times$            & \textbf{95}$\times$ \\
+0.8 & 2.0$\times$ & 2$\times$             & 14$\times$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Paper Fig.~1 caption states the L=2 and L=3 classically-optimized circuits are ``two orders of
+magnitude more accurate than the Trotter formulas.'' Our L=2 peak is $64\times$ at $t=0.2$;
+our L=3 peak is $95\times$ at $t=0.4$. Direction (opt wins), order of magnitude ($\sim 10^2$),
+and depth-trend (gap widens with $L$) all match.
+
+\section{Cross-check evidence}
+
+Qiskit 2.5 rebuild with native \texttt{rx}, \texttt{rz}, \texttt{rzz} gates matches the numpy
+unitary to machine precision:
+\begin{itemize}
+  \item Trotter II ($n=3,\, t=0.2,\, \text{reps}=2$): $\|U_{\text{numpy}} - U_{\text{qiskit}}\|_F = 9.4\times 10^{-17}$.
+  \item Opt L=2 ($n=3,\, t=0.2$): $\|U_{\text{numpy}} - U_{\text{qiskit}}\|_F = 1.2\times 10^{-15}$.
+\end{itemize}
+This confirms the improvement is a real property of a physically realizable, native-gate
+quantum circuit, not a matrix-math artifact.
+
+\section{Critique --- what we DID vs.\ what the paper covers}
+
+\subsection*{Independently reimplemented (yes)}
+\begin{itemize}
+  \item Hamiltonian (Eq.~7) with $(J,g,h)=(2,1,1)$, open BC, $n=3$.
+  \item Brickwall ansatz: single-qubit $R_z R_x R_z$ blocks plus two-qubit $U_{zz}(\theta) = \exp(-i\theta Z\!\otimes\! Z / 2)$ bricks.
+  \item $\varepsilon_{\text{approx}}$ metric (Eq.~2).
+  \item Trotter I and Trotter II product formulas at matched brickwall depth.
+  \item Classical optimizer: \texttt{scipy.optimize.minimize(L-BFGS-B)} maximizing $\operatorname{Re}\operatorname{Tr}(U(\theta)^\dagger U_{\text{target}})$, 3 random restarts per $(t, L)$, best kept.
+  \item Independent Qiskit 2.5 circuit rebuild + Frobenius-norm cross-check.
+\end{itemize}
+
+\subsection*{Deliberately out of scope for this QC-100 minute-scale rerun}
+\begin{itemize}
+  \item Larger $n$ (paper goes up to $n=8$ with MPO contraction; we ran $n=3$). The paper explicitly says $n=5$ is ``quantitatively similar'' to $n=8$, and $n=3$ sits directly below that.
+  \item Taylor-based scalable variant (Fig.~1 dashed lines, $S=100$--$300$).
+  \item Ground-state phase-error metric (Eq.~3), which would require a DMRG reference for $n \leq 14$.
+  \item Trotter IV (Suzuki fourth-order); we only did Trotter I and Trotter II.
+  \item Global Newton with pseudoinverse regularization (paper's actual optimizer). We used L-BFGS-B, which under-shoots the paper's saturation floor at $L=3, t=0.1$ ($\sim 3\times 10^{-5}$ vs.\ paper's $\sim 10^{-5}$). This is a quantitative under-shoot, not a contradiction.
+\end{itemize}
+
+\subsection*{Honest limitations}
+\begin{itemize}
+  \item Only $n=3$ was tested. The paper's headline figure uses $n=8$.
+  \item Only 3 random restarts per point; more restarts would probably close the L=3 short-time gap.
+  \item Only one Hamiltonian instance $(J,g,h) = (2,1,1)$ was tested; the paper's robustness sweep across coupling ratios was not rerun.
+  \item Gate-count / depth reduction \emph{ratio} was compared at matched depth, but a full ``$X$ CNOTs at fidelity $Y$'' Pareto-frontier plot (paper's real engineering-cost message) was not reproduced.
+  \item Simulation-fidelity retention was quantitatively verified via $\varepsilon_{\text{approx}}$ but not via alternative fidelity metrics (e.g.\ average gate fidelity, diamond distance).
+\end{itemize}
+
+\section{Reproducing commands}
+
+\begin{lstlisting}[basicstyle=\ttfamily\small,breaklines=true]
+cd ~/Dropbox/REPLICATE-PROJECT/QC-100/QC-2205.11427-classically-optimized-ham-sim
+python3 -m venv .venv && source .venv/bin/activate
+pip install --quiet qiskit qiskit-aer numpy scipy
+python src/replicate.py            # ~6 min main sweep
+cd src && python qiskit_crosscheck.py
+\end{lstlisting}
+
+\section{Open questions}
+
+See \texttt{open\_questions.json} and \texttt{open\_questions\_section.tex} for five open
+questions with concrete next-step probes.
+
+\end{document}

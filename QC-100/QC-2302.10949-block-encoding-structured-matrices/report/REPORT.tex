@@ -1,0 +1,186 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\title{QC-100 Replication: Block-Encoding Structured Matrices\\
+       \large arXiv:2302.10949 (S\"underhauf, Campbell, Camps, \emph{Quantum} 2024)}
+\author{Ollie (agent:main) --- independent replication, QC-100 wave}
+\date{2026-07-03}
+
+\begin{document}
+\maketitle
+
+\section*{Verdict}
+\textbf{REPLICATED.} Both the block-encoding property and the headline
+flag-qubit cost claim reproduce to machine precision for
+$N \in \{4,8,16\}$ on real Qiskit statevector simulation, and the
+$1 + \log_2 S$ vs $3 + \log_2 N$ flag-qubit scaling holds exactly for
+every $N$ tested up to $4096$.
+
+\section{Paper summary}
+The paper introduces \emph{block-encoding circuits} for
+arithmetically-structured matrices --- sparse matrices whose
+non-zero pattern and repeated-value structure can be captured by short
+arithmetic formulas. Block encodings are the input model for the
+quantum singular value transform (QSVT) and downstream algorithms
+(HHL / matrix inversion, Hamiltonian simulation, phase estimation).
+
+A block encoding of a matrix $A$ is a unitary $U$ on a larger Hilbert
+space such that
+\[
+    U = \begin{pmatrix} A/\alpha & \cdot \\ \cdot & \cdot \end{pmatrix},
+\]
+where $\alpha$ is the \emph{subnormalisation}. The paper's ``base
+scheme'' (Sec.~2.1) uses three oracles $O_c$, $O_r$, $O_{\mathrm{data}}$
+plus a Hadamard-diffusion register, and gives subnormalisation
+$\alpha = S \cdot \|A\|_{\max}$ with a flag-qubit count of
+$1 + \log_2 S$ --- \emph{constant in $N$} for any matrix family of
+fixed row/column sparsity $S$.
+
+\section{Claims exercised}
+\begin{itemize}
+  \item \textbf{C1} block-encoding property (Eq.~12) --- \emph{tested}.
+  \item \textbf{C2} $\alpha = S \|A\|_{\max}$ --- \emph{tested}.
+  \item \textbf{C3} $1 + \log_2 S$ flag qubits, independent of $N$
+        --- \emph{tested}.
+  \item \textbf{C4} tridiagonal instance (Sec.~3.3): base scheme
+        $= 3$ flag qubits vs Gily\'en et al.\ $= 3 + \log_2 N$
+        --- \emph{tested}.
+  \item \textbf{C5} $O(D)$ Toffoli data-loading count via QROM ---
+        \emph{partial} (verified $D = 2N$ rotations; QROM Toffoli
+        derivation not redone).
+  \item \textbf{C6} preamplified / PREP-UNPREP schemes ---
+        \emph{not exercised} (out of scope).
+  \item \textbf{C7} 2D Laplacian, Toeplitz, checkerboard, extended
+        binary tree families --- \emph{not exercised} (only the
+        tridiagonal family, the one with the sharpest headline
+        scaling, was reimplemented).
+\end{itemize}
+
+\section{Method}
+Full construction in \texttt{src/block\_encode\_tridiagonal.py}. In
+brief:
+\begin{enumerate}
+  \item Build the tridiagonal $(d,m) \leftrightarrow (i,j)$ labelling
+        (paper Eqs.~57--60) with padding $D_{\mathrm{pad}} = 2N$,
+        $M = 2$, $S = 4$.
+  \item Realise $O_c$ and $O_r$ as \emph{explicit permutations} of a
+        $4N$-dimensional Hilbert space (since $MD = NS = 4N$).
+  \item Build $R_{\mathrm{data}}$ as a multiplexed $R_y$ loading
+        $\alpha_{dm} = A_d / \|A\|_{\max}$ per in-range pair, $0$
+        otherwise.
+  \item Assemble
+        $U = H_S^{\dagger} \, O_r \, R_{\mathrm{data}} \, O_c^{\dagger} \, H_S$
+        on registers \texttt{data (1q) $\otimes$ s (2q) $\otimes$ out ($\log_2 N$ q)}
+        for a total of $3 + \log_2 N$ qubits.
+  \item Verify unitarity ($\|U^\dagger U - I\|_\infty < 10^{-14}$) and
+        the block-encoding property by reading matrix elements
+        $\langle 0,0,i|\,U\,|0,0,j\rangle$ and by an independent
+        Qiskit \texttt{Statevector} evolution.
+\end{enumerate}
+
+\section{Results}
+\begin{center}
+\begin{tabular}{rrrrrr}
+\toprule
+$N$ & qubits & $\alpha = S\|A\|_{\max}$ & $\|U^\dagger U - I\|_\infty$
+    & $\max|\text{top-left}(U) - A/\alpha|$ (NumPy)
+    & Qiskit re-verify \\
+\midrule
+$4$  & $5$ & $3.8100$ & $1.0\text{e-}15$ & $1.11\text{e-}16$ & $1.11\text{e-}16$ \\
+$8$  & $6$ & $3.8982$ & $1.2\text{e-}15$ & $1.11\text{e-}16$ & $1.11\text{e-}16$ \\
+$16$ & $7$ & $3.8799$ & $1.2\text{e-}15$ & $1.11\text{e-}16$ & $1.11\text{e-}16$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Errors sit at machine precision. The flag-qubit scaling table
+($N = 4$ through $4096$) matches the paper's $1 + \log_2 S = 3$
+prediction exactly, while Gily\'en et al.'s scheme grows as
+$3 + \log_2 N$.
+
+\section{Critique (what was actually done vs what the paper claims)}
+
+\textbf{What this replication verifies.}
+The block-encoding \emph{unitary} was independently reimplemented from
+scratch (not vendored) for the tridiagonal family, and the two headline
+\emph{numerical} claims --- (a) the encoded top-left block equals
+$A/\alpha$ to machine precision, and (b) subnormalisation
+$\alpha = S \|A\|_{\max}$ --- reproduce exactly. The
+\emph{structural} flag-qubit claim ($1 + \log_2 S$ vs
+$3 + \log_2 N$) is verified from the actual constructed circuits, not
+copied from the paper.
+
+\textbf{What this replication does \emph{not} verify.}
+\begin{itemize}
+  \item \emph{Toffoli / T-count comparisons.} The paper's dominant
+        practical claim is a Toffoli cost of $O(D)$ per data-loading
+        (via QROM, ref.~[17]). We verified $D = 2N$ non-trivial
+        rotations for the tridiagonal family but did \emph{not}
+        re-derive or measure a compiled Toffoli count. Any claim of
+        the form ``fewer T-gates than a generic block encoding'' is
+        \emph{not} independently substantiated by this run.
+  \item \emph{Baseline comparison.} We tabulated Gily\'en et al.'s
+        flag-qubit count from its closed form ($3 + \log_2 N$) rather
+        than implementing that scheme. A true head-to-head against a
+        generic LCU or select/swap block encoding on the same
+        tridiagonal instance is missing --- we do not have gate-count
+        or subnormalisation numbers for the baseline circuit as
+        actually compiled.
+  \item \emph{Preamplified / PREP-UNPREP schemes} (Secs.~2.2, 2.3).
+        These are where the paper claims stronger subnormalisation
+        wins for certain matrices. Not exercised at all here.
+  \item \emph{Other matrix families} (2D Laplacian, Toeplitz,
+        checkerboard, extended binary tree; Sec.~3). Only the
+        tridiagonal family was replicated.
+  \item \emph{Scaling beyond $N=16$.} Statevector verification stops at
+        $N=16$ because a full unitary is $O(N^2 S^2)$ complex entries;
+        the flag-qubit-count table (up to $N=4096$) is a
+        \emph{structural} check, not a full simulation.
+  \item \emph{Downstream algorithmic gain.} No QSVT / HHL /
+        Hamiltonian-simulation end-to-end was run. The claim that this
+        block-encoding advantage carries through to a downstream
+        query-complexity advantage is inherited from the paper, not
+        tested.
+\end{itemize}
+
+\textbf{Structure-vs-cost trade-off.}
+Quantitatively, the trade-off we \emph{did} exercise is
+$(N,\alpha,\text{flag qubits})$: for the tridiagonal family the paper
+predicts $\alpha \to S \|A\|_{\max} \le 4$ (independent of $N$) with a
+constant flag-qubit count, and we observe $\alpha \in [3.81, 3.90]$
+and $3$ flag qubits at all $N$ tested. The paper's promise ``keep the
+matrix structure narrow $\Rightarrow$ keep the block-encoding cost
+low'' is verified for this narrow structure. It is \emph{not} verified
+that the same story survives when the structure is relaxed
+(nearly-tridiagonal / banded-with-noise / general-sparse). That is one
+of the open questions.
+
+\textbf{Honest headline: exercised.} The single headline that got
+exercised is the flag-qubit / subnormalisation claim for the
+tridiagonal instance (Sec.~3.3 of the paper), which reproduces exactly.
+The broader claim that the construction \emph{generalises} across all
+four matrix families in Sec.~3 was \emph{not} directly retested.
+
+\section{Verdict}
+\textbf{REPLICATED} on the exercised headline (block-encoding property
+$+$ flag-qubit / subnormalisation for the tridiagonal family). Broader
+claims (other families, preamplified schemes, Toffoli / T-count,
+downstream QSVT) remain untested and are captured as open questions.
+
+\input{open_questions_section.tex}
+
+\section*{Reproducibility}
+\begin{lstlisting}[basicstyle=\ttfamily\small]
+cd QC-2302.10949-block-encoding-structured-matrices
+python3 -m venv .venv && source .venv/bin/activate
+pip install qiskit numpy scipy
+python src/block_encode_tridiagonal.py
+\end{lstlisting}
+Expected runtime $\approx$ 5\,s on a laptop CPU. All evidence
+(unitaries, JSON results, run log) is under \texttt{report/evidence/}.
+
+\end{document}

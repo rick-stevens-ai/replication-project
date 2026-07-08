@@ -1,0 +1,37 @@
+\section{Open questions and next steps}
+
+Five concrete open questions raised by (or not answered by) this replication effort:
+
+\begin{enumerate}
+
+\item \textbf{Does the parallel Pauli-term speedup persist and remain near-linear when scaled from a single 20-CPU box to a distributed multi-node cluster (4--8 nodes, 64--256 workers total) via MPI or Ray?}
+
+\emph{Basis.} Our benchmark plateaus at 75--92\% efficiency for 2--8 workers on shared-memory ThreadPool. The paper's Aspen-M-1 result at 24 parallel circuits shows $\sim$33\% efficiency, suggesting super-linear efficiency loss at larger scale. On distributed clusters, inter-node communication cost per iteration (broadcasting the current parameter vector plus gathering per-term expectation values) becomes a new dominant term that neither our simulation nor the paper's on-chip runs isolates.
+
+\emph{Next steps.} Port \texttt{vqe\_parallel\_bench.py} to Ray or \texttt{mpi4py}; sweep worker counts 8, 16, 32, 64, 128 across nodes on free HPC (ALCF Polaris or CELS chicago nodes); report speedup and efficiency vs the same latency-injection ladder (5, 10, 50~ms/term) to isolate compute-vs-communication ratios. Compare Ray actor pool vs \texttt{mpi4py} collective bcast/gather.
+
+\item \textbf{How does the parallel Pauli-term measurement scheme integrate with load-balancing across heterogeneous accelerators (GPU statevector + CPU statevector + cloud-QPU shot backends) where per-term evaluation cost varies by 2--3 orders of magnitude?}
+
+\emph{Basis.} The paper assumes uniform per-term cost on a homogeneous Rigetti chip and static round-robin sharding. Our benchmark shows per-term time varies with Pauli weight (identity subterms are essentially free, 4-qubit non-identity terms cost microseconds). In a real hybrid setting, static sharding becomes a scheduling problem where a slow worker (e.g., a queued QPU job) serializes the entire iteration.
+
+\emph{Next steps.} Extend the harness to accept a per-worker cost multiplier; implement three schedulers (static round-robin, work-stealing queue, longest-processing-time-first with a per-term cost oracle); measure iteration-time variance and mean speedup across heterogeneous-latency mixes; identify the crossover where dynamic scheduling beats static.
+
+\item \textbf{For chemistry benchmarks beyond H2/H4 (LiH, BeH$_2$, H$_2$O in STO-3G or 6-31G) and combinatorial-optimization instances (MaxCut on 8--16-node graphs), how does the ratio of commuting Pauli groups to total terms scale, and does parallel-per-term speedup match parallel-per-commuting-group speedup?}
+
+\emph{Basis.} The paper measures 15 Pauli terms in 5 commuting groups for compressed Hubbard, and notes group-wise measurement roughly triples per-term efficiency. Our H2 (15 terms), H4 (185 terms), H6 (919 terms, OOM-avoided) show that Pauli-term count grows fast but the group-vs-term ratio is not systematically characterized. This ratio sets whether the parallelism ceiling is term-count-limited or group-count-limited.
+
+\emph{Next steps.} For each of LiH, BeH$_2$, H$_2$O and MaxCut on 3-regular graphs at $n = 8, 10, 12, 16$, compute total Pauli terms and number of qubit-wise commuting groups (Qiskit graph coloring); rerun the latency-injected benchmark with both term-level and group-level parallelism; report speedup($N_{\mathrm{workers}}$) curves and identify saturation.
+
+\item \textbf{How does inter-worker communication overhead scale as the state vector and per-worker term partition grow with qubit count $n$ from 4 to 20+ qubits, and at what $n$ does the state-transfer cost equal the parallel savings?}
+
+\emph{Basis.} For H2 (4 qubits), the state vector is 256 bytes and IPC overhead is a fixed 7~ms/iter for multiprocessing. For 20 qubits the state is 16~MB; per-iteration broadcast to $N$ workers costs $O(N \cdot 16~\mathrm{MB})$ which at typical LAN bandwidth is 100--1000~ms and would dominate any per-term speedup. Neither our benchmark nor the paper models this crossover directly.
+
+\emph{Next steps.} Instrument \texttt{vqe\_parallel\_bench.py} with per-phase timers (state broadcast, per-term compute, result gather); sweep $n$ from 4 to 16 in the classical simulator with 2, 4, 8 workers using persistent \texttt{multiprocessing.Pool}; fit total iteration time as a function of state-vector size and worker count; report the crossover $n$ where communication overhead equals parallel compute savings for a given latency-injection level.
+
+\item \textbf{Can an ML-scheduled (reinforcement-learning or contextual-bandit) task-assignment policy outperform static round-robin sharding of Pauli terms, and by how much, when per-term cost variance is high or worker latency is stochastic?}
+
+\emph{Basis.} The paper uses static assignment of terms to circuits on Aspen-M-1. Modern job-shop scheduling with learned policies has shown 10--30\% wall-clock gains on similar irregular workloads. Our benchmark shows a hint of this: at 6 workers efficiency drops to 72--75\%, likely because 15 terms do not divide evenly. A smarter allocator could reduce tail-worker idle time.
+
+\emph{Next steps.} Baseline three static schedulers (round-robin, greedy longest-first, balanced-partition) on the latency-injected H2 benchmark with 3, 5, 7 workers (non-divisors of 15); train a small contextual bandit that observes per-term historical cost and worker-side stochastic latency, and outputs an assignment; measure iteration-time reduction vs the best static baseline over 100 VQE iterations; report whether learned scheduling wins beyond the 5--10\% noise floor.
+
+\end{enumerate}

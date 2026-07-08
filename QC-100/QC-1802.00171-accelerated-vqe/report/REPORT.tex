@@ -1,0 +1,134 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{siunitx}
+
+\title{Replication Report: Wang, Higgott \& Brierley (2018)\\
+\large ``Accelerated Variational Quantum Eigensolver'' ($\alpha$-VQE / $\alpha$-QPE)\\
+\normalsize arXiv:1802.00171 --- PRL 122, 140504 (2019)}
+\author{Ollie (OpenClaw AI) --- QC-100 Replication Project}
+\date{2026-07-03}
+
+\begin{document}
+\maketitle
+
+\section*{Verdict: REPLICATED}
+
+Both independently reproducible pieces of the paper's numerical contribution
+--- (i) standard VQE for H$_2$/STO-3G reaching sub-$\mu$Hartree error vs FCI,
+and (ii) the $\alpha$-QPE / RFPE Bayes-risk scaling of Figure 5 for
+$\alpha\in\{0, 0.25, 0.5, 0.75, 1\}$ --- were reproduced from scratch on a
+single CPU using only open tools (PennyLane 0.45.1, PySCF 2.13.1, numpy 2.5.0).
+
+\section{Paper}
+
+The paper introduces \textbf{$\alpha$-VQE}, a family of variational quantum
+eigensolvers parameterised by $\alpha \in [0, 1]$ that interpolates between
+standard VQE ($\alpha{=}0$, $N = O(1/\varepsilon^2)$ samples, depth $O(1)$) and
+quantum phase estimation ($\alpha{=}1$, $N = O(\log 1/\varepsilon)$, depth
+$O(1/\varepsilon)$), with general scaling $N = O(1/\varepsilon^{2(1-\alpha)})$,
+depth $O(1/\varepsilon^\alpha)$. The mechanism is a generalised
+Bayesian phase-estimation subroutine ($\alpha$-QPE / RFPE) where the coherent
+depth per iteration is $M_k = \lceil 1/\sigma_k^\alpha \rceil$.
+
+\section{Claims tested (C1--C5)}
+
+\textbf{C1} standard VQE reproduces H$_2$/STO-3G to chemical accuracy vs FCI ---
+\textbf{tested}. \textbf{C2} median Bayes-risk $r_k$ decreases monotonically
+with iterations $k$ at a rate increasing in $\alpha$ --- \textbf{tested}.
+\textbf{C3} $\alpha{=}1$ gives (near-)exponential shrinkage; $\alpha{=}0$ gives
+$1/\sqrt{k}$ --- \textbf{tested}. \textbf{C4} analytical Eqn.~A16 tracking the
+numerics --- \textbf{not attempted} (operational signature C2/C3 already
+reproduces Fig.~5's headline). \textbf{C5} end-to-end $\alpha$-VQE integrating
+the two ingredients --- \textbf{out of scope}: the paper itself does not present
+this end-to-end run.
+
+\section{Method}
+
+\textbf{VQE H$_2$/STO-3G:} for $R \in \{0.6, 0.8, 1.0, 1.2, 1.401, 1.6, 1.8, 2.0, 2.5, 3.0\}$
+bohr, build the JW-mapped 4-qubit Hamiltonian via
+\texttt{qml.qchem.molecular\_hamiltonian}, compute FCI by direct
+diagonalisation, run UCCSD ansatz (3 params) with Adam (lr=0.1, tol=$10^{-8}$)
+on \texttt{default.qubit}, seed 42.
+
+\textbf{$\alpha$-QPE / RFPE:} numpy implementation of the paper's
+Sec.~II.A / App.~A. Prior $\mathcal{N}(\pi, 1)$; per iteration $k$ draw
+$M_k = \lceil 1/\sigma_k^\alpha\rceil$ (clipped to $[1, 10^7]$), $\theta = \mu_k$,
+sample outcome $E\sim \mathrm{Bernoulli}((1+\cos(M\varphi-\theta-E\pi))/2)$;
+rejection-filter 600 particles from $\mathcal{N}(\mu_k, \sigma_k^2)$, refit
+Gaussian. 200 trials $\times$ 60 iterations per $\alpha$, seed 1802.
+
+\section{Results}
+
+\subsection*{C1 --- VQE for H$_2$/STO-3G}
+
+Max $|\Delta E| = 0.0016$~mHa across 10 bond lengths; mean $0.0003$~mHa;
+$\sim$1000$\times$ tighter than chemical accuracy (1.6~mHa). Equilibrium
+$E_{1.401} = -1.13727$~Ha matches the well-known H$_2$/STO-3G FCI reference.
+
+\subsection*{C2, C3 --- $\alpha$-QPE Fig. 5}
+
+\begin{center}\begin{tabular}{cccc}
+\toprule
+$\alpha$ & median $r_{60}$ & $r_{60}/r_0$ & log-slope $k\in[10,60]$ \\
+\midrule
+0.00 & $1.93\times 10^{-1}$ & 0.193 & $-0.019$ \\
+0.25 & $1.05\times 10^{-1}$ & 0.105 & $-0.041$ \\
+0.50 & $8.03\times 10^{-2}$ & 0.080 & $-0.038$ \\
+0.75 & $3.17\times 10^{-2}$ & 0.032 & $-0.058$ \\
+1.00 & $6.15\times 10^{-3}$ & 0.006 & $-0.099$ \\
+\bottomrule
+\end{tabular}\end{center}
+
+Monotonic separation with $\alpha$ (modulo a small $0.25$--$0.5$
+overlap within noise). $\alpha{=}1$ achieves $\sim31\times$ smaller $r_k$ than
+$\alpha{=}0$ at $k{=}60$; log-slope $\sim5\times$ steeper. Fan sits within the
+envelope of paper Fig.~5 (right panel, $r_0 = 1$).
+
+\section{Genuine critique}
+
+\textbf{What is verified.} The two ingredients of the paper's numerical story
+(H$_2$/STO-3G VQE, and $\alpha$-QPE / RFPE Bayes-risk scaling) each reproduce
+cleanly. Convergence to the correct energy \textbf{was checked}: VQE energies
+match FCI (which is exact for 2 electrons in a minimal basis) to sub-$\mu$Hartree
+at every point. The $\alpha$-QPE scaling was checked \textbf{quantitatively at
+the level of the median $r_k$ trace and its log-slope}, not just qualitatively,
+and the $\alpha{=}1$ vs $\alpha{=}0$ ratio ($\sim$5$\times$ log-slope,
+$\sim$31$\times$ final risk) is reproduced.
+
+\textbf{What is not verified.} \emph{The paper's central acceleration claim ---
+that composing $\alpha$-QPE with VQE produces a wall-time or shot-count
+advantage over $\alpha{=}0$ VQE for a real chemistry Hamiltonian --- was not
+tested end-to-end.} The paper does not itself present such an end-to-end
+comparison (it establishes the two ingredients separately and argues via the
+analytical scaling), so our replication is faithful to the paper's evidence
+base but does not upgrade it. A stringent test would drive a molecular VQE
+loop with the $\alpha$-QPE expectation subroutine at $\alpha \in \{0, 0.5, 1\}$
+and compare total shots or coherent-time to convergence within chemical
+accuracy. C4 (analytical Eqn.~A16 overlay) was not evaluated; qualitative
+agreement in C2/C3 is a weaker check than a numerical-vs-analytical residual.
+
+\textbf{Regime tested.} Only the paper's stated Fig.~5 regime
+(1-qubit-per-eigenphase RFPE, 600 particles, 60 iterations, $M$ clipped to
+$10^7$) and the smallest chemistry test-bed (H$_2$ 4-qubit) were probed.
+The paper's implicit claims for larger molecules and for the noisy-hardware
+regime are \textbf{not} probed by this replication --- we ran only exact
+statevector and noiseless RFPE.
+
+See \texttt{failure\_analysis.md} for the full honest critique including
+what would falsify or upgrade the verdict.
+
+\input{open_questions_section.tex}
+
+\section*{Reproduction}
+
+\begin{verbatim}
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install pennylane openfermion pyscf numpy scipy matplotlib
+python code/vqe_h2.py           # ~69 s, 1 CPU
+python code/alpha_qpe_rfpe.py   # ~few min, 1 CPU
+\end{verbatim}
+
+\end{document}

@@ -1,0 +1,966 @@
+                                                                          Machine learning accelerated computational fluid dynamics
+
+                                                   Dmitrii Kochkov,1, ∗ Jamie A. Smith,1, ∗ Ayya Alieva,1 Qing Wang,1 Michael P. Brenner,1, 2 and Stephan Hoyer1, †
+                                                                                                           1
+                                                                                                               Google Research
+                                                                     2
+                                                                         School of Engineering and Applied Sciences, Harvard University, Cambridge, MA 02138
+                                                                    Numerical simulation of fluids plays an essential role in modeling many physical phenomena,
+                                                                 such as weather, climate, aerodynamics and plasma physics. Fluids are well described by the
+                                                                 Navier-Stokes equations, but solving these equations at scale remains daunting, limited by the
+                                                                 computational cost of resolving the smallest spatiotemporal features. This leads to unfavorable
+                                                                 trade-offs between accuracy and tractability. Here we use end-to-end deep learning to improve
+                                                                 approximations inside computational fluid dynamics for modeling two-dimensional turbulent flows.
+
+
+
+
+arXiv:2102.01010v1 [physics.flu-dyn] 28 Jan 2021
+                                                                 For both direct numerical simulation of turbulence and large eddy simulation, our results are as
+                                                                 accurate as baseline solvers with 8-10x finer resolution in each spatial dimension, resulting in 40-80x
+                                                                 fold computational speedups. Our method remains stable during long simulations, and generalizes to
+                                                                 forcing functions and Reynolds numbers outside of the flows where it is trained, in contrast to black
+                                                                 box machine learning approaches. Our approach exemplifies how scientific computing can leverage
+                                                                 machine learning and hardware accelerators to improve simulations without sacrificing accuracy or
+                                                                 generalization.
+
+
+                                                                     I.    INTRODUCTION                                 weather are impossible. Instead, it is traditional to use
+                                                                                                                        smoothed versions of the Navier Stokes equations [10, 11]
+                                                   Simulation of complex physical systems described by                  that allow coarser grids while sacrificing accuracy, such
+                                                   nonlinear partial differential equations are central to en-          as Reynolds Averaged Navier-Stokes (RANS) [12, 13],
+                                                   gineering and physical science, with applications rang-              and Large-Eddy Simulation (LES) [14, 15]. For exam-
+                                                   ing from weather [1, 2] and climate [3, 4] , engineer-               ple, current state-of-art LES with mesh sizes of O(10)
+                                                   ing design of vehicles or engines [5], to wildfires [6] and          to O(100) million has been used in the design of inter-
+                                                   plasma physics [7]. Despite a direct link between the                nal combustion engines [16], gas turbine engines [17, 18],
+                                                   equations of motion and the basic laws of physics, it is             and turbo-machinery [19]. Despite promising progress in
+                                                   impossible to carry out direct numerical simulations at              LES over the last two decades, there are severe limits to
+                                                   the scale required for these important problems. This                what can be accurately simulated. This is mainly due to
+                                                   fundamental issue has stymied progress in scientific com-            the first-order dependence of LES on the sub-grid scale
+                                                   putation for decades, and arises from the fact that an               (SGS) model, especially for flows whose rate controlling
+                                                   accurate simulation must resolve the smallest spatiotem-             scale is unresolved [20].
+                                                   poral scales.
+                                                   A paradigmatic example is turbulent fluid flow [8], under-           Here, we introduce a method for calculating the accurate
+                                                   lying simulations of weather, climate, and aerodynam-                time evolution of solutions to nonlinear partial differen-
+                                                   ics. The size of the smallest eddy is tiny: for an air-              tial equations, while using an order of magnitude coarser
+                                                   plane with chord length of 2 meters, the smallest length             grid than is traditionally required for the same accuracy.
+                                                   scale (the Kolomogorov scale) [9] is O(10−6 )m. Classical            This is a novel type of numerical solver that does not
+                                                   methods for computational fluid dynamics (CFD), such                 average unresolved degrees of freedom, but instead uses
+                                                   as finite differences, finite volumes, finite elements and           discrete equations that give pointwise accurate solutions
+                                                   pseudo-spectral methods, are only accurate if fields vary            on an unresolved grid. We discover these algorithms us-
+                                                   smoothly on the mesh, and hence meshes must resolve                  ing machine learning, by replacing the components of
+                                                   the smallest features to guarantee convergence. For a                traditional solvers most affected by the loss of resolu-
+                                                   turbulent fluid flow, the requirement to resolve the small-          tion with learned alternatives. As shown in Fig. 1(a),
+                                                   est flow features implies a computational cost scaling               for a two dimensional direct numerical simulation of a
+                                                   like Re3 , where Re = U L/ν, with U and L the typi-                  turbulent flow, our algorithm maintains accuracy while
+                                                   cal velocity and length scales and ν the kinematic vis-              using 10× coarser resolution in each dimension, result-
+                                                   cosity. A tenfold increase in Re leads to a thousandfold             ing in a ∼ 80 fold improvement in computational time
+                                                   increase in the computational cost. Consequently, di-                with respect to an advanced numerical method of simi-
+                                                   rect numerical simulation (DNS) for e.g. climate and                 lar accuracy. The model learns how to interpolate local
+                                                                                                                        features of solutions and hence can accurately generalize
+                                                                                                                        to different flow conditions such as different forcings and
+                                                                                                                        even different Reynolds numbers [Fig. 1(b)]. We also ap-
+                                                   ∗ D.K. and J.A. S. contributed equally to this work.                 ply the method to a high resolution LES simulation of
+                                                   † To  whom correspondence should be addressed.       E-mail:         a turbulent flow and show similar performance enhance-
+                                                     dkochkov@google.com, jamieas@google.com, shoyer@google.com         ments, maintaining pointwise accuracy on Re = 100, 000
+                                                                                                                                                                                        2
+
+(a)                                                                      8192
+                                                                                                                              quired for stability with traditional approaches. Because
+           i ( )
+                                                                          8192     Di ec          i           ai
+                                                            4096                                                              these models do not include the underlying physics, they
+                                                             4096          86 speed p                                         often struggle to enforce constraints, such as conservation
+
+
+           i e e i e
+                                               2048                              Lea ed i e                           ai      of momentum and incompressibility. While these models
+                                                2048                              1024
+                                       1024                                        1024                                       often perform well on data from the training distribu-
+                                        1024                             512                                                  tion, they often struggle with generalization. For exam-
+                                                                          512
+                                512                  256                                                                      ple, they perform worse when exposed to novel forcing
+           R                     512                  256                                                                     terms. A third approach, which we build upon in this
+                                                                                                                              work, uses ML to correct errors in cheap, under-resolved
+                                  Ti e         i c     eai           < 0.95
+                                                                                                                              simulations [31–33]. These models borrow strength from
+(b)        Training da ase                                           Generali a ion es s                                      the coarse-grained simulations.
+                                                                                                                              In this work we design algorithms that accurately solve
+                                                                                                                              the equations on coarser grids by replacing the compo-
+                                                                                                                              nents most affected by the resolution loss with better
+                                                                                                                              performing learned alternatives. We use data driven dis-
+                                               La ge d              ai          Deca i g              M e             b e     cretizations [34, 35] to interpolate differential operators
+           F ced               b e ce
+                                                                                   E e a f ci g                               onto a coarse mesh with high accuracy [Fig. 1(c)]. We
+(c)
+                                                                                                                              train the solver inside a standard numerical method for
+                                 C      ec i e f                                                                              solving the underlying PDEs as a differentiable program,
+                                                                                                               ec i
+
+                                                                                                  ici i e e
+                       a
+
+
+                                                                                     Di e ge ce
+                                                                                                                       e ci
+                                                                                                                              with the neural networks and the numerical method writ-
+O d e ci
+                       i
+                           e                         i e       ai
+                                     Fi e                                                                      e              ten in a framework (JAX [36]) supporting reverse-mode
+                       C                ai
+                       e a                           i e       ai                                                      Ne     automatic differentiation. This allows for end-to-end gra-
+                                       c
+                                                                                                               Pe
+                                                                                                  E
+                                                                                                                              dient based optimization of the entire algorithm, similar
+                                                                                                                              to prior work on density functional theory [37], molecular
+                                                                                                                              dynamics [38] and fluids [31, 32]. The methods we derive
+FIG. 1. Overview of our approach and results. (a) Accu-                                                                       are equation specific, and require training a coarse resolu-
+racy versus computational cost with our baseline (direct sim-                                                                 tion solver with high resolution ground truth simulations.
+ulation) and ML accelerated (learned interpolation) solvers.
+                                                                                                                              Since the dynamics of a partial differential equation are
+The x axis corresponds to pointwise accuracy, showing how
+long the simulation is highly correlated with the ground truth,                                                               local, the high resolution simulations can be carried out
+whereas the y-axis shows the computational time needed to                                                                     on a small domain. The models remains stable during
+carry out one simulation time-unit on a single TPU core. Each                                                                 long simulations and has robust and predictable gener-
+point is annotated by the size of the corresponding spatial                                                                   alization properties, with models trained on small do-
+grid: for details see the appendix. (b) Illustrative training                                                                 mains producing accurate simulations on larger domains,
+and validation examples, showing the strong generalization                                                                    with different forcing functions and even with different
+capabilities of our model. (c) Structure of a single time step                                                                Reynolds number. Comparison to pure ML baselines
+for our ”learned interpolation” model, with a convolutional                                                                   shows that generalization arises from the physical con-
+neural net controlling learned approximations inside the con-                                                                 straints inherent in the formulation of the method.
+vection calculation of a standard numerical solver. ψ and u
+refer to advected and advecting velocity components. For d
+spatial dimensions there are d2 replicates of the convective
+flux module, corresponding to the flux of each velocity com-                                                                                   II.    BACKGROUND
+ponent in each spatial direction.
+                                                                                                                                                 A.   Navier-Stokes
+
+LES simulations using 8× times coarser grids with ∼ 40                                                                        Incompressible fluids are modeled by the Navier-Stokes
+fold computational speedup.                                                                                                   equations:
+There has been a flurry of recent work using machine
+learning to improve turbulence modeling. One major                                                                                 ∂u                      1 2    1
+                                                                                                                                        = − ∇ · (u ⊗ u) +    ∇ u − ∇p + f            (1a)
+family of approaches uses ML to fit closures to classical                                                                           ∂t                    Re      ρ
+turbulence models based on agreement with high resolu-                                                                            ∇ · u =0                                           (1b)
+tion direct numerical simulations (DNS) [21–24]. While
+potentially more accurate than traditional turbulence                                                                         where u is the velocity field, f the external forcing, and
+models, these new models have not achieved reduced                                                                            ⊗ denotes a tensor product. The density ρ is a constant,
+computational expense. Another major thrust uses                                                                              and the pressure p is a Lagrange multiplier used to en-
+“pure” ML, aiming to replace the entire Navier Stokes                                                                         force (1b). The Reynolds number Re dictates the bal-
+simulation with approximations based on deep neural                                                                           ance between the convection (first) or diffusion (second)
+networks [25–30]. A pure ML approach can be extremely                                                                         terms in the right hand side of (1a). Higher Reynolds
+efficient, avoiding the severe time-step constraints re-                                                                      number flows dominated by convection are more complex
+                                                                                                                         3
+
+and thus generally harder to model; flows are considered       on two types of ML components: learned interpolation
+“turbulent” if Re  1.                                         and learned correction. Both focus on the convection
+                                                               term, the key term in (1) for turbulent flows.
+Direct numerical simulation (DNS) solves (1) directly,
+whereas large eddy simulation (LES) solves a spatially
+filtered version. In the equations of LES, u is replaced by                  1.     Learned interpolation (LI)
+a filtered velocity u and an sub-grid term −∇ · τ is added
+to the right side of (1a), with the sub-grid stress defined
+as τ = u ⊗ u − u ⊗ u. Because u ⊗ u is un-modeled,             In a finite volume method, u denotes a vector field of
+solving LES also requires a choice of closure model for τ      volume averages over unit cells, and the cell-averaged di-
+as a function of u. Numerical simulation of both DNS           vergence can be calculated via Gauss’ theorem by sum-
+and LES further requires a discretization step to approx-      ming the surface flux over the each face. This suggests
+imate the continuous equations on a grid. Traditional          that our only required approximation is calculating the
+discretization methods (e.g., finite differences) converge     convective flux u ⊗ u on each face, which requires in-
+to an exact solution as the grid spacing becomes small,        terpolating u from where it is defined. Rather than us-
+with LES converging faster because it models a smoother        ing typical polynomial interpolation, which is suitable
+quantity. Together, discretization and closure models are      for interpolation without prior knowledge, here we use
+the two principle sources of error when simulating fluids      an approach that we call learned interpolation based on
+on coarse grids [31, 39].                                      data driven discretizations [34]. We use the outputs of
+                                                               the neural network to generate interpolation coefficients
+                                                               based on local features of the flow, similar to the fixed
+                                                               coefficients of polynomial interpolation. This allows us to
+                  B.   Learned solvers
+                                                               incorporate two important priors: (1) the equation main-
+                                                               tains the same symmetries and scaling properties (e.g.,
+Our principle aim is to accelerate DNS without compro-         rescaling coordinates x → λx) as the original equations,
+mising accuracy or generalization. To that end, we con-        and (2) as the mesh spacing vanishes, the interpolation
+sider ML modeling approaches that enhance a standard           module retains polynomial accuracy so that our model
+CFD solver when run on inexpensive to simulate coarse          performs well in the regime where traditional numerical
+grids. We expect that ML models can improve the accu-          methods excel.
+racy of the numerical solver via effective super-resolution
+of missing details [34]. Because we want to train neural
+networks for approximation inside our solver, we wrote                         2.    Learned correction (LC)
+a new CFD code in JAX [36], which allows us to effi-
+ciently calculate gradients via automatic differentiation.     An alternative approach, closer in spirit to LES modeling,
+Our CFD code is a standard implementation of a finite          is to simply model a residual correction to the discretized
+volume method on a regular staggered mesh, with first-         Navier-Stokes equations [(1)] on a coarse-grid [31, 32].
+order explicit time-stepping for convection, diffusion and     Such an approach generalizes traditional closure models
+forcing, and implicit treatment of pressure; for details see   for LES, but in principle can also account for discretiza-
+the appendix.                                                  tion error. We consider learned correction models of the
+The algorithm works as follows: in each time-step, the         form ut = u∗t + LC(u∗t ), where LC is a neural network
+neural network generates a latent vector at each grid lo-      and u∗t is the uncorrected velocity field from the numer-
+cation based on the current velocity field, which is then      ical solver on a coarse grid. Modeling the residual is
+used by the sub-components of the solver to account for        appropriate both from the perspective of a temporally
+local solution structure. Our neural networks are con-         discretized closure model, and pragmatically because the
+volutional, which enforces translation invariance and al-      relative error between ut and u∗t in a single time step
+lows them to be local in space. We then use components         is small. LC models have fewer inductive biases than
+from standard standard numerical methods to enforce in-        LI models, but they are simpler to implement and po-
+ductive biases corresponding to the physics of the Navier      tentially more flexible. We also explored LC models re-
+Stokes equations, as illustrated by the light gray boxes in    stricted to take the form of classical closure models (e.g.,
+Fig. 1(c): the convective flux model improves the approx-      flow-dependent effective tensor viscosity models), but the
+imation of the discretized convection operator; the diver-     restrictions hurt model performance and stability.
+gence operator enforces local conservation of momentum
+according to a finite volume method; the pressure projec-
+tion enforces incompressibility and the explicit time step                              3.   Training
+operator forces the dynamics to be continuous in time,
+allowing for the incorporation of additional time varying      The training procedure tunes the machine learning com-
+forces. “DNS on a coarse grid” blurs the boundaries of         ponents of the solver to minimize the discrepancy be-
+traditional DNS and LES modeling, and thus invites a           tween an expensive high resolution simulation and a sim-
+variety of data-driven approaches. In this work we focus       ulation produced by the model on a coarse grid. We
+                                                                                                                                                                                                              4
+
+    (a) Time step = 0 Time step = 500 Time step = 1000Time step = 1500                   (b)                                     Simulation time                  (c)
+                                                                                                                       0   2     4 6 8 10 12
+                                                                         10
+
+
+DS 2048 × 2048
+                                                                                                                 1.0
+
+
+
+
+                                                                                                                                                         Scaled energy spectrum E(k)k 5
+                                                                                                                 0.8                                                                 109
+                                                                         5
+
+
+
+                                                                                         Vorticity correlation
+                                                                                                                 0.6
+                                                                                                                                                                                     108
+LI 64 × 64                                                                   Vorticity
+                                                                         0
+                                                                                                                 0.4
+                                                                                                                               DS 64 × 64                                            107
+                                                                                                                               DS 128 × 128
+                                                                             5                                   0.2           DS 256 × 256
+                                                                                                                               DS 512 × 512
+
+DS 64 × 64
+                                                                                                                               DS 1024 × 1024
+                                                                                                                               DS 2048 × 2048
+                                                                                                                 0.0           LI 64 × 64                                            106
+                                                                             10                                        0       500      1000 1500    2000                                  1            10    30
+                                                                                                                                     Time step                                                 Wavenumber k
+
+    FIG. 2. Learned interpolation achieves accuracy of direct simulation at ∼ 10× higher resolution. (a) Evolution of predicted
+    vorticity fields for reference (DS 2048 × 2048), learned (LI 64 × 64) and baseline (DS 64 × 64) solvers, starting from the same
+    initial velocities. The yellow box traces the evolution of a single vortex. (b) Comparison of the vorticity correlation between
+    predicted flows and the reference solution for our model and DNS solvers. (c) Energy spectrum scaled by k5 averaged between
+    time-steps 10000 and 20000, when all solutions have decorrelated with the reference solution.
+
+
+    accomplish this via supervised training where we use a                                                        while maintaining accuracy for long term predictions;
+    cumulative point-wise error between the predicted and                                                         generalization means that although the model is trained
+    ground truth velocities as the loss function                                                                  on specific flows, it must be able to readily generalize well
+                                 t T
+                                                                                                                  to new simulation settings, including to different forc-
+                                                                                                                  ings and different Reynolds numbers. In what follows,
+                                 X
+                    L(x, y) =          MSE(u(ti ), ũ(ti )).
+                                  ti
+                                                                                                                  we first compare the accuracy and generalizability of our
+                                                                                                                  method to both direct numerical simulation and several
+    The ground truth trajectories are obtained by using                                                           existing ML-based approaches for simulations of two di-
+    a high resolution simulation that is then coarsened to                                                        mensional turbulence flow. In particular, we first con-
+    the simulation grid. Including the numerical solver in                                                        sider Kolmogorov flow [41], a parametric family of forced
+    the training loss ensures fully “model consistent” train-                                                     turbulent flows obeying the Navier-Stokes equation [(1)],
+    ing where the model sees its own outputs as inputs                                                            with forcing f = sin(4y)x̂ − 0.1u, where the second term
+    [23, 32, 39], unlike typical a priori training where simu-                                                    is a velocity dependent drag preventing accumulation of
+    lation is only performed offline. As an example, for the                                                      energy at large scales [42]. Kolmogorov flow produces
+    Kolmogorov flow simulations below with Reynolds num-                                                          a statistically stationary turbulent flow, with flow com-
+    ber 1000, our ground truth simulation had a resolution of                                                     plexity controlled by a single parameter, the Reynolds
+    2048 cells along each spatial dimension. We subsample                                                         number Re.
+    these ground truth trajectories along each dimension and
+    time by a factor of 32. For training we use 32 trajectories
+    of 4800 sequential time steps each, starting from differ-                                                                               A.   Accelerating DNS
+    ent random initial conditions. To evaluate the model,
+    we generate much longer trajectories (tens of thousands
+    of time steps) to verify that models remain stable and                                                        The accuracy of a direct numerical simulation quickly
+    produce plausible outputs. We unroll the model for 32                                                         degrades once the grid resolution cannot capture the
+    time steps when calculating the loss, which we find im-                                                       smallest details of the solution. In contrast, our ML-
+    proves model performance for long time trajectories [32],                                                     based approach strongly mitigates this effect. Figure 2
+    in some cases using gradient checkpoints at each model                                                        shows the results of training and evaluating our model
+    step to reduce memory usage [40].                                                                             on Kolmogorov flows at Reynolds number Re = 1000.
+                                                                                                                  All datasets were generated using high resolution DNS,
+                                                                                                                  followed by a coarsening step.
+                              III.     RESULTS
+
+    We take a utilitarian perspective on model evaluation:                                                                                          1.   Accuracy
+    simulation methods are good insofar as they demonstrate
+    accuracy, computational efficiency and generalizability.                                                      The scalar vorticity field ω = ∂x uy − ∂y ux is a conve-
+    In this case, accuracy and computational efficiency re-                                                       nient way to describe a two-dimensional incompressible
+    quire the method to be faster than the DNS baseline,                                                          flows [42]. Accuracy can be quantified by correlating vor-
+                                                                                                                                                                                                               5
+
+    (a) Time step = 0 Time step = 400 Time step = 800 Time step = 1200                   (b)                                   Simulation time                     (c)
+                                                                                                                       0   2      4     6      8     10
+                                                                         10
+
+
+DS 2048 × 2048
+                                                                                                                 1.0
+
+
+
+
+                                                                                                                                                          Scaled energy spectrum E(k)k 5
+                                                                                                                 0.8
+                                                                         5                                                                                                            108
+
+
+
+                                                                                         Vorticity correlation
+                                                                                                                 0.6
+
+LI 64 × 64                                                                   Vorticity
+                                                                         0
+                                                                                                                 0.4
+                                                                                                                           DS 64 × 64
+                                                                                                                           DS 128 × 128
+                                                                             5                                   0.2       DS 256 × 256
+                                                                                                                           DS 512 × 512                                               107
+
+DS 64 × 64
+                                                                                                                           DS 1024 × 1024
+                                                                                                                           DS 2048 × 2048
+                                                                                                                 0.0       LI 64 × 64
+                                                                             10                                        0       500       1000        1500                                   1            10    30
+                                                                                                                                 Time step                                                      Wavenumber k
+
+    FIG. 3. Learned interpolation generalizes well to decaying turbulence. (a) Evolution of predicted vorticity fields as a function of
+    time. (b) Vorticity correlation between predicted flows and the reference solution. (c) Energy spectrum scaled by k5 averaged
+    between time-steps 2000 and 2500, when all solutions have decorrelated with the reference solution.
+
+
+    ticity fields,[43] C(ω, ω̂) between the ground truth solu-                                                    grid sizes (256 × 256 and larger), our neural net makes
+    tion ω and the predicted state ω̂. Fig. 2 compares the                                                        good use of matrix-multiplication unit, achieving 12.5x
+    learned interpolation model (64 × 64) to fully resolved                                                       higher throughput in floating point operations per sec-
+    DNS of Kolmogorov flow (2048 × 2048) using an initial                                                         ond than our baseline CFD solver. Thus despite using
+    condition that was not included in the training set. Strik-                                                   150 times more arithmetic operations, the ML solver is
+    ingly, the learned discretization model matches the point-                                                    only about 12 times slower than the traditional solver at
+    wise accuracy of DNS with a ∼ 10 times finer grid. The                                                        the same resolution. The 10× gain in effective resolution
+    eventual loss of correlation with the reference solution is                                                   in three dimensions (two space dimensions and time, due
+    expected due to the chaotic nature of turbulent flows;                                                        to the Courant condition) thus corresponds to a speedup
+    this is marked by a vertical grey line in Fig. 2(b), indi-                                                    of 103 /12 ≈ 80.
+    cating the first three Lyapunov times. Fig. 2 (a) shows
+    the time evolution of the vorticity field for three different
+    models: the learned interpolation matches the ground                                                                                        3.   Generalization
+    truth (2048 × 2048) more accurately than the 512 × 512
+    baseline, whereas it greatly outperforms a baseline solver                                                    In order to be useful, a learned model must accurately
+    at the same resolution as the model (64 × 64).                                                                simulate flows outside of the training distribution. We
+    The learned interpolation model also produces a simi-                                                         expect our models to generalize well because they learn
+    lar energy spectrum E(k) = 21 |u(k)|2 to DNS. With de-                                                        local operators: interpolated values and corrections at
+    creasing resolution, DNS cannot capture high frequency                                                        a given point depend only on the flow within a small
+    features, resulting in an energy spectrum that “tails off”                                                    neighborhood around it. As a result, these operators
+    for higher values of k. Fig. 2 (c) compares the energy                                                        can be applied to any flow that features similar local
+    spectrum for learned interpolation and direct simulation                                                      structures as those seen during training. We consider
+    at different resolutions after 104 time steps. The learned                                                    three different types of generalization tests: (1) larger
+    interpolation model accurately captures the energy dis-                                                       domain size, (2) unforced decaying turbulent flow, and
+    tribution across the spectrum.                                                                                (3) Kolmogorov flow at a larger Reynolds number.
+                                                                                                                  First, we test generalization to larger domain sizes with
+                       2.   Computational efficiency
+                                                                                                                  the same forcing. Our ML models have essentially the
+                                                                                                                  exact same performance as on the training domain, be-
+                                                                                                                  cause they only rely upon local features of the flows.(see
+    The ability to match DNS with a ∼ 10 times coarser                                                            Appendix E and Fig. 5).
+    grid makes the learned interpolation solver much faster.
+    We benchmark our solver on a single core of Google’s                                                          Second, we apply our model trained on Kolmogorov flow
+    Cloud TPU v4, a hardware accelerator designed for accel-                                                      to decaying turbulence, by starting with a random initial
+    erating machine learning models that is also suitable for                                                     condition with high wavenumber components, and letting
+    many scientific computing use-cases [44–46]. The TPU                                                          the turbulence evolve in time without forcing. Over time,
+    is designed for high throughput vectorized operations,                                                        the small scales coalesce to form large scale structures, so
+    and extremely high throughput matrix-matrix multipli-                                                         that both the scale of the eddies and the Reynolds num-
+    cation in low precision (bfloat16). On sufficiently large                                                     ber vary. Figure 3 shows that a learned discretization
+                                                                                                                                                                                                               6
+
+    (a) Time step = 0 Time step = 800 Time step = 1600Time step = 2400                   (b)                                   Simulation time (c)
+                                                                                                                       0   2     4 6 8 10 12
+                                                                         10
+
+
+DS 4096 × 4096
+                                                                                                                 1.0
+                                                                                                                                                                                 1010
+
+
+
+
+                                                                                                                                                     Scaled energy spectrum E(k)k 5
+                                                                                                                 0.8
+                                                                         5
+                                                                                                                                                                                      109
+
+
+
+                                                                                         Vorticity correlation
+                                                                                                                 0.6
+
+LI 128 × 128                                                                 Vorticity
+                                                                         0                                                                                                            108
+                                                                                                                 0.4
+                                                                                                                           DS 128 × 128
+                                                                                                                           DS 256 × 256                                               107
+                                                                             5                                   0.2       DS 512 × 512
+                                                                                                                           DS 1024 × 1024
+
+DS 128 × 128
+                                                                                                                           DS 2048 × 2048
+                                                                                                                           DS 4096 × 4096
+                                                                                                                 0.0       LI 128 × 128                                               106
+                                                                             10                                        0       1000 2000      3000                                          1         10       60
+                                                                                                                                  Time step                                                     Wavenumber k
+
+    FIG. 4. Learned interpolations can be scaled to simulate higher Reynolds numbers without retraining. (a) Evolution of
+    predicted vorticity fields as a function of time for Kolmogorov flow at Re = 4000. (b) Vorticity correlation between predicted
+    flows and the reference solution. (c) Energy spectrum scaled by k5 averaged between time-steps 6000 and 12000, when all
+    solutions have decorrelated with the reference solution.
+
+
+    model trained on Kolmogorov flows Re = 1000 can match                                                         Processor-Decoder (EPD) [51, 52] architectures and the
+    the accuracy of DNS running at ∼ 7 times finer resolu-                                                        learned correction (LC) model introduced earlier. These
+    tion. A standard numerical method at the same resolu-                                                         models all perform explicit time-stepping without any
+    tion as the learned discretization model is corrupted by                                                      additional latent state beyond the velocity field, which
+    numerical diffusion, degrading the energy spectrum as                                                         allows them to be evaluated with arbitrary forcings and
+    well as pointwise accuracy.                                                                                   boundary conditions, and to use the time-step based on
+                                                                                                                  the CFL condition. By construction, these models are
+    Our final generalization test is harder: can the models
+                                                                                                                  inivariant to translation in space and time, and have
+    generalize to higher Reynolds number where the flows are
+                                                                                                                  similar runtime for inference (varying within a factor of
+    more complex? The universality of the turbulent cascade
+                                                                                                                  two). To evaluate training consistency, each model is
+    [1, 47, 48] implies that at the size of the smallest eddies
+                                                                                                                  trained 9 times with different random initializations on
+    (the Kolmogorov length scale), flows “look the same”
+                                                                                                                  the same Kolmogorov Re = 1000 dataset described pre-
+    regardless of Reynolds number when suitably rescaled.
+                                                                                                                  viously. Hyperparameters for each model were chosen as
+    This suggests that we can apply the model trained at one
+                                                                                                                  detailed in Appendix G, and the models are evaluated
+    Reynolds number to a flow at another Reynolds number
+                                                                                                                  on the same generalization tasks. We compare their per-
+    by simply rescaling the model to match the new small-
+                                                                                                                  formance using several metrics: time until vorticity cor-
+    est length scale. To test this we construct a new dataset
+                                                                                                                  relation falls below 0.95 to measure pointwise accuracy
+    for a Kolmogorov flow with Re = 4000. The theory of
+                                                                                                                  for the flow over short time windows, the absolute error
+    two-dimensional turbulence √ [49] implies that the smallest                                                   of the energy spectrum scaled by k 5 to measure statisti-
+    eddy size decreases as 1/ Re, implying that the small-                                                        cal accuracy for the flow over long time windows, and the
+    est eddies in this flow are 1/2 that for original flow with                                                   fraction of simulated velocity values that does not exceed
+    Re = 1000. We therefore can use a trained Re = 1000                                                           the range of the training data to measure stability.
+    model at Re = 4000 by simply halving the grid spac-
+    ing. Fig. 4 (a) shows that with this scaling, our model                                                       Fig. 5 compares results across all considered configura-
+    achieves the accuracy of DNS running at 7 times finer                                                         tions. Overall, we find that learned interpolation (LI)
+    resolution. This degree of generalization is remarkable,                                                      performs best, although learned correction (LC) is not
+    given that we are now testing the model with a flow of                                                        far behind. We were impressed by the performance of the
+    substantially greater complexity. Fig. 4 (b) visualizes                                                       LC model, despite its weaker inductive biases. The dif-
+    the vorticity, showing that higher complexity is captured                                                     ference in effective resolution for pointwise accuracy (8×
+    correctly, as is further verified by the energy spectrum                                                      vs 10× upscaling) corresponds to about a factor of two
+    shown in Fig. 4 (c).                                                                                          in run-time. There are a few isolated exceptions where
+                                                                                                                  pure black box methods outperform the others, but not
+                                                                                                                  consistently. A particular strength of the learned inter-
+                 B.   Comparison to other ML models                                                               polation and correction models is their consistent perfor-
+                                                                                                                  mance and generalization to other flows, as seen from the
+    Finally, we compare the performance of learned interpo-                                                       narrow spread of model performance for different random
+    lation to alternative ML-based methods. We consider                                                           initialization and their consistent dominance over other
+    three popular ML methods: ResNet (RN) [50], Encoder-                                                          models in the generalization tests. Note that even a mod-
+                                                                                                                                                                                           7
+
+                                                                                                           Pointwise accuracy          Statistical accuracy                Stability
+est 4× effective coarse-graining in resolution still corre-                                                 1x 2x 4x 8x         16x     1x 2x 4x 8x          16x
+
+
+
+
+                                                              Larger domain Forced turbulence
+sponds to a 5× computational speed-up. In contrast, the                                           LI
+black box ML methods exhibit high sensitivity to ran-                                            LC
+dom initialization and do not generalize well, with much                                        EPD
+less consistent statistical accuracy and stability.                                              RN
+                                                                                                       0       2    4   6                 109     108              0.0        0.5        1.0
+                                                                                                            1x 2x 4x 8x 16x            1x 2x4x 8x 16x
+                                                                                                  LI
+               C.    Acceleration of LES                                                         LC
+                                                                                                EPD
+Finally, up until now we have illustrated our method for                                         RN
+DNS of the Navier Stokes equations. Our approach is                                                    0       2    4       6             109     108     107 0.0             0.5        1.0
+                                                                                                            1x 2x 4x 8x         16x      1x 2x 4x     8x 16x
+quite general and could be applied to any nonlinear par-                                          LI
+
+                                                              Decaying
+tial differential equation. To demonstrate this, we ap-                                          LC
+ply the method to accelerate LES, the industry standard                                         EPD
+method for large scale simulations where DNS is not fea-                                         RN
+sible.                                                                                                 0        2     4   6                   108                  0.0        0.5        1.0
+                                                                                                             1x 2x 4x 8x 16x             1x2x4x 8x     16x
+
+
+
+                                                              More turbulent
+Here we treat the LES at high resolution as the ground                                            LI
+truth simulation and train an interpolation model on a                                           LC
+                                                                                                EPD
+coarser grid for Kolmogorov flows with Reynolds num-
+                                                                                                 RN
+ber Re = 105 according to the Smagorinsky-Lilly model                                                  0     2       4       6             109         108         0.0        0.5         1.0
+SGS model [8]. Our training procedure follows the ex-                                                  Time until correl. < 0.95      Spect. error (decreasing)    Proportion stable at t=50
+act same approach we used for modeling DNS. Note in
+particular that we do not attempt to model the param-                     FIG. 5. Learned discretizations outperform a wide range of
+eterized viscosity in the learned LES model, but rather                   baseline methods in terms of accuracy, stability and general-
+let learned interpolation model this implicitly. Fig. 6                   ization. Each row within a subplot shows performance metrics
+                                                                          for nine model replicates with the same architecture, but dif-
+shows that learned interpolation for LES still achieves
+                                                                          ferent randomly initialized weights. The models are trained
+an effective 8× upscaling, corresponding to roughly 40×                   on forced turbulence, with larger domain, decaying and more
+speedup.                                                                  turbulent flows as generalization tests. Vertical lines indicate
+                                                                          performance of non-learned baseline models at different reso-
+                                                                          lutions (all baseline models are perfectly stable). The point-
+                    IV.   DISCUSSION                                      wise accuracy test measures error at the start of time integra-
+                                                                          tion, whereas the statistical accuracy and stability tests are
+In this work we present a data driven numerical method                    both performed on simulations at time 50 after about 7000
+that achieves the same accuracy as traditional finite dif-                time integration steps (twice the number of steps for more tur-
+ference/finite volume methods but with much coarser res-                  bulent flow). The points indicated by a left-pointing triangle
+                                                                          in the statistical accuracy tests are clipped at a maximum
+olution. The method learns accurate local operators for
+                                                                          error.
+convective fluxes and residual terms, and matches the
+accuracy of an advanced numerical solver running at 8–
+10× finer resolution, while performing the computation                    is the number of grid points along each dimension of
+40–80× faster. The method uses machine learning to in-                    the resolved grid, d is the number of spatial dimensions
+terpolate better at a coarse scale, within the framework                  and K is the effective coarse graining factor. Currently,
+of the traditional numerical discretizations. As such, the                CML /Cphysics ≈ 12, but we expect that much more effi-
+method inherently contains the scaling and symmetry                       cient machine learning models are possible, e.g., by shar-
+properties of the original governing Navier Stokes equa-                  ing work between time-steps with recurrent neural nets.
+tions. For that reason, the methods generalize much bet-                  We expect the 10× decrease in effective resolution discov-
+ter than pure black-box machine learned methods, not                      ered here to generalize to 3D and more complex problems.
+only to different forcing functions but also to different                 This suggests that speed-ups in the range of 103 –104 may
+parameter regimes (Reynolds numbers).                                     be possible for 3D simulations. Further speed-ups, as re-
+What outlook do our results suggest for speeding up 3D                    quired to capture the full range of turbulent flows, will re-
+turbulence? In general, the runtime T for efficient ML                    quire either more efficient representations for flows (e.g.,
+augmented simulation of time-dependent PDEs should                        based on solution manifolds rather than a grid) or being
+scale like                                                                satisfied with statistical rather than pointwise accuracy
+                                  d+1                                   (e.g., as done in LES modeling).
+                                  N
+           T ∼ (CML + Cphysics )           ,        (2)                   In summary, our approach expands the Pareto frontier of
+                                  K
+                                                                          efficient simulation in computational fluid dynamics, as
+where CML is the cost of ML inference per grid point,                     illustrated in Fig. 1(a). With ML accelerated CFD, users
+Cphysics is the cost of baseline numerical method, N                      may either solve expensive simulations much faster, or in-
+                                                                                                                                                                                                                  8
+
+    (a) Time step = 0 Time step = 400 Time step = 800 Time step = 1200                   (b)                                   Simulation time                           (c)
+                                                                                                                       0   2      4 6 8          10
+                                                                         10
+
+
+DS 2048 × 2048
+                                                                                                                 1.0
+                                                                                                                                                                                    1010
+
+
+
+
+                                                                                                                                                        Scaled energy spectrum E(k)k 5
+                                                                                                                 0.8
+                                                                         5
+                                                                                                                                                                                         109
+
+
+
+                                                                                         Vorticity correlation
+                                                                                                                 0.6
+
+LI 64 × 64                                                                   Vorticity
+                                                                         0                                                                                                               108
+                                                                                                                 0.4
+                                                                                                                           DS 64 × 64
+                                                                                                                           DS 128 × 128                                                  107
+                                                                             5                                   0.2       DS 256 × 256
+                                                                                                                           DS 512 × 512
+
+DS 64 × 64
+                                                                                                                           DS 1024 × 1024
+                                                                                                                           DS 2048 × 2048
+                                                                                                                 0.0       LI 64 × 64                                                    106
+                                                                             10                                        0       500      1000     1500                                          1            10    30
+                                                                                                                                 Time step                                                         Wavenumber k
+
+    FIG. 6. Learned discretizations achieve accuracy of LES simulation running on 8× times finer resolution. (a) Evolution of
+    predicted vorticity fields as a function of time. (b) Vorticity correlation between predicted flows and the reference solution.
+    (c) Energy spectrum scaled by k5 averaged between time-steps 3800 and 4800, when all solutions have decorrelated with the
+    reference solution.
+
+
+    crease accuracy without additional costs. To put these                                                        more versatile when dealing with boundary conditions
+    results in context, if applied to numerical weather predic-                                                   and non-rectangular geometries. We now describe the
+    tion, increasing the duration of accurate predictions from                                                    implementation details of each component.
+    4 to 7 time-units would correspond to approximately 30
+    years of progress [53]. These improvements are possi-
+    ble due to the combined effect of two technologies still                                                                            Convection and diffusion
+    undergoing rapid improvements: modern deep learning
+    models, which allow for accurate simulation with much
+                                                                                                                  We implement convection and diffusion operators based
+    more compact representations, and modern accelerator
+                                                                                                                  on finite-difference approximations. The Laplace opera-
+    hardware, which allows for evaluating said models with
+                                                                                                                  tor in the diffusion is approximated using a second order
+    a remarkably small increase in computational cost. We
+                                                                                                                  central difference approximation. The convection term is
+    expect both trends to continue for the foreseeable future,
+                                                                                                                  solved by advecting all velocity components simultane-
+    and to eventually impact all areas of computationally
+                                                                                                                  ously, using a high order scheme based on Van-Leer flux
+    limited science.
+                                                                                                                  limiter [55]. For the results presented in the paper we
+                                                                                                                  used explicit time integration using Euler discretization.
+                                                                                                                  This choice is motivated by performance considerations:
+                        ACKNOWLEDGEMENT                                                                           for the simulation parameters used in the paper (high
+                                                                                                                  Reynold number) implicit diffusion is not required for
+    We thank John Platt and Rif A. Saurous for encourag-                                                          stable time-stepping, and is approximately twice as slow,
+    ing and supporting this work and for important conver-                                                        due to the additional linear solves required for each veloc-
+    sations, and Yohai bar Sinai, Anton Geraschenko, Yi-                                                          ity component. For diffusion dominated simulations im-
+    fan Chen and Jiawei Zhuang for important conversa-                                                            plicit diffusion would result in faster simulations.
+    tions.
+
+                                                                                                                                                  Pressure
+                 Appendix A: Direct numerical simulation
+                                                                                                                  To account for pressure we use a projection method,
+    Here we describe the details of the numerical solver that                                                     where at each step we solve the corresponding Pois-
+    we use for data generation, model comparison and the                                                          son equation. The solution is obtained using either a
+    starting point of our machine learning models. Our solver                                                     fast diagonalization approach with explicit matrix mul-
+    uses a staggered-square mesh [54] in a finite volume for-                                                     tiplication [56] or a real-valued fast Fourier transform
+    mulation: the computational domain is broken into com-                                                        (FFT). The former is well suited for small simulation do-
+    putational cells where the velocity field is placed on the                                                    mains as it has better accelerator utilization, while FFT
+    edges, while the pressure is solved at the cell centers.                                                      has best computational complexity and performs best in
+    Our choice of real-space formulation of the Navier-Stokes                                                     large simulations. For wall-clock evaluations we choose
+    equations, rather than a spectral method is motivated by                                                      between the fast diagonalization and FFT approach by
+    practical considerations: real space simulations are much                                                     choosing the fastest for a given grid.
+                                                                                                                                 9
+
+                 Forcing and closure terms                            Dataset              Resolution Re          Burn-in time
+                                                                      Kolmogorov Re = 1000 2048 → 64 1000         40
+                                                                      Kolmogorov Re = 4000 4096 → 128 4000        40
+We incorporate forcing terms together with the acceler-               Kolmogorov Re = 1000 4096 → 128 1000        40
+ations due to convective and diffusive processes. In an               Decaying turbulence  2048 → 64 1000 (t = 0) 4
+LES setting the baseline and ground truth simulations                 LES Re = 105         2048 → 64 105          40
+additionally include a subgrid scale model that is also
+treated explicitly. We use the Smagorinsky-Lilly model                TABLE A1. Simulation parameters used for generation of
+((A1)) where ∆ is the grid spacing and Cs = 0.2:                      the datasets in this manuscript. For resolution, the notation
+                                                                      X → Y indicates that simulation was performed at resolution
+                                                                      X and the result was downsampled to resolution Y .
+                                    2
+                  τij = −2 (Cs ∆) |S̄|S̄ij                     (A1)
+                                                sX
+               1                                                      we use the corresponding simulation parameters while
+      S̄ij =     (∂i uj + ∂j ui )       |S̄| = 2   S̄ij S̄ij
+               2                                  i,j                 changing only the resolution of the underlying grid. As
+                                                                      mentioned in the Appendix A, when measuring the per-
+                                                                      formance of all solvers on a given resolution we choose
+ Appendix B: Datasets and simulation parameters                       solver components to maximize efficiency.
+
+In the main text we introduced five datasets: two Kol-
+mogorov flows at Re = 1000 and Re = 4000, Kolmogorov                           Appendix C: Learned interpolations
+flow with Re = 1000 on a 2× larger domain, decaying tur-
+bulence and an LES dataset with Reynolds number 105 .                 To improve numerical accuracy of the convective pro-
+Dataset generation consisted of three steps: (1) burn-in              cess our models use psuedo-linear models for interpola-
+simulation from a random initial condition; (2) simula-               tion [34, 35]. The process of interpolating ui to u(x) is
+tion for a fixed duration using high resolution solver; (3)           broken into two steps:
+downsampling of the solution to a lower grid for training
+                                                                         1. Computation of local stencils for interpolation tar-
+and evaluation.
+                                                                            get x.
+The burn-in stage is fully characterized by the burn-in                                                     Pn
+time and initialization wavenumber which represent the                   2. Computation of a weighted sum i=1 ai ui over the
+discarded initial transient and the peak wavenumber of                      stencil.
+the log-normal distribution from which random initial                 Rather using a fixed set of interpolating coefficients ai
+conditions were sampled from. The maximum amplitude                   (e.g., as done for typical polynomial interpolation), we
+of the initial velocity field was set to 7 for forced sim-            choose ai from the output of   Pan neural network addition-
+ulations and 4.2 in the decaying turbulence, which was                ally constrained to satisfy i=1 ai = 1, which guaran-
+selected to minimize the burn-in time, as well as maintain            tees that the interpolation is at least first order accurate.
+standard deviation of the velocity field close to 1.0. The            We do so by generating interpolation coefficients with an
+initialization wavenumber was set to 4. Simulation pa-                affine transformation a = Ax + b on the unconstrainted
+rameters include simulation resolution along each spatial             outputs x of the neural network, where A is the null-
+dimension, forcing and Reynolds number. The resulting                 space of the constraint matrix (a 1 × n matrix of ones)
+velocity trajectories are then downsampled to the save                of shape n × (n − 1) and b is an arbitrary valid set of
+resolution. Note that besides the spatial downsampling                coefficients (we use linear interpolation from the nearest
+we also perform downsampling in time to maintain the                  source term locations). This is a special case of the pro-
+Courant–Friedrichs–Lewy (CFL) factor fixed at 0.5, stan-              cedure for arbitrary polynomial accuracy constraints on
+dard for numerical simulations. Parameters specifying all             finite difference coefficients described in [34, 35]. In this
+five datasets are shown in Table A1. We varied the size of            work, we use a 4 × 4 patch centered over the top-right
+our datasets from 12200 time slices at the downsampled                corner of each unit-cell, which means we need 15 uncon-
+resolution for decaying turbulence to 34770 slices in the             strained neural network outputs to generate each set of
+forced turbulence settings. Such extended trajectories                interpolation coefficients.
+allow us to analyze stability of models when performing
+long-term simulations. We note that when performing
+simulations at higher Reynolds numbers we used rescaled                    Appendix D: Neural network architectures
+grids to maintain fixed time stepping. This is motivated
+to potentially allow methods to specialize on a discrete
+                                                                      All of the ML based models used in this work are based
+time advancements. When reporting the results, spatial
+                                                                      on fully convolutional architectures. Fig. A1 depicts
+and time dimensions are scaled back to a fixed value to
+                                                                      our three modeling approaches (pure ML, learned in-
+enable direct comparisons across the experiments.
+                                                                      terpolation and learned correction) and three architec-
+For comparison of our models with numerical methods                   turs for neural network sub-components (Basic ConvNet,
+                                                                                                                                   10
+
+        P e ML          Lea ed I e         a        Lea ed C        ec   the EPD model has an arbitrarily large hidden state (in
+                                                                         our case, size 64), whereas the ResNet model has a fixed
+                                                         Ph    ic        size hidden state equal to 2, the number of velocity com-
+      Ne a    e            Ne a      e
+                                                                         ponents.
+                                                                            Appendix E: Details of accuracy measurements
+                                                     Ne a      e
+                               Ph    ic
+
+
+                                                                         In the main text we have presented accuracy results based
+                                                                         on correlation between the predicted flow configurations
+                                                                         and the reference solution. We reach the same conclu-
+  Ba c C          Ne   E c de -P ce       -Dec de        Re Ne           sions based on other common choices, such as squared
+                                                                         and absolute errors as shown in Fig. A2 comparing
+                           C   2D 64 5 5
+  C     2D 64 3 3
+                                                                         learned discretizations to DNS method on Kolmogorov
+                                                    C    2D 64 3 3       flow with Reynolds number 1000.
+        Re
+                                                          Re
+                           C   2D 64 3 3                                 As mentioned in the main text, we additionally evaluated
+  C     2D                      Re                                       our models on enlarged domains while keeping the flow
+        3 3                                          C    2D 2 3 3
+                           C   2D 64 3 3                                 complexity fixed. Because our models are local, this is
+                                                                         the simplest generalization test. As shown in Fig. A3
+                                                                         (and Fig. 5 in the main text), the improvement for 2×
+                                                                         larger domains is identical to that found on a smaller
+                           C   2D 64 5 5            C    2D 64 3 3
+                                                                         domain.
+                                Re                        Re
+
+                           C    2D 2 5 5
+                                                     C    2D 2 3 3
+                                                                                Appendix F: Details of overview figure
+
+
+FIG. A1. Modeling approaches and neural network ar-                      The Pareto frontier of model performance shown in
+chitecutres used in this paper. Rescaling of inputs and out-             Fig. 1(a) is based on extrapolated accuracy to an 8×
+puts from neural network sub-modules with fixed constants                larger domain. Due to computational limits, we were
+is not depicted. Dashed lines surround components that are               unable to run the simulations on the 16384 × 16384 grid
+repeatedly applied the indicated number of times.                        for measuring accuracy, so the time until correlation goes
+                                                                         below 0.95 was instead taken from the 1× domain size,
+                                                                         which as described in the preceding section matched per-
+Encoder-Process-Decoder and ResNet). Outputs and in-                     formance on the 2× domain.
+puts for each neural network layer are linearly scaled such
+that appropriate values are in the range (−1, 1).                        The 512×512 learned interpolation model corresponds to
+                                                                         the depicted results in Fig. 2, whereas the 256 × 256 and
+For our physics augmented solvers (learned interpola-                    1024 × 1024 models were retrained on the same training
+tion and learned correction), we used the basic ConvNet                  dataset for 2× coarser or 2× finer coarse-graining.
+archicture, with Nout = 120 (8 interpolations that need
+15 inputs each) for learned interpolation and Nout = 2
+for learned correction. Our experiments found accuracy                           Appendix G: Hyperparameter tuning
+was slightly improved by using larger neural networks,
+but not sufficiently to justify the increased computational
+                                                                         All models were trained using Adam [57] optimizer. Our
+cost.
+                                                                         initial experiments showed that none of the models had
+For pure ML solvers, we used EPD and ResNet mod-                         a consistent dependence on the optimization parameters.
+els that do not build impose physical priors beyond time                 The set that worked well for all models included learning
+continuity of the governing equations. In both cases a                   rate of 10−3 , b1 = 0.9 and b2 = 0.99. For each model
+neural network is used to predict the acceleration due to                we performed a hyperparameter sweep over the length
+physical processes that is then summed with the forcing                  of the training trajectory tT used to compute the loss,
+function to compute the state at the next time. Both                     model capacity such as size and number of hidden layers,
+EPD and ResNet models consist of a sequence of CNN                       as well as a sweep over different random initializations to
+blocks with skip-connections. The main difference is that                assess reliability and consistency of training.
+
+
+
+
+ [1] L. F. Richardson, Weather prediction by numerical pro-               [2] P. Bauer, A. Thorpe, and G. Brunet, The quiet revolution
+     cess (Cambridge university press, 2007).                                 of numerical weather prediction, Nature 525, 47 (2015).
+                                                                                                                                                                                11
+
+                          1.0                         (a)                                                           [15] M. Lesieur and O. Metais, New trends in Large-Eddy
+                                                                                                                         simulations of turbulence, Annu. Rev. Fluid Mech. 28,
+                          0.8                                                                                            45 (1996).
+
+
+
+Vorticity correlation
+                                                                                           DNS 64 x 64              [16] Q. Malé, G. Staffelbach, O. Vermorel, A. Misdariis,
+                          0.6
+                                                                                           DNS 128 x 128                 F. Ravet, and T. Poinsot, Large eddy simulation of Pre-
+                          0.4                                                              DNS 256 x 256                 Chamber ignition in an internal combustion engine, Flow
+                                                                                           DNS 512 x 512
+                                                                                           DNS 1024 x 1024               Turbul. Combust. 103, 465 (2019).
+                          0.2                                                              LD 64 x 64               [17] P. Wolf, G. Staffelbach, L. Y. M. Gicquel, J.-D. Müller,
+                                                                                                                         and T. Poinsot, Acoustic and large eddy simulation stud-
+                          0.0                                                                                            ies of azimuthal modes in annular combustion chambers,
+                                                                                 1.0 (c)                                 Combust. Flame 159, 3398 (2012).
+                                (b)
+                          1.0                                                                                       [18] L. Esclapez, P. C. Ma, E. Mayhew, R. Xu, S. Stouffer,
+                                                                                 0.8
+
+
+
+Absolute velocity error                                 Squared velocity error
+                                                                                                                         T. Lee, H. Wang, and M. Ihme, Fuel effects on lean blow-
+                          0.8                                                                                            out in a realistic gas turbine combustor, Combust. Flame
+                                                                                 0.6
+                          0.6                                                                                            181, 82 (2017).
+                                                                                 0.4                                [19] C. P. Arroyo, P. Kholodov, M. Sanjosé, and S. Moreau,
+                          0.4                                                                                            CFD modeling of a realistic turbofan blade for noise pre-
+                          0.2                                                    0.2                                     diction. part 1: Aerodynamics, in Proceedings of Global
+                                                                                                                         Power and Propulsion Society (2019).
+                          0.0                                                    0.0                                [20] S. B. Pope, Ten questions concerning the large-eddy sim-
+                                0     1000     2000   3000                             0   1000     2000     3000
+                                        Time step                                            Time step                   ulation of turbulent flows, New Journal of Physics 6
+                                                                                                                         (2004).
+                                                                                                                    [21] J. Ling, A. Kurzawski, and J. Templeton, Reynolds
+  FIG. A2. Comparison of ML + CFD model to DNS running
+                                                                                                                         averaged turbulence modelling using deep neural net-
+  at different resolutions using varying metrics. (a) Vorticity
+                                                                                                                         works with embedded invariance, J. Fluid Mech. 807,
+  correlation as presented in the main text. (b) Mean absolute
+                                                                                                                         155 (2016).
+  error. (c) Absolute error of the kinetic energy.
+                                                                                                                    [22] K. Duraisamy, G. Iaccarino, and H. Xiao, Turbulence
+                                                                                                                         modeling in the age of data, Annual Review of Fluid
+                                                                                                                         Mechanics 51, 357 (2019).
+   [3] T. Schneider, J. Teixeira, C. S. Bretherton, F. Brient,                                                      [23] R. Maulik, O. San, A. Rasheed, and P. Vedula, Subgrid
+       K. G. Pressel, C. Schär, and A. P. Siebesma, Climate                                                             modelling for two-dimensional turbulence using neural
+       goals and computing the future of clouds, Nature Climate                                                          networks, Journal of Fluid Mechanics 858, 122 (2019).
+       Change 7, 3 (2017).                                                                                          [24] A. Beck, D. Flad, and C.-D. Munz, Deep neural networks
+   [4] P. Neumann, P. Düben, P. Adamidis, P. Bauer,                                                                     for data-driven les closure models, Journal of Computa-
+       M. Brück, L. Kornblueh, D. Klocke, B. Stevens, N. Wedi,                                                          tional Physics 398, 108910 (2019).
+       and J. Biercamp, Assessing the scales in numerical                                                           [25] B. Kim, V. C. Azevedo, N. Thuerey, T. Kim, M. Gross,
+       weather and climate predictions: will exascale be the res-                                                        and B. Solenthaler, Deep fluids: A generative network for
+       cue?, Philosophical Transactions of the Royal Society A                                                           parameterized fluid simulations, in Computer Graphics
+       377, 20180148 (2019).                                                                                             Forum, Vol. 38 (Wiley Online Library, 2019) pp. 59–70.
+   [5] J. Anderson, Basic philosophy of cfd, in Computational                                                       [26] Z. Li, N. Kovachki, K. Azizzadenesheli, B. Liu, K. Bhat-
+       Fluid Dynamics (Springer, 2009) pp. 3–14.                                                                         tacharya, A. Stuart, and A. Anandkumar, Neural oper-
+   [6] A. Bakhshaii and E. A. Johnson, A review of a new gener-                                                          ator: Graph kernel network for partial differential equa-
+       ation of wildfire–atmosphere modeling, Canadian Journal                                                           tions, arXiv preprint arXiv:2003.03485 (2020).
+       of Forest Research 49, 565 (2019).                                                                           [27] K. Bhattacharya, B. Hosseini, N. B. Kovachki, and A. M.
+   [7] W. M. Tang and V. Chan, Advances and challenges in                                                                Stuart, Model reduction and neural networks for para-
+       computational plasma science, Plasma physics and con-                                                             metric pdes, arXiv preprint arXiv:2005.03180 (2020).
+       trolled fusion 47, R1 (2005).                                                                                [28] R. Wang, K. Kashinath, M. Mustafa, A. Albert, and
+   [8] S. B. Pope, Turbulent flows (Cambridge University Press,                                                          R. Yu, Towards physics-informed deep learning for tur-
+       2000).                                                                                                            bulent flow prediction, in Proceedings of the 26th ACM
+   [9] U. Frisch, Turbulence: the legacy of AN Kolmogorov                                                                SIGKDD International Conference on Knowledge Dis-
+       (Cambridge University Press, 1995).                                                                               covery & Data Mining (2020) pp. 1457–1466.
+  [10] R. D. Moser, S. W. Haering, and G. R. Yalla, Statisti-                                                       [29] B. Lusch, J. N. Kutz, and S. L. Brunton, Deep learning
+       cal properties of subgrid-scale turbulence models, Annual                                                         for universal linear embeddings of nonlinear dynamics,
+       Review of Fluid Mechanics 53 (2020).                                                                              Nature communications 9, 1 (2018).
+  [11] C. Meneveau and J. Katz, Scale-invariance and turbu-                                                         [30] N. B. Erichson, M. Muehlebach, and M. W. Mahoney,
+       lence models for large-eddy simulation, Annual Review                                                             Physics-informed autoencoders for lyapunov-stable fluid
+       of Fluid Mechanics 32, 1 (2000).                                                                                  flow prediction, arXiv preprint arXiv:1905.10866 (2019).
+  [12] J. Boussinesq, Theorie de l’ecoulement tourbillant,                                                          [31] J. Sirignano, J. F. MacArt, and J. B. Freund, Dpm: A
+       Mémoires de l’Académie des Sciences 23, 46 (1877).                                                              deep learning pde augmentation method with applica-
+  [13] G. Alfonsi, Reynolds-Averaged Navier–Stokes equations                                                             tion to large-eddy simulation, Journal of Computational
+       for turbulence modeling, Appl. Mech. Rev. 62 (2009).                                                              Physics 423, 109811 (2020).
+  [14] J. Smagorinsky, General circulation experiments with                                                         [32] K. Um, P. Holl, R. Brand, N. Thuerey, et al., Solver-in-
+       the primitive equations: I. the basic experiment, Mon.                                                            the-loop: Learning from differentiable physics to interact
+       Weather Rev. 91, 99 (1963).                                                                                       with iterative pde-solvers, in 34th Conference on Neural
+                                                                                                                                                                                                                   12
+
+    (a) Time step = 0 Time step = 500 Time step = 1000Time step = 1500 (b)                                                          Simulation time                                       (c)
+                                                                                                                         0   2      4 6 8 10 12
+
+
+
+
+ML+CFD 128 × 128 DNS 4096 × 4096
+                                                                                                                   1.0
+                                                                                                                                                                                     1010
+                                                                                                                   0.8
+
+
+
+
+                                                                                                                                                         Scaled energy spectrum E(k)k 5
+                                                                                                                                                                                          109
+
+
+
+
+                                                                                           Vorticity correlation
+                                                                                                                   0.6                                                                    108
+
+                                                                                                                                                                                          107
+                                                                                                                   0.4
+                                                                                                                                                                                          106
+
+DNS 128 × 128
+                                                                                                                             DNS 128 × 128
+                                                                                                                   0.2       DNS 256 × 256
+                                                                                                                             DNS 512 × 512
+                                                                                                                             DNS 1024 × 1024                                              105
+                                                                                                                             DNS 2048 × 2048
+                                                                                                                             DNS 4096 × 4096
+                                                                                                                   0.0       ML+CFD 128 × 128
+                                   10.0   7.5   5.0   2.5     0.0 2.5   5.0   7.5   10.0                                 0        500      1000 1500   2000                                     1             10   30
+                                                            Vorticity                                                                   Time step                                                   Wavenumber k
+
+    FIG. A3. Comparison of ML + CFD model to DNS running at different resolutions when evaluated on a 2× larger domain
+    with characteristic length-scales matching those of the training data. (a) Visualization of the vorticity at different times. (b)
+    Vorticity correlation as a function of time. (c) Scaled energy spectrum E(k) ∗ k5 .
+
+
+         Information Processing Systems (NeurIPS 2020) (2020)                                                                         velocity of 0.
+         p. in press.                                                                                                            [44] Z. Ben-Haim, V. Anisimov, A. Yonas, V. Gulshan,
+    [33] J. Pathak, M. Mustafa, K. Kashinath, E. Motheau,                                                                             Y. Shafi, S. Hoyer, and S. Nevo, Inundation modeling
+         T. Kurth, and M. Day, Using machine learning to aug-                                                                         in data scarce regions, (2019), arXiv:1910.05006 [cs.LG].
+         ment coarse-grid computational fluid dynamics simula-                                                                   [45] K. Yang, Y.-F. Chen, G. Roumpos, C. Colby, and J. An-
+         tions, arXiv preprint arXiv:2010.00072 (2020).                                                                               derson, High performance monte carlo simulation of ising
+    [34] Y. Bar-Sinai, S. Hoyer, J. Hickey, and M. P. Brenner,                                                                        model on TPU clusters, in Proceedings of the Interna-
+         Learning data-driven discretizations for partial differen-                                                                   tional Conference for High Performance Computing, Net-
+         tial equations, Proceedings of the National Academy of                                                                       working, Storage and Analysis, SC ’19 No. Article 83
+         Sciences 116, 15344 (2019).                                                                                                  (Association for Computing Machinery, New York, NY,
+    [35] J. Zhuang, D. Kochkov, Y. Bar-Sinai, M. P. Bren-                                                                             USA, 2019) pp. 1–15.
+         ner, and S. Hoyer, Learned discretizations for passive                                                                  [46] T. Lu, Y.-F. Chen, B. Hechtman, T. Wang, and J. An-
+         scalar advection in a 2-d turbulent flow, arXiv preprint                                                                     derson, Large-Scale discrete fourier transform on TPUs,
+         arXiv:2004.05477 (2020).                                                                                                      (2020), arXiv:2002.03260 [cs.MS].
+    [36] J. Bradbury, R. Frostig, P. Hawkins, M. J. Johnson,                                                                     [47] A. N. Kolmogorov, The local structure of turbulence in
+         C. Leary, D. Maclaurin, and S. Wanderman-Milne, Jax:                                                                         incompressible viscous fluid for very large reynolds num-
+         composable transformations of python+ numpy pro-                                                                             bers, Cr Acad. Sci. URSS 30, 301 (1941).
+         grams, 2018, URL http://github. com/google/jax , 18                                                                     [48] R. H. Kraichnan and D. Montgomery, Two-dimensional
+         (2020).                                                                                                                      turbulence, Reports on Progress in Physics 43, 547
+    [37] L. Li, S. Hoyer, R. Pederson, R. Sun, E. D. Cubuk, P. Ri-                                                                    (1980).
+         ley, and K. Burke, Kohn-Sham equations as regularizer:                                                                  [49] G. Boffetta and R. E. Ecke, Two-dimensional turbulence,
+         building prior knowledge into machine-learned physics,                                                                       Annual Review of Fluid Mechanics 44, 427 (2012).
+         Phys. Rev. Lett. , in press (2020).                                                                                     [50] K. He, X. Zhang, S. Ren, and J. Sun, Deep residual learn-
+    [38] S. S. Schoenholz and E. D. Cubuk, JAX, M.D.: A frame-                                                                        ing for image recognition, in Proceedings of the IEEE con-
+         work for differentiable physics, in 34th Conference on                                                                       ference on computer vision and pattern recognition (2016)
+         Neural Information Processing Systems (NeurIPS 2020)                                                                         pp. 770–778.
+         (2020) p. in press.                                                                                                     [51] P. W. Battaglia, J. B. Hamrick, V. Bapst, A. Sanchez-
+    [39] K. Duraisamy, Machine learning-augmented reynolds-                                                                           Gonzalez, V. Zambaldi, M. Malinowski, A. Tacchetti,
+         averaged and large eddy simulation models of turbulence,                                                                     D. Raposo, A. Santoro, R. Faulkner, et al., Relational in-
+          (2020), arXiv:2009.10675 [physics.flu-dyn].                                                                                 ductive biases, deep learning, and graph networks, arXiv
+    [40] A. Griewank, Achieving logarithmic growth of temporal                                                                        preprint arXiv:1806.01261 (2018).
+         and spatial complexity in reverse automatic differentia-                                                                [52] A. Sanchez-Gonzalez, J. Godwin, T. Pfaff, R. Ying,
+         tion, Optim. Methods Softw. 1 (1994).                                                                                        J. Leskovec, and P. W. Battaglia, Learning to simu-
+    [41] G. J. Chandler and R. R. Kerswell, Invariant recurrent                                                                       late complex physics with graph networks, arXiv preprint
+         solutions embedded in a turbulent two-dimensional kol-                                                                       arXiv:2002.09405 (2020).
+         mogorov flow, J. Fluid Mech. 722, 554 (2013).                                                                           [53] P. Bauer, A. Thorpe, and G. Brunet, The quiet revolution
+    [42] G. Boffetta and R. E. Ecke, Two-Dimensional turbulence,                                                                      of numerical weather prediction, Nature 525, 47 (2015).
+         Annu. Rev. Fluid Mech. 44, 427 (2012).                                                                                  [54] J. M. McDonough, Lectures in computational fluid dy-
+    [43] In our case the Pearson correlation reduces to a cosine                                                                      namics of incompressible flow: Mathematics, algorithms
+         distance because the flows considered here have mean                                                                         and implementations, (2007).
+                                                                                                                          13
+
+[55] P. K. Sweby, High resolution schemes using flux limiters   [56] R. E. Lynch, J. R. Rice, and D. H. Thomas, Direct so-
+     for hyperbolic conservation laws, SIAM journal on nu-           lution of partial difference equations by tensor product
+     merical analysis 21, 995 (1984).                                methods, Numer. Math. 6, 185 (1964).
+                                                                [57] D. P. Kingma and J. Ba, Adam: A method for stochastic
+                                                                     optimization, arXiv preprint arXiv:1412.6980 (2014).
+

@@ -1,0 +1,2549 @@
+                                            Symbolic Execution for Quantum Error Correction Programs
+                                            (Extended Version)
+                                            WANG FANG, Institute of Software at Chinese Academy of Sciences, China and University of Chinese
+
+
+
+
+arXiv:2311.11313v3 [quant-ph] 28 Apr 2024
+                                            Academy of Sciences, China
+                                            MINGSHENG YING, Institute of Software at Chinese Academy of Sciences, China and Tsinghua University,
+                                            China
+                                            We define QSE, a symbolic execution framework for quantum programs by integrating symbolic variables into
+                                            quantum states and the outcomes of quantum measurements. The soundness of QSE is established through a
+                                            theorem that ensures the correctness of symbolic execution within operational semantics. We further introduce
+                                            symbolic stabilizer states, which symbolize the phases of stabilizer generators, for the efficient analysis of
+                                            quantum error correction (QEC) programs. Within the QSE framework, we can use symbolic expressions
+                                            to characterize the possible discrete Pauli errors in QEC, providing a significant improvement over existing
+                                            methods that rely on sampling with simulators. We implement QSE with the support of symbolic stabilizer
+                                            states in a prototype tool named QuantumSE.jl. Our experiments on representative QEC codes, including
+                                            quantum repetition codes, Kitaev’s toric codes, and quantum Tanner codes, demonstrate the efficiency of
+                                            QuantumSE.jl for debugging QEC programs with over 1000 qubits. In addition, by substituting concrete values
+                                            in symbolic expressions of measurement results, QuantumSE.jl is also equipped with a sampling feature for
+                                            stabilizer circuits. Despite a longer initialization time than the state-of-the-art stabilizer simulator, Google’s
+                                            Stim, QuantumSE.jl offers a quicker sampling rate in the experiments.
+                                            CCS Concepts: • Software and its engineering → Automated static analysis; • Theory of computation
+                                            → Automated reasoning; • Hardware → Quantum error correction and fault tolerance; • Computer systems
+                                            organization → Quantum computing.
+                                            Additional Key Words and Phrases: symbolic execution, stabilizer formalism
+                                            ACM Reference Format:
+                                            Wang Fang and Mingsheng Ying. 2024. Symbolic Execution for Quantum Error Correction Programs. Proc.
+                                            ACM Program. Lang. 8, PLDI, Article 189 (June 2024), 41 pages. https://doi.org/10.1145/3656419
+
+                                            1   Introduction
+                                            Nowadays, quantum computing hardware is developing rapidly [Arute et al. 2019; Bluvstein et al.
+                                            2024; Madsen et al. 2022; Wu et al. 2021a], and the number of its physical qubits is also gradually
+                                            increasing. For instance, IBM has introduced the IBM Condor, an advanced quantum processor
+                                            featuring 1,121 superconducting qubits [IBM 2023]. However, these quantum hardware suffer from
+                                            errors caused by quantum noise and inaccurate quantum gate implementations, so deploying
+                                            quantum error correction (QEC) programs on quantum hardware is the key to large-scale quantum
+                                            computing in the future [Aharonov and Ben-Or 1997; Gottesman 2014; Shor 1996]. There are already
+                                            several experimental studies exploring QEC in quantum hardware [Abobeih et al. 2022; Acharya
+                                            et al. 2023; Bluvstein et al. 2024; Chen et al. 2021; Zhao et al. 2022], among which the recent result
+                                            Authors’ addresses: Wang Fang, Institute of Software at Chinese Academy of Sciences, Beijing, China and University of
+                                            Chinese Academy of Sciences, Beijing, China, fangw@ios.ac.cn; Mingsheng Ying, Institute of Software at Chinese Academy
+                                            of Sciences, Beijing, China and Tsinghua University, Beijing, China, yingms@ios.ac.cn.
+
+                                            Permission to make digital or hard copies of part or all of this work for personal or classroom use is granted without fee
+                                            provided that copies are not made or distributed for profit or commercial advantage and that copies bear this notice and
+                                            the full citation on the first page. Copyrights for third-party components of this work must be honored. For all other uses,
+                                            contact the owner/author(s).
+                                            © 2024 Copyright held by the owner/author(s).
+                                            ACM 2475-1421/2024/6-ART189
+                                            https://doi.org/10.1145/3656419
+
+
+                                                                                Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:2                                                                                                        Wang Fang and Mingsheng Ying
+
+
+of Bluvstein et al. [2024] has successfully encoded 48 logical qubits on neutral atom arrays with
+up to 280 physical qubits. On the other hand, as diverse and more complicated QEC protocols
+are introduced, we will need to conduct prior analysis and verification of them to guarantee their
+correctness before deployment. This leads us to the following basic question:
+   How can we check whether a QEC program (e.g., the one depicted in Fig. 1), as a hybrid quantum-
+   classical program, has any bugs, especially the part involving quantum variables; and more
+   importantly, if the QEC program has bugs, how can we automatically find them?
+
+
+                                                                  𝛼 |000⟩ + 𝛽 |111⟩                 Initial state in the code space
+                                                                  𝑞1     𝑞2     𝑞3
+
+
+                                               Error Injection
+         1 if 𝑒 1 == 1 {𝑋 𝑞 1 };                                  𝑋 𝑒1                              Inject 𝑋 error at 𝑞 1 if 𝑒 1 = 1
+         2 if 𝑒 2 == 1 {𝑋 𝑞 2 };                                         𝑋 𝑒2                       Inject 𝑋 error at 𝑞 2 if 𝑒 2 = 1
+         3 if 𝑒 3 == 1 {𝑋 𝑞 3 };                                                𝑋 𝑒3                Inject 𝑋 error at 𝑞 3 if 𝑒 3 = 1
+         4 CNOT 𝑞 1, 𝑞 2 ;
+         5 𝑚 1 B measure 𝑞 2 ;
+                                                                                     𝑒1 ⊕ 𝑒2
+
+
+                                                Error Detection
+                                                                                                     Measure observable 𝑍 1𝑍 2
+         6 CNOT 𝑞 1, 𝑞 2 ;
+         7 CNOT 𝑞 2, 𝑞 3 ;                                                                𝑒2 ⊕ 𝑒3
+         8 𝑚 2 B measure 𝑞 3 ;                                                                       Measure observable 𝑍 2𝑍 3
+         9 CNOT 𝑞 2, 𝑞 3 ;
+         10 if 𝑚 1 == 1 & 𝑚 2 == 0 {𝑋 𝑞 1 };                       𝑋                                Find and fix the 𝑋 error on 𝑞 1
+                                               Recovery
+         11 if 𝑚 1 == 1 & 𝑚 2 == 1 {𝑋 𝑞 2 };                              𝑋                         Find and fix the 𝑋 error on 𝑞 2
+         12 if 𝑚 1 == 0 & 𝑚 2 == 1 {𝑋 𝑞 3 }                                      𝑋                  Find and fix the 𝑋 error on 𝑞 3
+
+                                                                  𝛼 |000⟩ + 𝛽 |111⟩                 The same final state
+
+Fig. 1. A QEC program (Lines 4-12) for the three-qubit bit-flip code with code distance 3. Ensuring the
+program is bug-free requires that for any initial state 𝛼 |000⟩ + 𝛽 |111⟩ within the code space, the final state
+remains 𝛼 |000⟩ + 𝛽 |111⟩ after error injection (Lines 1-3) and execution of the QEC program (Lines 4-12).
+Error injection injects errors that the QEC code can tolerate into the quantum state, and then the QEC
+program corrects these errors. Here, the possible errors correspond to variables 𝑒 1, 𝑒 2, 𝑒 3 ∈ {0, 1} that satisfy
+𝑒 1 + 𝑒 2 + 𝑒 3 ≤ 1 (up to one 𝑋 error occurs). We also refer to the errors 𝑋 𝑒1 , 𝑋 𝑒2 , 𝑋 𝑒3 introduced during error
+injection as "adversarial" because of their potential to disrupt the integrity of information in quantum states.
+
+
+     Fortunately, current QEC programs only involve stabilizer circuits and thus can be efficiently
+simulated on classical computers [Gottesman 1997]. Indeed, several specific stabilizer circuit simu-
+lators have been developed [Aaronson and Gottesman 2004; Anders and Briegel 2006; Gidney 2021;
+Krastanov 2019] for analyzing QEC circuits. For instance, Google’s recent QEC experiment [Acharya
+et al. 2023] utilized a fast simulator, Stim [Gidney 2021], to sample a prior distribution for detectors
+of the experimental QEC circuit. For the example program in Fig. 1, the current practice involves
+enumerating/sampling the potential values of 𝑒𝑖 ∈ {0, 1} such that 𝑒 1 + 𝑒 2 + 𝑒 3 ≤ 1, then execut-
+ing the program with them by using a fast simulator. However, for a general QEC code with 𝑛
+qubits and a code distance of 𝑑, the potential errors during error injection correspond to variables
+𝑒 1, 𝑒 2, . . . , 𝑒𝑛 ∈ {0, 1} with the condition 𝑒 1 + 𝑒 2 + · · · 𝑒𝑛 ≤ ⌊ 𝑑2 ⌋. The count of these errors exceeds
+    𝑛 
+  ⌊ 𝑑2 ⌋
+         , which goes beyond polynomial-time complexity. Despite the simulator’s rapid performance1 ,
+such number of errors would make this approach unscalable at a large scale. Additionally, as noted
+by Gidney [2021], generating samples of QEC circuits is the bottleneck in analyzing QEC programs.
+
+1 e.g., the simulator Stim [Gidney 2021] can simulate a distance 100 surface code circuit (20 thousand qubits, 8 million gates,
+
+1 million measurements) in 15 seconds.
+
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                        189:3
+
+
+    In classical computing, symbolic execution (SE) was proposed [King 1976] to handle such a large
+number of samples or test cases. It is an automated method for finding bugs in programs and has been
+successfully applied in many different fields, including software testing [Cadar et al. 2008; Cadar and
+Sen 2013; Godefroid et al. 2005; Poeplau and Francillon 2020] and security and privacy [Aizatulin
+et al. 2011; Farina et al. 2019], and extended to non-deterministic programs [Luckow et al. 2014;
+Siegel et al. 2008; Yu et al. 2020] and probabilistic programs [Gehr et al. 2016; Susag et al. 2022].
+Recently, SE has also been introduced into quantum computing in several pioneering papers [Bauer-
+Marquart et al. 2023; Carette et al. 2023; Tao et al. 2022]. But all of them only deal with quantum
+circuits without control flows. As is well-known, one of the most essential advantages of SE is that
+it can systematically explore many possible execution paths (determined by control flows) at the
+same time. Therefore, the power of SE has not been fully exploited in quantum programming.
+    In this paper, we significantly extend SE to a quantum programming language with (classical)
+control flows, which is particularly suited to writing QEC programs. Our SE framework introduces
+symbols to represent the possible (probabilistic) outcomes of quantum measurements in a uniform
+manner, rather than splitting the measurement outcomes into cases as in previous work [Bauer-
+Marquart et al. 2023]. This approach circumvents the potential exponential growth of execution
+paths that comes with quantum measurements, which are a fundamental part of QEC programs.
+To make our SE framework efficient in handling QEC programs, we further introduce symbolic
+stabilizer states by a partial symbolization of stabilizer states, the underlying quantum states in
+stabilizer circuits. Thanks to the fast simulation algorithm of stabilizer circuits [Aaronson and
+Gottesman 2004], our symbolic stabilizer states can be efficiently manipulated during SE.
+    More importantly, symbolic stabilizer states allow us to handle conditionally applied Pauli gates
+(see Lines 1-3 and 10-12 of Fig. 1) without forking into multiple execution paths: the conditional
+guards, e.g., 𝑒 1 == 1 and 𝑒 2 == 1, are absorbed into the symbolic stabilizer state, yielding only a single
+execution path and transforming subsequent measurement outcomes into symbolic expressions,
+e.g., 𝑒 1 ⊕ 𝑒 2 for variable 𝑚 1 in Line 5 of Fig. 1. Consequently, we can use symbolic expressions, e.g.,
+𝑒 1 + 𝑒 2 + 𝑒 3 ≤ 1, to characterize the possible errors in error injection and use SMT solver to deduce
+the correctness, obviating the need for enumerating concrete values that satisfy the condition.
+Contributions and outline. After reviewing some background knowledge (§2) and demonstrating
+our approach on a running example (§3), our major contributions are presented as follows:
+    • We develop a framework for symbolic execution of quantum programs (QSE) with classical control
+      flows (§4) and prove a soundness theorem for our QSE framework (§5).
+    • We introduce symbolic stabilizer states to enable our QSE framework to efficiently analyze
+      QEC programs and prove an adequacy theorem for symbolic stabilizer states in the analysis and
+      verification of QEC programs (§6).
+    • We introduce symbolic Pauli gates with a newly designed SE rule that can handle the conditional
+      application of Pauli gates without forking like classical SE and demonstrate how it can be used
+      to characterize the possible adversarial errors for QEC programs (§7).
+    • We implement our QSE framework together with the special support of symbolic stabilizer
+      states in a prototype tool named QuantumSE.jl and demonstrate its efficiency and the ability to
+      outperform existing tools in experimental evaluation (§8).
+The paper is concluded by discussions about related work (§9) and issues for further research (§10).
+
+2     Background
+In this section, we provide a minimal background of quantum computation and QEC. The reader
+can consult the book [Nielsen and Chuang 2010, Chapter 2,4,10] for more details.
+
+                                 Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:4                                                                                   Wang Fang and Mingsheng Ying
+
+
+2.1     Quantum Preliminary
+We assume basic knowledge of linear algebra, including the concepts of vector space and tensor
+product. For a 𝑑-dimensional complex vector space C𝑑 , we use the Dirac notation |𝜓 ⟩ to denote a
+column vector in it. The conjugate transpose of |𝜓 ⟩ is then a row vector denoted by ⟨𝜓 |. The inner
+product of |𝜓 ⟩ and |𝜙⟩ is a complex number denoted by ⟨𝜙 |𝜓 ⟩. The outer product of |𝜓 ⟩ and    √︁ |𝜙⟩ is a
+𝑑 × 𝑑 matrix denoted by |𝜓 ⟩⟨𝜙 | ∈ C𝑑 ×𝑑 . The norm of a vector |𝜓 ⟩ is defined as ∥|𝜓 ⟩∥ = ⟨𝜓 |𝜓 ⟩. In
+addition, the tensor product of |𝜓 1 ⟩ and |𝜓 2 ⟩ is denoted by |𝜓 1 ⟩ ⊗ |𝜓 2 ⟩, which is sometimes written
+as |𝜓 1 ⟩|𝜓 2 ⟩ or even |𝜓 1𝜓 2 ⟩ for short.
+Quantum states.         Thestate space of a quantum bit (qubit) is the 2-dimensional vector space C2
+with |0⟩ = 10 , |1⟩ = 01 being the computational basis. In general, the state space of 𝑛-qubit system
+                
+
+is the tensor product of 𝑛 copies of the state space C2 of a single qubit, which is (C2 ) ⊗𝑛  C2 , with
+                                                                                                 𝑛
+
+
+{|𝑥⟩|𝑥 ∈ {0, 1}𝑛 } being the computational basis. A pure quantum state is represented by a unit
+vector |𝜓 ⟩. Thus, an 𝑛-qubit pure state |𝜓 ⟩ ∈ (C2 ) ⊗𝑛 can be expressed as 𝑥 ∈ {0,1}𝑛 𝛼𝑥 |𝑥⟩, where
+                                                                                Í
+
+𝛼𝑥 ∈ C and 𝑥 ∈ {0,1}𝑛 |𝛼𝑥 | 2 = 1. When the state of an 𝑛-qubit system is not completely known,
+                Í
+one may think of it as a mixed state (an ensemble of pure states) {(𝑝 𝑗 , |𝜓 𝑗 ⟩)} meaning that it is
+in state |𝜓 𝑗 ⟩ with probability 𝑝 𝑗 . Such a mixed state can also be represented by a density operator
+𝜌 = 𝑗 𝑝 𝑗 |𝜓 𝑗 ⟩⟨𝜓 𝑗 |, which is a 2𝑛 × 2𝑛 positive semidefinite complex matrix. In particular, a pure
+     Í
+state |𝜓 ⟩ can be represented by the density operator |𝜓 ⟩⟨𝜓 |; for simplicity, we write 𝜓 = |𝜓 ⟩⟨𝜓 |.
+Unitary transformations. A 2𝑛 × 2𝑛 complex matrix 𝑈 is called unitary if 𝑈 †𝑈 = 12𝑛 , where 𝑈 †
+stands for the conjugate transpose of 𝑈 , and 12𝑛 denotes the 2𝑛 × 2𝑛 identity matrix. It models a
+transformation or an evolution of an 𝑛-qubit system from a pure state |𝜓 ⟩ ∈ C2 to 𝑈 |𝜓 ⟩. For mixed
+                                                                                    𝑛
+
+
+states, it transforms a density matrix 𝜌 ∈ C 2𝑛 ×2𝑛
+                                                    to 𝑈 𝜌𝑈 . Such a unitary transformation 𝑈 is often
+                                                             †
+
+called an 𝑛-qubit gate. Common quantum gates include the single-qubit gates 𝐻 (Hadamard gate),
+𝑆 (Phase gate), and 𝐼 = 12, 𝑋, 𝑌 , 𝑍 (Pauli gates) as well as the 2-qubit gate CNOT (controlled-NOT
+gate):
+          1 1
+                                                                                           1 0 0 0
+                   1         1 0            0 1            0 −𝑖          1    0
+                                                                       
+  𝐻=√                  ,𝑆=          ,𝑋 =           ,𝑌 =            ,𝑍=            , CNOT = 00 10 00 01
+           2 1 −1            0 𝑖            1 0            𝑖   0         0 −1               0010
+
+The 𝐻 gate can produce another important basis, called the ± basis, {|+⟩ = √1 (|0⟩ + |1⟩), |−⟩ =
+                                                                                 2
+√1 (|0⟩ − |1⟩)} of C2 from the computational basis as 𝐻 |0⟩ = |+⟩ and 𝐻 |1⟩ = |−⟩. The Phase gate 𝑆
+  2
+leaves |0⟩ unchanged and adds a phase of 𝑖 to |1⟩, i.e., 𝑆 |0⟩ = |0⟩, 𝑆 |1⟩ = 𝑖 |1⟩; similarly, the Pauli 𝑍
+gate only adds phase −1 to |1⟩, i.e., 𝑍 |0⟩ = |0⟩, 𝑍 |1⟩ = −|1⟩. The Pauli 𝑋 gate acts like a “NOT” gate,
+exchanging |0⟩, |1⟩, i.e., 𝑋 |0⟩ = |1⟩ and 𝑋 |1⟩ = |0⟩; similarly the Pauli 𝑌 gate switches |0⟩, |1⟩ and
+introduces additional phases of 𝑖 and −𝑖, i.e., 𝑌 |0⟩ = 𝑖 |1⟩, 𝑌 |1⟩ = −𝑖 |0⟩. In terms of the computational
+basis, the CNOT gate, which can be rewritten as CNOT = |0⟩⟨0| ⊗ 𝐼 + |1⟩⟨1| ⊗ 𝑋 , performs a “NOT”
+gate 𝑋 if the first qubit is set to |1⟩, otherwise does nothing.
+   For an 𝑛-qubit system with label 𝑞 𝑗 , 1 ≤ 𝑗 ≤ 𝑛 for each qubit, a 𝑘-qubit unitary 𝑈 ∈ C2 ×2
+                                                                                                                𝑘 𝑘
+
+
+applied to qubits 𝑞¯ = 𝑞 𝑗1 , 𝑞 𝑗2 , . . . , 𝑞 𝑗𝑘 is expanded to the unitary 𝑈𝑞¯ ⊗ 1 {𝑞 𝑗 ,1≤ 𝑗 ≤𝑛}\𝑞¯ ∈ C2 ×2 that
+                                                                                                           𝑛  𝑛
+
+
+performs a local unitary 𝑈 on qubits 𝑞¯ and does nothing with the remaining qubits. We often write
+𝑈𝑞¯ that omits the identity operator for 𝑈𝑞¯ ⊗ 1 {𝑞 𝑗 ,1≤ 𝑗 ≤𝑛}\𝑞¯ , if there is no ambiguity. For example,
+consider a 3-qubit system with label 𝑗 for the 𝑗-th qubit, we write 𝑍 1 for 𝑍 ⊗ 𝐼 ⊗ 𝐼 and write 𝑋 1𝑌3
+for 𝑋 ⊗ 𝐼 ⊗ 𝑌 .
+Quantum measurements and observables. The information about a quantum system has to be
+acquired by quantum measurements. A measurement on 𝑛-qubit system is described by a collection
+𝑀 = {𝑀𝑚 }𝑚 of 2𝑛 × 2𝑛 complex matrices with the normalization condition 𝑚 𝑀𝑚     †
+                                                                                   𝑀𝑚 = 12𝑛 .
+                                                                           Í
+
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                                           189:5
+
+
+When performing it on a pure state |𝜓 ⟩ and a mixed state 𝜌, the measurement outcome of index
+𝑚 occurs with probabilities 𝑝𝑚 = ⟨𝜓 |𝑀𝑚       †
+                                                𝑀𝑚 |𝜓 ⟩ and 𝑝𝑚 = tr(𝑀𝑚 𝜌𝑀𝑚†
+                                                                            ), respectively, and the state
+                                                                            √
+after the measurement with outcome 𝑚 collapses into |𝜓𝑚 ⟩ = 𝑀𝑚 |𝜓 ⟩/ 𝑝𝑚 and 𝜌𝑚 = 𝑀𝑚 𝜌𝑀𝑚             †
+                                                                                                      /𝑝𝑚 ,
+respectively. For example, the computational         basis measurement {|0⟩⟨0|, |1⟩⟨1|} performed  on  the
+state |+⟩ will result in a state |0⟩ ⟨0|+⟩ / 1/2 = |0⟩ with probability ⟨+|0⟩ ⟨0|+⟩ = |⟨0|+⟩| 2 = 12 and
+                                              √︁
+
+state |1⟩ ⟨1|+⟩ / 1/2 = |1⟩ with probability ⟨+|1⟩ ⟨1|+⟩ = |⟨1|+⟩| 2 = 12 .
+                 √︁
+
+   For an 𝑛-qubit system with label 𝑞 𝑗 , 1 ≤ 𝑗 ≤ 𝑛 for each qubit, the computational basis measure-
+ment on a qubit 𝑞 ∈ {𝑞 1, . . . , 𝑞𝑛 } is given as
+                            {𝑀0 = |0⟩𝑞 ⟨0| ⊗ 1 {𝑞 𝑗 ,1≤ 𝑗 ≤𝑛}\𝑞 , 𝑀1 = |1⟩𝑞 ⟨1| ⊗ 1 {𝑞 𝑗 ,1≤ 𝑗 ≤𝑛}\𝑞 },
+where we use the same notation as in unitary transformations and also write | 𝑗⟩𝑞 ⟨𝑗 | for | 𝑗⟩𝑞 ⟨𝑗 | ⊗
+1 {𝑞 𝑗 ,1≤ 𝑗 ≤𝑛}\𝑞 .
+   WeÍsay a linear operator 𝑂 is an observable if 𝑂 † = 𝑂. The spectral decomposition of an observable
+𝑂 = 𝑚 𝑚𝑃𝑚 (a sum over its eigenvalues and corresponding projectors) corresponds to a quantum
+measurement {𝑃𝑚 }𝑚 with outcome 𝑚 for each projector 𝑃𝑚 . For example, Pauli gates 𝑋, 𝑌 , 𝑍 are
+all observables. In this paper, for those observables with eigenvalues ±1, e.g., 𝑍 1𝑍 2 , we use Boolean
+values 0 and 1 to indicate the measurement outcomes (−1) 0 = 1 and (−1) 1 = −1, respectively, to
+make it convenient in presentations.
+
+2.2    Stabilizer States and Quantum Error Correction
+Pauli strings and Clifford gates. An 𝑛-qubit Pauli string 𝑃 is defined as the tensor products of 𝑛
+Pauli gates with a phase in {±1, ±𝑖}, i.e.,
+                                                    𝑃 ≜ 𝑖 𝑘 𝑃 1 ⊗ 𝑃 2 ⊗ · · · ⊗ 𝑃𝑛 ,
+where 𝑘 ∈ {0, 1, 2, 3}, 𝑃ℓ ∈ {𝐼, 𝑋, 𝑌 , 𝑍 } for 1 ≤ ℓ ≤ 𝑛. The set of all 𝑛-qubit Pauli strings forms
+a group with matrix multiplication. A Clifford gate 𝑉 is a unitary such that for any Pauli string
+𝑃, 𝑉 𝑃𝑉 † (conjugation by 𝑉 ) is still a Pauli string. In particular, each Pauli gate is a Clifford gate.
+Clifford gates have a nice structure; that is, any Clifford gate can be constructed from the three
+gates: 𝐻 , 𝑆, and CNOT [Gottesman 1997], e.g., 𝐼 = 𝐻𝐻 , 𝑋 = 𝐻𝑆𝑆𝐻 , 𝑌 = 𝑆𝐻𝑆𝑆𝐻𝑆𝑆𝑆 and 𝑍 = 𝑆𝑆.
+Stabilizer and stabilizer states. A state |𝜓 ⟩ is stabilized by a gate 𝑈 if 𝑈 |𝜓 ⟩ = |𝜓 ⟩, i.e., |𝜓 ⟩ is an
+eigenvector of 𝑈 with eigenvalue 1. For example, |+⟩ is stabilized by Pauli 𝑋 gate and |−⟩ is stabilized
+by −𝑋 as (−𝑋 )|−⟩ = |−⟩. For a list of 𝑛-qubit Pauli strings 𝑃1, 𝑃2, . . . , 𝑃𝑘 ≠ ±𝐼 ⊗𝑛 , 1 ≤ 𝑘 ≤ 𝑛, that
+are commuting independent2 and 𝑃 𝑗2 ≠ −𝐼 ⊗𝑛 for 1 ≤ 𝑗 ≤ 𝑘, let 𝑆 = ⟨𝑃1, 𝑃2, . . . , 𝑃𝑘 ⟩ be the group
+generated by {𝑃1, 𝑃2, . . . , 𝑃𝑘 }. The subspace of states stabilized by all Pauli strings in 𝑆 is denoted
+by 𝑉𝑆 and 𝑆 is said to be the stabilizer of 𝑉𝑆 . We can check that |𝜓 ⟩ ∈ 𝑉𝑆 if and only if 𝑃 𝑗 |𝜓 ⟩ = |𝜓 ⟩
+for any 1 ≤ 𝑗 ≤ 𝑘, thus 𝑉𝑆 = ∩𝑘𝑗=1𝑉⟨𝑃 𝑗 ⟩ . Moreover, 𝑉𝑆 is a non-trivial subspace with dim 𝑉𝑆 = 2𝑛−𝑘
+since each 𝑃 𝑗 halves the dimension of the space being stabilized.
+   In the case of 𝑘 = 𝑛, which implies dim 𝑉𝑆 = 1, we can use the stabilizer 𝑆 = ⟨𝑃1, 𝑃2, . . . , 𝑃𝑛 ⟩ to
+represent the only state |𝜓 ⟩ ∈ 𝑉𝑆 with global phase ignored; we say 𝑆 is the stabilizer of |𝜓 ⟩ and |𝜓 ⟩ is
+a stabilizer state. For example, we have 𝑍 1 |000⟩ = 𝑍 1𝑍 2 |000⟩ = 𝑍 2𝑍 3 |000⟩ = |000⟩, so ⟨𝑍 1, 𝑍 1𝑍 2, 𝑍 2𝑍 3 ⟩
+is the stabilizer of |000⟩. Also, we have (−𝑍 1 )|111⟩ = 𝑍 1𝑍 2 |111⟩ = 𝑍 2𝑍 3 |111⟩ = |111⟩, and then
+⟨−𝑍 1, 𝑍 1𝑍 2, 𝑍 2𝑍 3 ⟩ is the stabilizer of |111⟩.
+Evolution of stabilizer states by Clifford gates. Consider an 𝑛-qubit stabilizer state |𝜓 ⟩ with its
+stabilizer 𝑆 = ⟨𝑃 1, 𝑃2, . . . , 𝑃𝑛 ⟩ and a Clifford gate 𝑉 , the group 𝑉 𝑆𝑉 † = ⟨𝑉 𝑃1𝑉 †, 𝑉 𝑃2𝑉 †, . . . , 𝑉 𝑃𝑛𝑉 † ⟩
+is the stabilizer of the state 𝑉 |𝜓 ⟩ as 𝑉𝑈𝑉 † (𝑉 |𝜓 ⟩) = 𝑉𝑈 |𝜓 ⟩ = 𝑉 |𝜓 ⟩ for any element 𝑉𝑈𝑉 † of 𝑉 𝑆𝑉 †
+2 Each 𝑃
+           𝑗 commutes with each other and can’t be written as a product of others, i.e., 𝑃 𝑗 ∉ ⟨ {𝑃 1 , . . . , 𝑃𝑘 } \ {𝑃 𝑗 } ⟩.
+
+
+                                          Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:6                                                                                          Wang Fang and Mingsheng Ying
+
+
+with 𝑈 ∈ 𝑆. Thus, the unitary transformation by a Clifford gate 𝑉 for stabilizer state |𝜓 ⟩ is linked
+with the conjugation by 𝑉 for the stabilizer 𝑆 of |𝜓 ⟩.
+   It is well-known that stabilizer circuits consisting of Clifford gates and the computational basis
+measurements can be formalized into the dynamics of stabilizers, thus can be efficiently simulated
+on a classical computer by tracking the generators of stabilizers [Aaronson and Gottesman 2004;
+Gottesman 1998]. For example, consider the stabilizer state |00⟩ with stabilizer 𝑆 = ⟨𝑍 1, 𝑍 1𝑍 2 ⟩, an
+𝐻 1 gate followed by a 𝐶𝑁𝑂𝑇1,2 gate will change the generators 𝑍 1, 𝑍 1𝑍 2 to
+
+            CNOT 1,2 𝐻 1𝑍 1 𝐻 1 CNOT 1,2 = 𝑋 1𝑋 2,              CNOT 1,2 𝐻 1 (𝑍 1𝑍 2 )𝐻 1 CNOT 1,2 = −𝑌1𝑌2 .
+                                                                                                  √
+Then the resulted stabilizer 𝑆 ′ = ⟨𝑋 1𝑋 2, −𝑌1𝑌2 ⟩. The stabilizer state of 𝑆 ′ is (|00⟩ + |11⟩)/ 2, which
+is exactly the state 𝐶𝑁𝑂𝑇1,2 𝐻 1 |00⟩.
+Quantum error correction and stabilizer codes. The idea of quantum error correction is using
+a large number 𝑛 of physical qubits to encode 𝑘 logical qubits to protect logical states against
+the effects of quantum noise. A QEC code is identified by the subspace 𝐶, where 𝐶 ⊆ C2 and
+                                                                                           𝑛
+
+
+is isomorphic to C2 , of all logical states. A QEC program (decoder) for 𝐶 consists of two-stage
+                    𝑘
+
+
+procedure of error detection and recovery:
+ • In the error detection stage, a list of syndrome measurements is performed on physical qubits to
+   detect potential errors, i.e., to check whether the measured state is in the code space 𝐶. The
+   measurement results are called the error syndromes.
+ • In the recovery stage, error syndromes are used to decide how to recover the initial state before
+   noise occurs, which can also be said to recover the measured state back to the code space 𝐶.
+Quantum noise can be continuous, e.g., arbitrary single qubit unitary occurs at some physical
+qubits, but fortunately, it has been proved that QEC codes that tolerate a set of discrete errors, e.g.,
+Pauli errors (Pauli operators {𝐼, 𝑋, 𝑌 , 𝑍 }), can also be used to correct continuous errors [Nielsen
+and Chuang 2010, Theorem 10.2]. For QEC codes, the design of stabilizer codes allows us only to
+consider Pauli 𝑋 errors (bit-flip errors) and Pauli 𝑍 errors (phase-flip errors).
+
+   Example 2.1 (Stabilizer Code). For a list of 𝑛-qubit Pauli strings 𝑃 1, 𝑃2, . . . , 𝑃𝑛−𝑘 , 𝑍¯1, 𝑍¯2, . . . , 𝑍¯𝑘 ≠
+±𝐼 ⊗𝑛 that are commuting independent with 1 ≤ 𝑘 ≤ 𝑛 and 𝑃 𝑗2 ≠ −𝐼 ⊗𝑛 , 𝑍¯ 𝑗2 ≠ −𝐼 ⊗𝑛 , an 𝑛-qubit
+stabilizer code encodes the logical computational basis state |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 of 𝑘 logical qubits as
+an 𝑛-qubit stabilizer state of the stabilizer
+
+                            ⟨(−1)𝑥 1 𝑍¯1, (−1)𝑥 2 𝑍¯2, . . . , (−1)𝑥𝑘 𝑍¯𝑘 , 𝑃1, 𝑃2, . . . , 𝑃𝑛−𝑘 , ⟩.
+
+In particular, the space 𝑉⟨𝑃1,𝑃2,...,𝑃𝑛−𝑘 ⟩ equals to
+
+                           span{|𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 |𝑥𝑖 = 0, 1 (𝑖 = 1, 2, . . . , 𝑘)}  C2 ,
+                                                                                                   𝑘
+
+
+
+
+which is the code space of this stabilizer code. 𝑃1, 𝑃2, . . . , 𝑃𝑛−𝑘 are stabilizer checks that take on the
+role of syndrome measurements, and 𝑍¯1, 𝑍¯2, . . . , 𝑍¯𝑘 are called logical operators.                     ◁
+
+3 Running Example: Three-Qubit Bit-Flip Code
+For better understanding, in this section, we illustrate the basic idea of our QSE technique through
+the example of Fig. 1. Let us recall the classical bit-flip error, which flips a bit 0 → 1 and 1 → 0.
+A simple way to protect bits of information against this error is the three-repetition code that
+encodes each bit with three copies of itself: 0 → 000 and 1 → 111. Suppose a bit-flip error changes
+an encoded bit string 000 into 001, then through majority voting, it can be recovered back to 000.
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                                                          189:7
+
+
+Quantum error correction. The program with a two-stage procedure of error detection (Lines 4-9)
+and recovery (Lines 10-12) in Fig. 1 implements the decoding of the three-qubit bit-flip code [Nielsen
+and Chuang 2010, §10.1.1], which is the quantum counterpart of the above three-repetition code.
+The code encodes a qubit state 𝛼 |0⟩ + 𝛽 |1⟩ in three qubits as 𝛼 |000⟩ + 𝛽 |111⟩ to protect qubits against
+the quantum bit-flip error: a Pauli 𝑋 operator at one qubit that takes a qubit state 𝛼 |0⟩ + 𝛽 |1⟩ to
+𝑋 (𝛼 |0⟩ + 𝛽 |1⟩) = 𝛼𝑋 |0⟩ + 𝛽𝑋 |1⟩ = 𝛼 |1⟩ + 𝛽 |0⟩. Suppose an encoded state 𝛼 |000⟩ + 𝛽 |111⟩ is changed
+by a quantum bit-flip error into 𝛼 |001⟩ + 𝛽 |110⟩, which is a superposition of |001⟩ and |110⟩. To
+recover this state back to 𝛼 |000⟩ + 𝛽 |111⟩, we need to design some clever quantum measurements
+(syndrome measurements) so that we can extract useful information for both |001⟩ and |110⟩ without
+destroying the superposition state. Fortunately, there exist two such measurements, the observables
+𝑍 1𝑍 2 and 𝑍 2𝑍 3 , which are executed in Lines 4-9 of Fig. 1. Here, the CNOT gates serve to disentangle
+the measured qubits, thereby safeguarding the system’s information during measurement. 𝑍 1𝑍 2
+checks whether the first and second qubits are the same, and 𝑍 2𝑍 3 checks whether the second and
+third qubits are the same. The measurement outcomes of 𝑍 1𝑍 2 and 𝑍 2𝑍 3 on state 𝛼 |001⟩ + 𝛽 |110⟩
+will tell us that the first and second qubit are the same, while the second and third qubit are not
+the same. Thus we can conclude that the bit-flip error occurs at the third qubit, and then we can
+perform an 𝑋 gate at the third qubit to recover 𝛼 |001⟩ + 𝛽 |110⟩ back to 𝛼 |000⟩ + 𝛽 |111⟩.
+Verification of QEC programs. Our goal is to verify the above statement automatically. More
+generally, given a QEC code and its QEC program with error detection and recovery stages, how
+can we verify that this program can correct all errors allowed by the QEC code for any state in the
+code space, or provide some useful information for debugging/testing this program if there are
+some bugs inside it.
+
+  Input Initialization Error Injection                      Error Detection                            Recovery                  Check Final State
+      Symbolic
+                                                         Lines 4-9                         Lines 10-12        Final State
+    Quantum State Lines 1-3
+
+        𝑍1      𝑠            𝑍1    𝑠 ⊕ 𝑒1                      𝑍1    𝑠 ⊕ 𝑒1                     𝑍1       𝑠 ⊕ 𝑒1 ⊕ 𝑟 1                 𝑍1      𝑠
+       𝑍 1𝑍 2   0           𝑍 1𝑍 2 𝑒 1 ⊕ 𝑒 2                  𝑍 1𝑍 2 𝑒 1 ⊕ 𝑒 2                 𝑍 1𝑍 2 𝑒 1 ⊕ 𝑒 2 ⊕ 𝑟 1 ⊕ 𝑟 2      ≡   𝑍 1𝑍 2   0
+       𝑍 2𝑍 3   0           𝑍 2𝑍 3 𝑒 2 ⊕ 𝑒 3                  𝑍 2𝑍 3 𝑒 2 ⊕ 𝑒 3                 𝑍 2𝑍 3 𝑒 2 ⊕ 𝑒 3 ⊕ 𝑟 2 ⊕ 𝑟 3          𝑍 2𝑍 3   0
+       𝑠 ∈ {0, 1}          𝑠, 𝑒 1 , 𝑒 2 , 𝑒 3 ∈ {0, 1}       𝑠, 𝑒 1 , 𝑒 2 , 𝑒 3 ∈ {0, 1}           𝑠, 𝑒 1 , 𝑒 2 , 𝑒 3 ∈ {0, 1}
+                             𝑒1 + 𝑒2 + 𝑒3 ≤ 1                  𝑒1 + 𝑒2 + 𝑒3 ≤ 1                      𝑒1 + 𝑒2 + 𝑒3 ≤ 1
+                         𝑒𝑖 indicates whether an                 𝑚1 = 𝑒1 ⊕ 𝑒2                          𝑚1 = 𝑒1 ⊕ 𝑒2
+                         𝑋 error occurred at 𝑞𝑖                  𝑚2 = 𝑒2 ⊕ 𝑒3                          𝑚2 = 𝑒2 ⊕ 𝑒3
+                                                                                              𝑟 1 = (𝑚 1 == 1 & 𝑚 2 == 0)
+                                                                                              𝑟 2 = (𝑚 1 == 1 & 𝑚 2 == 1)
+                                                                                              𝑟 3 = (𝑚 1 == 0 & 𝑚 2 == 1)
+
+                    Fig. 2. Illustration of symbolic execution for the quantum program in Fig. 1.
+
+Our solution — symbolic execution. To solve this problem, we develop a symbolic execution
+method for quantum programs. By introducing a symbolic quantum state that can (partially) express
+possible input quantum states, the quantum program is then “run” on this symbolic quantum state.
+For the program in Fig. 1, its symbolic execution is illustrated in Fig. 2. More explicitly:
+ • In the input initialization stage, the symbolic quantum state is the stabilizer ⟨(−1)𝑠 𝑍 1, 𝑍 1𝑍 2,
+   𝑍 2𝑍 3 ⟩, a list of Pauli operator strings (𝑍 1, 𝑍 1𝑍 2, 𝑍 2𝑍 3 ) (the light blue part in Fig. 2) with their
+   phases (𝑠, 0, 0) (the light red part in Fig. 2) containing symbolic variable 𝑠, that represents the ba-
+   sis {|000⟩, |111⟩} of the code space. This is because |000⟩ is the stabilizer state of ⟨(−1) 0𝑍 1, 𝑍 1𝑍 2,
+   𝑍 2𝑍 3 ⟩ and |111⟩ is the stabilizer state of ⟨(−1) 1𝑍 1, 𝑍 1𝑍 2, 𝑍 2𝑍 3 ⟩.
+
+                                           Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:8                                                                                     Wang Fang and Mingsheng Ying
+
+
+    • In the error injection stage, instead of enumerating concrete values of 𝑒𝑖 , we consider 𝑒𝑖 as
+      symbolic variables over {0, 1} and define 𝑋 𝑒1 , 𝑋 𝑒2 , 𝑋 𝑒3 as symbolic 𝑋 errors. The constraint
+      𝑒 1 +𝑒 2 +𝑒 3 ≤ 1 indicates that at most one 𝑋 error occurs, thus covering all allowed errors. Define
+      𝑋¯ as 𝑋 1𝑒1 𝑋 2𝑒2 𝑋 3𝑒3 . It can be verified that 𝑋¯ (𝑍 1 )𝑋¯ † = (−1)𝑠 ⊕𝑒1 𝑍 1 , 𝑋¯ (𝑍 1𝑍 2 )𝑋¯ † = (−1)𝑒1 ⊕𝑒2 𝑍 1𝑍 2
+      and 𝑋¯ (𝑍 2𝑍 3 )𝑋¯ † = (−1)𝑒2 ⊕𝑒3 𝑍 2𝑍 3 . Thus, as shown in Fig. 2, these symbolic 𝑋 errors make
+      the symbolic quantum state into ⟨(−1)𝑠 ⊕𝑒1 𝑍 1, (−1)𝑒1 ⊕𝑒2 𝑍 1𝑍 2, (−1)𝑒2 ⊕𝑒3 𝑍 2𝑍 3 ⟩ with constraint
+      𝑒 1 + 𝑒 2 + 𝑒 3 ≤ 1.
+    • Then, in the error detection stage, we deduce that (−1)𝑒1 ⊕𝑒2 𝑍 1𝑍 2 and (−1)𝑒2 ⊕𝑒3 belongs to the
+      stabilizer (group) ⟨(−1)𝑠 ⊕𝑒1 𝑍 1, (−1)𝑒1 ⊕𝑒2 𝑍 1𝑍 2, (−1)𝑒2 ⊕𝑒3 𝑍 2𝑍 3 ⟩. Consequently, according to the
+      stabilizer formalism [Nielsen and Chuang 2010, Chapter 10.5], the measurement outcomes for
+      𝑍 1𝑍 2 and 𝑍 2𝑍 3 correspond to symbolic expressions 𝑚 1 = 𝑒 1 ⊕ 𝑒 2 and 𝑚 2 = 𝑒 2 ⊕ 𝑒 3 , respectively.
+    • Finally, in the recovery stage, the phase part of the symbolic quantum state becomes a list of
+      symbolic expressions of 𝑒𝑖 , 1 ≤ 𝑖 ≤ 3 and 𝑟 𝑗 , 1 ≤ 𝑗 ≤ 3 with 𝑟 𝑗 associating to boolean expressions
+      of conditionals. This final state in Fig. 2 under its constraints (including 𝑒 1 + 𝑒 2 + 𝑒 3 ≤ 1), can be
+      verified by an SMT solver to be equivalent to the initial symbolic quantum state. That is, the
+      program with error detection and recovery in Fig. 2 can correct at least one (≤ 1) 𝑋 error for
+      the symbolic quantum state ⟨(−1)𝑠 𝑍 1, 𝑍 1𝑍 2, 𝑍 2𝑍 3 ⟩.
+In the same way, the program with error detection and recovery in Fig. 2 can also correct at least
+one 𝑋 error for the symbolic quantum state ⟨(−1)𝑠 𝑋 1𝑋 2𝑋 3, 𝑍 1𝑍 2, 𝑍 2𝑍 3 ⟩. Hence, according to our
+Theorem 6.6, we can deduce that any state in the code space is satisfied.
+
+4      Quantum Symbolic Execution
+The successful application of symbolic execution to our running example (Fig. 2) motivates us to
+develop a framework for the symbolic execution of quantum programs to be applied in formal
+analysis and verification of other QEC programs. We first introduce a simple quantum programming
+language that is suitable for describing QEC programs (§4.1). Then, by introducing symbolic
+quantum states (§4.2), we extend the framework of standard symbolic execution for classical
+programs to quantum programs (§4.3).
+
+4.1      OpenQASM-like Language
+We choose to extend IBM’s OpenQASM2 [Cross et al. 2017], an imperative quantum programming
+language supporting classical flow control, with external calls (oracle calls) of classical functions.
+Syntax. The set qProgs of quantum programs is defined by the following syntax:
+              𝑆 F 𝑥 B 𝑒 | 𝑦¯ B 𝐹 ( ¯
+                                  𝑥) | 𝑈 𝑞¯ | 𝑐 B measure 𝑞 | 𝑆 1 ; 𝑆 2 | if 𝑏 {𝑆 1 } else {𝑆 2 }
+   As in classic imperative languages, the assignment 𝑥 B 𝑒 evaluates the expression 𝑒 and assigns
+the result to the classical variable 𝑥. The statement 𝑦¯ B 𝐹 ( ¯ 𝑥) executes an external call of a classical
+function 𝐹 , an 𝑚-ary function with 𝑛 outputs, that accepts the values of a list of input variables
+𝑥¯ = 𝑥 1, 𝑥 2, . . . , 𝑥𝑚 and assigns the outputs 𝐹 ( ¯
+                                                     𝑥) to a list of classical variables 𝑦¯ = 𝑦1, 𝑦2, . . . , 𝑦𝑛
+in turn. This statement is introduced to wrap some classical algorithms used in QEC programs,
+while independent of quantum variables. For example, the Blossom algorithm [Edmonds 1965;
+Kolmogorov 2009] for minimum weight perfect matching (MWPM) is used extensively in decoding
+surface codes (2D topological codes) [Dennis et al. 2002; Fowler et al. 2012]. Moreover, using such
+algorithms like the Blossom algorithm is usually by calling existing implementations; thus, we only
+need to care about the conditions that the input and output meet.
+   There are two quantum constructs involved with qubit variables. The unitary transformation
+𝑈 𝑞¯ performs a unitary 𝑈 on a list of qubit variables 𝑞¯ = 𝑞 1, 𝑞 2, . . . , 𝑞𝑛 . For example, 𝑋 𝑞 performs a
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                                            189:9
+
+
+Pauli 𝑋 operator on the qubit 𝑞 and CNOT 𝑞 1, 𝑞 2 performs a CNOT operator on qubits 𝑞 1, 𝑞 2 . The
+measurement statement 𝑐 B measure 𝑞 measures the qubit variable 𝑞 in the computational basis
+and assigns the measurement outcome to the classical variable 𝑐.
+     Control flow is implemented by sequential composition 𝑆 1 ; 𝑆 2 , which executes subprograms 𝑆 1
+and 𝑆 2 sequentially; and conditional statement if 𝑏 {𝑆 1 } else {𝑆 2 }, which executes the subprogram
+𝑆 1 if the Boolean expression 𝑏 is evaluated to be true, and otherwise executes the subprogram
+𝑆 2 . For convenience, we use the notation if 𝑏 {𝑆 1 } that omits the false branch and does nothing
+when the Boolean expression 𝑏 is evaluated to be false.
+Operational semantics. A classical-quantum configuration is a triple ⟨𝑆, 𝜎, 𝜌⟩, where 𝑆 is a quan-
+tum program or the termination symbol ↓, 𝜎 is a classical state, and 𝜌 is a density operator denoting
+                                                                                                                       𝑝
+the state of qubit variables in 𝑆. A probabilistic transition is denoted by ⟨𝑆, 𝜎, 𝜌⟩ −
+                                                                                      −→ ⟨𝑆 ′, 𝜎 ′, 𝜌 ′ ⟩,
+where the label 𝑝 is the transition probability and omitted whenever 𝑝 = 1. Then following the
+semantics of quantum while-language with classical variables given in [Ying and Feng 2011], the
+                                                                                                                           𝑝
+operational semantics of our language is defined as a probabilistic transition relation −
+                                                                                       −→ between
+classical-quantum configurations by the transition rules presented in Fig. 3.
+
+      (As) ⟨𝑥 B 𝑒, 𝜎, 𝜌⟩ → ⟨↓, 𝜎 [𝜎 (𝑒)/𝑥], 𝜌⟩                     (EC) ⟨𝑦¯ B 𝐹 ( ¯
+                                                                                 𝑥), 𝜎, 𝜌⟩ → ⟨↓, 𝜎 [𝐹 (𝜎 ( ¯
+                                                                                                          𝑥))/ ¯
+                                                                                                              𝑦], 𝜌⟩
+                                                                                       tr( |0⟩𝑞 ⟨0|𝜌 )
+                                                                                                   |0⟩𝑞 ⟨0|𝜌 |0⟩𝑞 ⟨0|
+                                                 (M0) ⟨𝑐 B measure 𝑞, 𝜎, 𝜌⟩ −−−−−−−−−→ ⟨↓, 𝜎 [0/𝑐],  tr( |0⟩𝑞 ⟨0|𝜌 ) ⟩
+ (UT) ⟨𝑈 ¯
+         𝑞, 𝜎, 𝜌⟩ → ⟨↓, 𝜎, 𝑈𝑞¯ 𝜌𝑈𝑞¯† ⟩                                       tr( |1⟩𝑞 ⟨1|𝜌 )       |1⟩ ⟨1|𝜌 |1⟩ ⟨1|
+                                                 (M1) ⟨𝑐 B measure 𝑞, 𝜎, 𝜌⟩ −−−−−−−−−→ ⟨↓, 𝜎 [1/𝑐], tr(𝑞 |1⟩𝑞 ⟨1|𝜌𝑞 ) ⟩
+                                                                                                    𝜎 |= 𝑏
+                                  𝑝
+                              −→ ⟨𝑆 1′ , 𝜎 ′, 𝜌 ′ ⟩
+                  ⟨𝑆 1, 𝜎, 𝜌⟩ −                                  (CT)
+    (SC)                                                                    ⟨if 𝑏 {𝑆 1 } else {𝑆 2 }, 𝜎, 𝜌⟩ → ⟨𝑆 1, 𝜎, 𝜌⟩
+                                  𝑝                                                          𝜎 |= ¬𝑏
+              ⟨𝑆 1 ; 𝑆 2, 𝜎, 𝜌⟩ −
+                                −→ ⟨𝑆 1′ ; 𝑆 2, 𝜎 ′, 𝜌 ′ ⟩       (CF)
+                                                                            ⟨if 𝑏 {𝑆 1 } else {𝑆 2 }, 𝜎, 𝜌⟩ → ⟨𝑆 2, 𝜎, 𝜌⟩
+
+Fig. 3. Transition rules for operational semantics. For external call 𝑦¯ B 𝐹 ( ¯                𝑥) with 𝑥¯ = 𝑥 1, 𝑥 2, . . . , 𝑥𝑚 and 𝑦¯ =
+𝑦1, 𝑦2, . . . , 𝑦𝑛 , we use 𝜎 [𝐹 (𝜎 ( ¯  𝑥))/ ¯
+                                             𝑦] as a shorthand for 𝜎 [𝑓1 /𝑦1, 𝑓2 /𝑦2, . . . , 𝑓𝑛 /𝑦𝑛 ] provided by (𝑓1, 𝑓2, . . . , 𝑓𝑛 ) =
+𝐹 (𝜎 (𝑥 1 ), 𝜎 (𝑥 2 ), . . . , 𝜎 (𝑥𝑚 )). For sequential composition 𝑆 1 ; 𝑆 2 , we make convention that ↓; 𝑆 2 = 𝑆 2 .
+
+  The rules (As), (SC), (EC), (CT), and (CF) are the same as in classical or probabilistic programming.
+In (UT), quantum state 𝜌 is transformed into 𝑈 𝜌𝑈 † by the unitary transformation 𝑈 . In (M0)
+and (M1), the computational basis measurement at qubit 𝑞 brings two probabilistic branches
+with probability tr(|0⟩𝑞 ⟨0|𝜌) and tr(|1⟩𝑞 ⟨1|𝜌), respectively, that transform quantum state 𝜌 into
+|0⟩𝑞 ⟨0|𝜌 |0⟩𝑞 ⟨0|   |1⟩𝑞 ⟨1|𝜌 |1⟩𝑞 ⟨1|
+  tr( |0⟩𝑞 ⟨0|𝜌 ) and tr( |1⟩𝑞 ⟨1|𝜌 ) , respectively, and assign the corresponding measurement outcomes
+0 and 1, respectively, to classical variable 𝑐.
+                                                             𝑝
+   For convenience, we also write ⟨𝑆, 𝜎, 𝜌⟩ −
+                                            −→∗ ⟨𝑆 ′, 𝜎 ′, 𝜌 ′ ⟩ if there is a sequence of transitions
+                                                    𝑝1                 𝑝2        𝑝𝑛
+                        ⟨𝑆, 𝜎, 𝜌⟩ −−→ ⟨𝑆 1, 𝜎1, 𝜌 1 ⟩ −        −→ ⟨𝑆 ′, 𝜎 ′, 𝜌 ′ ⟩
+                                                      −→ · · · −
+such that 𝑛 ≥ 0 and 𝑝 = 𝑛𝑗=1 𝑝 𝑗 .
+                       Î
+
+4.2 Symbolic Quantum States
+Just like using symbols to represent a range of values and building expressions over constants
+and symbols, we want to build a term that depends on some symbols, and when concrete values
+substitute these symbols, this term becomes a quantum state—density operator. We begin with a
+few examples of density operators with parameters.
+
+                                          Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:10                                                                                                           Wang Fang and Mingsheng Ying
+
+
+ Example 4.1 (Handling quantum states of single-qubit). Consider a qubit system with state space
+H = span{|0⟩, |1⟩}. A pure qubit state can be written as
+                                     𝜃               𝜃
+                     |𝜓 (𝜃, 𝜙)⟩ = cos |0⟩ + 𝑒 𝑖𝜙 sin |1⟩, 𝜃 ∈ [0, 𝜋], 𝜙 ∈ [0, 2𝜋],
+                                     2               2
+with a global phase ignored [Nielsen and Chuang 2010, Bloch Sphere]. Then, its corresponding
+density operator is 𝜓 (𝜃, 𝜙) = |𝜓 (𝜃, 𝜙)⟩⟨𝜓 (𝜃, 𝜙)|. By replacing variable 𝜃 with a symbol 𝑠 0 over
+[0, 𝜋] and variable 𝜙 with a symbol 𝑠 1 over [0, 2𝜋], we would obtain a symbolic quantum state
+𝜓 (𝑠 0, 𝑠 1 ).                                                                                   ◁
+ Example 4.2 (Handling quantum states of 𝑛-qubit). Consider an 𝑛-qubit system with state space
+H = span{|0⟩, |1⟩, . . . , |2𝑛 − 1⟩}.
+                                                                                                            Í2𝑛 −1
+ (1) For any (𝛼 0, 𝛼 1, . . . , 𝛼 2𝑛 −1 ) ∈ C2 , let |𝑔(𝛼 0, 𝛼 1, . . . , 𝛼 2𝑛 −1 )⟩ = 1/ 𝑘=0        |𝛼𝑘 | 2 𝑖=0 𝛼𝑖 |𝑖⟩ pa-
+                                                  𝑛                                        √︃
+                                                                                              Í2𝑛 −1
+
+     rameterize all 𝑛-qubit pure states. Then, with each 𝛼 𝑗 replaced by a symbol 𝑠 𝑗 over C,
+     𝑔(𝑠 0, 𝑠 1, . . . , 𝑠 2𝑛 −1 ) would be the symbolic quantum state we           want.
+                                                                                                 Í2𝑛 −1
+ (2) Moreover, we can choose |𝑔 𝑗 (𝛼 𝑗,0, 𝛼 𝑗,1, . . . , 𝛼 𝑗,2𝑛 −1 )⟩ = / 𝑘=0 |𝛼 𝑗,𝑘 | 2 𝑖=0
+                                                                               1                            𝛼 𝑗,𝑖 |𝑖⟩ and (𝛽 0,
+                                                                                 √︃
+                                                                                    Í2𝑛 −1
+
+     𝛽 1, . . . , 𝛽 2𝑛 −1 ) ∈ C2 to define
+                                   𝑛
+
+
+
+                                                                       2∑︁
+                                                                        𝑛 −1            2
+                                                                                  𝑡𝑗
+               ℎ(𝛽 0, 𝛽 1, . . . , 𝛽 2𝑛 −1, . . . , 𝛼 𝑗,𝑘 , . . .) =           Í2𝑛 −1             𝑔 (𝛼 𝑗,0, 𝛼 𝑗,1, . . . , 𝛼 𝑗,2𝑛 −1 ),
+                                                                                                 2 𝑗
+                                                                       𝑗=0       𝑗=0        𝑡𝑗
+         which parameterizes all 𝑛-qubit mixed states. Then, with 𝑡 𝑗 , 𝑠𝑖,𝑗 being symbols over C, ℎ(𝛽 0,
+         𝛽 1, . . . , 𝛽 2𝑛 −1, . . . , 𝛼 𝑗,𝑘 , . . .) would be a symbolic quantum state for 𝑛-qubit mixed states.
+                                                                                                                                           ◁
+   Building on Examples 4.1 and 4.2, we introduce the general form of symbolic quantum states.
+   Definition 4.3 (Symbolic Quantum State). A symbolic quantum state 𝜌e is an 𝑛-ary map
+                                                  𝐺 : 𝐶 1 × 𝐶 2 × · · · × 𝐶𝑛 → D
+with each argument substituted by a symbol over its domain, i.e.,
+                                                         𝜌e ≜ 𝐺 (𝑠 1, 𝑠 2, . . . , 𝑠𝑛 ),
+where 𝑛 is a positive integer, for each 1 ≤ 𝑖 ≤ 𝑛, 𝐶𝑖 is a subset of complex numbers, and 𝑠𝑖 is the
+symbol for the value ranging over 𝐶𝑖 , and D is the set of quantum states under consideration, e.g.,
+the space of 𝑚-qubit mixed states if the program contains 𝑚 qubits.
+Quantum operations over symbolic quantum states. To use symbolic quantum states to
+capture the quantum states in quantum programs, we need to further define unitary transformations
+and quantum measurements over them.
+   Definition 4.4 (Quantum operations over symbolic quantum states). Let 𝜌e be a symbolic quantum
+state for qubit variables 𝑞 1, 𝑞 2, . . . , 𝑞𝑛 . Then:
+ • For a unitary statement 𝑈 𝑞¯ with qubits 𝑞¯ ⊆ {𝑞 1, 𝑞 2, . . . , 𝑞𝑛 }, the unitary transformation function
+   𝑢𝑡 is defined by
+                                                        𝑢𝑡 (𝑈 , ¯
+                                                               𝑞, 𝜌e) = 𝑈𝑞¯ 𝜌e𝑈𝑞¯†,                                                       (1)
+    where 𝑈𝑞¯ ≜ 𝑈𝑞¯ ⊗ 1 {𝑞1,𝑞2,...,𝑞𝑛 }\𝑞¯ is the operation that performs a local unitary 𝑈 on qubits 𝑞¯ and
+    does nothing with the remaining qubits.
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                                       189:11
+
+
+ • For a measurement statement 𝑐 B measure 𝑞 with 𝑞 ∈ {𝑞 1, 𝑞 2, . . . , 𝑞𝑛 }, the measurement
+   function 𝑚 is defined by
+                                                        |𝑠⟩𝑞 ⟨𝑠 |e
+                                                                  𝜌 |𝑠⟩𝑞 ⟨𝑠 |
+                                                                             
+                            𝑚(𝑞, 𝜌e) = 𝑠, tr |𝑠⟩𝑞 ⟨𝑠 |e
+                                                      𝜌 ,                                   (2)
+                                                           tr(|𝑠⟩𝑞 ⟨𝑠 |e
+                                                                       𝜌)
+      with 𝑠 a newly introduced symbol over {0, 1}, where |𝑠⟩𝑞 ⟨𝑠 | ≜ |𝑠⟩𝑞 ⟨𝑠 | ⊗ 1 {𝑞1,𝑞2,...,𝑞𝑛 }\{𝑞 } is the
+      measurement operator that act on qubit 𝑞 as |𝑠⟩⟨𝑠 | and does nothing with the remaining qubits.
+      The output is a triple of a newly introduced symbol        𝑠 ranging over measurement outcomes
+      {0, 1}, a symbolic expression 𝑝 (𝑠) = tr |𝑠⟩𝑞 ⟨𝑠 |e
+                                                        𝜌 for the probability of obtaining outcome 𝑠 when
+                                                         
+                                                                                                                  |𝑠 ⟩𝑞 ⟨𝑠 | 𝜌e|𝑠 ⟩𝑞 ⟨𝑠 |
+      performing measurement at qubit 𝑞 of state 𝜌e and a symbolic quantum state 𝜌e′ (𝑠) =                          tr( |𝑠 ⟩𝑞 ⟨𝑠 | 𝜌e)
+      that represents the state after this measurement.
+Efficient representations. According to our Definition 4.3, there exist infinitely many symbolic
+quantum states 𝐹 : 𝐶 1 × 𝐶 2 × · · · × 𝐶𝑛 → D. However, in practical applications, we must carefully
+consider which type of 𝐹 can be efficiently implemented on a classical computer. If we trivially
+employ the symbolic quantum state in Example 4.2, we would encounter several challenges:
+ • Exponential complexity: the number of symbols required, i.e., the dimension of the state
+    space, grows exponentially with respect to the number of qubits, leading to computational
+    complexity beyond what classical computers can handle.
+ • Lack of powerful solvers: without specialized solvers, addressing the problems arising from
+    QSE would become challenging.
+On the other hand, the development of SMT solvers promotes the application of classical SE.
+Similarly, we must make the symbolic quantum state take advantage of the existing solvers.
+  Fortunately, for QEC programs, we can construct suitable symbolic quantum states with efficient
+representations—symbolic stabilizer states, which we will discuss later in §6.
+
+4.3     Quantum Symbolic Execution
+Following the idea of classical SE, we come up with an SE framework for quantum programs (QSE)
+that maintains a symbolic configuration ⟨𝑆, 𝜎            e, 𝜌e, 𝑃, 𝜑⟩, where:
+ • 𝑆 is the quantum program to be executed.
+ •𝜎 e is the symbolic classical state, which is the same as the symbolic state in classical SE, and
+    maps classical variables of the program to symbolic expressions over constants and symbolic
+    values.
+ • 𝜌e is the symbolic quantum state, equipped with a unitary transformation function 𝑢𝑡 (𝑈 , ¯ 𝑞, 𝜌e)
+    for statement 𝑈 𝑞¯ and a measurement function 𝑚(𝑞, 𝜌e) for statement 𝑐 B measure 𝑞, for qubit
+    variables of the program.
+ • 𝑃 is a set that records the symbolic probabilities corresponding to the outcomes of quantum
+    measurements in the program. At the beginning of the execution, 𝑃 = ∅.
+ • 𝜑 is the path condition, i.e., a conjunctive formula that expresses a set of assumptions on the
+    symbols due to external calls and branches taken in an execution path of the quantum program.
+   As a natural extension to the operational semantics of quantum programs in Fig. 3, the QSE
+changes the symbolic configuration according to the QSE rules presented in Fig. 4. We also write
+                          e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩ if there is a sequence of transitions
+    e, 𝜌e, 𝑃, 𝜑⟩ →∗ ⟨𝑆 ′, 𝜎
+⟨𝑆, 𝜎
+            ⟨𝑆, 𝜎
+                e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 1, 𝜎                                  e𝑛 , 𝜌e𝑛 , 𝑃𝑛 , 𝜑𝑛 ⟩=⟨𝑆 ′, 𝜎
+                                     e1, 𝜌e1, 𝑃1, 𝜑 1 ⟩ → · · · → ⟨𝑆𝑛 , 𝜎                          e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩
+such that 𝑛 ≥ 0.
+  We assume that the function 𝐹 in an external call has a logical formula 𝐶 𝐹 ( ¯  𝑥, ¯
+                                                                                      𝑦) asserting the
+condition that input and output must meet, i.e., 𝐶 𝐹 ( ¯
+                                                      𝑥, 𝐹 ( ¯
+                                                            𝑥)) ≡ true. The existence of this condition
+
+                                      Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:12                                                                                       Wang Fang and Mingsheng Ying
+
+
+
+                 (S-As) ⟨𝑥 B 𝑒, 𝜎
+                                e, 𝜌e, 𝑃, 𝜑⟩ → ⟨↓, 𝜎
+                                                   e[e
+                                                     𝜎 (𝑒)/𝑥], 𝜌e, 𝑃, 𝜑⟩
+                 (S-EC) ⟨𝑦¯ B 𝐹 ( ¯                     e[¯𝑠 𝑦¯ / ¯
+                                     e, 𝜌e, 𝑃, 𝜑⟩ → ⟨↓, 𝜎
+                                 𝑥), 𝜎                                               𝜎(¯
+                                                                 𝑦], 𝜌e, 𝑃, 𝜑 ∧ 𝐶 𝐹 (e 𝑥), 𝑠¯𝑦¯ )⟩
+                (S-UT) ⟨𝑈 ¯                     e, 𝑢𝑡 (𝑈 , ¯
+                             e, 𝜌e, 𝑃, 𝜑⟩ → ⟨↓, 𝜎
+                          𝑞, 𝜎                            𝑞, 𝜌e), 𝑃, 𝜑⟩
+                  (S-M) ⟨𝑐 B measure 𝑞, 𝜎                  e[𝑠/𝑐], 𝜌e′ (𝑠), 𝑃 ∪ {(𝑠, 𝑝 (𝑠))}, 𝜑⟩
+                                        e, 𝜌e, 𝑃, 𝜑⟩ → ⟨↓, 𝜎
+                                where (𝑠, 𝑝 (𝑠), 𝜌e′ (𝑠)) = 𝑚(𝑞, 𝜌e)
+                                       e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 1′ , 𝜎
+                                 ⟨𝑆 1, 𝜎                      e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩
+                 (S-SC)
+                          ⟨𝑆 1 ; 𝑆 2, 𝜎
+                                      e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 1′ ; 𝑆 2, 𝜎
+                                                                  e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩
+                 (S-CT) ⟨if 𝑏 {𝑆 1 } else {𝑆 2 }, 𝜎 e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 1, 𝜎      e, 𝜌e, 𝑃, 𝜑 ∧ 𝜎
+                                                                                              e(𝑏)⟩
+                 (S-CF) ⟨if 𝑏 {𝑆 1 } else {𝑆 2 }, 𝜎 e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 2, 𝜎      e, 𝜌e, 𝑃, 𝜑 ∧ ¬e𝜎 (𝑏)⟩
+
+Fig. 4. Symbolic execution rules for quantum programs. For external call 𝑦¯ B 𝐹 ( ¯                         𝜎(¯
+                                                                                                   𝑥), 𝐶 𝐹 (e 𝑥), 𝑠¯𝑦¯ ) is the
+condition that the input and output should satisfy for 𝐹 , i.e., 𝐶 𝐹 ( ¯       𝑥, 𝐹 ( ¯
+                                                                                     𝑥)) ≡ true for any concrete values ¯     𝑥,
+where 𝑠¯𝑦¯ = 𝑠 𝑦1 , 𝑠 𝑦2 , . . . , 𝑠 𝑦𝑛 is a list of newly introduced symbols for output variables 𝑦¯ = 𝑦1, 𝑦2, . . . , 𝑦𝑛 .
+
+
+is obvious, e.g., we can choose 𝐶 𝐹 ( ¯
+                                     𝑥, ¯
+                                        𝑦) = (𝑦¯ == 𝐹 ( ¯
+                                                       𝑥)), but such a choice may not be efficient to
+(symbolically) compute for any 𝐹 .
+   For measurement statements, our defined function 𝑚 in Definition 4.4 uses a symbol to represent
+the measurement outcomes, avoiding branches like conditional statements. Since a lot of measure-
+ments are commonly required in QEC, this trick has the advantage of not facing the exponential
+complexity over the number of measurements.
+
+5   Soundness Theorem
+In this section, we present the soundness theorem for QSE (namely, the QSE rules in Fig. 4) with
+respect to the operational semantics. The proof for this section is located in Appendix C.
+   To precisely state the theorem, we need the notion of instantiation for symbolic quantum states.
+   Definition 5.1 (Instantiation). Let (𝜎, 𝜌) be a pair of classical state and quantum state, and let
+ 𝜎 , 𝜌e) be a pair of symbolic classical state and symbolic quantum state. Then we say that (𝜎, 𝜌) is
+(e
+an instantiation of (e  𝜎 , 𝜌e) under a path condition 𝜑, written
+                                                       (𝜎, 𝜌) |=𝜑 (e
+                                                                   𝜎 , 𝜌e)
+if there is a valuation 𝑉 that assigns every symbol in 𝜎     e, 𝜌e and 𝜑 with concrete values such that
+𝑉 (𝜑) = true, 𝜎 = 𝑉 (e𝜎 ) and 𝜌 = 𝑉 (e
+                                     𝜌 ). In particular, if 𝜑 ≡ true, we simply write (𝜎, 𝜌) |= (e
+                                                                                                 𝜎 , 𝜌e).
+  Our soundness theorem relies on the following two key lemmas about functions 𝑢𝑡 and 𝑚 for
+symbolic quantum states introduced in Definition 4.4.
+   Lemma 5.2 (Correctness of function 𝑢𝑡). For a unitary transformation statement 𝑈 ¯                 𝑞, a path
+condition 𝜑, a pair (𝜎, 𝜌) of classical state and quantum state, and a pair (e     𝜎 , 𝜌e) of symbolic classical
+state and symbolic quantum state, if ⟨𝑈 ¯   𝑞, 𝜎, 𝜌⟩ → ⟨↓, 𝜎 ′, 𝜌 ′ ⟩ and (𝜎, 𝜌) |=𝜑 (e 𝜎 , 𝜌e), then
+                                                                𝜎 , 𝑢𝑡 (𝑈 , ¯
+                                               (𝜎 ′, 𝜌 ′ ) |=𝜑 (e          𝑞, 𝜌e)).
+
+  Lemma 5.3 (Correctness of function 𝑚). For a measurement statement 𝑐 B measure 𝑞, a path
+condition 𝜑, a pair (𝜎, 𝜌) of classical state and quantum state, and a pair (e
+                                                                             𝜎 , 𝜌e) of symbolic classical
+                                                                                    𝑝
+                                                           −→ ⟨↓, 𝜎 ′, 𝜌 ′ ⟩ and (𝜎, 𝜌) |=𝜑 (e
+state and symbolic quantum state, if ⟨𝑐 B measure 𝑞, 𝜎, 𝜌⟩ −                                 𝜎 , 𝜌e), then
+                                               (𝜎 ′, 𝜌 ′ ) |=𝜑 (e
+                                                                𝜎 [𝑠/𝑐], 𝜌e′ (𝑠)),
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                                      189:13
+
+
+where (𝑠, 𝑝 (𝑠), 𝜌e′ (𝑠)) = 𝑚(𝑞, 𝜌e′ ).
+   Now we are ready to present the soundness theorem.
+   Theorem 5.4 (Soundness of QSE). For any quantum program 𝑆, any pair (𝜎, 𝜌) of classical state
+and quantum state, any pair (e𝜎 , 𝜌e) of symbolic classical state and symbolic quantum state, any set 𝑃
+of symbolic probabilities and any path condition 𝜑, if
+                                                     𝑝
+             (𝜎, 𝜌) |=𝜑 (e
+                         𝜎 , 𝜌e),                −→ ⟨𝑆 ′, 𝜎 ′, 𝜌 ′ ⟩,
+                                       ⟨𝑆, 𝜎, 𝜌⟩ −                                 e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 ′, 𝜎
+                                                                               ⟨𝑆, 𝜎                    e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩
+then (𝜎 ′, 𝜌 ′ ) |=𝜑 ′ (e
+                        𝜎 ′, 𝜌e′ ). Moreover, there is a valuation 𝑉 such that 𝑉 (e    𝜎 ) = 𝜎, 𝑉 (e
+                                                                                                   𝜌 ) = 𝜌, 𝑉 (𝜑) =
+            ′       ′
+         𝜎 ) = 𝜎 , 𝑉 (e
+true, 𝑉 (e                𝜌 ′ ) = 𝜌 ′, 𝑉 (𝜑 ′ ) = true and if 𝑃 ′ = 𝑃 ∪ {(𝑠, 𝑝 (𝑠)}, then 𝑝 = 𝑉 (𝑝 (𝑠)).
+
+6 Symbolic Stabilizer States
+As we briefly discussed in §4.2, a general symbolic quantum state cannot be represented in an
+efficient way. In this section, we propose a special class of symbolic quantum state with efficient
+representations, called symbolic stabilizer state. This class of symbolic quantum states is what we
+need in the analysis and verification of QEC programs. Then we extend this symbolic representation
+to unitaries and measurements so that we have an efficient QSE framework for our application in
+the analysis and verification of stabilizer codes.
+
+6.1    Symbolic Stabilizer States
+First, we present an efficient symbolic representation of stabilizer states by introducing symbols
+into the phases of Pauli strings as follows.
+   Definition 6.1 (Symbolic stabilizer state). For any commuting independent set {𝑃1, 𝑃2, . . . , 𝑃𝑛 |
+𝑝 𝑗 ≠ ±𝐼 ⊗𝑛 , 𝑃 𝑗2 ≠ −𝐼 ⊗𝑛 } of 𝑛-qubit Pauli strings with size 𝑛 and 𝑛 Boolean functions 𝑓1, 𝑓2, . . . , 𝑓𝑛
+over 𝑚 Boolean variables, let |𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 )⟩ denote a stabilizer state of
+
+                                      ⟨(−1) 𝑓1 (𝑏 1,...,𝑏𝑚 ) 𝑃1, . . . , (−1) 𝑓𝑛 (𝑏 1,...,𝑏𝑚 ) 𝑃𝑛 ⟩.
+A symbolic stabilizer state is defined as a symbolic quantum state
+                          𝜌e = 𝜓 (𝑠 1, 𝑠 2, . . . , 𝑠𝑚 ) = |𝜓 (𝑠 1, 𝑠 2, . . . , 𝑠𝑚 )⟩⟨𝜓 (𝑠 1, 𝑠 2, . . . , 𝑠𝑚 )|
+with 𝑠 1, 𝑠 2, . . . , 𝑠𝑚 being symbols over Boolean values.
+  Since the global phase of |𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 )⟩ is canceled out in 𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 ), the stabilizer
+⟨(−1) 𝑓1 (𝑏 1,...,𝑏𝑚 ) 𝑃1, . . . , (−1) 𝑓𝑛 (𝑏 1,...,𝑏𝑚 ) 𝑃𝑛 ⟩ corresponds to a unique density operator 𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 ).
+Therefore, we slightly abuse the notation and also write the density operator
+
+                        𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 ) = ⟨(−1) 𝑓1 (𝑏 1,...,𝑏𝑚 ) 𝑃1, . . . , (−1) 𝑓𝑛 (𝑏 1,...,𝑏𝑚 ) 𝑃𝑛 ⟩,
+and the symbolic stabilizer state
+
+                                    𝜌e = ⟨(−1) 𝑓1 (𝑠1,...,𝑠𝑚 ) 𝑃1, . . . , (−1) 𝑓𝑛 (𝑠1,...,𝑠𝑚 ) 𝑃𝑛 ⟩.
+   Example 6.2. In our running example (Fig. 2), the initial symbolic stabilizer state is
+                                            ⟨(−1)𝑠 𝑍 1, (−1) 0𝑍 1𝑍 2, (−1) 0𝑍 2𝑍 3 ⟩
+with 𝑠 being a Boolean symbol. It represents a set of quantum states {|000⟩, |111⟩} as |000⟩ and
+|111⟩ are the stabilizer states of ⟨𝑍 1, 𝑍 1𝑍 2, 𝑍 2𝑍 3 ⟩ and ⟨−𝑍 1, 𝑍 1𝑍 2, 𝑍 2𝑍 3 ⟩, respectively. ◁
+
+                                       Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:14                                                                                                      Wang Fang and Mingsheng Ying
+
+
+6.2      Quantum Operations over Symbolic Stabilizer States
+Now we can extend the symbolic representation for stabilizer states to unitaries and measurements.
+Indeed, the unitary transformation function 𝑢𝑡 and measurement function 𝑚 defined in §4.2 can
+be naturally lifted to functions on stabilizers by the stabilizer formalism [Nielsen and Chuang
+2010, Chapter 10.5]. The definitions are as follows, and their correctness for Lemmas 5.2 and 5.3 is
+available in Appendix D.
+   Definition 6.3 (Quantum operations over symbolic stabilizer states). Let
+
+                                         𝜌e = ⟨(−1) 𝑓1 (𝑠1,...,𝑠𝑚 ) 𝑃1, . . . , (−1) 𝑓𝑛 (𝑠1,...,𝑠𝑚 ) 𝑃𝑛 ⟩
+be a symbolic stabilizer state for qubit variables 𝑞 1, 𝑞 2, . . . , 𝑞𝑛 . Then
+ • For a Clifford unitary statement 𝑉 𝑞¯ with qubits 𝑞¯ ⊆ {𝑞 1, . . . , 𝑞𝑛 }, the unitary transformation
+   function 𝑢𝑡 is defined as 𝑢𝑡 (𝑉 , ¯
+                                    𝑞, 𝜌e) =
+
+                                    ⟨(−1) 𝑓1 (𝑠1,...,𝑠𝑚 ) 𝑉𝑞¯ 𝑃1𝑉𝑞¯†, . . . , (−1) 𝑓𝑛 (𝑠1,...,𝑠𝑚 ) 𝑉𝑞¯ 𝑃𝑛𝑉𝑞¯† ⟩.
+
+ • For a measurement statement 𝑐 B measure 𝑞 with 𝑞 ∈ {𝑞 1, 𝑞 2, . . . , 𝑞𝑛 }, the definition of
+    measurement function 𝑚 is divided into two cases:
+  (1) 𝑍𝑞 commutes with all 𝑃 𝑗 , 1 ≤ 𝑗 ≤ 𝑛. In this case, there exist a Boolean value 𝑏 and a list of
+      indexes 1 ≤ 𝑗1 ≤ 𝑗2 ≤ . . . ≤ 𝑗𝑘 ≤ 𝑛 with 1 ≤ 𝑘 ≤ 𝑛 such that 𝑍𝑞 = (−1)𝑏 𝑃 𝑗1 𝑃 𝑗2 · · · 𝑃 𝑗𝑘 . The
+      measurement does not change the state and implies a determinate outcome [Nielsen and
+      Chuang 2010, §10.5.3]. The function 𝑚 is defined as 𝑚(𝑞, 𝜌e) =
+                                     (𝑏 ⊕ 𝑓 𝑗1 (𝑠 1, . . . , 𝑠𝑚 ) ⊕ · · · ⊕ 𝑓 𝑗𝑘 (𝑠 1, . . . , 𝑠𝑚 ), {}, 𝜌e).
+   (2) 𝑍𝑞 anti-commutes one or more of 𝑃 𝑗 . In this case, without loss of generality, we can assume
+       𝑃1 anti-commutes with 𝑍𝑞 and 𝑃2, . . . , 𝑃𝑛 commute with 𝑍𝑞 3 . Then, the function 𝑚 is defined
+       as 𝑚(𝑞, 𝜌e) =
+                      1                                                                         
+                      𝑠, , ⟨(−1)𝑠 𝑍𝑞 , (−1) 𝑓2 (𝑠1,...,𝑠𝑚 ) 𝑃2, . . . , (−1) 𝑓𝑛 (𝑠1,...,𝑠𝑚 ) 𝑃𝑛 ⟩ ,
+                        2
+         where 𝑠 is a newly introduced Boolean symbol for the measurement outcome.
+  Example 6.4. In our running example Fig. 2, measuring 𝑍 1𝑍 2 (Lines 4-6 in Fig. 1) is implemented
+by CNOT 𝑞 1, 𝑞 2 ; 𝑚 1 B measure 𝑞 2 ; CNOT 𝑞 1, 𝑞 2 . It changes the symbolic stabilizer state 𝜌e2 =
+⟨(−1)𝑠 ⊕𝑒1 𝑍 1, (−1)𝑒1 ⊕𝑒2 𝑍 1𝑍 2, (−1)𝑒2 ⊕𝑒3 𝑍 2𝑍 3 ⟩ as follows:
+   (1) CNOT 𝑞 1, 𝑞 2 transforms 𝜌e2 to 𝜌e3
+      = ⟨(−1)𝑠 ⊕𝑒1 CNOT 1,2𝑍 1 CNOT 1,2, (−1)𝑒1 ⊕𝑒2 CNOT 1,2 (𝑍 1𝑍 2 )CNOT 1,2, (−1)𝑒2 ⊕𝑒3 CNOT 1,2 (𝑍 2𝑍 3 )CNOT 1,2 ⟩
+      = ⟨(−1)𝑠 ⊕𝑒1 𝑍 1, (−1)𝑒1 ⊕𝑒2 𝑍 2, (−1)𝑒2 ⊕𝑒3 𝑍 1𝑍 2𝑍 3 ⟩.
+   (2) Then 𝑚 1 B measure 𝑞 2 performs measurement 𝑍 2 on 𝜌e3 . Since 𝑍 2 commutes with all Pauli
+       strings in 𝜌e3 , we follow the case 1 in Definition 6.3 to get 𝑍 2 = (−1) 0𝑍 2 , thus 𝑚(𝑞 2, 𝜌e3 ) =
+       (𝑒 1 ⊕ 𝑒 2, {}, 𝜌e3 ) leading to outcome 𝑚 1 = 𝑒 1 ⊕ 𝑒 2 and the quantum state remains 𝜌e3 .
+   (3) Finally, 𝐶𝑁𝑂𝑇 𝑞 1, 𝑞 2 transforms 𝜌e3 back to 𝜌e2 .
+                                                                                                                                                  ◁
+
+3 If there is other 𝑃 , 𝑗 ≥ 2 anti-commutes with 𝑍 , we can replace the (−1) 𝑓 𝑗 (𝑠 1 ,...,𝑠𝑚 ) 𝑃 by (−1) 𝑓1 (𝑠 1 ,...,𝑠𝑚 ) +𝑓 𝑗 (𝑠 1 ,...,𝑠𝑚 ) 𝑃 𝑃
+                     𝑗                              𝑞                                            𝑗                                               1 𝑗
+in the generating set of 𝜌e, and it will result in the same 𝜌e. Then 𝑍𝑞 only commute with 𝑃 1 𝑃 𝑗 .
+
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                          189:15
+
+
+Efficient implementation. The two functions 𝑢𝑡 and 𝑚 defined above require three subroutines:
+ • A subroutine that computes 𝑉 𝑃𝑉 † for a Pauli string 𝑃 and a Clifford gate 𝑉 .
+ • A subroutine that determines whether two Pauli strings 𝑃1 and 𝑃2 are commutable or not.
+ • A subroutine that produce a Boolean value 𝑏 and a list of indexes 1 ≤ 𝑗1, 𝑗2, . . . , 𝑗𝑘 ≤ 𝑛 with
+   1 ≤ 𝑘 ≤ 𝑛 such that (−1)𝑏 𝑍𝑞 = 𝑃 𝑗1 𝑃 𝑗2 · · · 𝑃 𝑗𝑘 for a qubit 𝑞 and a stabilizer ⟨𝑃1, 𝑃2, . . . , 𝑝𝑛 ⟩ if 𝑍𝑞
+   commutes with all 𝑃 𝑗 .
+These subroutines are standard in stabilizer formalism, and there are already efficient implementa-
+tions [Aaronson and Gottesman 2004; Gidney 2021] for them. We provide a detailed discussion of
+the implementation in Appendix B.
+
+6.3    Adequacy
+In this subsection, we further show that our symbolic representation is adequate for our target
+application in the analysis and verification of stabilizer codes. The proof for this section is located
+in Appendix D.
+   To answer whether a decoder of a stabilizer code is correct, we need to verify that for any
+quantum state 𝜌 in the code space as the input state, the program 𝑆 consisting of error injection
+(inject errors allowed by the stabilizer code) and this decoder will output the same state 𝜌. Thus,
+we need to verify whether the input quantum state and the output quantum state are the same.
+   Formally, let 𝑆 be a quantum program that only uses Clifford gates and 𝜎 be a classical state. For
+1 ≤ 𝑘 ≤ 𝑛, assume that an 𝑛-qubit stabilizer code encoding 𝑘 logical qubits with syndrome operators
+𝑃1, 𝑃2, . . . , 𝑃𝑛−𝑘 and logical operators 𝐿1, 𝐿2, . . . , 𝐿𝑘 . Let |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 with 𝑥 𝑗 ∈ {0, 1} denoting
+the logical computational basis state of the code as in Example 2.1, and 𝐻¯ = 𝐻𝐿,1 ⊗ 𝐻𝐿,2 ⊗ · · · ⊗ 𝐻𝐿,𝑘
+with 𝐻𝐿,𝑗 being the logical Hardamard gate, which is a Clifford gate, for the 𝑗-th logical qubit. It is
+clear that states |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 and 𝐻¯ |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 are both stabilizer states. We write T for the
+set of (density operators of) these states with 𝑥 𝑗 ∈ {0, 1}(1 ≤ 𝑗 ≤ 𝑘). Then we have:
+
+   Lemma 6.5. If for any 𝜌 ∈ T , it holds that
+                                          𝑝
+                                        −→ ∗ ⟨↓, 𝜎 ′, 𝜌 ′ ⟩ with 𝑝 > 0 implies 𝜌 ′ = 𝜌
+                              ⟨𝑆, 𝜎, 𝜌⟩ −                                                                            (3)
+
+then (3) holds for all quantum state 𝜌 in the code space.
+
+   Theorem 6.6 (Adeqacy of symbolic stabilizer states). Let:
+   (1) 𝜌e1 be the symbolic stabilizer state ⟨𝑃1, . . . , 𝑃𝑛−𝑘 , (−1)𝑠1 𝐿1, . . . , (−1)𝑠𝑘 𝐿𝑘 ⟩; and
+                                              ¯ 1 𝐻,
+   (2) 𝜌e2 be the symbolic stabilizer state ⟨𝐻𝑃       ¯ . . . , 𝐻𝑃
+                                                                ¯ 𝑛−𝑘 𝐻,
+                                                                       ¯ (−1)𝑠1 𝐻𝐿   ¯ 1𝐻,
+                                                                                         ¯ . . . , (−1)𝑠𝑘 𝐻𝐿
+                                                                                                          ¯ 𝑘 𝐻¯ ⟩ with
+       𝑠 𝑗 symbols over Boolean values.
+       e be a classical symbolic state that does not contains 𝑠 𝑗 , 1 ≤ 𝑗 ≤ 𝑘.
+   (3) 𝜎
+If for 𝜌e = 𝜌e1, 𝜌e2 ,
+
+                             e, 𝜌e, ∅, true⟩ →∗ ⟨↓, 𝜎
+                         ⟨𝑆, 𝜎                      e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩ implies 𝜑 ′ |= 𝜌e′ = 𝜌e,
+
+then for any quantum state 𝜌 in the code space and any valuation 𝑉 ,
+                                              𝑝
+                           ⟨𝑆, 𝑉 (e       −→ ∗ ⟨↓, 𝜎 ′, 𝜌 ′ ⟩ with 𝑝 > 0 implies 𝜌 ′ = 𝜌.
+                                  𝜎 ), 𝜌⟩ −
+
+  This theorem tells us that we only need to check two symbolic stabilizer states to verify that a
+program’s initial and final quantum states are the same.
+
+                                   Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:16                                                                                               Wang Fang and Mingsheng Ying
+
+
+7   Conditional Application of Pauli Gates without Forking
+In classical SE, a branch of conditional triggers a path fork and update to the path constraints as
+rules (S-CT) and (S-CF) in Fig. 4. However, there may be many conditional statements in QEC
+programs, e.g., the conditionals in our running example (Lines 10-12 in Fig. 1) are designed for
+each physical qubit; thus, when the number of physical qubits is large, the number of conditional
+statements required is also large. Then, we will face the problem of path explosion. Fortunately,
+with a newly designed rule (see Eq. (4) later), our symbolic stabilizer states can solve this problem.
+Symbolic Pauli gates. We observe that to correct the 𝑋 or 𝑍 error, QEC programs usually use a
+conditional statement to determine whether to apply the 𝑋 or 𝑍 gate in the recovery stage, e.g.,
+the line 10 in Fig. 1:
+                                if 𝑚 1 == 1 & 𝑚 2 == 0 {𝑋 𝑞 1 }
+This application of 𝑋 and 𝑍 gates inspires us to define the following symbolic Pauli gates.
+  Definition 7.1 (Symbolic Pauli gates). For a symbolic Boolean expression 𝑒, a Pauli gate 𝜏 ∈
+{𝑋, 𝑌 , 𝑍 }, and a qubit 𝑞, we define the symbolic Pauli gate 𝜏 𝑒 at qubit 𝑞 as the conditional statement
+if 𝑒 {𝜏 𝑞}; that is, 𝜏 𝑒 applies 𝜏 to qubit 𝑞 if 𝑒 is evaluated to be true and 𝐼 if 𝑒 is evaluated to be
+false. For convenience, we also add a new statement
+                                                    𝜏 [𝑒] 𝑞 ≡ if 𝑒 {𝜏 𝑞}
+for symbolic Pauli gate 𝜏 𝑒 .
+QSE rule for symbolic Pauli gates. Our symbolic stabilizer states are very friendly to symbolic
+Pauli gates. For any Pauli string
+                                               𝑃 = (𝑖)𝑘 𝑃1 ⊗ 𝑃2 ⊗ · · · ⊗ 𝑃𝑛 ,
+conjugation by a symbolic Pauli gate 𝜏 𝑒 at qubit 𝑞 transforms it into
+                           (𝑖)𝑘 𝑃1 ⊗ · · · ⊗ (𝜏 𝑒 𝑃𝑞 (𝜏 † )𝑒 ) ⊗ · · · ⊗ 𝑃𝑛 = (−1)𝑒 ·[𝜏≠𝑃𝑞 ] 𝑃,
+where [𝜏 ≠ 𝑃𝑞 ] = 1 if 𝜏 ≠ 𝑃𝑞 , otherwise [𝜏 ≠ 𝑃𝑞 ] = 0. We see that 𝜏 𝑒 only changes the phase of the
+Pauli string. Thus, for symbolic stabilizer states, the unitary transformation by a symbolic Pauli
+gate 𝜏 𝑒 can be rewritten as
+                         𝑢𝑡 (𝜏 𝑒 , 𝑞, ⟨(−1) 𝑓1 (𝑠1,...,𝑠𝑚 ) 𝑃1, . . . , (−1) 𝑓𝑛 (𝑠1,...,𝑠𝑚 ) 𝑃𝑛 ⟩)
+                       = ⟨(−1) 𝑓1 (𝑠1,...,𝑠𝑚 ) ⊕𝑒 [𝜏≠𝑃1,𝑞 ] 𝑃1, . . . , (−1) 𝑓𝑛 (𝑠1,...,𝑠𝑚 ) ⊕𝑒 [𝜏≠𝑃𝑛,𝑞 ] 𝑃𝑛 ⟩.
+where the 𝑞-th Pauli gate of 𝑃𝑘 is 𝑃𝑘,𝑞 . Then, the QSE rule for 𝜏 [𝑒] 𝑞 can be redefined as
+
+                            (S-SP) ⟨𝜏 [𝑒] 𝑞, 𝜎                  e, 𝑢𝑡 (𝜏 𝜎e (𝑒 ) , 𝑞, 𝜌e), 𝑃, 𝜑⟩
+                                             e, 𝜌e, 𝑃, 𝜑⟩ → ⟨↓, 𝜎                                                             (4)
+Conditional without forking. The rule (S-SP) provides a simpler and more effective way to
+handle the statement 𝜏 [𝑒] 𝑞 than rules (S-CT) and (S-CF) for conditionals in Fig. 4. For example,
+consider the program
+                                𝑋 [𝑚 1 == 0] 𝑞 1 ; 𝑋 [𝑚 2 == 0] 𝑞 2 ; 𝑋 [𝑚 3 == 0] 𝑞 3,
+which is also
+                        if 𝑚 1 == 0 {𝑋 𝑞 1 }; if 𝑚 2 == 0 {𝑋 𝑞 2 }; if 𝑚 3 == 0 {𝑋 𝑞 3 },
+for a symbolic configuration, the rule (S-SP) will eventually produce one symbolic configuration;
+however, rules (S-CT) and (S-CF) will produce 8 symbolic configurations.
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                           189:17
+
+
+Inserting symbolic Pauli errors through symbolic Pauli gates. The error injection in our
+running example (see Fig. 1) can be done by the program
+                                 𝑋 [𝑒 1 == 1] 𝑞 1 ; 𝑋 [𝑒 2 == 1] 𝑞 2 ; 𝑋 [𝑒 3 == 1] 𝑞 3
+with constraints 𝑒 1 + 𝑒 2 + 𝑒 3 ≤ 1, 0 ≤ 𝑒 1, 𝑒 2, 𝑒 3 ≤ 1, which characterizes all possible 𝑋 errors with at
+most 1 location of physical qubits. More generally, the following program
+                              𝑋 [𝑒 1 == 1] 𝑞 1 ; 𝑋 [𝑒 2 == 1] 𝑞 2 ; . . . ; 𝑋 [𝑒𝑛 == 1] 𝑞𝑛                            (5)
+with constraints 𝑒 1 + 𝑒 2 + · · · + 𝑒𝑛 ≤ 𝑑, 0 ≤ 𝑒 𝑗 ≤ 1, 1 ≤ 𝑗 ≤ 𝑛, captures all possible 𝑋 errors at most
+𝑑 locations of 𝑛 physical qubits. By doing this, we efficiently overcome the challenge of dealing
+with a large number of samples of possible Pauli errors, which grows exponentially as 𝑑𝑛 .
+
+8     Experimental Evaluation
+We implemented our general QSE framework together with the special support of symbolic stabilizer
+states in a prototype tool called QuantumSE.jlas a Julia [Bezanson et al. 2017] package. For an
+initialized symbolic configuration ⟨𝑆, 𝜎        e, 𝜌e, 𝑃, 𝜑⟩, QuantumSE.jl constructs a set of the terminal
+configurations ⟨↓, 𝜎
+                   e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩ s.t. ⟨𝑆, 𝜎                   e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩ by the QSE rules in Fig. 4.
+                                                e, 𝜌e, 𝑃, 𝜑⟩ →∗ ⟨↓, 𝜎
+Then, for an assertion that we are interested in at a terminal configuration ⟨↓, 𝜎              e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩, e.g.,
+𝜑 ∧ 𝜑 |= 𝜌e = 𝜌e for QEC decoders, QuantumSE.jl will call the Bitwuzla SMT solver [Niemetz and
+      ′     ′
+
+Preiner 2023] to prove it4 . If the SMT solver is unable to prove it, the SMT solver will provide a
+counterexample, from which QuantumSE.jl will report that the program 𝑆 is buggy and generate
+the test case.
+   To evaluate QuantumSE.jl, we consider the following research questions (RQs):
+ • RQ1. Is QuantumSE.jl scalable at finding bugs in QEC programs over different kinds of QEC codes?
+ • RQ2. Can QuantumSE.jl outperform other tools?
+ • RQ3. What factors affect the performance of QuantumSE.jl?
+All our experiments are carried out on a desktop with Intel(R) Core(TM) i7-9700 CPU @3.00GHz
+and 16G of RAM, running Ubuntu 22.04.2 LTS.
+
+8.1    RQ1: Finding Bugs in QEC Programs
+To address RQ1, we selected three representative QEC codes, i.e., quantum repetition codes, Kitaev’s
+toric codes [Kitaev 2003, 1997], and quantum Tanner codes [Leverrier and Zémor 2022]. The
+repetition codes and toric codes belong to surface codes [Dennis et al. 2002], a variant of which was
+implemented in Google’s recent QEC experiment [Acharya et al. 2023] (with 72 physical qubits).
+The quantum Tanner codes, which follow the recent major breakthrough [Panteleev and Kalachev
+2022] of QEC codes, are pretty complicated. Fig. 5a shows one of the QEC programs evaluated in
+this experiment. It has a strange bug that it will fail to correct errors when 𝑋 errors occur at qubits
+𝑞 1, 𝑞 2, . . . , 𝑞 ⌊ 𝑛−1 ⌋ . A detailed description of the QEC codes and programs used in this experiment is
+                       2
+available in Appendix A.
+   Results. Based on the construction of these QEC codes, we evaluated QuantumSE.jl on repetition
+codes with 50𝑗 physical qubits for 1 ≤ 𝑗 ≤ 28, toric codes with 2𝑑 2 physical qubits for 4 ≤ 𝑑 ≤ 27,
+and quantum Tanner codes with 343𝑘 physical qubits for 1 ≤ 𝑘 ≤ 4. Fig. 5b shows the running
+times for QuantumSE.jl to find bugs in the QEC programs for these different sizes of QEC codes.
+We can see that the running time does not tend to increase dramatically with the number of qubits.
+QuantumSE.jl can analyze QEC programs with over 1000 qubits in a short period of time, exceeding
+4We choose Bitwuzla as it is a winner of the competition in the quantifier-free bit-vector logic category in SMT-COMP 2022
+
+(see https://smt-comp.github.io/2022/results/qf-bitvec-single-query).
+
+
+                                    Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:18                                                                                                                         Wang Fang and Mingsheng Ying
+
+𝐶𝑁𝑂𝑇 𝑞 1, 𝑞 2 ; 𝑠 1 B measure 𝑞 2 ; 𝐶𝑁𝑂𝑇 𝑞 1, 𝑞 2 ;             // measure 𝑍 1𝑍 2
+𝐶𝑁𝑂𝑇 𝑞 2, 𝑞 3 ; 𝑠 2 B measure 𝑞 3 ; 𝐶𝑁𝑂𝑇 𝑞 2, 𝑞 3 ;             // measure 𝑍 2𝑍 3
+ ···
+                                                                                                    1,000             Repetition codes
+𝐶𝑁𝑂𝑇 𝑞𝑛−1, 𝑞𝑛 ; 𝑠𝑛−1 B measure 𝑞𝑛 ; 𝐶𝑁𝑂𝑇 𝑞𝑛−1, 𝑞𝑛 ; // measure 𝑍𝑛−1𝑍𝑛                                                   Toric codes
+                                                                                                        750
+
+
+                                                                                          Time (sec.)
+𝐶𝑁𝑂𝑇 𝑞𝑛 , 𝑞 1 ; 𝑠𝑛 B measure 𝑞 1 ; 𝐶𝑁𝑂𝑇 𝑞𝑛 , 𝑞 1 ;              // measure 𝑍𝑛 𝑍 1                                      Tanner codes
+𝑟 1, 𝑟 2, . . . , 𝑟𝑛 B MWPM(𝑠 1, 𝑠 2, . . . , 𝑠𝑛 );             // call MWPM                            500
+𝑋 [𝑟 1 == 1] 𝑞 1 ;                                              // apply 𝑋 if 𝑟 1 = 1
+𝑋 [𝑟 2 == 1] 𝑞 2 ;                                              // apply 𝑋 if 𝑟 2 = 1                   250
+ ···
+𝑋 [𝑟𝑛 == 1] 𝑞𝑛 ;                                                // apply 𝑋 if 𝑟𝑛 = 1                     0
+𝑋 [𝑟 1 ∗ 𝑟 2 ∗ · · · ∗ 𝑟 ⌊ 𝑛−1 ⌋ == 1] 𝑞 1
+                          2
+                                                                // a strange bug!                             0              500          1,000        1,500
+(a) A QEC program with a strange bug for                                Number of physical qubits
+quantum repetition codes. The quantum repeti- (b) Performance results of finding bugs in QEC pro-
+tion code with 𝑛 physical qubits has stabilizer grams by QuantumSE.jl. The runtime here is mainly
+checks 𝑍 1𝑍 2, 𝑍 2𝑍 3, . . . , 𝑍𝑛−1𝑍𝑛 . After measuring consumed by the SMT solver, and its irregular trend
+these checks, we additionally measure the observ- is also due to performance anomalies of the solver in
+able 𝑍𝑛 𝑍 1 for the convenience of calling MWPM.        some special cases. See §8.3 for detailed analysis.
+                Fig. 5. An example of QEC programs evaluated in RQ1 and the performance results of RQ1.
+
+
+the current physical experiments that use about 280 qubits. Thus, we believe that QSE will be useful
+in future QEC experiments for debugging QEC programs.
+
+8.2       RQ2: Comparing with Other Tools
+Comparing with other SE tools. As we will discuss in related work (see §9.2), none of the
+existing work on SE can handle QEC programs. Nevertheless, since SymQV [Bauer-Marquart et al.
+2023] provides an easy-to-use implementation, we compare QuantumSE.jl with it on a simple
+class of circuits that only contains 𝐻 and 𝑋 gates (see Fig. 6a). We use SymQV and QuantumSE.jl
+respectively to check whether the input states and output states of Fig. 6a are equivalent. Since
+SymQV uses Z3 as the SMT solver, we also use Z3 in this comparison.
+                                                                                                    Time to prove Fig. 6a is identity (sec.)
+                     𝐻          𝑋            𝑋        𝐻
+                                                                                        101                   QuantumSE.jl
+                     𝐻          𝑋            𝑋        𝐻
+                                                                                                                 SymQV
+           ..        ..         ..           ..       ..   ..
+            .         .          .            .        .    .                           100
+                     𝐻          𝑋            𝑋        𝐻                              10 −1
+
+(a) A simple class of quantum circuits that                                                                       5          10          15       20
+contains four layers of 𝐻, 𝑋, 𝑋, 𝐻 gates,                                                              Number of qubits
+which are canceled out into identity.                                               (b) Performance results of SymQV and QuantumSE.jl.
+Fig. 6. Comparison between SymQV and QuantumSE.jl. QuantumSE.jl’s runtime is fast, while SymQV’s is slower
+even though we set up SymQV with product state and overapproximation.
+
+   Results. The runtime of SymQV and QuantumSE.jl are presented in Fig. 6b. The main reason for
+the results in Fig. 6b is that QuantumSE.jl is based on stabilizers, while SymQV is based on quantum
+states, which has a much larger dimension that grows exponentially with the number of qubits. But
+the strange thing is that we have set up the product state approximation for SymQV, which should
+not take too long as in Fig. 6b. We believe there is room for optimization in implementing SymQV.
+Comparing with state-of-the-art simulators. Several other tools can handle QEC programs
+(circuits), but since the dimension of the state space of qubits grows exponentially with the number
+of qubits, the only existing work that can efficiently handle QEC circuits with over 1000 qubits
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                             189:19
+
+
+are stabilizer-based simulators (see discussion in §9.1). However, finding bugs with the simulator
+requires considering all possible errors. For example, in the QEC program of Fig. 5a with 𝑛 =
+1000, there are 1000      499 ≈ 10
+                                    299 possible locations of 499 𝑋 errors, but the bug only occurs when
+
+𝑞 1, 𝑞 2, . . . , 𝑞 499 have 𝑋 errors, which is in one of these possibilities. Even though the state-of-the-art
+stabilizer simulator, Stim [Gidney 2021], is really fast at sampling measurement results, it is unrealistic
+to sample one case out of 10299 possibilities even with a supercomputer.
+    To give Stim a fair shake, we have added the ability to sample stabilizer circuits’ measurement
+results to QuantumSE.jl5 and compare it to Stim in terms of sampling functionality. A sample of a
+stabilizer circuit refer to the (random) measurement outcomes obtained by running the circuit once.
+For samples of a stabilizer circuit, Stim and QuantumSE.jl first initialize a sampler and then use it to
+generate samples rapidly. To conduct a comparison, we choose the benchmark of layered random
+interaction circuits used in Stim [Gidney 2021], where Stim outperformed popular simulators such
+as Qiskit’s stabilizer method [Qiskit Community 2017], Cirq’s Clifford simulator [Cirq Developers
+2018], Aaronson and Gottesman [2004]’s chp.c and GraphSim [Anders and Briegel 2006].
+               Time to initialize a sampler (sec.)                      Time to generate 10,000 samples (sec.)
+      6            QuantumSE.jl                                 10 −1
+      4               Stim
+                                                                10 −3
+      2                                                                                            QuantumSE.jl
+                                                                                                      Stim
+      0                                                         10 −5
+           0       200     400    600     800     1,000                  0     200     400      600      800     1,000
+                 𝑛: Qubit Count and Layer Count                              𝑛: Qubit Count and Layer Count
+Fig. 7. Performance results of sampling layered random interaction circuits. Each circuit is made up of 𝑛
+qubits with 𝑛 layers. Each layer randomly applies an 𝐻 , 𝑆, and 𝐼 gate to each qubit, then samples 10 pairing
+of the qubits to apply 𝐶𝑁𝑂𝑇 gate, then samples 5% of the qubits to measure in the computational basis. At
+the end of the circuit, each qubit is measured in the computational basis.
+
+    Results. We present the comparisons of the time for QuantumSE.jl and Stim to initialize a sampler
+(i.e., the time to analyze the input circuit and create a sampler for generating the measurement
+results) and the time for QuantumSE.jl and Stim’s samplers to generate 10,000 samples in Fig. 7. We
+can see that for 𝑛 > 600, the sampler generated by QuantumSE.jl spends a shorter time than Stim’s
+in generating samples, which means that QuantumSE.jl can exhibit a faster sampling speed than
+the state-of-the-art stabilizer simulator. We also notice that QuantumSE.jl spends more time than
+Stim to initialize the sampler. The main reason here is that Stim is well optimized in initializing the
+sampler, while our QuantumSE.jl is not specifically designed for it.
+
+8.3       RQ3: Analyzing Performance Factors
+To analyze the factors that affect the performance of QuantumSE.jl, we count the running time of
+QuantumSE.jl debugging QEC programs in three separate stages:
+ • Init: the initialization stage that prepares initial symbolic configurations for QSE. It takes time
+   mainly to initialize the symbolic quantum states as in Theorem 6.6 and to insert symbolic errors
+   as in Eq. (5).
+ • QSE: the quantum symbolic execution stage that performs symbolic execution of the quantum
+   program. The time spent in this stage depends on how QuantumSE.jl maintains the symbolic
+   configuration, especially its symbolic quantum state (symbolic stabilizer state).
+5 After symbolic execution, we only need to substitute concrete values for all symbols (with corresponding probabilities) in
+
+the symbolic expressions of measurement results to achieve sampling without having to go through the circuit again.
+
+                                    Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:20                                                                                  Wang Fang and Mingsheng Ying
+
+
+    • SMT: the SMT solver stage that calls an SMT solver to solve the assertions constructed by
+      QuantumSE.jl. The time spent in this stage depends on the performance of the solver.
+                                                 Init           QSE             SMT
+
+
+                    400                                           4
+
+
+      Time (sec.)   200                                           2
+
+
+                     0                                            0
+                          400         800         1,200           400                 800            1,200
+                            Number of qubits                                      Number of qubits
+                                Fig. 8. The stack graph of time spent in three stages.
+
+   Results. We chose the QEC programs for Toric codes in RQ1 (§8.1) to analyze because of the
+nontrivial trend of Toric codes in the time curve (Fig. 5b) and enough number of data points
+available. We show the time spent by QuantumSE.jl in the three stages in a stack graph, Fig. 8,
+which allows us to see that the stage SMT is dominating the running time. We can see that the
+time used by the SMT solver does not increase regularly with the number of qubits. We find that
+this is due to anomalies in the performance of the SMT solver in some special cases6 . For example,
+the adopted SMT solver Bitwuzla spent 210.3(s) in the case of 338 qubits; however, if we change the
+configuration of Bitwuzla, it can solve it with only 11(s). This raises an interesting issue regarding
+improving the combination of QSE and SMT solvers for further research. Additionally, we observe
+that the time share of stages Init and QSE is small and the trend of their time curves is smooth.
+Thus, these two parts are very scalable and do not restrict the performance of QuantumSE.jl.
+
+9      Related Work
+9.1           Simulation-based analysis for quantum computing
+With the rapid development of quantum hardware, researchers have recently put a lot of effort
+into the simulation of quantum computation on classical computers, and with it comes a wealth of
+quantum softwares [Bergholm et al. 2022; Cirq Developers 2018; Luo et al. 2020; Qiskit Community
+2017; Suzuki et al. 2021; Svore et al. 2018], which help us to test and debug quantum circuits and
+programs.
+   We first discuss the stabilizer-based simulation that is most relevant to our work. It is well-known
+that stabilizer circuits can be efficiently simulated [Aaronson and Gottesman 2004; Anders and
+Briegel 2006; Gidney 2021; Gottesman 1998; Krastanov 2019], where Gottesman [1998]’s tableau
+algorithm and Aaronson and Gottesman [2004]’s improved tableau algorithm play a significant
+role because of the tableau representation of stabilizers and destabilizers. Based on the tableau
+representation and algorithms, Rall et al. [2019] proposed the Pauli propagation that speeds up the
+rate of sampling Pauli noises, and it was adopted by Google’s Stim [Gidney 2021], which was used
+in Google’s recent QEC experiments [Acharya et al. 2023]. However, even though Stim has excellent
+performance, it still cannot handle all possible errors for QEC programs as we discussed in §8.2.
+   It is worth noting that, starting from the tableau representation again, Berent et al. [2022]
+proposed an SAT encoding for Clifford circuits and demonstrated the applicability of equivalence
+checking; Schneider et al. [2023] used a similar SAT encoding for Clifford circuit synthesis. However,
+6We have tried many SMT solvers, including Z3, Z3++, Yices2, and cvc5. They also have similar problems, but the instances
+
+where the problem occurs are not the same instances that Bitwuzla encounters.
+
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                       189:21
+
+
+all of these works only dealt with quantum circuits without mid-circuit measurements and control flows,
+and thus cannot be directly used in debugging QEC programs considered in this paper. Additionally,
+Rand et al. [2021] uses a type system to describe the stabilizer formalism elegantly. This type system
+provides efficient verification of quantum circuits. However, it needs to deal with all possible errors
+for QEC programs on a case-by-case analysis like a simulator.
+   There are also other techniques for simulation of quantum computation, e.g., tensor networks-
+based simulation [Markov and Shi 2008; Orús 2019; Pan and Zhang 2022], (binary) decision diagrams-
+based simulation [Hong et al. 2022; Niemann et al. 2016; Sistla et al. 2024; Vinkhuijzen et al. 2023].
+These simulation techniques are widely used in developing or testing quantum circuits and quantum
+programs [Burgholzer et al. 2023]. But most works are limited to manipulating concrete data and do
+not introduce symbolic expressions like ours.
+
+9.2   Symbolic techniques for quantum computing
+Due to the difficulty of simulation and analysis of quantum computation on classical computers,
+symbolic techniques have already been employed to improve their efficiency and scalability. The
+current works can be roughly classified into the following two categories:
+Symbolic simulation of quantum computation. Several work [Sistla et al. 2023, 2024; Tsai et al.
+2021] used symbolic expressions or symbolic Boolean functions during the process of simulation of
+quantum computation to speed up the simulation time; for example, Tsai et al. [2021] built a series
+of Boolean formulas between binary decision diagrams for state evolution to replace matrix-vector
+multiplication. Furthermore, Chen et al. [2023] used the tree automata [Comon et al. 2008] to
+represent (set of) quantum states and introduced symbolic update formulae of tree automata for
+quantum gates. Huang et al. [2021] converts the variational quantum circuit into logical formulas,
+in which the parameters of the variational quantum circuit are temporarily symbolized. Then
+with concrete values assigned, logical formulas provide an efficient sampling of quantum circuits.
+Although they make use of symbolic expressions, these works focused on simulation, and the idea of
+symbolic execution was not introduced there.
+Symbolic execution of quantum circuits. Carette et al. [2023] used the algebraic normal form of
+Boolean functions to perform the symbolic execution of Hardamard-Toffoli quantum circuits, which
+cannot express QEC. Another work close to ours is symQV [Bauer-Marquart et al. 2023], in which 𝑛-
+qubit quantum states are represented with 2𝑛 symbolic complex numbers |𝜓 ⟩ B (𝛼 1, 𝛼 2, . . . , 𝛼 2𝑛 ) or
+product state |𝜓 ⟩ B ⊗𝑛𝑗=1 |𝜓 𝑗 ⟩, where |𝜓 𝑗 ⟩ is encoded by 4 symbols. Their experiments demonstrated
+their applicability to 24 qubits. Although the target of symQV is the symbolic execution of quantum
+programs, it is actually designed for quantum circuits without control flows, and thus symQV cannot
+be directly used in the verification of QEC programs considered in this paper. In addition, Giallar [Tao
+et al. 2022] introduced symbolic representation and execution for quantum circuits with 20 rewrite
+rules to check the equivalence of quantum circuits, which also lack support for control flows;
+Quartz [Xu et al. 2022] dealt with symbolic quantum circuits too, computing symbolic matrix
+representations of circuits to discover equivalent circuit transformations by SMT solvers. However,
+similar to Giallar, Quartz does not support control flows.
+
+9.3   Verification and Analysis of Quantum Programs
+There is a rich literature on the verification and analysis of quantum programs. We briefly discuss
+three categories of research relevant to our work.
+Formal verification with program logic. Based on quantum predicates of observables [D’hondt
+and Panangaden 2006], Ying [2012] proposed the first sound and relatively complete quantum
+
+                                 Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:22                                                                                  Wang Fang and Mingsheng Ying
+
+
+Hoare logic (QHL) for quantum while-programs. To simplify the verification, Zhou et al. [2019]
+used projectors as predicates and proposed a variant of QHL. Since projectors may involve expo-
+nential complexity for QEC programs, several works suggested to use stabilizers as predicates and
+proposed corresponding variants of QHL [Sundaram et al. 2022; Wu et al. 2021b]. Their approaches
+share a similar idea with Rand et al. [2021]’s type system and still need to deal with all possible
+errors for QEC programs on a case-by-case verification. Beside quantum predicates of observables,
+Qbricks [Chareton et al. 2021] used parameterized path sum representations for quantum circuits
+and reasoned about the representation using quantifier-free predicate logic. It has good proof
+automation and deduction rules for reasoning on circuits, but currently lacks support for classical
+control flows.
+Formal verification without program logic. The most representative work that does not use
+program logic is perhaps QWIRE [Paykin et al. 2017; Rand et al. 2018] and SQIR [Hietala et al.
+2021a,b], both of which directly formalize the denotational semantics of quantum programs in terms
+of density matrices. In this way, it seems that they may also encounter exponential complexity,
+when applied for verification and analysis of QEC programs.
+Assertion checking and debugging. In addition to formal verification, an interesting line of
+research is assertion checking for analyzing and debugging quantum programs. Some papers use
+dynamic assertions [Li et al. 2020; Liu et al. 2020] to detect bugs at run-time, which seems not
+suitable for QEC programs’ correctness before deployment. Others use statistical assertions [Huang
+and Martonosi 2019], which may require repeated simulations and are thus inefficient for the case
+of a large number of qubits. To verify assertions more efficiently, Yu and Palsberg [2021] introduced
+a novel idea of abstract interpretation that abstracts concrete quantum states into the intersection
+of small projections, which are closely related to the definition of stabilizer. For instance, in their
+example, the abstract domain for GHZ is a stabilizer. However, their approach also requires a
+case-by-case check for all possible errors in QEC programs.
+
+10       Conclusion and Future Directions
+In this paper, we presented a symbolic execution framework for quantum programs. Within this
+framework, we introduced symbolic stabilizer states, which facilitate the efficient analysis of QEC
+programs. We also developed a prototype tool based on this framework and demonstrated its
+effectiveness and efficiency. Issues for future research include:
+(1) Incorporating our QSE with the recent technique of probabilistic symbolic execution [Gehr et al.
+    2016; Susag et al. 2022]: This will enable us to handle the analysis of random errors in QEC.
+    Specifically, it can be used to analyze the performance of QEC programs against random errors
+    when we have verified their correctness against adversarial errors.
+(2) Improving the combination of QSE and SMT solvers: A key point here is to optimize the SMT
+    solver for the specific assertions posed by QSE.
+(3) Exploring more applications of QSE and symbolic stabilizer states: A possible application is the
+    sampling task we have done in §8.2, promising to perform better with the existing engineering
+    efforts. Another is to use symbolic stabilizer states for assertions, which may make existing
+    work possible to handle all adversarial errors and all logical states in QEC without enumeration.
+
+Acknowledgments
+We thank anonymous reviewers for helpful comments and suggestions that improved this paper.
+We are grateful to Craig Gidney for pointing out our previous inappropriate use of Stim. This work
+was partly supported by the National Key R&D Program of China under Grant No. 2023YFA1009403.
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                               189:23
+
+
+Data Availability Statement
+Our code is available at https://github.com/njuwfang/QuantumSE.jl.
+An evaluated artifact [Fang and Ying 2024] is available at https://doi.org/10.5281/zenodo.10781381.
+
+References
+Scott Aaronson and Daniel Gottesman. 2004. Improved simulation of stabilizer circuits. Phys. Rev. A 70 (Nov 2004), 052328.
+    Issue 5. https://doi.org/10.1103/PhysRevA.70.052328
+M. H. Abobeih, Y. Wang, J. Randall, S. J. H. Loenen, C. E. Bradley, M. Markham, D. J. Twitchen, B. M. Terhal, and T. H.
+    Taminiau. 2022. Fault-tolerant operation of a logical qubit in a diamond quantum processor. Nature 606, 7916 (01 Jun
+    2022), 884–889. https://doi.org/10.1038/s41586-022-04819-6
+Rajeev Acharya, Igor Aleiner, Richard Allen, Trond I Andersen, Markus Ansmann, Frank Arute, Kunal Arya, Abraham
+    Asfaw, Juan Atalaya, et al. 2023. Suppressing quantum errors by scaling a surface code logical qubit. Nature 614, 7949 (01
+    Feb 2023), 676–681. https://doi.org/10.1038/s41586-022-05434-1
+D. Aharonov and M. Ben-Or. 1997. Fault-Tolerant Quantum Computation with Constant Error. In Proceedings of the
+    Twenty-Ninth Annual ACM Symposium on Theory of Computing (STOC ’97). Association for Computing Machinery,
+    176–188. https://doi.org/10.1145/258533.258579
+Mihhail Aizatulin, Andrew D. Gordon, and Jan Jürjens. 2011. Extracting and Verifying Cryptographic Models from C
+    Protocol Code by Symbolic Execution. In Proceedings of the 18th ACM Conference on Computer and Communications
+    Security (CCS ’11). Association for Computing Machinery, 331–340. https://doi.org/10.1145/2046707.2046745
+Simon Anders and Hans J. Briegel. 2006. Fast simulation of stabilizer circuits using a graph-state representation. Phys. Rev.
+    A 73 (Feb 2006), 022334. Issue 2. https://doi.org/10.1103/PhysRevA.73.022334
+Frank Arute, Kunal Arya, Ryan Babbush, Dave Bacon, Joseph C Bardin, Rami Barends, Rupak Biswas, Sergio Boixo,
+    Fernando GSL Brandao, et al. 2019. Quantum supremacy using a programmable superconducting processor. Nature 574,
+    7779 (01 Oct 2019), 505–510. https://doi.org/10.1038/s41586-019-1666-5
+Clark Barrett, Pascal Fontaine, and Cesare Tinelli. 2016. The Satisfiability Modulo Theories Library (SMT-LIB).
+    www.SMT-LIB.org. http://smtlib.cs.uiowa.edu/index.shtml
+Fabian Bauer-Marquart, Stefan Leue, and Christian Schilling. 2023. SymQV: Automated Symbolic Verification Of Quantum
+    Programs. In Formal Methods: 25th International Symposium, FM 2023. Springer-Verlag, 181–198. https://doi.org/10.1007/
+    978-3-031-27481-7_12
+Lucas Berent, Lukas Burgholzer, and Robert Wille. 2022. Towards a SAT Encoding for Quantum Circuits: A Journey
+    From Classical Circuits to Clifford Circuits and Beyond. In 25th International Conference on Theory and Applications
+    of Satisfiability Testing (SAT 2022), Vol. 236. Schloss Dagstuhl – Leibniz-Zentrum für Informatik, 18:1–18:17. https:
+    //doi.org/10.4230/LIPIcs.SAT.2022.18
+Ville Bergholm, Josh Izaac, Maria Schuld, Christian Gogolin, Shahnawaz Ahmed, Vishnu Ajith, M Sohaib Alam, Guillermo
+    Alonso-Linaje, B AkashNarayanan, et al. 2022. PennyLane: Automatic differentiation of hybrid quantum-classical
+    computations. arXiv:1811.04968 [quant-ph]
+Jeff Bezanson, Alan Edelman, Stefan Karpinski, and Viral B. Shah. 2017. Julia: A Fresh Approach to Numerical Computing.
+    SIAM Rev. 59, 1 (2017), 65–98. https://doi.org/10.1137/141000671
+Dolev Bluvstein, Simon J Evered, Alexandra A Geim, Sophie H Li, Hengyun Zhou, Tom Manovitz, Sepehr Ebadi, Madelyn
+    Cain, Marcin Kalinowski, et al. 2024. Logical quantum processor based on reconfigurable atom arrays. Nature 626, 7997
+    (2024), 58–65. https://doi.org/10.1038/s41586-023-06927-3
+Nikolas P. Breuckmann and Jens Niklas Eberhardt. 2021. Quantum Low-Density Parity-Check Codes. PRX Quantum 2 (Oct
+    2021), 040101. Issue 4. https://doi.org/10.1103/PRXQuantum.2.040101
+Lukas Burgholzer, Alexander Ploier, and Robert Wille. 2023. Tensor Networks or Decision Diagrams? Guidelines for Classical
+    Quantum Circuit Simulation. arXiv:2302.06616 [quant-ph]
+Cristian Cadar, Daniel Dunbar, and Dawson R. Engler. 2008. KLEE: Unassisted and Automatic Generation of High-Coverage
+    Tests for Complex Systems Programs. In 8th USENIX Symposium on Operating Systems Design and Implementation, OSDI
+    2008. USENIX Association, 209–224. http://www.usenix.org/events/osdi08/tech/full_papers/cadar/cadar.pdf
+Cristian Cadar and Koushik Sen. 2013. Symbolic Execution for Software Testing: Three Decades Later. Commun. ACM 56, 2
+    (feb 2013), 82–90. https://doi.org/10.1145/2408776.2408795
+A. R. Calderbank and Peter W. Shor. 1996. Good quantum error-correcting codes exist. Phys. Rev. A 54 (Aug 1996), 1098–1105.
+    Issue 2. https://doi.org/10.1103/PhysRevA.54.1098
+Jacques Carette, Gerardo Ortiz, and Amr Sabry. 2023. Symbolic Execution of Hadamard-Toffoli Quantum Circuits. In
+    Proceedings of the 2023 ACM SIGPLAN International Workshop on Partial Evaluation and Program Manipulation (PEPM
+    2023). Association for Computing Machinery, 14–26. https://doi.org/10.1145/3571786.3573018
+
+
+                                     Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:24                                                                                      Wang Fang and Mingsheng Ying
+
+
+Christophe Chareton, Sébastien Bardin, François Bobot, Valentin Perrelle, and Benoît Valiron. 2021. An Automated Deductive
+    Verification Framework for Circuit-building Quantum Programs. In Programming Languages and Systems: 30th European
+    Symposium on Programming, ESOP 2021. Springer International Publishing, 148–177. https://doi.org/10.1007/978-3-030-
+    72019-3_6
+Yu-Fang Chen, Kai-Min Chung, Ondřej Lengál, Jyun-Ao Lin, Wei-Lun Tsai, and Di-De Yen. 2023. An Automata-Based
+    Framework for Verification and Bug Hunting in Quantum Circuits. Proc. ACM Program. Lang. 7, PLDI, Article 156 (jun
+    2023), 26 pages. https://doi.org/10.1145/3591270
+Zijun Chen, Kevin J. Satzinger, Juan Atalaya, Alexander N. Korotkov, Andrew Dunsworth, Daniel Sank, Chris Quintana,
+    Matt McEwen, Rami Barends, et al. 2021. Exponential suppression of bit or phase errors with cyclic error correction.
+    Nature 595, 7867 (01 Jul 2021), 383–387. https://doi.org/10.1038/s41586-021-03588-y
+Cirq Developers. 2018. Cirq. https://doi.org/10.5281/zenodo.4062499
+Hubert Comon, Max Dauchet, Rémi Gilleron, Florent Jacquemard, Denis Lugiez, Christof Löding, Sophie Tison, and Marc
+    Tommasi. 2008. Tree Automata Techniques and Applications. 262 pages. https://inria.hal.science/hal-03367725
+Andrew W. Cross, Lev S. Bishop, John A. Smolin, and Jay M. Gambetta. 2017. Open Quantum Assembly Language.
+    arXiv:1707.03429 [quant-ph]
+Eric Dennis, Alexei Kitaev, Andrew Landahl, and John Preskill. 2002. Topological quantum memory. J. Math. Phys. 43, 9 (08
+    2002), 4452–4505. https://doi.org/10.1063/1.1499754
+Ellie D’hondt and Prakash Panangaden. 2006. Quantum weakest preconditions. Mathematical Structures in Computer Science
+    16, 3 (2006), 429–451. https://doi.org/10.1017/S0960129506005251
+Irit Dinur, Shai Evra, Ron Livne, Alexander Lubotzky, and Shahar Mozes. 2022. Locally Testable Codes with Constant Rate,
+    Distance, and Locality. In Proceedings of the 54th Annual ACM SIGACT Symposium on Theory of Computing (Rome, Italy)
+    (STOC 2022). Association for Computing Machinery, New York, NY, USA, 357–374. https://doi.org/10.1145/3519935.
+    3520024
+Irit Dinur, Min-Hsiu Hsieh, Ting-Chun Lin, and Thomas Vidick. 2023. Good Quantum LDPC Codes with Linear Time
+    Decoders. In Proceedings of the 55th Annual ACM Symposium on Theory of Computing (Orlando, FL, USA) (STOC 2023).
+    Association for Computing Machinery, New York, NY, USA, 905–918. https://doi.org/10.1145/3564246.3585101
+Jack Edmonds. 1965. Paths, trees, and flowers. Canadian Journal of mathematics 17 (1965), 449–467. https://doi.org/10.4153/
+    CJM-1965-045-4
+Wang Fang and Mingsheng Ying. 2024. Artifact: Symbolic Execution for Quantum Error Correction Programs. Zenodo.
+    https://doi.org/10.5281/zenodo.10781381
+Gian Pietro Farina, Stephen Chong, and Marco Gaboardi. 2019. Relational Symbolic Execution. In Proceedings of the 21st
+    International Symposium on Principles and Practice of Declarative Programming (PPDP ’19). Association for Computing
+    Machinery, Article 10, 14 pages. https://doi.org/10.1145/3354166.3354175
+Austin G. Fowler, Matteo Mariantoni, John M. Martinis, and Andrew N. Cleland. 2012. Surface codes: Towards practical
+    large-scale quantum computation. Phys. Rev. A 86 (Sep 2012), 032324. Issue 3. https://doi.org/10.1103/PhysRevA.86.032324
+Timon Gehr, Sasa Misailovic, and Martin T. Vechev. 2016. PSI: Exact Symbolic Inference for Probabilistic Programs. In
+    Computer Aided Verification - 28th International Conference, CAV 2016 (Lecture Notes in Computer Science, Vol. 9779).
+    Springer, 62–83. https://doi.org/10.1007/978-3-319-41528-4_4
+Craig Gidney. 2021. Stim: a fast stabilizer circuit simulator. Quantum 5 (July 2021), 497. https://doi.org/10.22331/q-2021-07-
+    06-497
+Patrice Godefroid, Nils Klarlund, and Koushik Sen. 2005. DART: Directed Automated Random Testing. In Proceedings of
+    the 2005 ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI ’05). Association for
+    Computing Machinery, 213–223. https://doi.org/10.1145/1065010.1065036
+Daniel Gottesman. 1997. Stabilizer codes and quantum error correction. Ph. D. Dissertation. California Institute of Technology.
+    arXiv:quant-ph/9705052 [quant-ph]
+Daniel Gottesman. 1998. The Heisenberg Representation of Quantum Computers. arXiv:quant-ph/9807006 [quant-ph]
+Daniel Gottesman. 2014. Fault-Tolerant Quantum Computation with Constant Overhead. arXiv:1310.2984 [quant-ph]
+Shouzhen Gu, Christopher A. Pattison, and Eugene Tang. 2023. An Efficient Decoder for a Linear Distance Quantum
+    LDPC Code. In Proceedings of the 55th Annual ACM Symposium on Theory of Computing (Orlando, FL, USA) (STOC 2023).
+    Association for Computing Machinery, New York, NY, USA, 919–932. https://doi.org/10.1145/3564246.3585169
+Kesha Hietala, Robert Rand, Shih-Han Hung, Liyi Li, and Michael Hicks. 2021a. Proving Quantum Programs Correct. Schloss
+    Dagstuhl - Leibniz-Zentrum für Informatik. https://doi.org/10.4230/LIPICS.ITP.2021.21
+Kesha Hietala, Robert Rand, Shih-Han Hung, Xiaodi Wu, and Michael Hicks. 2021b. A Verified Optimizer for Quantum
+    Circuits. Proc. ACM Program. Lang. 5, POPL, Article 37 (jan 2021), 29 pages. https://doi.org/10.1145/3434318
+Xin Hong, Xiangzhen Zhou, Sanjiang Li, Yuan Feng, and Mingsheng Ying. 2022. A Tensor Network Based Decision Diagram
+    for Representation of Quantum Circuits. ACM Trans. Des. Autom. Electron. Syst. 27, 6, Article 60 (jun 2022), 30 pages.
+    https://doi.org/10.1145/3514355
+
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                              189:25
+
+
+Yipeng Huang, Steven Holtzen, Todd Millstein, Guy Van den Broeck, and Margaret Martonosi. 2021. Logical Abstractions for
+    Noisy Variational Quantum Algorithm Simulation. In Proceedings of the 26th ACM International Conference on Architectural
+    Support for Programming Languages and Operating Systems (ASPLOS ’21). Association for Computing Machinery, 456–472.
+    https://doi.org/10.1145/3445814.3446750
+Yipeng Huang and Margaret Martonosi. 2019. Statistical Assertions for Validating Patterns and Finding Bugs in Quantum
+    Programs. In Proceedings of the 46th International Symposium on Computer Architecture (ISCA ’19). Association for
+    Computing Machinery, 541–553. https://doi.org/10.1145/3307650.3322213
+IBM. 2023. The hardware and software for the era of quantum utility is here. https://www.ibm.com/quantum/blog/quantum-
+    roadmap-2033.
+James C. King. 1976. Symbolic Execution and Program Testing. Commun. ACM 19, 7 (jul 1976), 385–394. https://doi.org/10.
+   1145/360248.360252
+A.Yu. Kitaev. 2003. Fault-tolerant quantum computation by anyons. Annals of Physics 303, 1 (2003), 2–30. https://doi.org/10.
+   1016/S0003-4916(02)00018-0
+A Yu Kitaev. 1997. Quantum error correction with imperfect gates. In Quantum communication, computing, and measurement.
+    Springer, 181–188. https://doi.org/10.1007/978-1-4615-5923-8_19
+Vladimir Kolmogorov. 2009. Blossom V: a new implementation of a minimum cost perfect matching algorithm. Mathematical
+    Programming Computation 1, 1 (01 Jul 2009), 43–67. https://doi.org/10.1007/s12532-009-0002-8
+Stefan Krastanov. 2019. https://quantumsavory.github.io/QuantumClifford.jl/stable/ Accessed on 2023-7-7.
+Anthony Leverrier and Gilles Zémor. 2022. Quantum Tanner codes. In 2022 IEEE 63rd Annual Symposium on Foundations of
+    Computer Science (FOCS). 872–883. https://doi.org/10.1109/FOCS54457.2022.00117
+Anthony Leverrier and Gilles Zémor. 2023. Efficient decoding up to a constant fraction of the code length for asymptotically
+    good quantum codes. In Proceedings of the 2023 Annual ACM-SIAM Symposium on Discrete Algorithms (SODA). 1216–1244.
+    https://doi.org/10.1137/1.9781611977554.ch45 arXiv:https://epubs.siam.org/doi/pdf/10.1137/1.9781611977554.ch45
+Gushu Li, Li Zhou, Nengkun Yu, Yufei Ding, Mingsheng Ying, and Yuan Xie. 2020. Projection-Based Runtime Assertions for
+   Testing and Debugging Quantum Programs. Proc. ACM Program. Lang. 4, OOPSLA, Article 150 (nov 2020), 29 pages.
+    https://doi.org/10.1145/3428218
+Ji Liu, Gregory T. Byrd, and Huiyang Zhou. 2020. Quantum Circuits for Dynamic Runtime Assertions in Quantum
+    Computation. In Proceedings of the Twenty-Fifth International Conference on Architectural Support for Programming
+    Languages and Operating Systems (ASPLOS ’20). Association for Computing Machinery, 1017–1030. https://doi.org/10.
+   1145/3373376.3378488
+A. Lubotzky, R. Phillips, and P. Sarnak. 1988. Ramanujan graphs. Combinatorica 8, 3 (01 Sep 1988), 261–277. https:
+   //doi.org/10.1007/BF02126799
+Kasper Luckow, Corina S. Păsăreanu, Matthew B. Dwyer, Antonio Filieri, and Willem Visser. 2014. Exact and Approximate
+    Probabilistic Symbolic Execution for Nondeterministic Programs. In Proceedings of the 29th ACM/IEEE International
+    Conference on Automated Software Engineering (ASE ’14). Association for Computing Machinery, 575–586. https:
+   //doi.org/10.1145/2642937.2643011
+Xiu-Zhe Luo, Jin-Guo Liu, Pan Zhang, and Lei Wang. 2020. Yao.jl: Extensible, Efficient Framework for Quantum Algorithm
+    Design. Quantum 4 (Oct. 2020), 341. https://doi.org/10.22331/q-2020-10-11-341
+Lars S. Madsen, Fabian Laudenbach, Mohsen Falamarzi. Askarani, Fabien Rortais, Trevor Vincent, Jacob F. F. Bulmer, Filippo M.
+    Miatto, Leonhard Neuhaus, Lukas G. Helt, et al. 2022. Quantum computational advantage with a programmable photonic
+    processor. Nature 606, 7912 (01 Jun 2022), 75–81. https://doi.org/10.1038/s41586-022-04725-x
+Igor L. Markov and Yaoyun Shi. 2008. Simulating Quantum Computation by Contracting Tensor Networks. SIAM J. Comput.
+    38, 3 (2008), 963–981. https://doi.org/10.1137/050644756 arXiv:https://doi.org/10.1137/050644756
+Leonardo de Moura and Nikolaj Bjørner. 2008. Z3: An efficient SMT solver. In International conference on Tools and Algorithms
+    for the Construction and Analysis of Systems. Springer, 337–340. https://doi.org/10.1007/978-3-540-78800-3_24
+Michael A. Nielsen and Isaac L. Chuang. 2010. Quantum Computation and Quantum Information: 10th Anniversary Edition.
+    Cambridge University Press. https://doi.org/10.1017/CBO9780511976667
+Philipp Niemann, Robert Wille, David Michael Miller, Mitchell A. Thornton, and Rolf Drechsler. 2016. QMDDs: Efficient
+    Quantum Function Representation and Manipulation. IEEE Transactions on Computer-Aided Design of Integrated Circuits
+    and Systems 35, 1 (2016), 86–99. https://doi.org/10.1109/TCAD.2015.2459034
+Aina Niemetz and Mathias Preiner. 2023. Bitwuzla. In Computer Aided Verification - 35th International Conference, CAV 2023
+   (Lecture Notes in Computer Science, Vol. 13965). Springer, 3–17. https://doi.org/10.1007/978-3-031-37703-7_1
+Román Orús. 2019. Tensor networks for complex quantum systems. Nature Reviews Physics 1, 9 (01 Sep 2019), 538–550.
+    https://doi.org/10.1038/s42254-019-0086-7
+Feng Pan and Pan Zhang. 2022. Simulation of Quantum Circuits Using the Big-Batch Tensor Network Method. Phys. Rev.
+    Lett. 128 (Jan 2022), 030501. Issue 3. https://doi.org/10.1103/PhysRevLett.128.030501
+
+
+
+                                     Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:26                                                                                    Wang Fang and Mingsheng Ying
+
+
+Pavel Panteleev and Gleb Kalachev. 2022. Asymptotically Good Quantum and Locally Testable Classical LDPC Codes. In
+   Proceedings of the 54th Annual ACM SIGACT Symposium on Theory of Computing (STOC 2022). Association for Computing
+   Machinery, 375–388. https://doi.org/10.1145/3519935.3520017
+Jennifer Paykin, Robert Rand, and Steve Zdancewic. 2017. QWIRE: A Core Language for Quantum Circuits. In Proceedings
+   of the 44th ACM SIGPLAN Symposium on Principles of Programming Languages (POPL ’17). Association for Computing
+   Machinery, 846–858. https://doi.org/10.1145/3009837.3009894
+Sebastian Poeplau and Aurélien Francillon. 2020. Symbolic execution with SymCC: Don’t interpret, compile!. In 29th
+   USENIX Security Symposium (USENIX Security 20). USENIX Association, 181–198. https://www.usenix.org/conference/
+   usenixsecurity20/presentation/poeplau
+Qiskit Community. 2017. Qiskit: An Open-Source Framework for Quantum Computing. https://doi.org/10.5281/zenodo.
+   2562110
+Patrick Rall, Daniel Liang, Jeremy Cook, and William Kretschmer. 2019. Simulation of qubit quantum circuits via Pauli
+   propagation. Phys. Rev. A 99 (Jun 2019), 062337. Issue 6. https://doi.org/10.1103/PhysRevA.99.062337
+Robert Rand, Jennifer Paykin, and Steve Zdancewic. 2018. QWIRE Practice: Formal Verification of Quantum Circuits in Coq.
+   Electronic Proceedings in Theoretical Computer Science 266 (feb 2018), 119–132. https://doi.org/10.4204/eptcs.266.8
+Robert Rand, Aarthi Sundaram, Kartik Singhal, and Brad Lackey. 2021. Gottesman Types for Quantum Programs. In
+   Proceedings of the 17th International Conference on Quantum Physics and Logic (QPL) (Electronic Proceedings in Theoretical
+   Computer Science, Vol. 340). Open Publishing Association, 279–290. https://doi.org/10.4204/EPTCS.340.14
+Sarah Schneider, Lukas Burgholzer, and Robert Wille. 2023. A SAT Encoding for Optimal Clifford Circuit Synthesis. In
+   Proceedings of the 28th Asia and South Pacific Design Automation Conference (Tokyo, Japan) (ASPDAC ’23). Association for
+   Computing Machinery, New York, NY, USA, 190–195. https://doi.org/10.1145/3566097.3567929
+Koushik Sen, Darko Marinov, and Gul Agha. 2005. CUTE: A Concolic Unit Testing Engine for C. SIGSOFT Softw. Eng. Notes
+   30, 5 (sep 2005), 263–272. https://doi.org/10.1145/1095430.1081750
+P. W. Shor. 1996. Fault-tolerant quantum computation. In Proceedings of 37th Conference on Foundations of Computer Science
+   (Proceedings of 37th Conference on Foundations of Computer Science). 56–65. https://doi.org/10.1109/SFCS.1996.548464
+Stephen F. Siegel, Anastasia Mironova, George S. Avrunin, and Lori A. Clarke. 2008. Combining Symbolic Execution with
+   Model Checking to Verify Parallel Numerical Programs. ACM Trans. Softw. Eng. Methodol. 17, 2, Article 10 (may 2008),
+   34 pages. https://doi.org/10.1145/1348250.1348256
+Meghana Sistla, Swarat Chaudhuri, and Thomas Reps. 2023. Symbolic quantum simulation with quasimodo. In International
+   Conference on Computer Aided Verification. Springer, 213–225. https://doi.org/10.1007/978-3-031-37709-9_11
+Meghana Aparna Sistla, Swarat Chaudhuri, and Thomas Reps. 2024. CFLOBDDs: Context-Free-Language Ordered Binary
+   Decision Diagrams. ACM Trans. Program. Lang. Syst. (mar 2024). https://doi.org/10.1145/3651157 Just Accepted.
+A. M. Steane. 1996. Error Correcting Codes in Quantum Theory. Phys. Rev. Lett. 77 (Jul 1996), 793–797. Issue 5. https:
+   //doi.org/10.1103/PhysRevLett.77.793
+Aarthi Sundaram, Robert Rand, Kartik Singhal, and Brad Lackey. 2022. Hoare meets Heisenberg: A Lightweight Logic for
+   Quantum Programs. https://ks.cs.uchicago.edu/publication/heisenberg/
+Zachary Susag, Sumit Lahiri, Justin Hsu, and Subhajit Roy. 2022. Symbolic Execution for Randomized Programs. Proc. ACM
+   Program. Lang. 6, OOPSLA2, Article 181 (oct 2022), 30 pages. https://doi.org/10.1145/3563344
+Yasunari Suzuki, Yoshiaki Kawase, Yuya Masumura, Yuria Hiraga, Masahiro Nakadai, Jiabao Chen, Ken M. Nakanishi,
+   Kosuke Mitarai, Ryosuke Imai, et al. 2021. Qulacs: a fast and versatile quantum circuit simulator for research purpose.
+   Quantum 5 (Oct. 2021), 559. https://doi.org/10.22331/q-2021-10-06-559
+Krysta Svore, Alan Geller, Matthias Troyer, John Azariah, Christopher Granade, Bettina Heim, Vadym Kliuchnikov, Mariia
+   Mykhailova, Andres Paz, and Martin Roetteler. 2018. Q#: Enabling Scalable Quantum Computing and Development with
+   a High-Level DSL. In Proceedings of the Real World Domain Specific Languages Workshop 2018 (RWDSL2018). Association
+   for Computing Machinery, Article 7, 10 pages. https://doi.org/10.1145/3183895.3183901
+R. Tanner. 1981. A recursive approach to low complexity codes. IEEE Transactions on Information Theory 27, 5 (1981),
+   533–547. https://doi.org/10.1109/TIT.1981.1056404
+Runzhou Tao, Yunong Shi, Jianan Yao, Xupeng Li, Ali Javadi-Abhari, Andrew W. Cross, Frederic T. Chong, and Ronghui
+   Gu. 2022. Giallar: Push-Button Verification for the Qiskit Quantum Compiler. In Proceedings of the 43rd ACM SIGPLAN
+   International Conference on Programming Language Design and Implementation (PLDI 2022). Association for Computing
+   Machinery, 641–656. https://doi.org/10.1145/3519939.3523431
+Yuan-Hung Tsai, Jie-Hong R. Jiang, and Chiao-Shan Jhang. 2021. Bit-Slicing the Hilbert Space: Scaling Up Accurate Quantum
+   Circuit Simulation. In 2021 58th ACM/IEEE Design Automation Conference (DAC). 439–444. https://doi.org/10.1109/
+   DAC18074.2021.9586191
+Lieuwe Vinkhuijzen, Tim Coopmans, David Elkouss, Vedran Dunjko, and Alfons Laarman. 2023. LIMDD: A Decision
+   Diagram for Simulation of Quantum Computing Including Stabilizer States. Quantum 7 (Sept. 2023), 1108. https:
+   //doi.org/10.22331/q-2023-09-11-1108
+
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                              189:27
+
+
+Anbang Wu, Gushu Li, Hezi Zhang, Gian Giacomo Guerreschi, Yuan Xie, and Yufei Ding. 2021b. QECV: Quantum Error
+   Correction Verification. arXiv:2111.13728 [quant-ph]
+Yulin Wu, Wan-Su Bao, Sirui Cao, Fusheng Chen, Ming-Cheng Chen, Xiawei Chen, Tung-Hsun Chung, Hui Deng, Yajie Du,
+   et al. 2021a. Strong Quantum Computational Advantage Using a Superconducting Quantum Processor. Phys. Rev. Lett.
+   127 (Oct 2021), 180501. Issue 18. https://doi.org/10.1103/PhysRevLett.127.180501
+Mingkuan Xu, Zikun Li, Oded Padon, Sina Lin, Jessica Pointing, Auguste Hirth, Henry Ma, Jens Palsberg, Alex Aiken,
+   Umut A. Acar, and Zhihao Jia. 2022. Quartz: superoptimization of Quantum circuits. In Proceedings of the 43rd ACM
+   SIGPLAN International Conference on Programming Language Design and Implementation (PLDI 2022). Association for
+   Computing Machinery, 625–640. https://doi.org/10.1145/3519939.3523433
+Mingsheng Ying. 2012. Floyd–hoare logic for quantum programs. ACM Trans. Program. Lang. Syst. 33, 6, Article 19 (jan
+   2012), 49 pages. https://doi.org/10.1145/2049706.2049708
+Mingsheng Ying and Yuan Feng. 2011. A Flowchart Language for Quantum Programming. IEEE Transactions on Software
+   Engineering 37, 4 (2011), 466–485. https://doi.org/10.1109/TSE.2010.94
+Hengbiao Yu, Zhenbang Chen, Xianjin Fu, Ji Wang, Zhendong Su, Jun Sun, Chun Huang, and Wei Dong. 2020. Symbolic
+   Verification of Message Passing Interface Programs. In Proceedings of the ACM/IEEE 42nd International Conference on
+   Software Engineering (ICSE ’20). Association for Computing Machinery, 1248–1260. https://doi.org/10.1145/3377811.
+   3380419
+Nengkun Yu and Jens Palsberg. 2021. Quantum Abstract Interpretation. In Proceedings of the 42nd ACM SIGPLAN International
+   Conference on Programming Language Design and Implementation (PLDI 2021). Association for Computing Machinery,
+   542–558. https://doi.org/10.1145/3453483.3454061
+Youwei Zhao, Yangsen Ye, He-Liang Huang, Yiming Zhang, Dachao Wu, Huijie Guan, Qingling Zhu, Zuolin Wei, Tan He,
+   et al. 2022. Realization of an Error-Correcting Surface Code with Superconducting Qubits. Phys. Rev. Lett. 129 (Jul 2022),
+   030501. Issue 3. https://doi.org/10.1103/PhysRevLett.129.030501
+Li Zhou, Nengkun Yu, and Mingsheng Ying. 2019. An Applied Quantum Hoare Logic. In Proceedings of the 40th ACM
+   SIGPLAN Conference on Programming Language Design and Implementation (PLDI 2019). Association for Computing
+   Machinery, 1149–1162. https://doi.org/10.1145/3314221.3314584
+
+
+A     Case Studies
+This section introduces the case studies of QEC codes used in our evaluation (§8). The selection
+of our case studies is to demonstrate the effectiveness and efficiency of our proposed QSE with a
+prototype tool (§B). For a QEC code and a QEC program for this code, we utilize QSE to analyze
+whether this program can correct quantum errors.
+   Before introducing our case studies, we recall some notations used for a QEC code 𝐶.
+ • The minimum distance 𝑑𝑋 (resp. 𝑑𝑍 ) of 𝐶 is the minimum number of different locations of 𝑋
+   (resp. 𝑍 ) operators that transform a state |𝜓 ⟩ ∈ 𝐶 into another state |𝜙⟩ ≠ |𝜓 ⟩ in 𝐶. Therefore,
+   𝐶 can tolerate 𝑋 (resp. 𝑍 ) errors at least ⌊ 𝑑𝑋2−1 ⌋ (resp. ⌊ 𝑑𝑍2−1 ⌋) locations of physical qubits.
+ • [[𝑛, 𝑘, 𝑑]] describes the parameters of a QEC code: number of physical qubits 𝑛, number of
+   logical qubits 𝑘 and minimum distance 𝑑 = min{𝑑𝑋 , 𝑑𝑍 }. We also write [[𝑛, 𝑘, 𝑑𝑋 = _]] and
+   [[𝑛, 𝑘, 𝑑𝑍 = _]] if we only focus on the minimum distance 𝑑𝑋 and 𝑑𝑍 , respectively.
+
+A.1    Repetition Codes
+Repetition codes may be the simplest class of QEC codes. Through an encoding map
+                          |0⟩𝐿 ↦→ |0⟩ ⊗𝑛 = |00 · · · 0⟩,         |1⟩𝐿 ↦→ |1⟩ ⊗𝑛 = |11 · · · 1⟩,
+                                            | {z }                                 | {z }
+                                                𝑛 times 0                             𝑛 times 1
+
+repetition code 𝐶𝑛 = {𝛼 |0⟩ ⊗𝑛 + 𝛽 |1⟩ ⊗𝑛 } encodes 1 logical qubit with 𝑛 physical qubits. The 𝑑𝑋 of 𝐶𝑛
+is 𝑛, while the 𝑑𝑍 of 𝐶𝑛 is 1. Hence, the repetition code 𝐶𝑛 can correct ⌊ 𝑛−1        2 ⌋ locations of 𝑋 errors,
+but can’t correct for any 𝑍 errors.
+   The repetition code 𝐶𝑛 is also a one-dimensional version of the surface code [Dennis et al. 2002].
+For the example shown in Fig. 9 for 𝐶𝑛 , 𝑛 physical qubits 𝑞 1, 𝑞 2, . . . , 𝑞𝑛 lie on a line with period bound-
+ary and each edge between adjacent points 𝑞 𝑗 , 𝑞 𝑗+1 defines a syndrome measurement, observable
+
+                                     Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:28                                                                                                              Wang Fang and Mingsheng Ying
+
+
+            𝑞1         𝑞2            𝑞3                   𝑞𝑛−2        𝑞𝑛−1           𝑞𝑛            𝑞1                      Physical qubit
+                                                                                                                           𝑍 -check
+                                     𝑋                                  𝑋             𝑋                                    𝑋 error
+                                                                                                                           Syndrome
+
+Fig. 9. The repetition code. Physical qubits, represented by meat-brown points, lie on a 1-D line with a
+period boundary (a circle). Syndrome measurements, represented by blue-gray edges, are observables 𝑍𝑍
+between each pair of adjacent points.
+
+
+𝑍 𝑗 𝑍 𝑗+1 , called 𝑍 -check. Consider the stabilizer of these 𝑍 -checks, 𝑆𝑛 = ⟨𝑍 1𝑍 2, 𝑍 2𝑍 3, . . . , 𝑍𝑛−1𝑍𝑛 ⟩,
+we can find that the space 𝑉𝑆𝑛 of states stabilized by 𝑆𝑛 is exactly the repetition code 𝐶𝑛 . This
+representation by stabilizer also provides an explicit decoding strategy: as demonstrated in Fig. 9,
+𝑋 errors (the red points in Fig. 9) will affect the measurement outcome (syndrome) of 𝑍 -check if
+there is only one X error occurred at its vertices (boundary), see the red lines in Fig. 9. With these
+syndromes in hand, we can use the MWPM algorithm to find a minimum number of locations of
+𝑋 operators that can produce the same syndromes. Then, applying 𝑋 gates at these locations of
+qubits, we are done with the decoding process.
+
+    𝐶𝑁𝑂𝑇 𝑞 1, 𝑞 2 ; 𝑠 1 B measure 𝑞 2 ; 𝐶𝑁𝑂𝑇 𝑞 1, 𝑞 2 ;       𝐶𝑁𝑂𝑇 𝑞 1, 𝑞 2 ; 𝑠 1 B measure 𝑞 2 ; 𝐶𝑁𝑂𝑇 𝑞 1, 𝑞 2 ;              // measure 𝑍 1𝑍 2
+    𝐶𝑁𝑂𝑇 𝑞 2, 𝑞 3 ; 𝑠 2 B measure 𝑞 3 ; 𝐶𝑁𝑂𝑇 𝑞 2, 𝑞 3 ;       𝐶𝑁𝑂𝑇 𝑞 2, 𝑞 3 ; 𝑠 2 B measure 𝑞 3 ; 𝐶𝑁𝑂𝑇 𝑞 2, 𝑞 3 ;              // measure 𝑍 2𝑍 3
+      ···                                                     ···                                                              ···
+    𝐶𝑁𝑂𝑇 𝑞𝑛−1, 𝑞𝑛 ; 𝑠𝑛−1 B measure 𝑞𝑛 ; 𝐶𝑁𝑂𝑇 𝑞𝑛−1, 𝑞𝑛 ;       𝐶𝑁𝑂𝑇 𝑞𝑛−1, 𝑞𝑛 ; 𝑠𝑛−1 B measure 𝑞𝑛 ; 𝐶𝑁𝑂𝑇 𝑞𝑛−1, 𝑞𝑛 ;              // measure 𝑍𝑛−1𝑍𝑛
+    𝐶𝑁𝑂𝑇 𝑞𝑛 , 𝑞 1 ; 𝑠𝑛 B measure 𝑞 1 ; 𝐶𝑁𝑂𝑇 𝑞𝑛 , 𝑞 1 ;        𝐶𝑁𝑂𝑇 𝑞𝑛 , 𝑞 1 ; 𝑠𝑛 B measure 𝑞 1 ; 𝐶𝑁𝑂𝑇 𝑞𝑛 , 𝑞 1 ;               // measure 𝑍𝑛 𝑍 1
+    𝑟 1, 𝑟 2, . . . , 𝑟𝑛 B MWPM(𝑠 1, 𝑠 2, . . . , 𝑠𝑛 );       𝑟 1, 𝑟 2, . . . , 𝑟𝑛 B MWPM(𝑠 1, 𝑠 2, . . . , 𝑠𝑛 );              // call MWPM
+    𝑋 [𝑟 1 == 1] 𝑞 1 ;                                        𝑋 [𝑟 1 == 1] 𝑞 1 ;                                               // apply 𝑋 if 𝑟 1 = 1
+    𝑋 [𝑟 2 == 1] 𝑞 2 ;                                        𝑋 [𝑟 2 == 1] 𝑞 2 ;                                               // apply 𝑋 if 𝑟 2 = 1
+      ···                                                     ···                                                              ···
+    𝑋 [𝑟𝑛 == 1] 𝑞𝑛                                            𝑋 [𝑟𝑛 == 1] 𝑞𝑛 ;                                                 // apply 𝑋 if 𝑟𝑛 = 1
+                                                              𝑋 [𝑟 1 ∗ 𝑟 2 ∗ · · · ∗ 𝑟 ⌊ 𝑛−1 ⌋ == 1] 𝑞 1                       // a strange bug!
+                                                                                        2
+
+
+            (a) A QEC program without bugs.                   (b) A QEC program with a strange bug. (c) Comments.
+
+Fig. 10. Two QEC programs for repetition code 𝐶𝑛 . After measuring 𝑍 -checks 𝑍 1𝑍 2, . . . , 𝑍𝑛−1𝑍𝑛 , we addition-
+ally measure the observable 𝑍𝑛 𝑍 1 for the convenience of calling MWPM.
+
+
+   In Fig. 10, we provide two QEC programs for repetition code 𝐶𝑛 , both written in the programming
+language defined in §4.1. The first one in Fig. 10a can correct any 𝑋 errors within ⌊ 𝑛−1  2 ⌋ locations
+of 𝑛 qubits, while the second one in Fig. 10b has a strange bug that it will fail to correct errors when
+𝑋 error occurred at qubits 𝑞 1, 𝑞 2, . . . , 𝑞 ⌊ 𝑛−1 ⌋ .
+                                                          2
+
+
+A.2         Toric Codes
+The Kitaev’s toric codes [Kitaev 2003, 1997] are two-dimensional surface codes, a variant of which
+was implemented in the recent Google’s QEC experiment [Acharya et al. 2023]. As shown in
+Fig. 11, a toric code 𝑇𝑑 with parameters [[2𝑑 2, 2, 𝑑]] is represented by a 𝑑 × 𝑑 two-dimensional
+lattice with period boundaries, hence a torus and so 𝑇𝑑 is called a toric code. This lattice has 2𝑑 2
+edges, representing 2𝑑 2 physical qubits of 𝑇𝑑 . Each face of the lattice defines a 𝑍 -check, observable
+𝑍𝑍𝑍𝑍 , on the four edges surrounding the face. Each vertex of the lattice defines an 𝑋 -check,
+observable 𝑋𝑋𝑋𝑋 , on the four edges that touch the vertex. There are 𝑑 2 𝑍 -checks 𝐴¯1, 𝐴¯2, . . . , 𝐴¯𝑑 2
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                              189:29
+
+
+(resp. 𝑋 -checks 𝐵¯1, 𝐵¯2, . . . , 𝐵¯𝑑 2 ) and any 𝑑 2 − 1 of them are independent. Besides, these 𝑍 -checks
+and 𝑋 checks are commuting with each other.
+       𝐶′ = 𝐶                   𝐷 = 𝐷′ ′
+   𝐵                                 𝐵 =𝐵
+                                                                                                   Physical qubit
+                    𝑍
+                                                                                                   𝑋 error
+                𝑍       𝑍
+                    𝑍                                                                              𝑍 error
+                            𝑋
+                                    𝑋                                                              𝑋 -check
+                        𝑋
+                                𝑋
+                                                                                                   𝑍 -check
+                                                                                                   Logical operator 𝑍¯
+   𝐴                                        𝐴′ = 𝐴
+    𝐶                                   𝐷
+
+Fig. 11. The toric code. Physical qubits, represented by meat-brown edges, lie on a 2-D lattice with period
+boundaries (𝐴𝐵 = 𝐴′ 𝐵 ′, 𝐶𝐷 = 𝐶 ′ 𝐷 ′ , hence a torus). Syndrome measurements consist of two types of checks:
+the 𝑍 -checks, represented by blue-gray faces, are observables 𝑍𝑍𝑍𝑍 defined on the four edges that surround
+the faces; the 𝑋 -checks, represented by red-gray vertices, are observables 𝑋𝑋𝑋𝑋 defined on the four edges
+that touch the vertices.
+
+  In addition to two types of these checks, there are two logical operators 𝑍¯1 and 𝑍¯2 defined by
+tensor products of Pauli 𝑍 operators along the fundamental nontrivial cycles of the torus (the
+horizontal and vertical green lines in Figure 11). The toric code 𝑇𝑑 encodes the logical computational
+basis state |𝑥 1, 𝑥 2 ⟩𝐿 , 𝑥 1, 𝑥 2 = 0, 1, of 2 logical qubits as a 2𝑑 2 -qubit stabilizer state of the stabilizer
+                             ⟨(−1)𝑥 1 𝑍¯1, (−1)𝑥 2 𝑍¯2, 𝐴1, 𝐴2, . . . , 𝐴𝑑 2 −1, 𝐵 1, 𝐵 2, . . . , 𝐵𝑑 2 −1 ⟩
+The code space of 𝑇𝑑 = 𝑉⟨𝐴1,𝐴2,...,𝐴𝑑 2 −1,𝐵1,𝐵2,...,𝐵𝑑 2 −1 ⟩ .
+   The 𝑋 errors and 𝑍 errors that occurred at physical qubits can be detected by 𝑍 -checks and
+𝑋 -checks, respectively. For example, in Fig. 11, the red edge indicates an 𝑋 error occurred, then
+after measuring all 𝑍 -checks, we will find that the measurement outcomes of two 𝑍 -checks that
+share a common edge with this 𝑋 error are both 1, while all other checks’ outcomes are 0. With
+these measurement outcomes, we can detect this 𝑋 error. In fact, decoding toric codes can be done
+by decoding X errors and Z errors, respectively. The pattern is similar to decoding repetition codes
+by MWPM algorithm that we used in §A.1.
+   For toric code 𝑇𝑑 , we adopt a QEC program with a bug similar to Fig. 10b in evaluation.
+
+A.3     Quantum Tanner Codes
+There is an important class of QEC codes known as quantum low-density parity check (qLDPC)
+codes [Breuckmann and Eberhardt 2021], where the low-density means that each check only acts
+on a constant number of physical qubits and each physical qubit only participates in a constant
+number of checks. For example, the toric codes mentioned in §A.2 are also qLDPC codes. The
+low-density nature of qLDPC codes allows people to build efficient decoding scheme, while finding
+a family of good qLDPC codes with parameters [[𝑛, 𝑘 = Θ(𝑛), 𝑑 = Θ(𝑛)]] has plagued people for
+more than 20 years. Excitingly, a major breakthrough made by Panteleev and Kalachev [2022] gives
+the construction of asymptotically good qLDPC codes and a series of works of good qLDPC codes
+have come out in the past two years [Dinur et al. 2023; Gu et al. 2023; Leverrier and Zémor 2022,
+2023].
+   As a case study, we choose the quantum Tanner codes [Leverrier and Zémor 2022] that defines
+Tanner codes [Tanner 1981] on the left-right Cayley complex, the cornerstone of good qLDPC
+
+                                        Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:30                                                                                           Wang Fang and Mingsheng Ying
+
+
+codes [Panteleev and Kalachev 2022] and c3 locally testable codes [Dinur et al. 2022], to obtain
+quantum codes. However, a large number of physical qubits is needed to make the quantum Tanner
+codes be good qLDPC codes7 . Since the construction of quantum Tanner codes is general, we follow
+the code construction, but use a small left-right Cayley complex and small Hamming codes, to
+construct quantum Tanner codes.
+A.3.1 Explicit Instance of Quantum Tanner Codes. In this section, we provide explicit in-
+stances of quantum Tanner codes used in our evaluation (§8), along with a brief description of their
+construction. Interested readers can refer to the works of Leverrier and Zémor [2022, 2023] for
+more details.
+   Definition A.1 (Left-right Cayley complex (quadripartite version) [Leverrier and Zémor 2022]).
+   Given a group 𝐺 and two sets of generators 𝐴 = 𝐴 −1 and 𝐵 = 𝐵 −1 , a
+   left-right Cayley complex 𝑋 (see the right figure) is made up of vertices 𝑉 ,
+   𝐴-edges 𝐸𝐴 , 𝐵-edges 𝐸𝐵 and squares 𝑄, where                                  𝑉01 𝑎𝑔        𝑎𝑔𝑏 𝑉11
+     • 𝑉 = 𝑉00 ∪ 𝑉10 ∪ 𝑉10 ∪ 𝑉11 with 𝑉𝑖 𝑗 = 𝐺 × {𝑖 𝑗 } (black points);
+     • 𝐸𝐴 = {{(𝑔, 𝑖0), (𝑎𝑔, 𝑖1) | 𝑔 ∈ 𝐺, 𝑎 ∈ 𝐴, 𝑖 ∈ {0, 1}} (red edges);
+     • 𝐸𝐵 = {{(𝑔, 0𝑗), (𝑔𝑏, 1𝑗) | 𝑔 ∈ 𝐺, 𝑏 ∈ 𝐵, 𝑗 ∈ {0, 1}} (blue edges);         𝑔        𝑔𝑏
+     • 𝑄 = {{(𝑔, 00), (𝑎𝑔, 01), (𝑔𝑏, 10), (𝑎𝑔𝑏, 11)} | 𝑔 ∈ 𝐺, 𝑎 ∈ 𝐴, 𝑏 ∈ 𝐵}  𝑉00              𝑉10
+         (squares surrounded by red and blue edges).
+   For simplicity, we assume that 𝐴 and 𝐵 are of the same cardinality Δ as in [Leverrier and Zémor
+2022]. For any set 𝑆, we define F𝑆2 as a linear space over the finite field F2 = Z/2Z with basis
+ 𝑒𝑠 | 𝑠 ∈ 𝑆 }. It is clear that F𝑆2  F2|𝑆 | . Let 𝑉0 = 𝑉00 ∪ 𝑉11, 𝑉1 = 𝑉01 ∪ 𝑉10 , we define two linear maps
+{®
+as follows:
+ • 𝐻 0 : F2 → F𝐴×𝐵       ⊗F𝑉2 0 with 𝐻 0 (®
+                                          𝑒 { (𝑔,00),(𝑎𝑔,01),(𝑔𝑏,10),(𝑎𝑔𝑏,11) } ) = 𝑒®(𝑎,𝑏 ) ⊗ 𝑒®(𝑔,00) +𝑒®(𝑎 −1,𝑏 −1 ) ⊗ 𝑒®(𝑎𝑔𝑏,11) .
+           𝑄
+                    2
+    𝐻 0 represents the adjacent relationship between squares in 𝑄 and vertices in 𝑉0 .
+ • 𝐻 1 : F2 → F𝐴×𝐵       ⊗F𝑉2 1 with 𝐻 1 (®
+                                          𝑒 { (𝑔,00),(𝑎𝑔,01),(𝑔𝑏,10),(𝑎𝑔𝑏,11) } ) = 𝑒®(𝑎 −1,𝑏 ) ⊗ 𝑒®(𝑎𝑔,01) +𝑒®(𝑎,𝑏 −1 ) ⊗ 𝑒®(𝑔𝑏,10) .
+           𝑄
+                    2
+    𝐻 1 represents the adjacent relationship between squares in 𝑄 and vertices in 𝑉1 .
+To make 𝐻 0 and 𝐻 1 have orthogonal properties on 𝐴 × 𝐵, we need two (classical) linear codes 𝐶𝐴
+and 𝐶𝐵 of length Δ with their dual codes 𝐶𝐴⊥ and 𝐶𝐵⊥ . Let
+ • 𝐻𝐴 : F2Δ → F𝑚2 be the check matrix of 𝐶𝐴 with 𝑚𝐴 = dim(𝐶𝐴 ).
+                  𝐴
+
+                 Δ−𝑚𝐴
+ • 𝐻𝐴 : F2 → F2
+     ⊥     Δ          be the check matrix of 𝐶𝐴⊥ .
+ • 𝐻𝐵 : F2Δ → F2 𝐵 be the check matrix of 𝐶𝐵 with 𝑚𝐵 = dim(𝐶𝐵 ).
+                𝑚
+
+ • 𝐻𝐵⊥ : F2Δ → F2Δ−𝑚𝐵 be the check matrix of 𝐶𝐵⊥ .
+  Now, consider the following sequences of maps:
+     2        𝐻𝑄                                         𝐻𝐴×𝐵 ⊗𝐻𝑉0                             (𝐻𝐴 ⊗𝐻𝐵 ) ⊗1
+                                                        −−−−−−−−→ F2Δ ⊗ F2Δ|𝐺                 −−−−−−−−−−→ F2𝑚
+                              𝐻0                                             2
+ F2Δ |𝐺 |                                                                     |                               𝐴𝑚 𝐵 Δ|𝐺 |
+                        𝑄
+             −
+             −→ F2           −→ F𝐴×𝐵
+                             −   2   ⊗ F𝑉2 0                             2                                 2
+     2        𝐻𝑄                                         𝐻𝐴×𝐵 ⊗𝐻𝑉1                             (𝐻𝐴⊥ ⊗𝐻𝐵⊥ ) ⊗1
+                                                        −−−−−−−−→ F2Δ ⊗ F2Δ|𝐺                 −−−−−−−−−−→ F2(Δ−𝑚
+                              𝐻1                                             2
+ F2Δ |𝐺 |                                                                     |                                  𝐴 ) (Δ−𝑚 𝐵 )Δ|𝐺 |
+                        𝑄
+             −
+             −→ F2           −→ F𝐴×𝐵
+                             −   2   ⊗ F𝑉2 1                             2                                 2
+where
+                                    2
+ • 𝐻𝑄 is an isomorphism map for F2Δ |𝐺 |  F2 ;
+                                             𝑄
+                                                  2
+ • 𝐻𝐴×𝐵 is an isomorphism map for F𝐴×𝐵2    F2Δ ;
+                                          2Δ|𝐺
+ • 𝐻𝑉0 is an isomorphism map for F𝑉2 0  F2    |
+                                                 ;
+7 Dinur et al. [2023] noticed an explicit construction of Ramanujan graphs[Lubotzky et al. 1988] for the left-right Cayley
+
+complex, from which good qLDPC codes can be derived. Referring to the construction in [Lubotzky et al. 1988], we need at
+least 47040 physical qubits for the quantum Tanner codes to be good qLDPC codes.
+
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                           189:31
+
+
+ • 𝐻𝑉1 is an isomorphism map for F𝑉2 1  F2Δ|𝐺
+                                          2
+                                               |
+                                                 ;
+we define
+                                                                                  2
+      𝐻𝑋 ≜ ((𝐻𝐴 ⊗ 𝐻𝐵 ) ⊗ 1) ◦ (𝐻𝐴×𝐵 ⊗ 𝐻𝑉0 ) ◦ 𝐻 0 ◦ 𝐻𝑄                       : F2Δ |𝐺 | → F2𝑚
+                                                                                           2
+                                                                                              𝐴𝑚 𝐵 Δ|𝐺 |
+                                                                                                         ,
+                                                                                  2
+      𝐻𝑍 ≜ ((𝐻𝐴⊥ ⊗ 𝐻𝐵⊥ ) ⊗ 1) ◦ (𝐻𝐴×𝐵 ⊗ 𝐻𝑉1 ) ◦ 𝐻 1 ◦ 𝐻𝑄                     : F2Δ |𝐺 | → F2(Δ−𝑚
+                                                                                           2
+                                                                                                 𝐴 ) (Δ−𝑚 𝐵 )Δ|𝐺 |
+                                                                                                                   .
+Without causing ambiguity, we also use
+                                                 2
+                         𝐻𝑋 ∈ F22𝑚𝐴𝑚𝐵 Δ|𝐺 | ×Δ |𝐺 | , 𝐻𝑍 ∈ F2(Δ−𝑚𝐴 ) (Δ−𝑚𝐵 )Δ|𝐺 | ×Δ |𝐺 |
+                                                                                           2
+
+
+
+for their matrix representations. According to [Leverrier and Zémor 2022], we can prove that
+𝐻𝑋 𝐻𝑍 = 0, therefore (𝐻𝑋 , 𝐻𝑍 ) defines a CSS code [Calderbank and Shor 1996; Steane 1996], which
+      ⊺
+
+is a specific instance of stabilizer code. In particular:
+ • The column indexes of 𝐻𝑋 , 𝐻𝑍 represent a total of Δ2 |𝐺 | physical qubits.
+                                                     2
+ • Each row 𝑥® = (𝑥 1, 𝑥 2, . . . , 𝑥 Δ2 |𝐺 | ) ∈ F2Δ |𝐺 | of 𝐻𝑋 defines an 𝑋 -check
+                                         𝑥) = 𝑋 𝑥 1 ⊗ 𝑋 𝑥 2 ⊗ · · · ⊗ 𝑋 𝑥 Δ2 |𝐺 | ,
+                                     𝑃𝑋 ( ®
+   where 𝑋 0 is Pauli 𝐼 , 𝑋 1 is Pauli 𝑋 .
+                                                     2
+ • Each row 𝑧® = (𝑧 1, 𝑧 2, . . . , 𝑧 Δ2 |𝐺 | ) ∈ F2Δ |𝐺 | of 𝐻𝑍 defines a 𝑍 -check
+                                          𝑧 ) = 𝑍 𝑧1 ⊗ 𝑍 𝑧2 ⊗ · · · ⊗ 𝑍 𝑧 Δ2 |𝐺 | ,
+                                      𝑃𝑍 (®
+   where 𝑍 0 is Pauli 𝐼 , 𝑍 1 is Pauli 𝑍 .
+ • The quantum Tanner code 𝐶𝐺,𝐴,𝐵,𝐶𝐴 ,𝐶𝐵 is the space of states stabilized by these checks.
+Using these checks, we provide a QEC program for the quantum Tanner code 𝐶𝐺,𝐴,𝐵,𝐶𝐴 ,𝐶𝐵 in
+pseudocode as follows.
+
+Algorithm 1 Decoding quantum Tanner code 𝐶𝐺,𝐴,𝐵,𝐶𝐴 ,𝐶𝐵
+ 1: 𝑆®𝑋 ← An empty 2𝑚𝐴𝑚 𝐵 Δ |𝐺 | × 1 vector
+ 2: 𝑆®𝑍 ← An empty 2(Δ − 𝑚𝐴 ) (Δ − 𝑚 𝐵 )Δ |𝐺 | × 1 vector
+ 3: for 𝑗 ← 1, · · · , 2𝑚𝐴𝑚 𝐵 Δ |𝐺 | do                   ⊲ Syndrome measurements of 𝑋 -checks
+ 4:     𝑥® ← Row(𝐻𝑋 , 𝑗)
+ 5:    𝑆®𝑋 [ 𝑗] ← measure 𝑋 -check 𝑃𝑋 ( ®   𝑥)
+ 6: end for
+ 7: for 𝑗 ← 1, · · · , 2(Δ − 𝑚𝐴 ) (Δ − 𝑚 𝐵 )Δ |𝐺 | do                   ⊲ Syndrome measurements of 𝑍 -checks
+ 8:    𝑧® ← Row(𝐻𝑍 , 𝑗)
+ 9:       𝑆®𝑍 [ 𝑗] ← measure 𝑍 -check 𝑃𝑍 (®
+                                          𝑧)
+10: end for
+11: 𝑅®𝑋 , 𝑅®𝑍 ← DecodeSyndromes(𝑆®𝑋 , 𝑆®𝑍 )                ⊲ Call Algorithm 1 in [Leverrier and Zémor 2023]
+12: for 𝑗 ← 1, · · · , Δ2 |𝐺 | do
+13:    if 𝑅®𝑋 [ 𝑗] = 1 then
+14:         Perform 𝑋 gate at the 𝑗-th qubit
+15:    end if
+16:    if 𝑅®𝑍 [ 𝑗] = 1 then
+17:         Perform 𝑍 gate at the 𝑗-th qubit
+18:    end if
+19: end for
+
+
+                                  Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:32                                                                                  Wang Fang and Mingsheng Ying
+
+
+     For external call of DecodeSyndromes, the condition 𝐶 DecodeSyndromes (𝑆®𝑋 , 𝑆®𝑍 , 𝑅®𝑋 , 𝑅®𝑍 ) is defined
+as
+         (𝑆®𝑋 == 𝐻𝑋 𝑅®𝑍 ) ∧ (|𝑅®𝑍 | Hamming ≤ 𝑛𝑍 ) ∧ (𝑆®𝑍 == 𝐻𝑍 𝑅®𝑋 ) ∧ (|𝑅®𝑋 | Hamming ≤ 𝑛𝑋 ),
+where 𝑛𝑋 is the number of injected 𝑋 errors and 𝑛𝑍 is the number of injected 𝑍 errors.
+  Example A.2 (Explicit Instances used in evaluation (§8)). Let 𝑚, 𝑘 ∈ Z, the 𝐺, 𝐴, 𝐵, 𝐶𝐴 and 𝐶𝐵
+required by the construction are chosen as follows:
+ • 𝐺 = (Z𝑘7𝑚 , +).
+ • 𝐴 = 𝐵 = 𝑘7𝑚−1 · {0, 1, 2, 3, 4, 5, 6} with Δ = 7.
+ • 𝐶𝐴 is the [7, 4, 3] Hamming code.
+ • 𝐶𝐵 is the [7, 3, 3] dual code of the[7, 4, 3] Hamming code.
+For our evaluation, we have chosen the values of (𝑚, 𝑘) = (1, 1), (1, 2), (1, 3), and (1, 4). These
+values result in a total number of physical qubits corresponding to each code of Δ2 |𝐺 | = 𝑘7𝑚+2 =
+343, 686, 1029, and 1372, respectively.                                                           ◁
+
+B     Prototype Implementation
+We implemented our general QSE framework together with the special support of symbolic stabilizer
+states in a prototype tool called QuantumSE.jl as a Julia [Bezanson et al. 2017] package.
+Quantum DSL. To conveniently write QEC programs, e.g., the two programs in Fig. 10, in Julia,
+we implement a quantum DSL with more features, including for-loops, list comprehension, and
+subroutine call, beyond the quantum programs defined in §4.1. Thanks to Julia’s meta-programming
+support, QuantumSE.jl can handle these features by Julia’s native statements. So, only the QSE
+rules in Fig. 4 remain to consider for this quantum DSL.
+Symbolic stabilizer states. Currently, QuantumSE.jl only supports using symbolic stabilizer
+states as symbolic quantum states, but because of the multiple dispatch of Julia, we can easily
+extend it to other symbolic quantum states in the future.
+    We implemented the unitaries and measurements over symbolic stabilizer states in QuantumSE.jl
+based on the high-performance simulator, chp.c, of stabilizer circuits by Aaronson and Gottesman
+[2004]. The basic idea of simulating stabilizer circuits is using a tableau to track the dynamic of sta-
+bilizer states’ generators. The tableau consists of binary variables 𝑥 𝑗𝑘 , 𝑧 𝑗𝑘 with 𝑥 𝑗𝑘 𝑧 𝑗𝑘 = 00, 10, 01, 11
+means that the 𝑗-th generator contains 𝐼, 𝑋, 𝑍, 𝑌 , respectively, at the 𝑘-th qubit; and variables
+𝑟 𝑗 = 0, 1, 2, 3 means that the phase of the 𝑗-th generator is (𝑖)𝑟 𝑗 . For 𝑛-qubits stabilizer circuits, this
+idea offers us a complexity of O (𝑛) to perform single-qubit Clifford gates and CNOT gate, and
+a complexity O (𝑛 3 ) to perform computational basis measurements [Gottesman 1998]. Aaronson
+and Gottesman [2004] further reduced the complexity of measurements to O (𝑛 2 ) by an improved
+tableau algorithm with destabilizers and provided its corresponding implementation chp.c. By
+symbolizing the phase part 𝑟𝑖 of the improved tableau algorithm (chp.c), our QuantumSE.jl then
+supports symbolic stabilizer states. We should point out that here the (symbolic) phases do not affect
+the control flow of the improved tableau algorithm, thus QuantumSE.jl can handle the symbolic
+stabilizer states with the same complexity of chp.c. This is also an important reason why we define
+such symbolic stabilizer states in Definition 6.1.
+    Since chp.c is a C program, one may wonder why don’t we use the classic SE tools, e.g., the
+KLEE [Cadar et al. 2008], to run chp.c? This can certainly be done, but the main issue is that the
+efficiency of directly using the classic SE tool is not high enough, even if applying the technique of
+concolic execution [Sen et al. 2005] that executes the program with concrete variables. We have tried
+to use KLEE to run chp.c with only concrete variables, but the efficiency is not good. This is because
+KLEE interprets programs rather than running them directly on native machines. Interestingly,
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                           189:33
+
+
+another approach of classical SE based on the compilation, e.g., the SymCC [Poeplau and Francillon
+2020], could provide a more efficient SE than the interpreter approach of KLEE. But we didn’t adopt
+it because it required a lot of engineering effort to integrate it into our framework.
+   In addition, there are some more efficient implementations for Clifford circuits than chp.c, e.g.,
+QuantumClifford.jl [Krastanov 2019] and Google’s Stim [Gidney 2021] based on tableau algorithm
+with some theoretical and engineering optimizations; and GraphSim [Anders and Briegel 2006]
+based on graph-state representation which may provide complexity of O (𝑛 log 𝑛) for measurements
+in some special cases. However, as we see in evaluation (§8.3), the efficiency of the improved tableau
+algorithm and chp.c is good enough, and the bottleneck of QuantumSE.jl’s efficiency depends on
+the SMT solver.
+External call. The external call of a classical function 𝐹 in QSE rules (Fig. 4) requires the user to
+explicitly give the condition satisfied by the input and output of the function 𝐹 . With QuantumSE.jl,
+the user needs to write down the conditions wrapped by a function in Julia. Then, during quantum
+SE, QuantumSE.jl will call this function to obtain the conditions.
+SMT solvers. QuantumSE.jl uses bit-vector theory from SMT-LIB [Barrett et al. 2016] to model
+symbolic variables related to symbolic stabilizer states. During quantum SE, QuantumSE.jl uses a
+wrapper, Z3.jl, of the Z3 SMT solver [Moura and Bjørner 2008] to manipulate symbolic expressions.
+Finally, when solving the assertions, QuantumSE.jl calls the Bitwuzla SMT solver [Niemetz and
+Preiner 2023]8 .
+
+C    Omitted Proofs in Section 5
+
+   Lemma 5.2 (Correctness of function 𝑢𝑡). For a unitary transformation statement 𝑈 ¯                 𝑞, a path
+condition 𝜑, a pair (𝜎, 𝜌) of classical state and quantum state, and a pair (e     𝜎 , 𝜌e) of symbolic classical
+state and symbolic quantum state, if ⟨𝑈 ¯   𝑞, 𝜎, 𝜌⟩ → ⟨↓, 𝜎 ′, 𝜌 ′ ⟩ and (𝜎, 𝜌) |=𝜑 (e 𝜎 , 𝜌e), then
+                                                             𝜎 , 𝑢𝑡 (𝑈 , ¯
+                                            (𝜎 ′, 𝜌 ′ ) |=𝜑 (e          𝑞, 𝜌e)).
+    Proof. Notice the following facts:
+ • With operational semantics in Fig. 3 and ⟨𝑈 ¯
+                                               𝑞, 𝜎, 𝜌⟩ → ⟨↓, 𝜎 ′, 𝜌 ′ ⟩, we have 𝜎 ′ = 𝜎, 𝜌 ′ = 𝑈𝑞¯ 𝜌𝑈𝑞¯† ;
+ • With the definition of 𝑢𝑡 in Definition 4.4, we have 𝑢𝑡 (𝑈 , ¯
+                                                                𝑞, 𝜌e) = 𝑈𝑞¯ 𝜌e𝑈𝑞¯† ;
+ • With (𝜎, 𝜌) |= (e
+                   𝜎 , 𝜌e) and Definition 5.1, there is a valuation 𝑉 such that 𝜎 = 𝑉 (e
+                                                                                       𝜎 ), 𝜌 = 𝑉 (e
+                                                                                                   𝜌)
+   and 𝑉 (𝜑) = true.
+Then we have
+                                        𝜎 ) = 𝜎 = 𝜎 ′,
+                                     𝑉 (e
+                         𝑉 (𝑢𝑡 (𝑈 , ¯
+                                   𝑞, 𝜌e)) = 𝑉 (𝑈𝑞¯ 𝜌e𝑈𝑞¯† ) = 𝑈𝑞¯𝑉 (e
+                                                                     𝜌 )𝑈𝑞¯† = 𝑈𝑞¯ 𝜌𝑈𝑞¯† = 𝜌 ′,
+                                     𝑉 (𝜑) = true.
+Therefore, by Definition 5.1, we have
+                                                             𝜎 , 𝑢𝑡 (𝑈 , ¯
+                                            (𝜎 ′, 𝜌 ′ ) |=𝜑 (e          𝑞, 𝜌e)).
+                                                                                                                        □
+
+
+8We choose Bitwuzla as it is a winner of the competition in the quantifier-free bit-vector logic category in SMT-COMP 2022
+
+(see https://smt-comp.github.io/2022/results/qf-bitvec-single-query).
+
+
+                                    Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:34                                                                                             Wang Fang and Mingsheng Ying
+
+
+  Lemma 5.3 (Correctness of function 𝑚). For a measurement statement 𝑐 B measure 𝑞, a path
+condition 𝜑, a pair (𝜎, 𝜌) of classical state and quantum state, and a pair (e
+                                                                             𝜎 , 𝜌e) of symbolic classical
+                                                                               𝑝
+                                                           −→ ⟨↓, 𝜎 ′, 𝜌 ′ ⟩ and (𝜎, 𝜌) |=𝜑 (e
+state and symbolic quantum state, if ⟨𝑐 B measure 𝑞, 𝜎, 𝜌⟩ −                                 𝜎 , 𝜌e), then
+                                               (𝜎 ′, 𝜌 ′ ) |=𝜑 (e
+                                                                𝜎 [𝑠/𝑐], 𝜌e′ (𝑠)),
+where (𝑠, 𝑝 (𝑠), 𝜌e′ (𝑠)) = 𝑚(𝑞, 𝜌e′ ).
+   Proof. Notice the following facts:
+                                                                                     |𝑠 ⟩ ⟨𝑠 | 𝜌e|𝑠 ⟩ ⟨𝑠 |
+ • With the definition of 𝑚 in Definition 4.4, we have 𝜌e′ (𝑠) = tr(𝑞 |𝑠 ⟩𝑞 ⟨𝑠 |𝑞𝜌e) ;
+ • With (𝜎, 𝜌) |= (e
+                   𝜎 , 𝜌e) and Definition 5.1, there is a valuation 𝑉 such that 𝜎 = 𝑉 (e
+                                                                                       𝜎 ), 𝜌 = 𝑉 (e
+                                                                                                   𝜌)
+    and 𝑉 (𝜑) = true.
+The goal is divided into the two cases of the operational semantics of measurement statement in
+Fig. 3:
+                                     tr( |0⟩𝑞 ⟨0|𝜌 )               |0⟩𝑞 ⟨0|𝜌 |0⟩𝑞 ⟨0|
+   (1) ⟨𝑐 B measure 𝑞, 𝜎, 𝜌⟩ −−−−−−−−−→ ⟨↓, 𝜎 [0/𝑐],                 tr( |0⟩𝑞 ⟨0|𝜌 ) ⟩. In this case, we have
+
+                                                                   |0⟩𝑞 ⟨0|𝜌 |0⟩𝑞 ⟨0|
+                                        𝜎 ′ = 𝜎 [0/𝑐],      𝜌′ =                      .
+                                                                     tr(|0⟩𝑞 ⟨0|𝜌)
+         Let 𝑉 ′ = 𝑉 [𝑠 ↦→ 0], we have 𝑉 ′ (e        𝜎 ) = 𝜎, 𝑉 ′ (e
+                                            𝜎 ) = 𝑉 (e                      𝜌 ) = 𝜌, 𝑉 ′ (𝜑) = 𝑉 (𝜑) = true
+                                                                   𝜌 ) = 𝑉 (e
+         since 𝑠 is a newly introduced symbol that does not appear in 𝜎     e, 𝜌e and 𝜑, then
+           𝑉 ′ (e
+                𝜎 [𝑠/𝑐]) = 𝑉 ′ (e𝜎 ) [0/𝑐] = 𝜎 [0/𝑐] = 𝜎 ′,
+                                   |𝑠⟩𝑞 ⟨𝑠 |e
+                                            𝜌 |𝑠⟩𝑞 ⟨𝑠 |     |0⟩𝑞 ⟨0|𝑉 ′ (e
+                                                                         𝜌 )|0⟩𝑞 ⟨0| |0⟩𝑞 ⟨0|𝜌 |0⟩𝑞 ⟨0|
+                                                       
+            𝑉 ′ (e𝜌 ′ (𝑠)) = 𝑉 ′                          =                         =                   = 𝜌 ′,
+                                     tr(|𝑠⟩𝑞 ⟨𝑠 |e
+                                                 𝜌)           tr(|0⟩𝑞 ⟨0|𝑉 ′ (e
+                                                                              𝜌 ))     tr(|0⟩𝑞 ⟨0|𝜌)
+                  𝑉 ′ (𝜑) = true.
+         Therefore, by Definition 5.1, we have
+                                               (𝜎 ′, 𝜌 ′ ) |=𝜑 (e
+                                                                𝜎 [𝑠/𝑐], 𝜌e′ (𝑠)).
+                                       tr( |1⟩𝑞 ⟨1|𝜌 )                 |1⟩𝑞 ⟨1|𝜌 |1⟩𝑞 ⟨1|
+   (2) ⟨𝑐 B measure 𝑞, 𝜎, 𝜌⟩ −−−−−−−−−→ ⟨↓, 𝜎 [1/𝑐],                     tr( |1⟩𝑞 ⟨1|𝜌 ) ⟩.Similar to (1), we only need to
+       take 𝑉 ′ = 𝑉 [𝑠 ↦→ 1].
+                                                                                                                             □
+   Theorem 5.4 (Soundness of QSE). For any quantum program 𝑆, any pair (𝜎, 𝜌) of classical state
+and quantum state, any pair (e𝜎 , 𝜌e) of symbolic classical state and symbolic quantum state, any set 𝑃
+of symbolic probabilities and any path condition 𝜑, if
+                                                       𝑝
+             (𝜎, 𝜌) |=𝜑 (e
+                         𝜎 , 𝜌e),               −→ ⟨𝑆 ′, 𝜎 ′, 𝜌 ′ ⟩,
+                                      ⟨𝑆, 𝜎, 𝜌⟩ −                             e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 ′, 𝜎
+                                                                          ⟨𝑆, 𝜎                    e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩
+then (𝜎 ′, 𝜌 ′ ) |=𝜑 ′ (e
+                        𝜎 ′, 𝜌e′ ). Moreover, there is a valuation 𝑉 such that 𝑉 (e    𝜎 ) = 𝜎, 𝑉 (e
+                                                                                                   𝜌 ) = 𝜌, 𝑉 (𝜑) =
+            ′       ′
+         𝜎 ) = 𝜎 , 𝑉 (e
+true, 𝑉 (e                𝜌 ′ ) = 𝜌 ′, 𝑉 (𝜑 ′ ) = true and if 𝑃 ′ = 𝑃 ∪ {(𝑠, 𝑝 (𝑠)}, then 𝑝 = 𝑉 (𝑝 (𝑠)).
+   Proof. With (𝜎, 𝜌) |=𝜑 (e𝜎 , 𝜌e) and Definition 5.1, there is a valuation 𝑉 such that 𝜎 = 𝑉 (e
+                                                                                                𝜎 ), 𝜌 =
+   𝜌 ), 𝑉 (𝜑) = true. We then prove the theorem by induction through the program structure.
+𝑉 (e
+ • 𝑆 ≡ 𝑥 B 𝑒. We have
+                                   ⟨𝑥 B 𝑒, 𝜎, 𝜌⟩ → ⟨↓, 𝜎 [𝜎 (𝑒)/𝑥], 𝜌⟩
+    and
+                                    ⟨𝑥 B 𝑒, 𝜎
+                                            e, 𝜌e, 𝑃, 𝜑⟩ → ⟨↓, 𝜎
+                                                               e[e
+                                                                 𝜎 (𝑒)/𝑥], 𝜌e, 𝑃, 𝜑⟩,
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                           189:35
+
+
+   which imply
+                                             𝜎 ′ = 𝜎 [𝜎 (𝑒)/𝑥],         𝜌′ = 𝜌
+   and
+                                     e′ = 𝜎
+                                     𝜎    e[e
+                                            𝜎 (𝑒)/𝑥],           𝜌e′ = 𝜌e,        𝜑 ′ = 𝜑.
+   Then,
+            𝜎 ′ ) = 𝑉 (e
+         𝑉 (e             𝜎 (𝑒)/𝑥]) = 𝑉 (e
+                       𝜎 [e                      𝜎 (𝑒))/𝑥] = 𝑉 (e
+                                         𝜎 ) [𝑉 (e                      𝜎 ) (𝑒)/𝑥] = 𝜎 [𝜎 (𝑒)/𝑥] = 𝜎 ′,
+                                                                𝜎 ) [𝑉 (e
+            𝜌 ′ ) = 𝑉 (e
+         𝑉 (e          𝜌 ) = 𝜌 = 𝜌 ′,
+         𝑉 (𝜑 ′ ) = 𝑉 (𝜑) = true.
+   Therefore, with Definition 5.1, we have (𝜎 ′, 𝜌 ′ ) |=𝜑 ′ (e
+                                                              𝜎 ′, 𝜌e′ ).
+ • 𝑆 ≡ 𝑦¯ B 𝐹 ( ¯
+               𝑥). We have
+                                   ⟨𝑦¯ B 𝐹 ( ¯
+                                            𝑥), 𝜎, 𝜌⟩ → ⟨↓, 𝜎 [𝐹 (𝜎 ( ¯
+                                                                     𝑥))/ ¯
+                                                                         𝑦], 𝜌⟩
+   and
+                       ⟨𝑦¯ B 𝐹 ( ¯                     e[¯𝑠 𝑦¯ / ¯
+                                    e, 𝜌e, 𝑃, 𝜑⟩ → ⟨↓, 𝜎
+                                𝑥), 𝜎                                               𝜎(¯
+                                                                𝑦], 𝜌e, 𝑃, 𝜑 ∧ 𝐶 𝐹 (e 𝑥), 𝑠¯𝑦¯ )⟩,
+   which imply
+                                           𝜎 ′ = 𝜎 [𝐹 (𝜎 ( ¯
+                                                          𝑥))/ ¯
+                                                              𝑦],           𝜌′ = 𝜌
+   and
+                          e′ = 𝜎
+                          𝜎     e[¯𝑠 𝑦¯ / ¯
+                                         𝑦], 𝜌e′ = 𝜌e, 𝜑 ′ = 𝜑 ∧ 𝐶 𝐹 (e𝜎(¯
+                                                                         𝑥), 𝑠¯𝑦¯ ).
+   Let 𝑉 = 𝑉 [¯𝑠 𝑦¯ ↦→ 𝐹 (𝜎 ( ¯
+        ′                    𝑥))], we have 𝑉 (e  ′ 𝜎 ) = 𝑉 (e         ′
+                                                            𝜎 ) = 𝜎, 𝑉 (e
+                                                                        𝜌 ) = 𝑉 (e   𝜌 ) = 𝜌, 𝑉 ′ (𝜑) = 𝑉 (𝜑) =
+   true since 𝑠¯𝑦¯ are newly introduced symbols that do not appear in 𝜎        e, 𝜌e and 𝜑, then
+                   𝑉 ′ (e            𝜎 [¯𝑠 𝑦¯ / ¯
+                        𝜎 ′ ) = 𝑉 ′ (e                    𝜎 ) [𝐹 (𝜎 ( ¯
+                                               𝑦]) = 𝑉 ′ (e          𝑥))/ ¯
+                                                                         𝑦] = 𝜎 [𝐹 (𝜎 ( ¯
+                                                                                       𝑥))/ ¯
+                                                                                           𝑦] = 𝜎 ′
+                   𝑉 ′ (e
+                        𝜌 ′) = 𝜌 = 𝜌 ′
+                                              𝜎(¯
+                   𝑉 ′ (𝜑 ′ ) = 𝑉 ′ (𝜑 ∧ 𝐶 𝐹 (e 𝑥), 𝑠¯𝑦¯ )) = 𝑉 ′ (𝜑) ∧ 𝑉 ′ (𝐶 𝐹 (e
+                                                                                  𝜎(¯
+                                                                                    𝑥), 𝑠¯𝑦¯ ))
+                                               𝜎)( ¯
+                            = true ∧ 𝐶 𝐹 (𝑉 ′ (e  𝑥), 𝐹 (𝜎 ( ¯
+                                                            𝑥)))
+                            = true ∧ 𝐶 𝐹 (𝜎 ( ¯
+                                             𝑥), 𝐹 (𝜎 ( ¯
+                                                       𝑥)))
+                            = true ∧ true = true                                                  (see caption of Fig. 4)
+   Therefore, with Definition 5.1, we have (𝜎 ′, 𝜌 ′ ) |=𝜑 ′ (e
+                                                              𝜎 ′, 𝜌e′ ).
+ • 𝑆 ≡𝑈 ¯𝑞. We have
+                            ⟨𝑈 ¯                      e, 𝑢𝑡 (𝑈 , ¯
+                                   e, 𝜌e, 𝑃, 𝜑⟩ → ⟨↓, 𝜎
+                                𝑞, 𝜎                             𝑞, 𝜌e), 𝑃, 𝜑⟩
+   which imply
+                                     e′ = 𝜎
+                                     𝜎    e,      𝜌e′ = 𝑢𝑡 (𝑈 , ¯
+                                                               𝑞, 𝜌e),           𝜑 ′ = 𝜑.
+   With (𝜎, 𝜌) |=𝜑 (e                                                  𝜎 , 𝑢𝑡 (𝑈 , ¯
+                    𝜎 , 𝜌e) and Lemma 5.2, we can see (𝜎 ′, 𝜌 ′ ) |=𝜑 (e          𝑞, 𝜌e)), then
+                                                (𝜎 ′, 𝜌 ′ ) |=𝜑 ′ (e
+                                                                   𝜎 ′, 𝜌e′ ).
+ • 𝑆 ≡ 𝑐 B measure 𝑞. We have
+                   ⟨𝑐 B measure 𝑞, 𝜎                  e[𝑠/𝑐], 𝜌e′ (𝑠), 𝑃 ∪ {(𝑠, 𝑝 (𝑠))}, 𝜑⟩,
+                                   e, 𝜌e, 𝑃, 𝜑⟩ → ⟨↓, 𝜎
+   where (𝑠, 𝑝 (𝑠), 𝜌e′ (𝑠)) = 𝑚(𝑞, 𝜌e). Then
+                                        e′ = 𝜎
+                                        𝜎    e[𝑠/𝑐],       𝜌e′ = 𝜌e′ (𝑠),        𝜑′ = 𝜑
+   With (𝜎, 𝜌) |=𝜑 (e
+                    𝜎 , 𝜌e) and Lemma 5.3, we can see (𝜎 ′, 𝜌 ′ ) |=𝜑 (e
+                                                                       𝜎 [𝑠/𝑐], 𝜌e′ (𝑠)), then
+                                                (𝜎 ′, 𝜌 ′ ) |=𝜑 ′ (e
+                                                                   𝜎 ′, 𝜌e′ ).
+
+                                   Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:36                                                                                             Wang Fang and Mingsheng Ying
+
+
+ • 𝑆 ≡ 𝑆 1 ; 𝑆 2 . We have
+                                                                 𝑝
+                                                              −→ ⟨𝑆 1′ , 𝜎 ′, 𝜌 ′ ⟩
+                                                  ⟨𝑆 1, 𝜎, 𝜌⟩ −
+                                                                 𝑝
+                                             ⟨𝑆 1 ; 𝑆 2, 𝜎, 𝜌⟩ −
+                                                               −→ ⟨𝑆 1′ ; 𝑆 2, 𝜎 ′, 𝜌 ′ ⟩
+    and
+                                                 e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 1′ , 𝜎
+                                           ⟨𝑆 1, 𝜎                      e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩
+                                     ⟨𝑆 1 ; 𝑆 2, 𝜎
+                                                 e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 1′ ; 𝑆 2, 𝜎
+                                                                             e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩
+                               𝑝
+    Suppose ⟨𝑆 1, 𝜎, 𝜌⟩ −
+                        −→ ⟨𝑆 1′ , 𝜎 ′, 𝜌 ′ ⟩ and ⟨𝑆 1, 𝜎                       e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩. By the inductive hy-
+                                                         e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 1′ , 𝜎
+    pothesis, we can see (𝜎 , 𝜌 ) |=𝜑 ′ (e
+                             ′     ′           𝜎 , 𝜌e ), which is the exact goal we need to prove for 𝑆 1 ; 𝑆 2 .
+                                                ′    ′
+
+ • 𝑆 ≡ if 𝑏 {𝑆 1 } else {𝑆 2 }. Consider the following two cases:
+  (1) 𝜎 |= 𝑏. In this case, we have
+                                      ⟨if 𝑏 {𝑆 1 } else {𝑆 2 }, 𝜎, 𝜌⟩ → ⟨𝑆 1, 𝜎, 𝜌⟩
+         and
+                            ⟨if 𝑏 {𝑆 1 } else {𝑆 2 }, 𝜎
+                                                      e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 1, 𝜎
+                                                                           e, 𝜌e, 𝑃, 𝜑 ∧ 𝜎
+                                                                                         e(𝑏)⟩,
+         which imply
+                                                       𝜎 ′ = 𝜎,      𝜌′ = 𝜌
+         and
+                                         e′ = 𝜎
+                                         𝜎    e,        𝜌e′ = 𝜌e,     𝜑′ = 𝜑 ∧ 𝜎
+                                                                               e(𝑏).
+         Then,
+                  𝜎 ′ ) = 𝑉 (e
+               𝑉 (e          𝜎 ) = 𝜎 = 𝜎 ′,
+                    𝜌 ′ ) = 𝑉 (e
+                 𝑉 (e          𝜌 ) = 𝜌 = 𝜌 ′,
+               𝑉 (𝜑 ′ ) = 𝑉 (𝜑 ∧ 𝜎
+                                 e(𝑏)) = 𝑉 (𝜑) ∧ 𝑉 (e
+                                                    𝜎 (𝑏)) = true ∧ 𝑉 (e
+                                                                       𝜎 ) (𝑏) = 𝜎 (𝑏) = true.
+      Therefore, with Definition 5.1, we have (𝜎 ′, 𝜌 ′ ) |=𝜑 ′ (e
+                                                                 𝜎 ′, 𝜌e′ ).
+  (2) 𝜎 |= ¬𝑏. In this case, we have
+                                      ⟨if 𝑏 {𝑆 1 } else {𝑆 2 }, 𝜎, 𝜌⟩ → ⟨𝑆 2, 𝜎, 𝜌⟩
+         and
+                           ⟨if 𝑏 {𝑆 1 } else {𝑆 2 }, 𝜎
+                                                     e, 𝜌e, 𝑃, 𝜑⟩ → ⟨𝑆 2, 𝜎
+                                                                          e, 𝜌e, 𝑃, 𝜑 ∧ ¬e
+                                                                                         𝜎 (𝑏)⟩,
+         which imply
+                                                       𝜎 ′ = 𝜎,      𝜌′ = 𝜌
+         and
+                                        e′ = 𝜎
+                                        𝜎    e,        𝜌e′ = 𝜌e,     𝜑 ′ = 𝜑 ∧ ¬e
+                                                                                𝜎 (𝑏).
+         Then,
+               𝜎 ′ ) = 𝑉 (e
+            𝑉 (e          𝜎 ) = 𝜎 = 𝜎 ′,
+               𝜌 ′ ) = 𝑉 (e
+            𝑉 (e          𝜌 ) = 𝜌 = 𝜌 ′,
+            𝑉 (𝜑 ′ ) = 𝑉 (𝜑 ∧ ¬e
+                               𝜎 (𝑏)) = 𝑉 (𝜑) ∧ 𝑉 (e
+                                                   𝜎 (¬𝑏)) = true ∧ 𝑉 (e
+                                                                       𝜎 ) (¬𝑏) = 𝜎 (¬𝑏) = true.
+         Therefore, with Definition 5.1, we have (𝜎 ′, 𝜌 ′ ) |=𝜑 ′ (e
+                                                                    𝜎 ′, 𝜌e′ ).
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                                 189:37
+
+
+For the additional condition 𝑃 ′ = 𝑃 ∪ {(𝑠, 𝑝 (𝑠))}, we only need consider 𝑆 ≡ 𝑐 B measure 𝑞. We
+have
+                   ⟨𝑐 B measure 𝑞, 𝜎                     e[𝑠/𝑐], 𝜌e′ (𝑠), 𝑃 ∪ {(𝑠, 𝑝 (𝑠))}, 𝜑⟩,
+                                      e, 𝜌e, 𝑃, 𝜑⟩ → ⟨↓, 𝜎
+                                                       |𝑠 ⟩ ⟨𝑠 | 𝜌e|𝑠 ⟩ ⟨𝑠 | 
+where (𝑠, 𝑝 (𝑠), 𝜌e′ (𝑠)) = 𝑚(𝑞, 𝜌e) = 𝑠, tr |𝑠⟩𝑞 ⟨𝑠 |e
+                                                      𝜌 , tr(𝑞 |𝑠 ⟩𝑞 ⟨𝑠 |𝑞𝜌e) , then
+
+                                                 |𝑠⟩𝑞 ⟨𝑠 |e
+                                                          𝜌 |𝑠⟩𝑞 ⟨𝑠 |
+                   e′ = 𝜎
+                        e[𝑠/𝑐],          𝜌e′ =                              𝜑 ′ = 𝜑,      𝑝 (𝑠) = tr |𝑠⟩𝑞 ⟨𝑠 |e
+                                                                                                               
+                   𝜎                                                  ,                                       𝜌 .
+                                                   tr(|𝑠⟩𝑞 ⟨𝑠 |e
+                                                               𝜌)
+We divide the discussion into two cases like Lemma 5.3:
+                                      tr( |0⟩𝑞 ⟨0|𝜌 )                     |0⟩𝑞 ⟨0|𝜌 |0⟩𝑞 ⟨0|
+    (1) ⟨𝑐 B measure 𝑞, 𝜎, 𝜌⟩ −−−−−−−−−→ ⟨↓, 𝜎 [0/𝑐],                       tr( |0⟩𝑞 ⟨0|𝜌 ) ⟩. In this case, we have
+
+                                                         |0⟩𝑞 ⟨0|𝜌 |0⟩𝑞 ⟨0|
+                           𝜎 ′ = 𝜎 [0/𝑐],        𝜌′ =                       ,        𝑝 = tr(|0⟩𝑞 ⟨0|𝜌).
+                                                           tr(|0⟩𝑞 ⟨0|𝜌)
+       Let 𝑉 ′ = 𝑉 [𝑠 ↦→ 0], we have 𝑉 ′ (e        𝜎 ) = 𝜎, 𝑉 ′ (e
+                                          𝜎 ) = 𝑉 (e                      𝜌 ) = 𝜌, 𝑉 ′ (𝜑) = 𝑉 (𝜑) = true
+                                                                 𝜌 ) = 𝑉 (e
+       since 𝑠 is a newly introduced symbol that does not appear in 𝜎     e, 𝜌e and 𝜑, then
+              𝑉 ′ (𝜎 ′ ) = 𝑉 ′ (e
+                                𝜎 [𝑠/𝑐]) = 𝑉 ′ (e   𝜎 ) [0/𝑐] = 𝜎 [0/𝑐] = 𝜎 ′,
+                                  |𝑠⟩𝑞 ⟨𝑠 |e
+                                           𝜌 |𝑠⟩𝑞 ⟨𝑠 |     |0⟩𝑞 ⟨0|𝑉 ′ (e
+                                                                        𝜌 )|0⟩𝑞 ⟨0| |0⟩𝑞 ⟨0|𝜌 |0⟩𝑞 ⟨0|
+                                                      
+              𝑉 ′ (e𝜌 ′) = 𝑉 ′                           =                         =                   = 𝜌 ′,
+                                    tr(|𝑠⟩𝑞 ⟨𝑠 |e
+                                                𝜌)           tr(|0⟩𝑞 ⟨0|𝑉 ′ (e
+                                                                             𝜌 ))     tr(|0⟩𝑞 ⟨0|𝜌)
+              𝑉 ′ (𝜑 ′ ) = 𝑉 ′ (𝜑) = true,
+            𝑉 ′ (𝑝 (𝑠)) = 𝑉 ′ tr |𝑠⟩𝑞 ⟨𝑠 |e   𝜌 = tr |0⟩𝑞 ⟨0|𝑉 ′ (e   𝜌 ) = tr |0⟩𝑞 ⟨0|𝜌 = 𝑝.
+                                                                                     
+
+                                      tr( |1⟩𝑞 ⟨1|𝜌 )                     |1⟩𝑞 ⟨1|𝜌 |1⟩𝑞 ⟨1|
+    (2) ⟨𝑐 B measure 𝑞, 𝜎, 𝜌⟩ −−−−−−−−−→ ⟨↓, 𝜎 [1/𝑐],                       tr( |1⟩𝑞 ⟨1|𝜌 ) ⟩. The same as (1), we only need to
+        take 𝑉 ′ = 𝑉 [𝑠 ↦→ 1].
+                                                                                                                             □
+
+D     Omitted Proofs in Section 6
+D.1    Correctness for Definition 6.3
+We explain the correctness of Definition 6.3 according to the stabilizer formalism [Nielsen and
+Chuang 2010, Chapter 10.5]. Given a symbolic stabilizer state
+                                    𝜌e = ⟨(−1) 𝑓1 (𝑠1,...,𝑠𝑚 ) 𝑃1, . . . , (−1) 𝑓𝑛 (𝑠1,...,𝑠𝑚 ) 𝑃𝑛 ⟩
+Then:
+ • The unitary transformation by a Clifford gate 𝑉 on qubits 𝑞¯ changes the stabilizer to
+                               ⟨(−1) 𝑓1 (𝑠1,...,𝑠𝑚 ) 𝑉𝑞¯ 𝑃1𝑉𝑞¯†, . . . , (−1) 𝑓𝑛 (𝑠1,...,𝑠𝑚 ) 𝑉𝑞¯ 𝑃𝑛𝑉𝑞¯† ⟩
+     as mentioned in preliminary (§2.2). Thus, the unitary transformation function defined for 𝜌e is
+                      𝑢𝑡 (𝑉 , ¯
+                             𝑞, 𝜌e) = ⟨(−1) 𝑓1 (𝑠1,...,𝑠𝑚 ) 𝑉𝑞¯ 𝑃1𝑉𝑞¯†, . . . , (−1) 𝑓𝑛 (𝑠1,...,𝑠𝑚 ) 𝑉𝑞¯ 𝑃𝑛𝑉𝑞¯† ⟩
+ • The computational basis measurement on qubit 𝑞, which corresponds to the observable 𝑍𝑞 , is
+   defined in the following two cases:
+   (1) 𝑍𝑞 commutes with all 𝑃 𝑗 . In this case, there exist a Boolean value 𝑏 and a list of indexes
+       1 ≤ 𝑗1, 𝑗2, . . . , 𝑗𝑘 ≤ 𝑛 with 1 ≤ 𝑘 ≤ 𝑛 such that (−1)𝑏 𝑍𝑞 = 𝑃 𝑗1 𝑃 𝑗2 · · · 𝑃 𝑗𝑘 [Nielsen and
+       Chuang 2010, Chapter 10.5.3]. Then, we have that for any 𝑏 1, 𝑏 2, . . . , 𝑏𝑚 ,
+        (−1)𝑏 ⊕𝑓 𝑗1 (𝑏 1,...,𝑏𝑚 ) ⊕···⊕𝑓 𝑗𝑘 (𝑏 1,...,𝑏𝑚 ) 𝑍𝑞 = (−1) 𝑓 𝑗1 (𝑏 1,...,𝑏𝑚 ) 𝑃 𝑗1 · · · (−1) 𝑓 𝑗𝑘 (𝑏 1,...,𝑏𝑚 ) 𝑃 𝑗𝑘 ,
+                                                                                                                             
+
+
+                                      Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:38                                                                                                      Wang Fang and Mingsheng Ying
+
+
+           which means (−1)𝑏 ⊕𝑓 𝑗1 (𝑏 1,...,𝑏𝑚 ) ⊕···⊕𝑓 𝑗𝑘 (𝑏 1,...,𝑏𝑚 ) 𝑍𝑞 belongs to the stabilizer
+
+                                 𝑆𝑏 1,𝑏 2,...,𝑏𝑚 = ⟨(−1) 𝑓1 (𝑏 1,...,𝑏𝑚 ) 𝑃1, . . . , (−1) 𝑓𝑛 (𝑏 1,...,𝑏𝑚 ) 𝑃𝑛 ⟩.
+           Let |𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 )⟩ be a stabilizer state of 𝑆𝑏 1,𝑏 2,...,𝑏𝑚 , we have
+
+                (−1)𝑏 ⊕𝑓 𝑗1 (𝑏 1,...,𝑏𝑚 ) ⊕···⊕𝑓 𝑗𝑘 (𝑏 1,...,𝑏𝑚 ) 𝑍𝑞 |𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 )⟩ = |𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 )⟩.
+                                                                    
+
+           Then,
+                𝑍𝑞 |𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 )⟩ = (−1)𝑏 ⊕𝑓 𝑗1 (𝑏 1,...,𝑏𝑚 ) ⊕···⊕𝑓 𝑗𝑘 (𝑏 1,...,𝑏𝑚 ) |𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 )⟩,
+                                                                                                  
+
+           which means |𝜓 (𝑏 1, 𝑏 2, . . . , 𝑏𝑚 )⟩ is an eigenvector of 𝑍𝑞 . The computational basis measure-
+           ment on qubit 𝑞 doesn’t change the state and implies a determinate measurement outcome
+           𝑏 ⊕ 𝑓 𝑗1 (𝑏 1, . . . , 𝑏𝑚 ) ⊕ · · · ⊕ 𝑓 𝑗𝑘 (𝑏 1, . . . , 𝑏𝑚 ). Therefore, in this case, the measurement function
+           𝑚 for 𝜌e with computational basis measurement on qubit 𝑞 is defined as
+                                       𝑚(𝑞, 𝜌e) = 𝑠, 𝛿𝑠,𝑏 ⊕𝑓 𝑗1 (𝑠1,...,𝑠𝑚 ) ⊕···⊕𝑓 𝑗𝑘 (𝑠1,...,𝑠𝑚 ) , 𝜌e
+                                                                                                        
+
+           with 𝑠 being a newly introduced Boolean symbol for measurement outcome and 𝛿𝑠,𝑒 being
+           1 or 0 if 𝑠 = 𝑒 or 𝑠 ≠ 𝑒, respectively. Since the measurement outcome is determinate, we can
+           also omit the introduced symbols by defining
+                             𝑚(𝑞, 𝜌e) = (𝑏 ⊕ 𝑓 𝑗1 (𝑠 1, . . . , 𝑠𝑚 ) ⊕ · · · ⊕ 𝑓 𝑗𝑘 (𝑠 1, . . . , 𝑠𝑚 ), {}, 𝜌e).
+      (2) 𝑍𝑞 anti-commutes with one or more of 𝑃 𝑗 . In this case, without loss of generality, we can
+          assume 𝑃1 anti-commutes with 𝑍𝑞 and 𝑃2, . . . , 𝑃𝑛 commute with 𝑍𝑞 9 . For any concrete
+          values 𝑏 1, . . . , 𝑏𝑚 of symbols 𝑠 1, . . . , 𝑠𝑚 , let |𝜓 (𝑏 1, . . . , 𝑏𝑚 )⟩ be a stabilizer state of
+                                           ⟨(−1) 𝑓1 (𝑏 1,...,𝑏𝑚 ) 𝑃1, . . . , (−1) 𝑓𝑛 (𝑏 1,...,𝑏𝑚 ) 𝑃𝑛 ⟩.
+           According to [Nielsen and Chuang 2010, Chapter 10.5.3], the computational basis measure-
+           ment on qubit 𝑞 will produce measurement outcomes 𝑏 = 0, 1 with the same probability;
+           and the measured state will become the stabilizer state of stabilizer
+                                    ⟨(−1)𝑏 𝑍𝑞 , (−1) 𝑓2 (𝑏 1,...,𝑏𝑚 ) 𝑃2, . . . , (−1) 𝑓𝑛 (𝑏 1,...,𝑏𝑚 ) 𝑃𝑛 ⟩.
+           Therefore, in this case, the measurement function 𝑚 for 𝜌e with computational basis mea-
+           surement on qubit 𝑞 is defined as
+                                 1
+                                                                                                       
+                  𝑚(𝑞, 𝜌e) = 𝑠, , ⟨(−1)𝑠 𝑍𝑞 , (−1) 𝑓2 (𝑠1,...,𝑠𝑚 ) 𝑃2, . . . , (−1) 𝑓𝑛 (𝑠1,...,𝑠𝑚 ) 𝑃𝑛 ⟩ ,
+                                 2
+           where 𝑠 is a newly introduced Boolean symbol for measurement outcome.
+
+D.2      Proof of Lemma 6.5
+
+   Lemma 6.5. If for any 𝜌 ∈ T , it holds that
+                                                   𝑝
+                                               −→ ∗ ⟨↓, 𝜎 ′, 𝜌 ′ ⟩ with 𝑝 > 0 implies 𝜌 ′ = 𝜌
+                                     ⟨𝑆, 𝜎, 𝜌⟩ −                                                                                                (3)
+then (3) holds for all quantum state 𝜌 in the code space.
+9 If there is other 𝑃 , 𝑗 ≥ 2 anti-commutes with 𝑍 , we can replace the (−1) 𝑓 𝑗 (𝑠 1 ,...,𝑠𝑚 ) 𝑃 by (−1) 𝑓1 (𝑠 1 ,...,𝑠𝑚 ) +𝑓 𝑗 (𝑠 1 ,...,𝑠𝑚 ) 𝑃 𝑃
+                     𝑗                              𝑞                                            𝑗                                               1 𝑗
+in the generating set of 𝜌e, and it will result in the same 𝜌e. Then 𝑍𝑞 only commute with 𝑃 1 𝑃 𝑗 .
+
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                                         189:39
+
+
+   Proof. Consider a fixed sequence of transitions
+                        𝑝1                     𝑝2          𝑝𝑛−1                                 𝑝𝑛
+        ⟨𝑆, 𝜎, 𝜌⟩ −
+                  −→ ⟨𝑆 1, 𝜎1, 𝜌 1 ⟩ −                                 −→ ⟨𝑆𝑛 , 𝜎𝑛 , 𝜌𝑛 ⟩ = ⟨↓, 𝜎 ′, 𝜌 ′ ⟩
+                                     −→ · · · −−−→ ⟨𝑆𝑛−1, 𝜎𝑛−1, 𝜌𝑛−1 ⟩ −                                   (6)
+such that 𝑛 ≥ 0 and 𝑝 = 𝑗=1 𝑝 𝑗 . According to operational semantics in Fig. 3, we can see that for
+                           Î𝑛
+any 1 ≤ 𝑗 ≤ 𝑛, there is a matrix 𝐸 𝑗 , the form of which is one of 1, 𝑈𝑞¯, |0⟩𝑞 ⟨0| and |1⟩𝑞 ⟨1|, such that
+                                                            𝑝 𝑗 𝜌 𝑗 = 𝐸 𝑗 𝜌 𝑗 −1 𝐸 †𝑗 .
+Let 𝐸 = 𝐸𝑛 𝐸𝑛−1 · · · 𝐸 2 𝐸 1 , we have
+                                                           𝑝𝜌 ′ = 𝑝𝜌𝑛 = 𝐸𝜌𝐸 †
+For any 𝜌 = |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 ⟨𝑥 1, 𝑥 2, . . . , 𝑥𝑘 |, we divide the discussion into two cases:
+ • If 𝑝 > 0, by Eq. (3), we have 𝜌 ′ = 𝜌 = |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 ⟨𝑥 1, 𝑥 2, . . . , 𝑥𝑘 |. Then,
+                     𝑝 |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 ⟨𝑥 1, 𝑥 2, . . . , 𝑥𝑘 | = 𝐸|𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 ⟨𝑥 1, 𝑥 2, . . . , 𝑥𝑘 |𝐸 †
+    which implies
+                                     𝐸|𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 = 𝑐 𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿
+   with 𝑐 𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 being a complex number.
+ • If 𝑝 = 0, we have 𝐸|𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 ⟨𝑥 1, 𝑥 2, . . . , 𝑥𝑘 |𝐸 † = 0, then
+                                     𝐸|𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 = 𝑐 𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿
+   with 𝑐 𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 = 0.
+Therefore, we have that for any |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 , there is a complex number 𝑐 𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 such that
+                                     𝐸|𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 = 𝑐 𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 .
+Similarly, for any 𝐻¯ |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 , there is a complex number 𝑑𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 such that
+                            𝐸 𝐻¯ |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 = 𝑑𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 𝐻¯ |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 .
+Then, for any 𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ∈ {0, 1}𝑘 , consider
+                            ∑︁                 1
+                                            √ (−1)𝑥 1 𝑦1 +𝑥 2 𝑦2 +···+𝑥𝑘 𝑦𝑘 𝑑𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 |𝑦1, 𝑦2, . . . , 𝑦𝑘 ⟩𝐿
+                  𝑦1 ,𝑦2 ,...,𝑦𝑘 ∈ {0,1}𝑘 2
+                                                 𝑘
+
+                                              ∑︁            1
+              = 𝑑𝐸,𝑥 1,𝑥 2,...,𝑥𝑘                          √ (−1)𝑥 1 𝑦1 +𝑥 2 𝑦2 +···+𝑥𝑘 𝑦𝑘 |𝑦1, 𝑦2, . . . , 𝑦𝑘 ⟩𝐿
+                                    𝑦1 ,𝑦2 ,...,𝑦𝑘 ∈ {0,1}𝑘 2
+                                                              𝑘
+
+                    = 𝑑𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 𝐻¯ |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿
+                    = 𝐸 𝐻¯ |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿
+                                   ∑︁               1
+                    =𝐸                            √ (−1)𝑥 1 𝑦1 +𝑥 2 𝑦2 +···+𝑥𝑘 𝑦𝑘 |𝑦1, 𝑦2, . . . , 𝑦𝑘 ⟩𝐿
+                         𝑦1 ,𝑦2 ,...,𝑦𝑘 ∈ {0,1}𝑘 2
+                                                      𝑘
+
+                                ∑︁                1
+                    =                          √ (−1)𝑥 1 𝑦1 +𝑥 2 𝑦2 +···+𝑥𝑘 𝑦𝑘 𝐸|𝑦1, 𝑦2, . . . , 𝑦𝑘 ⟩𝐿
+                      𝑦1 ,𝑦2 ,...,𝑦𝑘 ∈ {0,1}𝑘 2
+                                                    𝑘
+
+                                ∑︁                1
+                    =                          √ (−1)𝑥 1 𝑦1 +𝑥 2 𝑦2 +···+𝑥𝑘 𝑦𝑘 𝑐 𝐸,𝑦1,𝑦2,...,𝑦𝑘 |𝑦1, 𝑦2, . . . , 𝑦𝑘 ⟩𝐿 .
+                      𝑦1 ,𝑦2 ,...,𝑦𝑘 ∈ {0,1}𝑘 2
+                                                    𝑘
+
+
+ Since {|𝑦1, 𝑦2, . . . , 𝑦𝑘 ⟩𝐿 |𝑦1, 𝑦2, . . . , 𝑦𝑘 ∈ {0, 1}𝑘 } forms a complete orthonormal basis of the code
+space, we have that any 𝑦1, 𝑦2, . . . , 𝑦𝑘 ∈ {0, 1}𝑘 ,
+                                                     𝑐 𝐸,𝑦1,𝑦2,...,𝑦𝑘 = 𝑑𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 .
+
+                                          Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+189:40                                                                                                        Wang Fang and Mingsheng Ying
+
+
+Thus, there is a complex number 𝑐 such that for any 𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ∈ {0, 1}𝑘 ,
+                                            𝑐 𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 = 𝑑𝐸,𝑥 1,𝑥 2,...,𝑥𝑘 = 𝑐.
+Consider any pure state |𝜓 ⟩ in the code space, it admits a superposition of logical computational
+basis:                                ∑︁
+                         |𝜓 ⟩ =                𝛼𝑥 1,𝑥 2,...,𝑥𝑘 |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿 .
+                                        𝑥 1 ,𝑥 2 ,...,𝑥𝑘 ∈ {0,1}𝑘
+Then,
+                                                      ∑︁
+                              𝐸|𝜓 ⟩ = 𝐸                                  𝛼𝑥 1,𝑥 2,...,𝑥𝑘 |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿
+                                           𝑥 1 ,𝑥 2 ,...,𝑥𝑘   ∈ {0,1}𝑘
+                                                  ∑︁
+                                    =                                 𝛼𝑥 1,𝑥 2,...,𝑥𝑘 𝐸|𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿
+                                        𝑥 1 ,𝑥 2 ,...,𝑥𝑘 ∈ {0,1}𝑘
+                                                  ∑︁
+                                    =                                 𝛼𝑥 1,𝑥 2,...,𝑥𝑘 𝑐 |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿
+                                        𝑥 1 ,𝑥 2 ,...,𝑥𝑘 ∈ {0,1}𝑘
+                                                     ∑︁
+                                    =𝑐                                   𝛼𝑥 1,𝑥 2,...,𝑥𝑘 |𝑥 1, 𝑥 2, . . . , 𝑥𝑘 ⟩𝐿
+                                          𝑥 1 ,𝑥 2 ,...,𝑥𝑘 ∈ {0,1}𝑘
+                                    = 𝑐 |𝜓 ⟩
+Now, consider any quantum state 𝜌 in the code space, it admits a spectral decomposition
+                                          ∑︁
+                                      𝜌=      𝜆|𝜓𝜆 ⟩⟨𝜓𝜆 |
+                                                                  𝜆
+with |𝜓𝜆 ⟩ being a pure state in code space, and the fixed sequence of transitions of Eq. (6), we have
+                                           !
+                           ∑︁                     ∑︁                   ∑︁
+            ′
+         𝑝𝜌 = 𝐸𝜌𝐸 † = 𝐸         𝜆|𝜓𝜆 ⟩⟨𝜓𝜆 | 𝐸 † =    𝜆𝐸|𝜓𝜆 ⟩⟨𝜓𝜆 |𝐸 † =    𝜆𝑐𝑐 ∗ |𝜓𝜆 ⟩⟨𝜓𝜆 | = 𝑐𝑐 ∗ 𝜌
+                            𝜆                    𝜆                  𝜆
+If 𝑝 > 0, then 𝑝 = 𝑝 tr(𝜌 ) = tr(𝑝𝜌 ) = tr(𝑐𝑐 𝜌) = 𝑐𝑐 tr(𝜌) = 𝑐𝑐 . Therefore,
+                         ′         ′         ∗       ∗          ∗
+
+                                                                      𝑐𝑐 ∗
+                                                          𝜌′ =             𝜌 = 𝜌.
+                                                                       𝑝
+                                                                                                                                        □
+
+D.3      Proof of Theorem 6.6
+
+   Theorem 6.6 (Adeqacy of symbolic stabilizer states). Let:
+   (1) 𝜌e1 be the symbolic stabilizer state ⟨𝑃1, . . . , 𝑃𝑛−𝑘 , (−1)𝑠1 𝐿1, . . . , (−1)𝑠𝑘 𝐿𝑘 ⟩; and
+                                              ¯ 1 𝐻,
+   (2) 𝜌e2 be the symbolic stabilizer state ⟨𝐻𝑃       ¯ . . . , 𝐻𝑃
+                                                                ¯ 𝑛−𝑘 𝐻,
+                                                                       ¯ (−1)𝑠1 𝐻𝐿   ¯ 1𝐻,
+                                                                                         ¯ . . . , (−1)𝑠𝑘 𝐻𝐿
+                                                                                                          ¯ 𝑘 𝐻¯ ⟩ with
+        𝑠 𝑗 symbols over Boolean values.
+   (3) 𝜎e be a classical symbolic state that does not contains 𝑠 𝑗 , 1 ≤ 𝑗 ≤ 𝑘.
+If for 𝜌e = 𝜌e1, 𝜌e2 ,
+                             e, 𝜌e, ∅, true⟩ →∗ ⟨↓, 𝜎
+                         ⟨𝑆, 𝜎                      e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩ implies 𝜑 ′ |= 𝜌e′ = 𝜌e,
+then for any quantum state 𝜌 in the code space and any valuation 𝑉 ,
+                                              𝑝
+                           ⟨𝑆, 𝑉 (e       −→ ∗ ⟨↓, 𝜎 ′, 𝜌 ′ ⟩ with 𝑝 > 0 implies 𝜌 ′ = 𝜌.
+                                  𝜎 ), 𝜌⟩ −
+   Proof. Based on the above context in this section, we choose:
+   (1) 𝜌e1 be the symbolic stabilizer state ⟨𝑃 1, . . . , 𝑃𝑛−𝑘 , (−1)𝑠1 𝐿1, . . . , (−1)𝑠𝑘 𝐿𝑘 ⟩; and
+
+Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+Symbolic Execution for Quantum Error Correction Programs                                                          189:41
+
+
+  (2) 𝜌e2 be the symbolic stabilizer state ⟨ ¯
+                                            𝐻𝑃1 ¯
+                                               𝐻, . . . , ¯
+                                                         𝐻𝑃𝑛−𝑘 ¯
+                                                              𝐻, (−1)𝑠1 ¯
+                                                                       𝐻𝐿1 ¯
+                                                                          𝐻, . . . , (−1)𝑠𝑘 ¯
+                                                                                           𝐻𝐿𝑘 𝐻¯ ⟩ with
+      𝑠 𝑗 symbols over Boolean values.
+For any 𝜌 ∈ T in Lemma 6.5, without loss of generality, we can assume that
+                                       𝜌 = |𝑥 1, 𝑠 2, . . . , 𝑥𝑘 ⟩𝐿 ⟨𝑥 1, 𝑠 2, . . . , 𝑥𝑘 |.
+Let 𝑉1 = 𝑉 [𝑠 1 ↦→ 𝑥 1, 𝑠 2 ↦→ 𝑥 2, . . . , 𝑠𝑘 ↦→ 𝑥𝑘 ], we have 𝑉1 (e
+                                                                    𝜌 1 ) = 𝜌 and 𝑉1 (e        𝜎 ) since 𝜎
+                                                                                      𝜎 ) = 𝑉 (e         e does not
+contains 𝑠 𝑗 , 1 ≤ 𝑗 ≤ 𝑘. Therefore, by Definition 5.1, we have
+                                                  (𝑉 (e
+                                                      𝜎 ), 𝜌) |= (e
+                                                                  𝜎 , 𝜌e1 ).                                         (7)
+  For any sequence of (operational semantics) transitions
+                               𝑝1                   𝑝2          𝑝𝑛−1                           𝑝𝑛
+             ⟨𝑆, 𝑉 (e
+                    𝜎 ), 𝜌⟩ −
+                            −→ ⟨𝑆 1, 𝜎1, 𝜌 1 ⟩ −                                 −→ ⟨↓, 𝜎 ′, 𝜌 ′ ⟩
+                                               −→ · · · −−−→ ⟨𝑆𝑛−1, 𝜎𝑛−1, 𝜌𝑛−1 ⟩ −
+such that 𝑛 ≥ 0 and 𝑝 = 𝑗=1 𝑝 𝑗 > 0, we have a corresponding sequence of (symbolic execution)
+                           Î𝑛
+transitions:
+ ⟨𝑆, 𝜎                        e1, 𝜌e11, 𝑃1, 𝜑 1 ⟩ → · · · → ⟨𝑆𝑛−1, 𝜎
+     e, 𝜌e1, ∅, true⟩ → ⟨𝑆 1, 𝜎                                                                     e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩
+                                                                   e𝑛−1, 𝜌e1𝑛−1, 𝑃𝑛−1, 𝜑𝑛−1 ⟩ → ⟨↓, 𝜎
+With the proof of Theorem 5.4, Eq. (7) and induction through 𝑛, we can obtain a valuation 𝑉2 such
+that
+                        𝑉2 (e 𝜎 ) = 𝑉 (𝜎), 𝑉2 (e
+                                               𝜌 1 ) = 𝜌,
+                        𝑉2 (e 𝜎1 ) = 𝜎1,       𝜌 11 ) = 𝜌 1, 𝑉2 (𝜑 1 ) = true,
+                                           𝑉2 (e
+                           ..
+                            .              ···
+                            𝜎 ′ ) = 𝜎 ′,
+                        𝑉2 (e                𝜌 ′ ) = 𝜌 ′, 𝑉2 (𝜑 ′ ) = true
+                                         𝑉2 (e
+Moreover, the sequence of (symbolic execution) transitions imply
+                                         e, 𝜌e1, ∅, true⟩ →∗ ⟨↓, 𝜎
+                                     ⟨𝑆, 𝜎                       e′, 𝜌e′, 𝑃 ′, 𝜑 ′ ⟩,
+then,
+                                            𝜑 ′ |= 𝜌e′ = 𝜌e1                                         (8)
+Since 𝑉2 (𝜑 ) = true, we have 𝑉2 (e
+           ′                       ′        𝜌 1 ), then 𝜌 = 𝑉2 (e
+                                  𝜌 ) = 𝑉2 (e              ′     ′        𝜌 1 ) = 𝜌. Therefore, we have
+                                                                𝜌 ) = 𝑉2 (e
+proved that for any quantum state 𝜌 ∈ T ,
+                                            𝑝
+                           ⟨𝑆, 𝑉 (e       −→ ∗ ⟨↓, 𝜎 ′, 𝜌 ′ ⟩ with 𝑝 > 0 implies 𝜌 ′ = 𝜌.
+                                  𝜎 ), 𝜌⟩ −
+Then, by Lemma 6.5, it holds for any quantum state 𝜌 in the code space.                                                □
+
+Received 2023-11-16; accepted 2024-03-31
+
+
+
+
+                                    Proc. ACM Program. Lang., Vol. 8, No. PLDI, Article 189. Publication date: June 2024.
+

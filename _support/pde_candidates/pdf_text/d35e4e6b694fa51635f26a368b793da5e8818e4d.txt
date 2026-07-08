@@ -1,0 +1,1441 @@
+                                                 ENHANCING TRAINING OF PHYSICS-INFORMED NEURAL
+                                                  NETWORKS USING DOMAIN-DECOMPOSITION BASED
+                                                          PRECONDITIONING STRATEGIES∗
+                                            ALENA KOPANIČÁKOVÁ‡ † , HARDIK KOTHARI‡ , GEORGE EM KARNIADAKIS† , AND
+                                                                                   ROLF KRAUSE‡ §
+
+                                               Abstract. We propose to enhance the training of physics-informed neural networks (PINNs).
+                                           To this aim, we introduce nonlinear additive and multiplicative preconditioning strategies for the
+
+
+
+
+arXiv:2306.17648v2 [math.NA] 28 Dec 2023
+                                           widely used L-BFGS optimizer. The nonlinear preconditioners are constructed by utilizing the
+                                           Schwarz domain-decomposition framework, where the parameters of the network are decomposed
+                                           in a layer-wise manner. Through a series of numerical experiments, we demonstrate that both,
+                                           additive and multiplicative preconditioners significantly improve the convergence of the standard
+                                           L-BFGS optimizer, while providing more accurate solutions of the underlying partial differential
+                                           equations. Moreover, the additive preconditioner is inherently parallel, thus giving rise to a novel
+                                           approach to model parallelism.
+
+                                               Key words. scientific machine learning, nonlinear preconditioning, Schwarz methods, domain-
+                                           decomposition
+
+                                              MSC codes. 90C30, 90C26, 90C06, 65M55, 68T07
+
+
+                                                1. Introduction. In recent years, deep learning approaches for solving partial
+                                           differential equations (PDEs) have gained popularity due to their simplicity, mesh-
+                                           free nature, and efficiency in solving inverse and high-dimensional problems [34, 14].
+                                           The notable deep learning approaches in the context of scientific machine learning
+                                           include physics-informed neural networks (PINNs) [65], deep Galerkin method [70],
+                                           and deep Ritz method [15]. The idea behind these methods is to utilize deep neural
+                                           networks (DNNs) to approximate solutions of the PDEs by minimizing a loss function,
+                                           which incorporates the physical laws and domain knowledge. More specifically, in the
+                                           context of PINNs, which we consider in this work, the loss function incorporates a
+                                           PDE residual, boundary/initial conditions, and sometimes also observational data.
+                                                To approximate a solution of a PDE using PINNs, the optimal parameters of DNN
+                                           have to be found during the training. This is typically carried out using Adam [35]
+                                           and/or L-BFGS [48] optimizers. However, it has been shown that the performance of
+                                           these optimizers deteriorates for highly ill-conditioned and stiff problems [75]. Sev-
+                                           eral algorithmic enhancements have been therefore proposed to alleviate such difficul-
+                                           ties, for instance, adaptive weighing strategies [76], empirical learning-rate annealing
+                                           scheme [75], multiscale architectures [12, 23], ensemble learning [16] based on gradient
+                                           boosting [6], adaptive activation functions [32, 31] etc. Furthermore, novel optimizers
+                                           have also been developed, for instance, Gauss-Newton methods [66, 2], Levenberg–
+
+                                             ∗
+
+                                                Funding: A.K. was supported by the Swiss National Science Foundation (SNSF) under the
+                                           project “Multilevel training of DeepONets – multiscale and multiphysics applications”. A.K., H.K.,
+                                           and R.K. acknowledge the support of the Platform for Advanced Scientific Computing (PASC) under
+                                           the project ExaTrain as well as the support of the SNSF under the project “ML2 - Multilevel and
+                                           Domain Decomposition Methods for Machine Learning”. G.E.K. would like to acknowledge the
+                                           support of the Vannevar Bush Faculty Fellowship.
+                                              † Division    of    Applied    Mathematics,      Brown      University,    Providence,     USA
+                                           (alena_kopanicakova@brown.edu, george_karniadakis@brown.edu).
+                                              ‡ Euler    Institute,    Università    della   Svizzera    italiana,    Lugano,     Switzerland
+                                           (alena.kopanicakova@usi.ch, hardik.kothari@usi.ch, rolf.krause@usi.ch).
+                                              § UniDistance, Switzerland (rolf.krause@fernuni.ch).
+
+                                                                                            1
+2      A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+Marquardt optimizers [59, 78, 18], variable projection methods [61, 21, 62], block-
+coordinate methods [7], etc.
+     In this work, our goal is to enhance the convergence rate of the optimizers used for
+the training of PINNs by developing novel nonlinear preconditioning strategies. In the
+field of scientific computing, such nonlinear preconditioning strategies are often used
+to accelerate the convergence of the nonlinear iterative methods [3]. Specifically, left
+preconditioners [5, 49] enhance the conditioning of nonlinear problems by rebalancing
+nonlinearities or by transforming the basis of the solution space. In contrast, right
+preconditioners [52, 36] provide an improved initial guess for a given iterate. Both, left
+and right, preconditioners can be constructed using various approaches. Prominent
+approaches typically rely on the decomposition of the solution space into subspaces,
+such as field-split [39, 49], domain-decomposition (DD) [5, 42, 43], or multilevel de-
+composition [79, 41, 17, 22, 40]. Among these approaches, the DD approach is of
+particular interest due to its parallelization capabilities. As a consequence, precon-
+ditioners constructed using the DD approach not only improve the convergence rate
+of a given iterative method but also allow for a reduction of the overall computation
+time, as the workload can be distributed between larger amounts of computational
+resources.
+     In the field of machine learning, the parallelization of the training algorithms has
+attracted a lot of attention recently, see [8, 58, 1] for a comprehensive overview. The
+developed approaches can be broadly classified into two main groups: data parallel
+and model parallel. The data parallel approach has gained significant popularity due
+to its architecture-agnostic nature. In contrast, model parallelism is more intricate
+as it involves decomposing the network across different compute nodes. As a conse-
+quence, this approach has to be typically tailored to a specific network architecture [1].
+For instance, the TorchBraid framework [26] enables layer-parallel training of ODE-
+based networks by utilizing a multigrid-in-time approach. In [25, 24], a model parallel
+approach for convolutional networks is proposed, where the network’s width is parti-
+tioned into subnetworks, which can be trained in parallel. The parameters obtained
+from training these subnetworks are then used to initialize the global network, which
+is further trained sequentially. Similarly, in [37], a DD-based network architecture is
+proposed for parallel training of image recognition tasks.
+     In the context of PINNs, DD-based approaches have also been utilized to en-
+hance training efficiency and scalability to larger computational domains and multi-
+scale problems. These approaches leverage the spatiotemporal decomposition of the
+computational domain. For instance, conservative PINNs (cPINNs) [33] utilize a non-
+overlapping Schwarz-based DD approach for conservation laws. The extended PINNs
+(XPINNs) expand the cPINN methodology to generic PDEs and arbitrary space-time
+domains. The idea behind XPINNs [30, 33, 69, 29] is to associate each subdomain with
+a sub-PINN, which can be trained independently of each other, i.e., in parallel. After
+the training of the subdomains is concluded, the sub-PINNs are stitched together by
+enforcing continuity on the interfaces and by averaging solutions along neighboring
+subdomain interfaces. The XPINN framework was later expanded in several ways.
+For instance, the adaptive PINNs (APPINs) [28], GatedPINNs [71], or extensions
+incorporating extreme learning machines [13] have been proposed.
+     An alternative approach that utilizes the variational principle and overlapping
+Schwarz-based DD approach has also been explored, see [47]. This method was fur-
+ther extended by introducing coarse space acceleration to improve convergence with
+respect to an increasing number of subdomains [56]. Building upon the variational
+principles and the deep Ritz method, the D3M [46] also employs the overlapping
+        DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                     3
+
+Schwarz method. A different approach was followed in [45, 73], where the authors
+proposed partition of unity networks, which employ elements of domain decomposi-
+tion to construct the localized basis functions to enhance the network’s approximation
+properties. Along similar lines, the finite basis PINNs (FBPINN) approach, proposed
+in [60, 11], represents the solution of a PDE as a sum of basis functions with compact
+support defined over small, overlapping subdomains. Here, however the basis func-
+tions are learned in parallel, by training a neural network per subdomain. Finally,
+we mention PFNN-2 method [68], which enhances the training of PINNs by utilizing
+overlapping DD together with the penalty-free network approach (PFNN) [67].
+     In this work, we aim to enhance the training of the PINNs by developing novel
+nonlinear additive and multiplicative preconditioning strategies. More specifically, we
+utilize the right preconditioning approach to accelerate the convergence of the widely
+used L-BFGS method. The devised preconditioners are constructed by decomposing
+the network parameters in a layer-wise manner. Methodologically, our approach differs
+from the aforementioned DD approaches for PINNs, as we decompose the parameter
+space, while the decomposition of the computational domain is not considered. Con-
+sequently, the proposed preconditioners are agnostic to the physics-based priors and
+can potentially be applied to other machine-learning tasks. Using the proposed DD
+approach, we demonstrate that both additive and multiplicative preconditioners can
+significantly improve the convergence rate of the standard L-BFGS optimizer. More-
+over, utilizing the additive preconditioner naturally enables model parallelism, which
+allows for additional acceleration of the training if a larger amount of computational
+resources is available.
+     This paper is organized as follows. Section 2 provides a brief overview of the
+PINNs. In section 3, we propose nonlinear additive and multiplicative preconditioners
+using a layer-wise decomposition of the network. Section 5 discusses implementation
+details, while section 4 introduces a set of benchmark problems used for numerical
+experiments. Section 6 demonstrates the numerical performance of the proposed
+preconditioning strategies. Finally, section 7 summarizes the presented work.
+
+     2. Physics-informed neural networks. We consider the differential equations
+of a generic form and pose the problem as follows. Find u : Ω → R, such that
+
+            P (u(x)) = f (x),               x ∈ Ω,
+(2.1)
+           B (u(x)) = g (x),
+            k           k
+                                  x ∈ Γ ⊆ ∂Ω,
+                                        k
+                                                       for k = 1, 2, . . . , nΓ .
+
+
+The symbol P represents a nonlinear differential operator, while {B k }nk=1
+                                                                         Γ
+                                                                            denotes
+a set of boundary condition operators. In the case of time-dependent problems, we
+treat time t as an additional component of the vector x ∈ Rd , where d corresponds
+dimension of the problem. Therefore, the computational domain Ω encompasses both
+spatial and temporal dimensions, and the initial conditions can be considered as a
+specific type of boundary conditions within the spatiotemporal domain.
+
+     2.1. DNN approximation of solution. Following [65], our goal is to approxi-
+mate a solution of (2.1) using PINNs, i.e., u(x) ≈ uNN (θ, x), where the nonlinear map-
+ping uNN : Rn × Rd → R is parametrized by the trainable parameters θ ∈ Rn . Typi-
+cally, the exact form of uNN is induced by the network architecture. Here, we consider
+a network that is constructed as a composition of an input layer, L − 1 hidden layers,
+4       A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+and an output layer, thus as
+
+             input layer:         y0      = W 0 x,
+(2.2)     hidden layers:          yl      = N (y l−1 ),                 for l = 1, . . . , L − 1,
+           output layer:          yL      = W L y L−1 + bL .
+
+The input layer maps input features x ∈ Ω ⊂ Rd into the dimension of the hidden lay-
+ers using weights W 0 ∈ Rd×nh . The lth hidden layer nonlinearly transforms the out-
+put of the (l − 1)th layer y l−1 into y l by means of nonlinear operator N : Rnh → Rnh .
+The operator N can take on multiple forms. We utilize a single-layer perceptron with
+a skip connection, given as
+
+(2.3)                       N (y l−1 ) := y l−1 + σl (W l y l−1 + bl ).
+
+The parameters associated with layer l can be given as θ l := (flat(W l ), flat(bl ))
+collectively, where W l ∈ Rnh×nh and bl ∈ Rnh denote weights and biases, respectively.
+The function flat(·) represents a flattening operator and σl : Rnh → Rnh denotes an
+activation function. Finally, the output of the last hidden-layer y L−1 is linearly
+transformed using W L and bL , giving rise to the network’s output y L .
+     2.2. Training data and loss functional. In order to train the network such
+that it can approximate a solution of (2.1), we construct a dataset Dint = {xj }nj=1     int
+                                                                                             of
+nint collocations points, which lie in the interior of the computational domain Ω. These
+points are used to enforce the physics captured by the PDE. In addition, we consider
+                                                        nk
+datasets {Dbc  }k=1 , where each Dbc
+             k nΓ                   k
+                                       = {(xkj , g kj )}j=1
+                                                         bc
+                                                            contains nkbc points, which we use
+to enforce the boundary conditions on Γ .    k
+
+     Using Dint and {Dbc   }k=1 , the optimal parameters of the network are found by
+                          k nΓ
+
+solving the following minimization problem:
+
+                            θ ∗ := arg min L̃int (θ) +              L̃bc (θ)      .
+(2.4)                               θ∈Rn   | {z }                   | {z }
+                                                  interior loss   boundary loss
+
+Here, the interior and the boundary losses are given as
+                           wint X
+             L̃int (θ) :=            ∥P (ũNN (θ, xj ) − f (xj )∥2 ,
+                                                      
+                          |Dint |
+                                       xj ∈Dint
+(2.5)                       nΓ
+                                                                                               !
+                                    wbc
+              L̃bc (θ) :=                                    ∥(ũNN (θ, xkj ) − g k (xkj )∥2
+                            X                      X
+                                     k |
+                                                                                               .
+                                   |Dbc
+                            k=1             (xk
+                                              j
+                                                ,g k
+                                                   j
+                                                     )∈Dbc
+                                                        k
+
+
+
+
+Thus, the interior loss L̃int is expressed as the mean PDE residual obtained by Monte
+Carlo integration, i.e., by the averaging over the residuals evaluated at collocation
+points sampled in the interior of the domain. Note that an evaluation of the PDE
+residual typically requires knowledge of the partial derivatives of the network out-
+put ũNN (θ, xj ) with respect to the input xj . These derivatives can be efficiently
+obtained using advanced automatic differentiation techniques. The second term,
+boundary loss L̃bc , ensures that the boundary conditions are satisfied at a set of
+points sampled along boundaries {Γk }nk=1  Γ
+                                             .
+     The weights wint and wbc in (2.5) are used to balance the interior and boundary
+loss terms. Their optimal value can be determined either during the hyper-parameter
+        DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                                  5
+
+tuning or directly during the training by employing adaptive strategies, such as one
+proposed in [55]. Following [44], we overcome the difficulty of finding suitable values
+of wint and wbc by imposing the boundary conditions in a penalty-free manner, thus by
+eliminating the boundary loss term. To this aim, the output of the network ũNN (θ, x)
+is modified using the length factor function ℓk : Γk ⊂ Rd → R as follows
+                      nΓ                                                     nΓ
+                                        ℓ̃(x)
+(2.6) uNN (θ, x) :=         g k (x)+             ũNN (θ, x), where ℓ̃(x) =     (1−(1−ℓk (x))).
+                      X                                                     Y
+
+                      k=1
+                                       max ℓ̃(x)                            k=1
+                                       x∈Ω
+
+The function ℓ is constructed such that
+               k
+
+
+              ℓk (x) = 0,               x ∈ Γk
+(2.7)         ℓk (x) = 1,               x ∈ Γj ,    j ∈ {1, 2, . . . , nΓ },   for k ̸= j
+              ℓ (x) ∈ (0, 1)
+               k
+                                        otherwise.
+
+The details regarding the construction of ℓk for complex geometries can be found
+in [72].
+     Using (2.6), the minimization problem (2.4) can be now reformulated as
+                                               1
+(2.8)      θ ∗ := arg min L(θ) :=                      ∥P (uNN (θ, xj ) − f (xj )∥2 .
+                                                     X                 
+                      θ∈Rn                   |Dint |
+                                                   xj ∈Dint
+
+After training, the optimal parameters θ ∗ can be used to infer an approximate solu-
+tion uNN of (2.1). The quality of this solution can be assessed by means of the error
+E (uNN , u∗ ) := ∥uNN − u∗ ∥, where u∗ denotes an exact solution. In general, the error E
+consists of three components: the discretization error, network approximation error,
+and optimization error [57]. More specifically, the discretization error is determined
+by the number and location of the collocation points. The approximation error of the
+network is associated with the representation capacity of the DNN, i.e., it directly
+depends on the network architecture (number of layers, network width). The opti-
+mization error quantifies the quality of the solution provided by the optimizer. Our
+goal in this work is to reduce the optimization error by developing enhanced training
+algorithms.
+     3. Nonlinearly preconditioned training using layer-wise decomposition
+of network. The minimization problem (2.8) is traditionally solved using Adam
+and/or L-BFGS optimizers. As it has been pointed out in [75], the convergence of
+these optimizers deteriorates with an increasing problem stiffness, which is caused by
+the multiscale and multirate nature of the considered problems. We aim to overcome
+this difficulty by proposing a novel nonlinear preconditioning strategy.
+     Let us recall that a minimizer of (2.8) has to satisfy the following first-order
+criticality condition
+
+(3.1)                                          ∇L(θ) = 0.
+
+As solving (3.1) is computationally demanding, we instead construct and solve an
+alternative, a nonlinearly preconditioned system of equations, given as
+
+(3.2)                                           F (θ) = 0.
+The preconditioned system of equations (3.2) shall be constructed such that it is easier
+to solve than (3.1), but such that it has the same solution as an original nonlinear
+6          A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+
+
+    x j1
+                                                                                         ũNN (·, xj )
+    x j2
+
+
+
+            Fig. 1: An example of the layer-wise decomposition of the network.
+
+
+
+system. Thus, the preconditioned problem should have more balanced nonlinearities,
+and the numerical computations involved in solving (3.2) should be computationally
+cheaper.
+     3.1. Network decomposition. In this work, we propose to construct the non-
+linearly preconditioned system of equations (3.2) by decomposing the parameter space
+of the network. In particular, subnetworks are constructed by layer-wise decompo-
+sition of the network into Nsd disjoint groups, often called subdomains. Thus, each
+layer is assigned a unique subnetwork identifier, and the parameters of the network are
+also split into Nsd disjoint groups, i.e., θ = [θ 1 , . . . , θ s , . . . , θ Nsd ]⊤ , where θ s ∈ Rns
+denotes parameters associated with a sth subnetwork. Please refer to Figure 1 for the
+illustration of layer-wise decomposition. Here, we point out that the different types
+of network decompositions can be utilized to construct the nonlinear preconditioner,
+e.g., intra-layer decomposition with or without overlap.
+     Transfer of the data between the subnetwork and the global network is performed
+using two transfer operators. Restriction operator Rs : Rn → Rns extracts the
+parameters of network associated with the sth subnetwork, i.e.,
+
+(3.3)                        θ s = Rs θ,          for s = 1, 2, . . . , Nsd .
+
+In contrast, an extension operator E s : Rns → Rn is used to extend the quantities
+from the subnetworks to the global network, i.e.,
+
+                                                  Nsd
+(3.4)                                       θ=
+                                                  X
+                                                        E s θs .
+                                                  s=1
+
+    Using the proposed network decomposition, we now define local minimization
+problems associated with a given subnetwork s as
+
+(3.5)                       θ ∗s = arg min L(θ 1 , . . . , θ s , . . . , θ Nsd ).
+                                       θs
+
+
+Solving (3.5) corresponds to minimizing the loss functional L with respect to the
+parameters θ s , while all other parameters of the network are kept fixed. This mini-
+mization process can be carried out by any optimizer of a choice, such as Adam [35],
+L-BFGS [48], or Newton [10]. For the purpose of this work, we employ the L-BFGS
+method, see also section 5. Note, this process loosely resembles the transfer-learning
+approaches [77], where only a particular subset of the network parameters is being
+(re-)trained.
+        DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                                   7
+
+    3.2. Right-preconditioned training optimizers. In this work, we construct
+a nonlinearly preconditioned system of equations as follows
+
+(3.6)                                 F (θ) := ∇L(G(θ)),
+where the operator G : Rn → Rn denotes a right preconditioner. Using the network-
+decomposition framework introduced in subsection 3.1, we define operator G as an
+iterative method of the following form:
+                                                         Nsd
+(3.7)            θ (k+1/2) =: G(θ (k) ) = θ (k) + α(k)          E s (θ ∗s − Rs θ (k) ).
+                                                         X
+
+                                                         s=1
+
+Here, a symbol θ ∗s represents a solution of the local minimization problem (3.5),
+associated with sth subnetwork, while α(k) denotes a step-size.
+     The subnetwork solutions {θ ∗s }N s=1 can be obtained in an additive or a multi-
+                                         sd
+
+
+plicative manner. In the additive case, the local minimization problems are solved
+in parallel, starting from Rs θ (k) . In the multiplicative case, the local minimization
+problems are solved sequentially, i.e., one after another. As soon as the solution of the
+sth local problem is obtained, it is taken into account while performing local train-
+ing for the (s + 1)th subnetwork. In this way, the multiplicative approach allows for
+faster information transfer between the different subnetworks, albeit at the price of
+obtaining a sequential algorithm.
+     As we can see from (3.6), F is a composite operator. Thus, for a given it-
+erate θ (k) , the preconditioner G is used to obtain an improved iterate, denoted
+by θ (k+ /2) = G(θ (k) ). The improved iterate θ (k+ /2) is then used as an initial guess
+         1                                           1
+
+
+for the next global optimization step,1 giving rise to the following update rule:
+
+                             θ (k+1) = θ (k+ /2) + α(k+ /2) p(k+ /2) ,
+                                             1
+(3.8)
+                                                          1          1
+
+
+
+
+where α(k+ /2) is an appropriately selected global step-size, while p(k+ /2) is a search
+             1                                                                            1
+
+
+direction obtained by performing a single step of optimizer for the global network. For
+example, if global optimizer is chosen to be a gradient descent method, then search
+direction would be obtained as p(k+ /2) := −∇L(θ (k+ /2) ).
+                                    1                  1
+
+
+
+     3.2.1. Right-preconditioned L-BFGS. There are many possible choices of
+a global optimizer, e.g., Adam [35] or AdaGrad [53]. Here, we utilize the BFGS
+method, as it is widely employed for the training of PINNs. The BFGS method
+belongs to the family of quasi-Newton (QN) methods, which have gained popularity
+due to the fact that they do not require explicit knowledge of the Hessian. Instead, a
+Hessian approximation B (k+1) is constructed such that the following secant equation
+is satisfied:
+
+(3.9)                                  B (k+1) s(k) = y (k) ,
+
+where s(k) = θ (k+1) −θ (k+ /2) and y (k) = ∇L(θ (k+1) )−∇L(θ (k+ /2) ). Note that in the
+                               1                                              1
+
+
+context of right-preconditioned nonlinear systems, the secant pairs are obtained by
+taking into account iterate θ (k+ /2) , obtained as an outcome of the nonlinear precondi-
+                                  1
+
+
+tioning step, see [42] for details. Since the secant equation (3.9) is indeterminate, ad-
+ditional constraints must be applied to uniquely determine the approximation B (k+1) .
+    1 The terminology “global” used in this work refers to quantities associated with the global net-
+
+work (the original network), and it differs from the concept of “global optimization”, which is con-
+cerned with finding the global minimum.
+8        A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+A particular choice of constraints leads to different variants of the QN methods. For
+instance, the BFGS method is obtained by imposing the symmetry and positive defi-
+niteness of B (k+1) .
+    In order to reduce the memory footprint of the proposed training method, we em-
+ploy a limited-memory variant of the BFGS method, termed L-BFGS. Using compact
+matrix representation [48], the approximation B (k+1) is given as
+                                     (0) (k) ⊤  (k) ⊤ (0) (k)                       −1  (k) ⊤ (0) 
+            (k+1)           (0)      B S          (S ) B S                      L(k)        (S ) B
+(3.10) B            =B            −                                                                      ,
+                                      Y (k)          (L(k) )⊤                  −D(k)          (Y (k) )⊤
+
+where the matrices S (k) := [s(k−m) , . . . , s(k−1) ], and Y (k) := [y (k−m) , . . . , y (k−1) ]
+are constructed using m most recent secant pairs {(s(i) , y (i) )}k−1  i=k−m . The matrices
+ (k)          (k)
+L and D denote the strictly lower triangular, and the diagonal part of the matrix
+(S (k) )⊤ Y (k) , while B (0) is an initial approximation of the Hessian. Usually B (0) = γI,
+                (k)   (k)
+where γ = ⟨y      ,y ⟩
+           ⟨y (k) ,s(k) ⟩
+                          , see [64] for alternatives.
+    Using (3.10), we are now able to state the global L-BFGS step as follows
+
+               θ (k+1) = θ (k+ /2) + α(k+ /2) − (B (k+1) )−1 ∇L(θ (k+ /2) ) .
+                                  1                                  1
+(3.11)
+                                              1                            
+                                                 |         {z              }
+                                                                     =:p(k+1/2)
+
+
+Using the compact matrix representation, the inverse Hessian (B (k+1) )−1 can be
+obtained explicitly by applying the Sherman–Morrison–Woodbury formula. Alterna-
+tively, the two-loop recursion formula [19] can be utilized.
+     The convergence of the right-preconditioned L-BFGS method can be further
+enhanced by incorporating momentum, as often done for training DNNs. Follow-
+ing [54, 64], we evaluate the momentum v (k+ /2) ∈ Rn in recursive manner as
+                                              1
+
+
+
+
+(3.12)                             v (k+ /2) = (1 − µ)v (k− /2) + µp(k+ /2) ,
+                                        1                    1                 1
+
+
+
+
+where µ ∈ [0, 1]. Utilizing the momentum, the global step (3.11) can be now refor-
+mulated as
+
+                                    θ (k+1) = θ (k+ /2) + α(k+ /2) v (k+ /2) .
+                                                     1
+(3.13)
+                                                                 1         1
+
+
+
+
+    Algorithm 3.1 summarizes the Schwarz preconditioned quasi-Newton (SPQN)
+methods, namely additive and multiplicative variants termed ASPQN and MSPQN,
+respectively.
+    4. Numerical experiments. In this section, we describe numerical examples
+used to test the proposed SPQN methods. In particular, we consider the following
+benchmark problems.
+ • Burgers’ equation: Burgers’ equation has the following form:
+                    ∂u
+                       + u∇u − ν∇2 u = 0,                        ∀ (t, x) ∈ (0, 1] × (−1, 1),
+                    ∂t
+    (4.1)                          u = − sin(πx),                ∀ (t, x) ∈ {0} × [−1, 1],
+                                            u = 0,               ∀ (t, x) ∈ (0, 1] × {1},
+                                            u = 0,               ∀ (t, x) ∈ (0, 1] × {−1},
+
+    where u = u(t, x) denotes the flow velocity and ν stands for the kinematic viscosity.
+    Here, we choose ν = 0.01/π.
+          DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                                    9
+
+Algorithm 3.1 Schwarz Preconditioned Quasi-Newton (SPQN)
+Require: L : Rn → R, θ (0) ∈ Rn , ϵ ∈ R, µ ∈ [0, 1], kmax ∈ N+ , v − /2 = 0
+                                                                                    1
+
+
+ 1: v (0) = 0
+ 2: for k = 0, . . . , kmax do
+ 3:    for s = 1, . . . , Nsd do
+ 4:       if additive then
+                                   (k)                         (k)
+ 5:          θ ∗s = arg minθs L(θ 1 , . . . , θ s , . . . , θ Nsd )                      ▷ parallel
+ 6:       else
+                                                                (k)             (k)
+ 7:          θ ∗s = arg minθs L(θ ∗1 , . . . , θ ∗s−1 , θ s , θ s+1 , . . . , θ Nsd ) ▷ sequential
+ 8:       end if
+ 9:    end for
+10:
+         θ (k+ /2) = θ (k) + α(k)                    (k)
+              1
+                                     s=1 E s (Rs θ         − θ ∗s )         ▷ Synchronization step
+                                    PNsd
+11:
+12:
+         p(k+ /2) = −(B (k+1) )−1 ∇L(θ (k+ /2) )
+                                              1
+                                                              ▷ Preconditioned quasi-Newton step
+              1
+13:
+         v (k+ /2) = (1 − µ)v (k− /2) + µp(k+ /2)                        ▷ Momentum evaluation
+              1                  1              1
+14:
+         θ (k+1) = θ (k+ /2) + α(k+ /2) v (k+ /2)
+                        1
+                                                                      ▷ Global parameter update
+                                    1        1
+15:
+16:
+      Update S (k+1) with s(k) = θ (k+1) − θ (k+ /2)
+                                                             1
+17:                                                         ▷ Update of secant pairs
+      Update Y (k+1) with y (k) = ∇L(θ (k+1) ) − ∇L(θ (k+ /2) )
+                                                         1
+18:
+19: end for
+             (k+1)
+20: return θ
+
+
+
+ • Diffusion-advection: The steady-state diffusion-advection problem is given in
+   two-spatial dimensions as
+
+                        −∇ · µ∇u + b · ∇u = f,         ∀ (x1 , x2 ) ∈ (0, 1) × (0, 1),
+      (4.2)
+                                           u = 0,      on ∂Ω,
+
+   where b = (1, 1)⊤ . The data is considered to be constant, i.e., f = 1. Moreover,
+   the symbol µ denotes viscosity. In this work, we employ µ = 10−2 .
+ • Klein-Gordon: The nonlinear second-order hyperbolic equation, called Klein-
+   Gordon, is defined as
+
+                  ∂2u
+                      + α∇2 u + βu + γu2 = f (t, x),                  ∀ (t, x) ∈ (0, 12] × (−1, 1),
+                  ∂t2
+                                       u = x,                         ∀ (t, x) ∈ {0} × [−1, 1],
+      (4.3)                           ∂u
+                                         = 0,                         ∀ (t, x) ∈ {0} × [−1, 1],
+                                      ∂t
+                                       u = − cos(t),                  ∀ (t, x) ∈ (0, 12] × {−1},
+                                           u = cos(t),                ∀ (t, x) ∈ (0, 12] × {1},
+
+      where u = u(t, x) denotes the wave displacement at time t and location x. The
+      symbols α, β, γ denote the predetermined constants. For the purpose of this work,
+      we employ α = −1, β = 0, γ = 1 and f (t, x) := −x cos(t) + x2 cos2 (t). Given this
+      particular choice of the parameters, the analytical solution is given as u(t, x) =
+      x cos(t), see [27].
+10        A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+ xj1                                              xj1                                              xj1
+                                  ũNN (·, xj )                                    ũNN (·, xj )                                         ũNN (·, xj )
+ xj2                                              xj2                                              xj2
+
+
+
+
+ R1 θ (k) + αE 1 (θ ∗1 − R1 θ (k) )                R2 θ (k) + αE 2 (θ ∗2 − R2 θ (k) )                    R3 θ (k) + αE 3 (θ ∗3 − R3 θ (k) )
+
+
+
+
+          xj1
+                                                                                                                             ũNN (·, xj )
+          xj2
+
+
+
+
+               Fig. 2: A sketch of local-to-global updates utilized by the ASPQN.
+
+
+
+ • Allen-Cahn: We consider the Allen-Cahn equation of the following form:
+
+                   ∂u
+                      − D∇2 u − 5(u − u3 ) = 0,                                           ∀ (t, x) ∈ (0, 1] × (−1, 1),
+                   ∂t
+       (4.4)                            u = x2 cos(πx),                                   ∀ (t, x) ∈ {0} × [−1, 1],
+                                                            u = −1,                       ∀ (t, x) ∈ (0, 1] × {−1},
+                                                            u = −1,                       ∀ (t, x) ∈ (0, 1] × {1},
+
+       where the diffusion coefficient D is chosen as D = 0.001.
+
+    5. Implementation, computational cost, and memory requirements. All
+presented numerical experiments were performed at the Swiss National Supercomput-
+ing Centre (CSCS) using XC50 compute nodes of the Piz Daint supercomputer. Each
+XC50 compute node comprises an Intel Xeon E5-2690 V3 processor and an NVIDIA
+Tesla P100 GPU. The memory of a node is 64 GB, while the memory of the GPU is
+16 GB.
+
+     5.1. Implementation of PINNs. We implement PINNs utilizing the PyTorch
+library [63]. The training set is constructed by using a uniform non-adaptive sampling
+strategy based on quasi-random Hammersley low-discrepancy sequences [57]. The
+number of collocation points is chosen to be 10, 000 for all numerical examples. As
+discussed in subsection 2.2, the error E (uNN , u∗ ) consists of three components: the
+discretization error, network approximation error, and optimization error [57]. By
+choosing the number of collocation points deliberately high, we aim to reduce the
+discretization error as much as possible, which in turn allows us to study the impact
+of the optimization error in an isolated manner.
+     Similarly, we have selected network architectures such that their representational
+capacity is sufficiently large. In particular, the network’s width and depth, reported
+in Table 1, were found by the hyperparameter search, performed using standard L-
+BFGS optimizer. The width was selected from the set {20, 32, 50, 64, 100, 128} and
+depth from the set {4, 6, 8, 10, 12}, such that they collectively gave rise to the lowest
+E (uNN , u∗ ). As an activation function, we employ an adaptive variant of tanh [32]. All
+networks are initialized using the Xavier initialization strategy [20].
+       DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                             11
+
+
+Table 1: Summary of network architecture and optimizer’s parameters used for nu-
+merical experiments reported in subsection 6.2.
+
+                                                     Parameter type
+    Benchmark problem          Depth      Width      Adam         ASPQN            MSPQN
+                               L          nh         lr          Nsd ks            Nsd ks
+    Burgers’                   8          20         5 × 10−4    8    50           8   50
+    Diffusion-advection        10         50         1 × 10−4    10   10           10  10
+    Klein-Gordon               6          50         1 × 10−3
+                                                                 6    50           6   50
+    Allen-Cahn                 6          64         2.5 × 10−4 6     50           6   50
+
+
+    5.2. Implementation of optimizers. The proposed ASPQN and MSPQN op-
+timizers are implemented as part of the library DistTraiNN2 [38]. As mentioned earlier,
+the MSPQN algorithm is inherently sequential, and therefore, its implementation tar-
+gets computing architectures with a single GPU device. In contrast, the ASPQN
+algorithm is inherently parallel; its implementation is designed for distributed com-
+puting environments with multiple GPU devices. Here, we utilize the torch.distributed
+package with the NCCL backend and implement the ASPQN method such that each
+GPU is associated with a single subnetwork, i.e., the number of GPUs determines
+the number of subnetworks. As an evaluation of loss associated with a subnetwork
+requires input to pass through an entire network, we replicate the global network to
+all GPUs. Each subnetwork then undergoes local optimization by training the sub-
+network’s parameters, i.e., by minimizing (3.5). This is in contrast to other model
+parallel approaches, where each GPU gets access to only a specific part of the net-
+work [8, 1]. As a consequence, the standard model parallel approaches have a smaller
+memory footprint compared to our approach. After the subnetwork’s training is con-
+cluded, the synchronization of local updates is performed (line 11, Algorithm 3.1).
+Subsequently, a global L-BFGS step is executed concurrently on all nodes. Figure 2
+provides a sketch of the ASPQN parallelization strategy.
+    Remark 5.1. The implementation of the SPQN methods can be seamlessly inte-
+grated with data parallel approaches.
+      5.2.1. Configuration of SPQN optimizers. We solve the local minimization
+problem (3.5) using the L-BFGS method. This minimization is carried out only
+approximately, using a fixed number of iterations, denoted by ks . Both, global and
+subnetwork, L-BFGS Hessian approximations take advantage of three secant pairs,
+i.e., m = 3. The Hessian approximation for each subnetwork is restarted every time
+the local training commences. Moreover, we employ cubic backtracking line-search
+method with strong Wolfe conditions [9, Algorithm A6.3.1, pages 325-327] to obtain
+α(k+ /2) and α(k) . Alternatively, one could consider using fixed step sizes, which may
+      1
+
+
+result in a more efficient algorithm that would require fewer evaluations of the loss
+function. However, determining suitable values of α(k+ /2) and α(k) would necessitate
+                                                         1
+
+
+a thorough hyper-parameter search, which would eventually lead to a significant rise
+in overall computational cost. Unless specified differently, the SPQN methods are
+configured as summarized in Table 1. As we will see in subsection 6.1, these particular
+configurations of SPQN methods give rise to the best-performing variants.
+
+   2 The code will be made publicly available upon acceptance of the manuscript.
+12     A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+     5.2.2. Configuration of state-of-the-art optimizers. In order to assess the
+performance of the proposed SPQN methods, we compare their performance with the
+standard Adam and L-BFGS optimizers. The learning rate for the Adam optimizer is
+chosen by carrying out a thorough hyper-parameter search. In particular, we choose
+a learning rate (reported in Table 1), which allows us to obtain the most accurate
+solution of the PDE, thus a solution with the lowest Erel . For the L-BFGS optimizer,
+we employ the same memory size (m = 3), line-search strategy, and momentum setup
+as for the L-BFGS methods employed within the SPQN framework. To ensure a fair
+comparison, Adam and L-BFGS optimizers are executed in deterministic settings, i.e.,
+evaluation of loss/derivatives takes into account all samples in the dataset.
+
+     5.3. Computational cost and memory requirements. In this section, we
+discuss the computational cost and memory requirements of the proposed SPQN
+methods, as well as standard Adam and L-BFGS optimizers. The summary is provided
+in Table 2, where we compare the number of the loss function evaluations (#Le ), the
+number of gradient evaluations (#ge ), the update cost (UC) and memory cost (MC)
+per iteration and a device.
+     In the case of the Adam optimizer, we require a single evaluation of the loss
+function and the gradient per iteration. The UC involves not only updating the
+parameters but also computing the biased and corrected first-order and second-order
+moment estimates, thus approximately 5n flops. The memory requirement for the
+Adam optimizer is related to storing the iterate, gradient, and first-order and second-
+order moment estimates, leading to the total memory of size 4n.
+     The L-BFGS method requires an evaluation of one gradient per iteration. How-
+ever, the loss function might be evaluated multiple times, depending on the number
+of required line-search iterations, denoted by lsits . The update cost depends on the
+number of stored secant pairs (m) that are used for approximating the Hessian. Us-
+ing compact matrix representation, it can be approximately estimated as 4mn flops,
+see [4, Sections 3 and 4] for details. Moreover, we have to take into account the cost
+associated with an evaluation of the momentum term, leading to an overall cost of
+approximately n + 4mn flops. In the context of memory requirements, the L-BFGS
+method necessitates the storage of the momentum term v (k) as well as matrices S (k)
+and Y (k) , which accounts for the memory of size n + 2mn.
+     In the case of the SPQN methods, the computational cost consists of global
+and local parts. The global UC and memory requirements consist of that of the
+standard L-BFGS method. Moreover, one has to take into account the cost related
+to the evaluation of the preconditioned iterate θ (k+ /2) (line 11, Algorithm 3.1). The
+                                                       1
+
+
+local UC is associated with the cost required by the local optimizer, denoted by
+UCs . Thus, for the sth subnetwork, we scale the UCs proportionally to the number
+of local parameters ns and the number of local iterations ks . Assuming that all
+subnetworks consist of the same number of local trainable parameters (ns ), the local
+update cost of the ASPQN method is therefore (ns/n)ks UCs . For the MSPQN method,
+we sum up the local update
+                         PNsd cost over all subnetworks    due to the sequential nature
+of the algorithm, thus s=1      (ns/n)ks UCs = ks UCs . Regarding the MC of both
+                                            
+
+SPQN methods, we have to take into account the storage of global and local Hessian
+approximations, the momentum, and the preconditioned iterate θ (k+ /2) .
+                                                                        1
+
+
+     In contrast to the update cost, we do not scale the number of the loss and gradient
+evaluations required by SPQN methods proportionally to ns . This is due to the fact
+that evaluation of the loss requires a forward pass through the entire network. In
+contrast, the evaluation of the local gradient, denoted as ∇θs L, does not necessitate
+         DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                       13
+
+
+Table 2: Estimates for the number of the loss function (#Le ) and gradient evaluations
+(#ge ), update cost (UC) and memory requirements (MC) per iteration and GPU
+device for various optimizers.
+
+        Method   #Le                  #ge                    UC             MC
+        Adam     1                    1                      5n             4n
+        L-BFGS   1 + lsits            1                      n + 4mn        n + 2mn
+                 1 + lsits +          2+                     2n + 4mn+      2n + 2mn+
+        ASPQN
+                 ks (#Les )           ks (#ges )             (ns/n)ks UCs   (ns/n)MCs
+                 1 + lsits +          2+                     2n + 4mn+      2n + 2mn+
+        MSPQN
+                    s=1 ks (#Les )       s=1 ks (#ges )      ks UCs         (ns/n)MCs
+                 PNsd                 PNsd
+
+
+
+traversing the entire network as several code optimization strategies can be utilized to
+avoid unnecessary computations. Moreover, the network’s structure can be leveraged
+to construct local gradient approximations at a lower computation cost. For instance,
+in the case of ODE-based network architectures, the parallel-in-time strategies [26]
+could be explored. We do not investigate such code optimization techniques in the
+present work, as their effectiveness depends heavily on the particular implementation
+and the choice of network architecture. However, we plan to pursue this avenue of
+research in the future. Taking all aforementioned points into account, we note that
+the estimate #ge considered in Table 2 is fairly pessimistic.
+     6. Numerical results. In this section, we investigate the numerical perfor-
+mance of the proposed SPQN methods. During our investigation, we monitor the
+loss functional L as well as the quality of PINN’s solution (uNN ), assessed by means
+of the relative L2 -error, given as
+                                                 ∥uNN − u∗ ∥L2 (Ω)
+(6.1)                       Erel (uNN , u∗ ) =                     .
+                                                   ∥uNN ∥L2 (Ω)
+
+Here, u∗ denotes an exact solution obtained using an analytical expression (Klein-
+Gordon) or solving the underlying PDE using a high-fidelity finite element solver
+(Burgers’, Diffusion-advection, and Allen-Cahn).
+     6.1. Sensitivity with respect to a varying number of subnetworks and
+local iterations. We start our numerical investigation by examining the perfor-
+mance of the SPQN methods with respect to a varying number of local iterations (ks )
+and subnetworks (Nsd ). During these experiments, we consider ks ∈ {10, 50, 100}
+and three different types of network decomposition. In particular, we employ a de-
+composition into two subnetworks (the minimal decomposition), decomposition by
+grouping two neighboring layers into one subnetwork, and decomposition of one layer
+per subnetwork (the maximal layer-wise decomposition).
+     Figures 3-6 demonstrate the obtained results for all four numerical examples. As
+we can observe, the configuration of ASPQN with maximal decomposition con-
+sistently outperforms other configurations in terms of the error Erel . The observed
+behavior is independent of the number of local iterations ks . This can be attributed
+to the fact that more extensive decoupling of the parameters allows us to obtain more
+localized learning rates and Hessian approximations, which in turn enables the cap-
+turing of the underlying nonlinearities more accurately. Moreover, we can also observe
+that employing the maximal layer-wise decomposition gives rise to the most efficient
+14           A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+                 (Nsd , ks )   (2, 10)    (2, 50)     (2, 100) (4, 10)       (4, 50)   (4, 100) (8, 10)        (8, 50)       (8, 100)
+
+
+       10−1
+                                                           ASPQN                                                         MSPQN
+       10−2
+Erel
+
+       10−3
+
+
+       10−4
+                 0                 1                  2                  3    0        0.2       0.4     0.6       0.8         1             1.2
+                                       # iterations            ·10   3                               # iterations                  ·10   3
+
+       10−2
+                                                           ASPQN                                                         MSPQN
+
+Erel   10   −3
+
+
+
+
+       10−4
+                 0                 1                  2                  3    0                  1                  2                        3
+                                          #ge                  ·105                                     #ge                        ·105
+       10−2
+                                                           ASPQN                                                         MSPQN
+
+Erel   10−3
+
+
+
+       10−4
+                 0             1            2             3              4    0              1            2              3                   4
+                                           UC                  ·10   5                                   UC                        ·10   5
+
+
+
+Fig. 3: Burgers’ equation: The mean computational cost of the ASPQN method (left
+column) and MSPQN method (right column). The results are obtained for varying
+numbers of local iterations (ks ∈ {10, 50, 100}) and varying number of subdomains
+(Nsd ∈ {2, 4, 8}). Average is obtained over 10 independent runs.
+
+
+
+variants of the ASPQN in terms of #ge and estimated UC. The lowest Erel is typically
+achieved using 50 or 100 local iterations.
+     In the case of the MSPQN method, the obtained results, also reported in Fig-
+ures 3-6, demonstrate that using a larger amount of subnetworks and higher values
+of ks gives typically rise to a faster convergence, i.e., a fewer number of iterations
+is required to obtain a comparably equally accurate solution. The best-performing
+variants in terms of UC are ones with ks = 50 or ks = 100 and with the maximal
+layer-wise decomposition. This behavior is expected since the local contributions to
+UC decrease with an increasing number of subnetworks. In the context of the #ge
+metric, the obtained results demonstrate that MSPQN variants with fewer subdo-
+mains frequently demonstrate comparable or superior efficiency in minimizing the
+relative error Erel , when compared to their counterparts with full maximal layer-wise
+decomposition. This is due to the fact that the #ge estimate does not linearly scale
+with the subnetwork’s size, i.e., the number of trainable subnetworks’ parameters.
+    6.2. SPQN methods versus the state-of-the-art optimizers. In this sec-
+tion, we compare the convergence and performance of the proposed SPQN methods
+          DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                                                                    15
+
+                  (Nsd , ks )   (2, 10)    (2, 50)       (2, 100) (3, 10)      (3, 50)   (3, 100) (6, 10)    (6, 50)   (6, 100)
+
+
+       10−1
+                                                           ASPQN                                                     MSPQN
+       10−2
+Erel
+
+       10−3
+
+
+       10−4
+              0                 1                    2                     3   0             0.5                 1                   1.5
+                                    # iterations                 ·10   2                        # iterations               ·10   2
+
+       10−1
+                                                           ASPQN                                                     MSPQN
+       10−2
+Erel
+       10−3
+
+       10−4
+              0                 1                    2                     3   0         1         2         3         4             5
+                                          #ge                    ·104                                  #ge                 ·104
+       10−1
+                                                           ASPQN                                                     MSPQN
+       10−2
+Erel
+
+       10−3
+
+
+       10−4
+              0          1           2          3            4             5   0         1         2         3         4             5
+                                          UC                     ·10   4                               UC                  ·10   4
+
+
+
+Fig. 4: Klein-Gordon: The mean computational cost of the ASPQN method (left
+column) and MSPQN method (right column). The results are obtained for varying
+numbers of local iterations, i.e., (ks ∈ {10, 50, 100}) and varying number of subdo-
+mains (Nsd ∈ {2, 3, 6}). Average is obtained over 10 independent runs.
+
+
+
+with state-of-the-art Adam and L-BFGS optimizers. During these experiments, the
+SPQN methods consider the maximal decomposition. Moreover, we set the number
+of the local iterations to 50. We select this particular setup as it works the best
+on average. The only exception is the advection-diffusion problem, for which the
+SPQN methods performed best with the small number of local iterations, in par-
+ticular ks = 10. More precisely, we compare all considered optimizers by means of
+the #ge and UC estimates. Moreover, we also report the execution time, although
+our implementation of the SPQN algorithms is not yet optimized, unlike PyTorch
+implementation of Adam and L-BFGS3 .
+     As we can see from the obtained results, reported in Figure 7, the SPQN methods
+give rise to more accurate solutions, i.e., solutions with smaller Erel . The differences
+in the quality of an obtained solution are, on average, of one order of magnitude.
+The diffusion-advection problem is particularly interesting as the L-BFGS method
+stagnates for this example. In contrast, the variants of the SPQN optimizers are
+
+   3 We have adjusted PyTorch implementation of the L-BFGS method to take into account the
+
+momentum.
+16        A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+                   (Nsd , ks )   (2, 10)    (2, 50)   (2, 100) (5, 10)        (5, 50)       (5, 100) (10, 10) (10, 50) (10, 100)
+
+
+         100
+                                                        ASPQN                                                      MSPQN
+
+ Erel   10−1
+
+
+
+        10−2
+               0          1         2            3        4             5 0         0.5            1         1.5     2             2.5
+                                   # iterations               ·10   2                             # iterations           ·10   2
+
+         100
+                                                        ASPQN                                                      MSPQN
+
+ Erel   10−1
+
+
+
+        10−2
+               0          1         2            3        4             5 0             1          2         3       4             5
+                                           #ge                ·104                                     #ge               ·104
+         100
+                                                        ASPQN                                                      MSPQN
+
+ Erel   10−1
+
+
+
+        10−2
+               0          1         2            3        4             5 0             1          2         3       4             5
+                                           UC                 ·10   4                                  UC                ·10   4
+
+
+
+Fig. 5: Advection diffusion problem: The mean computational cost of the ASPQN
+method (left column) and MSPQN method (right column). The results are obtained
+for varying numbers of local iterations(ks ∈ {10, 50, 100}) and varying number of
+subdomains (Nsd ∈ {2, 5, 10}). Average is obtained over 10 independent runs.
+
+
+
+
+able to reach the Erel close to 10−2 . Numerical evidence suggests that the L-BFGS
+stagnation is caused by the line-search method providing very small step sizes. In
+contrast, when using the SPQN methods, a very small step size was observed only for
+one particular subnetwork at the beginning of the training process. This suggests that
+using the DD approach enables the usage of localized learning rates and rebalances
+the global nonlinearities.
+    In terms of the computational cost, we can also observe from Figure 7, that the
+SPQN methods are significantly more efficient in terms of #ge and UC. The differ-
+ence is more prevalent in the case of the UC metric, as this estimate scales with the
+number of subnetworks. We can also see that the UC metric translates closely to the
+computational time (the last column of Figure 7). Thus, in order to achieve a solution
+of comparable quality, the SPQN methods are significantly faster than Adam and L-
+BFGS optimizers. To highlight the difference, we also report the minimum mean Erel
+reached by the L-BFGS optimizer and the average time required to reach that solu-
+          DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                                                                      17
+
+                  (Nsd , ks )   (2, 10)    (2, 50)       (2, 100) (3, 10)     (3, 50)   (3, 100) (6, 10)    (6, 50)        (6, 100)
+
+
+       10−1
+                                                           ASPQN                                                      MSPQN
+       10−2
+Erel
+
+       10−3
+
+
+       10−4
+              0                 1                    2                    3   0         0.2           0.4            0.6               0.8
+                                    # iterations                ·10   3                           # iterations               ·10   3
+
+       10−1
+                                                           ASPQN                                                      MSPQN
+       10−2
+Erel
+
+       10−3
+
+
+       10−4
+              0                 1                    2                    3   0               1                  2                     3
+                                          #ge                   ·105                                 #ge                     ·105
+       10−1
+                                                           ASPQN                                                      MSPQN
+       10−2
+Erel
+
+       10−3
+
+
+       10−4
+              0             1              2              3               4   0          1             2             3                 4
+                                          UC                    ·10   5                               UC                     ·10   5
+
+
+
+Fig. 6: Allen Cahn: The mean computational cost of the ASPQN method (left col-
+umn) and MSPQN method (right column). The results are obtained for varying
+numbers of local iterations (ks ∈ {10, 50, 100}) and varying number of subdomains
+(Nsd ∈ {2, 3, 6}). Average is obtained over 10 independent runs.
+
+
+
+tion by all considered optimizers4 5 . As we can see from Table 3, the computational
+time required by ASPQN and MSPQN is significantly lower than the computational
+time required by the L-BFGS method. In particular, the MSPQN optimizer enjoys
+an average speedup of a factor of 10 across all benchmark problems. For the ASPQN
+optimizer, the speedup is even larger by an average factor of approximately 28. This
+speedup is, however, obtained with an increased amount of computational resources
+as the optimizer runs in parallel, i.e., using multiple GPU devices. Thus, for a fixed
+amount of computational resources, MSPQN can be considered to be a more effi-
+cient optimizer. However, the ASPQN method allows for a larger overall speedup by
+leveraging model parallelism.
+    7. Conclusion. In this work, we proposed novel additive and multiplicative pre-
+conditioning strategies for the L-BFGS optimizer with a particular focus on PINNs
+    4 Comparison with the Adam optimizer is skipped, as it never reaches E
+                                                                           rel as low as the L-BFGS
+optimizer.
+    5 Comparison for the Diffusion-advection problem is skipped, as the L-BFGS optimizer stagnates
+
+for this problem.
+18      A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+                            LBFGS                      ADAM                      ASPQN                   MSPQN
+
+     10−1
+     10−2
+Erel
+     10−3
+     10−4
+             0   0.2    0.4       0.6    0.8         1 0   2        4        6       8      0   1                 2               3
+                             #ge              ·105                     UC            ·105           time (s)                  ·104
+      100
+     10−1
+Erel 10−2
+     10−3
+     10−4
+             0          1           2                3 0       1         2           3      0           0.5                   1
+                             #ge              ·104                     UC            ·105           time (s)                  ·104
+       100
+
+Erel 10−1
+
+     10−2
+             0          1           2                3 0           0.5           1          0   2             4           6
+                             #ge              ·104                     UC            ·105           time (s)                  ·103
+     10−1
+
+Erel 10−2
+     10−3
+     10−4
+             0    0.5         1         1.5          2 0           1             2          0       2                 4               6
+                             #ge              ·105                     UC            ·106           time (s)                  ·104
+
+Fig. 7: Performance comparison of different optimizers for Burgers’, Klein-Gordon,
+Diffusion-advection, and Allen-Cahn problems (from top to bottom). The mean rel-
+ative error Erel obtained over 10 independent runs.
+
+
+
+
+applications. The preconditioners were constructed by leveraging the layer-wise de-
+composition of the network, thus tailoring them to the characteristics of DNNs. The
+multiplicative preconditioner was designed to enhance the convergence of the L-BFGS
+optimizer in the context of single GPU computing environments. In contrast, the ad-
+ditive preconditioner provided a novel approach to model parallelism with a focus on
+multi-GPU computing architectures. To evaluate the effectiveness of the proposed
+training methods, we conducted numerical experiments using benchmark problems
+from the field of PINNs. A comparison with Adam and L-BFGS optimizers was per-
+formed and demonstrated that the SPQN methods can provide a substantial reduction
+in terms of training time. In particular, compared to L-BFGS, we obtained an ap-
+proximate average speedup of 10 for the MSPQN method and 28 for the ASPQN
+method. Moreover, we have also demonstrated that by using the proposed SPQN
+methods, one can obtain a significantly more accurate solution for the underlying
+PDEs.
+       DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                                 19
+
+
+Table 3: Minimum mean Erel reached by L-BFGS optimizer and time to solution
+required to reach that error for all considered optimizers. The network architectures
+and optimizer setup are the same as reported in Table 1. All optimizers are executed
+on a single GPU, except ASPQN, which utilizes multiple GPU devices.
+
+                                                     Time to solution (mins)
+     Example       Erel (L-BFGS)
+                                       L-BFGS      Adam ASPQN (# GPUs)                 MSPQN
+                                 −4
+      Burgers’          4.6 × 10          558.5         –        14.4    (8)                40.7
+ Klein-Gordon           6.1 × 10−4        236.5         –         6.8    (6)                26.9
+   Allen-Cahn           6.0 × 10−4      1,001.6         –        79.2    (6)               117.5
+
+
+
+     We foresee the extension of the presented work in several ways. For instance,
+it would be interesting to investigate different network decompositions, as well as
+to incorporate overlap and coarse-level acceleration into the proposed algorithmic
+framework. Furthermore, developing strategies for load balancing and optimization
+of the subnetwork’s loss/gradient evaluations could further enhance the performance
+of the proposed algorithms. In the context of PINNs, the proposed method could
+be combined with the methods that consider the decomposition of the computational
+domain (data space). Moreover, the applicability of the proposed SPQN methods
+could be extended beyond the PINNs to a variety of different deep-learning tasks,
+e.g., operator learning using DeepONets [50, 51], or natural language processing using
+transformers [74]. To this aim, the local and global optimizers would have to be
+adjusted to account for the noise arising from the subsampling.
+
+                                         REFERENCES
+
+ [1] T. Ben-Nun and T. Hoefler, Demystifying parallel and distributed deep learning: An in-
+         depth concurrency analysis, ACM Computing Surveys (CSUR), 52 (2019), pp. 1–43, https:
+         //doi.org/10.1145/3320060.
+ [2] A. Botev, H. Ritter, and D. Barber, Practical Gauss-Newton optimisation for deep
+         learning, in International Conference on Machine Learning, PMLR, 2017, pp. 557–565,
+         https://arxiv.org/abs/1706.03662.
+ [3] P. R. Brune, M. G. Knepley, B. F. Smith, and X. Tu, Composing scalable nonlinear alge-
+         braic solvers, SIAM Review, 57 (2015), pp. 535–565, https://doi.org/10.1137/130936725,
+         https://arxiv.org/abs/1607.04254.
+ [4] R. H. Byrd, J. Nocedal, and R. B. Schnabel, Representations of quasi-Newton matrices and
+         their use in limited memory methods, Mathematical Programming, 63 (1994), pp. 129–156,
+         https://doi.org/10.1007/bf01582063.
+ [5] X.-C. Cai and D. E. Keyes, Nonlinearly preconditioned inexact Newton algorithms, SIAM
+         Journal on Scientific Computing, 24 (2002), pp. 183–200, https://doi.org/10.1137/
+         s106482750037620x.
+ [6] A. Callens, D. Morichon, S. Abadie, M. Delpey, and B. Liquet, Using random forest
+         and gradient boosting trees to improve wave forecast at a specific location, Applied Ocean
+         Research, 104 (2020), p. 102339, https://doi.org/10.1016/j.apor.2020.102339.
+ [7] E. C. Cyr, M. A. Gulian, R. G. Patel, M. Perego, and N. A. Trask, Robust training and
+         initialization of deep neural networks: An adaptive basis viewpoint, in Mathematical and
+         Scientific Machine Learning, PMLR, 2020, pp. 512–536, https://arxiv.org/abs/1912.04862.
+ [8] J. Dean, G. Corrado, R. Monga, K. Chen, M. Devin, M. Mao, M. Ranzato, A. Senior,
+         P. Tucker, K. Yang, et al., Large scale distributed deep networks, in Advances in neural
+         information processing systems, 2012, pp. 1223–1231.
+ [9] J. Dennis and R. Schnabel, Numerical Methods for Unconstrained Optimization and Non-
+         linear Equations, SIAM, 1996, https://doi.org/10.1137/1.9781611971200.
+[10] P. Deuflhard, Newton methods for nonlinear problems: affine invariance and adaptive al-
+         gorithms, vol. 35, Springer Science & Business Media, 2011, https://doi.org/10.1007/
+20     A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+         978-3-642-23899-4.
+[11] V. Dolean, A. Heinlein, S. Mishra, and B. Moseley, Finite basis physics-informed neural
+         networks as a Schwarz domain decomposition method, arXiv preprint arXiv:2211.05560,
+         (2022).
+[12] V. Dolean, A. Heinlein, S. Mishra, and B. Moseley, Multilevel domain decomposition-
+         based architectures for physics-informed neural networks, arXiv preprint arXiv:2306.05486,
+         (2023), https://arxiv.org/abs/2306.05486.
+[13] V. Dwivedi, N. Parashar, and B. Srinivasan, Distributed learning machines for solving for-
+         ward and inverse problems in partial differential equations, Neurocomputing, 420 (2021),
+         pp. 299–316, https://doi.org/10.1016/j.neucom.2020.09.006.
+[14] W. E, The dawning of a new era in applied mathematics, Notices of the American Mathematical
+         Society, 68 (2021), pp. 565–571, https://doi.org/10.1090/noti2259.
+[15] W. E and B. Yu, The deep Ritz method: a deep learning-based numerical algorithm for solving
+         variational problems, Communications in Mathematics and Statistics, 6 (2018), pp. 1–12,
+         https://doi.org/10.1007/s40304-018-0127-z, https://arxiv.org/abs/1710.00211.
+[16] Z. Fang, S. Wang, and P. Perdikaris, Ensemble learning for physics informed neu-
+         ral networks: a gradient boosting approach, arXiv preprint arXiv:2302.13143, (2023),
+         https://arxiv.org/abs/2302.13143.
+[17] L. Gaedke-Merzhäuser, A. l. Kopaničáková, and R. Krause, Multilevel minimization for
+         deep residual networks, in Proceedings of French-German-Swiss Optimization Conference
+         (FGS’2019), 2021, https://doi.org/10.1051/proc/202171131.
+[18] H. P. Gavin, The Levenberg-Marquardt algorithm for nonlinear least squares curve-fitting
+         problems, Department of Civil and Environmental Engineering, Duke University, (2019),
+         pp. 1–19.
+[19] J. C. Gilbert and J. Nocedal, Automatic differentiation and the step computation in the
+         limited memory BFGS method, Applied mathematics letters, 6 (1993), pp. 47–50, https:
+         //doi.org/10.1016/0893-9659(93)90032-i.
+[20] X. Glorot and Y. Bengio, Understanding the difficulty of training deep feedforward neural
+         networks, in Proceedings of the thirteenth international conference on artificial intelligence
+         and statistics, JMLR Workshop and Conference Proceedings, 2010, pp. 249–256.
+[21] G. Golub and V. Pereyra, Separable nonlinear least squares: the variable projection
+         method and its applications, Inverse problems, 19 (2003), p. R1, https://doi.org/10.1088/
+         0266-5611/19/2/201.
+[22] S. Gratton, A. Kopaničáková, and P. L. Toint, Multilevel objective-function-free optimiza-
+         tion with an application to neural networks training, SIAM Journal on Optimization, 33
+         (2023), pp. 2772–2800, https://doi.org/10.1137/23M1553455.
+[23] S. Gratton, V. Mercier, E. Riccietti, and P. L. Toint, A block-coordinate approach of
+         multi-level optimization with an application to physics-informed neural networks, arXiv
+         preprint arXiv:2305.14477, (2023), https://arxiv.org/abs/2305.14477.
+[24] L. Gu, W. Zhang, J. Liu, and X.-C. Cai, Decomposition and composition of deep con-
+         volutional neural networks and training acceleration via sub-network transfer learning,
+         ETNA - Electronic Transactions on Numerical Analysis, (2022), pp. 157–186, https:
+         //doi.org/10.1553/etna_vol56s157.
+[25] L. Gu, W. Zhang, J. Liu, and X.-C. Cai, Decomposition and preconditioning of deep convo-
+         lutional neural networks for training acceleration, in Domain Decomposition Methods in
+         Science and Engineering XXVI, Springer, 2023, pp. 153–160.
+[26] S. Günther, L. Ruthotto, J. B. Schroder, E. C. Cyr, and N. R. Gauger, Layer-parallel
+         training of deep residual neural networks, SIAM Journal on Mathematics of Data Science,
+         2 (2020), pp. 1–23, https://doi.org/10.1137/19m1247620.
+[27] P. Guo, K. Liew, and P. Zhu, Numerical solution of nonlinear Klein–Gordon equation using
+         the element-free kp-Ritz method, Applied Mathematical Modelling, 39 (2015), pp. 2917–
+         2928, https://doi.org/10.1016/j.apm.2014.11.025.
+[28] Z. Hu, A. D. Jagtap, G. E. Karniadakis, and K. Kawaguchi, Augmented physics-informed
+         neural networks (APINNs): A gating network-based soft domain decomposition method-
+         ology, arXiv preprint arXiv:2211.08939, (2022), https://doi.org/10.1016/j.engappai.2023.
+         107183, https://arxiv.org/abs/2211.08939.
+[29] Z. Hu, A. D. Jagtap, G. E. Karniadakis, and K. Kawaguchi, When do extended physics-
+         informed neural networks (XPINNs) improve generalization?, SIAM Journal on Scientific
+         Computing, 44 (2022), pp. A3158–A3182, https://doi.org/10.1137/21m1447039, https://
+         arxiv.org/abs/2109.09444.
+[30] A. D. Jagtap and G. E. Karniadakis, Extended physics-informed neural networks (XPINNs):
+         A generalized space-time domain decomposition based deep learning framework for nonlin-
+        DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                                  21
+
+         ear partial differential equations, in AAAI Spring Symposium: MLPS, 2021, pp. 2002–2041.
+[31] A. D. Jagtap, K. Kawaguchi, and G. Em Karniadakis, Locally adaptive activation functions
+         with slope recovery for deep and physics-informed neural networks, Proceedings of the
+         Royal Society A, 476 (2020), p. 20200334, https://doi.org/10.1098/rspa.2020.0334.
+[32] A. D. Jagtap, K. Kawaguchi, and G. E. Karniadakis, Adaptive activation functions ac-
+         celerate convergence in deep and physics-informed neural networks, Journal of Compu-
+         tational Physics, 404 (2020), p. 109136, https://doi.org/10.1016/j.jcp.2019.109136, https:
+         //arxiv.org/abs/1906.01170.
+[33] A. D. Jagtap, E. Kharazmi, and G. E. Karniadakis, Conservative physics-informed neu-
+         ral networks on discrete domains for conservation laws: Applications to forward and in-
+         verse problems, Computer Methods in Applied Mechanics and Engineering, 365 (2020),
+         p. 113028, https://doi.org/10.1016/j.cma.2020.113028.
+[34] G. E. Karniadakis, I. G. Kevrekidis, L. Lu, P. Perdikaris, S. Wang, and L. Yang, Physics-
+         informed machine learning, Nature Reviews Physics, 3 (2021), pp. 422–440, https://doi.
+         org/10.1038/s42254-021-00314-5.
+[35] D. P. Kingma and J. Ba, Adam: A method for stochastic optimization, arXiv preprint
+         arXiv:1412.6980, (2014).
+[36] A. Klawonn, M. Lanser, and M. Uran, Adaptive nonlinear elimination in nonlinear FETI-
+         DP methods, in Domain Decomposition Methods in Science and Engineering XXVI,
+         Springer, 2023, pp. 337–345.
+[37] A. Klawonn, M. Lanser, and J. Weber, A domain decomposition-based CNN-DNN archi-
+         tecture for model parallel training applied to image recognition problems, arXiv preprint
+         arXiv:2302.06564, (2023), https://arxiv.org/abs/2302.06564.
+[38] A. Kopaničáková and H. Kothari, DistTraiNN: Model parallel framework for distrib-
+         uted training of deep neural networks. Git repository, 2022, https://bitbucket.org/alena_
+         kopanicakova/DistTraiNN.
+[39] A. Kopaničáková, H. Kothari, and R. Krause, Nonlinear field-split preconditioners for
+         solving monolithic phase-field models of brittle fracture, Computer Methods in Applied
+         Mechanics and Engineering, 403 (2023), p. 115733, https://doi.org/10.1016/j.cma.2022.
+         115733, https://arxiv.org/abs/2203.13738.
+[40] A. Kopaničáková, R. Krause, and R. Tamstorf, Subdivision-based nonlinear multiscale
+         cloth simulation, SIAM Journal on Scientific Computing, 41 (2019), pp. S433–S461, https:
+         //doi.org/10.1137/18m1194870.
+[41] A. Kopaničáková and R. Krause, Globally convergent multilevel training of deep residual
+         networks, SIAM Journal on Scientific Computing, (2022), pp. S254–S280, https://doi.org/
+         10.1137/21m1434076.
+[42] H. Kothari, Nonlinear Schwarz preconditioning for quasi-Newton methods, arXiv preprint
+         arXiv:2211.14403, (2022), https://arxiv.org/abs/2211.14403.
+[43] H. Kothari, A. Kopaničáková, and R. Krause, Nonlinear Schwarz preconditioning for
+         nonlinear optimization problems with bound constraints, arXiv preprint arXiv:2211.14780,
+         (2022).
+[44] I. E. Lagaris, A. Likas, and D. I. Fotiadis, Artificial neural networks for solving ordinary
+         and partial differential equations, IEEE transactions on neural networks, 9 (1998), pp. 987–
+         1000, https://doi.org/10.1109/72.712178, https://arxiv.org/abs/physics/9705023.
+[45] K. Lee, N. A. Trask, R. G. Patel, M. A. Gulian, and E. C. Cyr, Partition of unity
+         networks: deep hp-approximation, arXiv preprint arXiv:2101.11256, (2021), https://doi.
+         org/10.2172/2001532.
+[46] K. Li, K. Tang, T. Wu, and Q. Liao, D3M: A deep domain decomposition method for partial
+         differential equations, IEEE Access, 8 (2019), pp. 5283–5294, https://doi.org/10.1109/
+         access.2019.2957200, https://arxiv.org/abs/1909.12236.
+[47] W. Li, X. Xiang, and Y. Xu, Deep domain decomposition method: Elliptic problems, in
+         Mathematical and Scientific Machine Learning, PMLR, 2020, pp. 269–286, https://arxiv.
+         org/abs/2004.04884.
+[48] D. C. Liu and J. Nocedal, On the limited memory BFGS method for large scale optimization,
+         Mathematical programming, 45 (1989), pp. 503–528, https://doi.org/10.1007/bf01589116.
+[49] L. Liu and D. E. Keyes, Field-split preconditioned inexact Newton algorithms, SIAM Journal
+         on Scientific Computing, 37 (2015), pp. A1388–A1409, https://doi.org/10.1137/140970379.
+[50] L. Lu, P. Jin, G. Pang, Z. Zhang, and G. E. Karniadakis, Learning nonlinear operators
+         via DeepONet based on the universal approximation theorem of operators, Nature Machine
+         Intelligence, 3 (2021), pp. 218–229, https://doi.org/10.1038/s42256-021-00302-5.
+[51] L. Lu, X. Meng, S. Cai, Z. Mao, S. Goswami, Z. Zhang, and G. E. Karniadakis, A
+         comprehensive and fair comparison of two neural operators (with practical extensions)
+22     A. KOPANIČÁKOVÁ, H. KOTHARI, G. EM KARNIADAKIS, AND R. KRAUSE
+
+
+         based on fair data, Computer Methods in Applied Mechanics and Engineering, 393 (2022),
+         p. 114778, https://doi.org/10.1016/j.cma.2022.114778, https://arxiv.org/abs/2111.05512.
+[52] L. Luo and X.-C. Cai, Preconditioned inexact Newton with learning capability for nonlinear
+         system of equations, SIAM Journal on Scientific Computing, 45 (2023), pp. A849–A871.
+[53] A. Lydia and S. Francis, Adagrad – an optimizer for stochastic gradient descent, Int. J. Inf.
+         Comput. Sci, 6 (2019), pp. 566–568.
+[54] S. Mahboubi, S. Indrapriyadarsini, H. Ninomiya, and H. Asai, Momentum acceleration of
+         quasi-Newton training for neural networks, in PRICAI 2019: Trends in Artificial Intelli-
+         gence: 16th Pacific Rim International Conference on Artificial Intelligence, Cuvu, Yanuca
+         Island, Fiji, August 26–30, 2019, Proceedings, Part II 16, Springer, 2019, pp. 268–281,
+         https://doi.org/10.1007/978-3-030-29911-8_21.
+[55] L. McClenny and U. Braga-Neto, Self-adaptive physics-informed neural networks using a
+         soft attention mechanism, arXiv preprint arXiv:2009.04544, (2020), https://arxiv.org/abs/
+         2009.04544.
+[56] V. Mercier, S. Gratton, and P. Boudier, A coarse space acceleration of deep-DDM, arXiv
+         preprint arXiv:2112.03732, (2021), https://arxiv.org/abs/2112.03732.
+[57] S. Mishra and R. Molinaro, Estimates on the generalization error of physics-informed neu-
+         ral networks for approximating a class of inverse problems for PDEs, IMA Journal of
+         Numerical Analysis, 42 (2022), pp. 981–1022.
+[58] V. Mnih, A. P. Badia, M. Mirza, A. Graves, T. Lillicrap, T. Harley, D. Silver, and
+         K. Kavukcuoglu, Asynchronous methods for deep reinforcement learning, in International
+         conference on machine learning, 2016, pp. 1928–1937, https://arxiv.org/abs/1602.01783.
+[59] J. J. Moré, The Levenberg-Marquardt algorithm: implementation and theory, in Numerical
+         analysis, Springer, 1978, pp. 105–116, https://doi.org/10.1007/bfb0067700.
+[60] B. Moseley, A. Markham, and T. Nissen-Meyer, Finite basis physics-informed neu-
+         ral networks (FBPINNs): a scalable domain decomposition approach for solving dif-
+         ferential equations, arXiv preprint arXiv:2107.07871, (2021), https://doi.org/10.1007/
+         s10444-023-10065-9.
+[61] E. Newman, L. Ruthotto, J. Hart, and B. van Bloemen Waanders, Train like a (var)pro:
+         Efficient training of neural networks with variable projection, SIAM Journal on Math-
+         ematics of Data Science, 3 (2021), pp. 1041–1066, https://doi.org/10.1137/20m1359511,
+         https://arxiv.org/abs/2007.13171.
+[62] D. P. O Leary and B. W. Rust, Variable projection for nonlinear least squares problems,
+         Computational Optimization and Applications, 54 (2013), pp. 579–593.
+[63] A. Paszke, S. Gross, F. Massa, A. Lerer, J. Bradbury, G. Chanan, T. Killeen, Z. Lin,
+         N. Gimelshein, L. Antiga, et al., PyTorch: An imperative style, high-performance deep
+         learning library, Advances in neural information processing systems, 32 (2019).
+[64] J. Rafati and R. F. Marcia, Improving L-BFGS initialization for trust-region methods in
+         deep learning, in 2018 17th IEEE International Conference on Machine Learning and Ap-
+         plications (ICMLA), IEEE, 2018, pp. 501–508, https://doi.org/10.1109/icmla.2018.00081.
+[65] M. Raissi, P. Perdikaris, and G. E. Karniadakis, Physics-informed neural networks: A
+         deep learning framework for solving forward and inverse problems involving nonlinear
+         partial differential equations, Journal of Computational physics, 378 (2019), pp. 686–707,
+         https://doi.org/10.1016/j.jcp.2018.10.045.
+[66] N. N. Schraudolph, Fast curvature matrix-vector products for second-order gradient
+         descent, Neural computation, 14 (2002), pp. 1723–1738, https://doi.org/10.1162/
+         08997660260028683.
+[67] H. Sheng and C. Yang, PFNN: A penalty-free neural network method for solving a class of
+         second-order boundary-value problems on complex geometries, Journal of Computational
+         Physics, 428 (2021), p. 110085, https://doi.org/10.1016/j.jcp.2020.110085, https://arxiv.
+         org/abs/2004.06490.
+[68] H. Sheng and C. Yang, PFNN-2: A domain decomposed penalty-free neural network method
+         for solving partial differential equations, arXiv preprint arXiv:2205.00593, (2022), https:
+         //doi.org/10.4208/cicp.oa-2022-0114.
+[69] K. Shukla, A. D. Jagtap, and G. E. Karniadakis, Parallel physics-informed neural networks
+         via domain decomposition, Journal of Computational Physics, 447 (2021), p. 110683, https:
+         //doi.org/10.1016/j.jcp.2021.110683, https://arxiv.org/abs/2104.10013.
+[70] J. Sirignano and K. Spiliopoulos, DGM: A deep learning algorithm for solving par-
+         tial differential equations, Journal of computational physics, 375 (2018), pp. 1339–1364,
+         https://doi.org/10.1016/j.jcp.2018.08.029, https://arxiv.org/abs/1708.07469.
+[71] P. Stiller, F. Bethke, M. Böhme, R. Pausch, S. Torge, A. Debus, J. Vorberger,
+         M. Bussmann, and N. Hoffmann, Large-scale neural solvers for partial differential equa-
+       DOMAIN DECOMPOSITION-BASED TRAINING ALGORITHMS FOR PINNS                                23
+
+         tions, in Driving Scientific and Engineering Discoveries Through the Convergence of HPC,
+         Big Data and AI: 17th Smoky Mountains Computational Sciences and Engineering Con-
+         ference, SMC 2020, Oak Ridge, TN, USA, August 26-28, 2020, Revised Selected Papers
+         17, Springer, 2020, pp. 20–34, https://doi.org/10.1007/978-3-030-63393-6_2.
+[72] N. Sukumar and A. Srivastava, Exact imposition of boundary conditions with distance func-
+         tions in physics-informed deep neural networks, Computer Methods in Applied Mechan-
+         ics and Engineering, 389 (2022), p. 114333, https://doi.org/10.1016/j.cma.2021.114333,
+         https://arxiv.org/abs/2104.08426.
+[73] N. Trask, A. Henriksen, C. Martinez, and E. Cyr, Hierarchical partition of unity networks:
+         fast multilevel training, in Mathematical and Scientific Machine Learning, PMLR, 2022,
+         pp. 271–286.
+[74] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser,
+         and I. Polosukhin, Attention is all you need, Advances in neural information processing
+         systems, 30 (2017).
+[75] S. Wang, Y. Teng, and P. Perdikaris, Understanding and mitigating gradient flow patholo-
+         gies in physics-informed neural networks, SIAM Journal on Scientific Computing, 43
+         (2021), pp. A3055–A3081, https://doi.org/10.1137/20m1318043.
+[76] S. Wang, X. Yu, and P. Perdikaris, When and why PINNs fail to train: A neural tangent
+         kernel perspective, Journal of Computational Physics, 449 (2022), p. 110768, https://doi.
+         org/10.1016/j.jcp.2021.110768, https://arxiv.org/abs/2007.14527.
+[77] K. Weiss, T. M. Khoshgoftaar, and D. Wang, A survey of transfer learning, Journal of Big
+         data, 3 (2016), pp. 1–40, https://doi.org/10.1186/s40537-016-0043-6.
+[78] H. Yu and B. M. Wilamowski, Levenberg–Marquardt training, in Intelligent systems, CRC
+         Press, 2018, pp. 12–1 – 12–16, https://doi.org/10.1201/9781315218427-12.
+[79] Y.-x. Yuan, A review on subspace methods for nonlinear optimization, in Proceedings of the
+         International Congress of Mathematics, 2014, pp. 807–827.
+

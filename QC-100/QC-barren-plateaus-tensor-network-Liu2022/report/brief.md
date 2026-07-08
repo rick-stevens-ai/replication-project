@@ -1,0 +1,5 @@
+# Brief
+
+**Paper:** Cervero Martín & Lubasch, *Barren plateaus in quantum tensor network optimization*, Quantum 7, 974 (2023) — arXiv:2209.00292.
+
+**What/why:** The paper analyzes when variational quantum circuits built from tensor-network ansätze (qMPS, qTTN, qMERA) suffer from *barren plateaus* — exponentially vanishing cost-function gradients that make training impossible at scale. Its central result is that the gradient variance decays exponentially with the *distance* between the observable and the circuit's "canonical centre," which grows **linearly** in qubit count N for qMPS (→ barren plateau) but only **logarithmically** for qTTN/qMERA (→ trainable). We independently reproduced this on a from-scratch numpy statevector simulator (gate set {RY,RZ,CNOT}, exact parameter-shift gradients), confirming: (C1) vanishing mean gradient; (C2) exponential variance decay in N for random hardware-efficient / qMPS circuits (barren plateau, c≈1.5–1.7); and (C4) a markedly shallower, power-law-consistent decay for qTTN. Heavy sampling ran on uicgpu. Verdict: **PARTIAL** (core theorems reproduced; qTTN under-sampled, qMERA not simulated).

@@ -1,0 +1,21 @@
+# Attempt Log (chronological)
+
+- **T+0** — Read wave brief (`WAVE_BRIEF_2026-07-01.md`) and 8-artifact standard.
+- **T+1** — `mkdir -p` target dir + subdirs; `curl` paper PDF from arXiv (176 kB, 12 pages).
+- **T+2** — Discovered prior replication exists in `QC-200/QC-quant-ph-9805082-quantum-counting` (from 2026-07-05). Per rules, do NOT touch that; write ONLY in assigned dir. Continue with independent replication.
+- **T+3** — Checked for Marker/Nougat — neither installed on host, and paper not in central corpus. Substituted `pdftotext -layout` output with headers noting the substitution in both `extraction/marker.md` and `extraction/nougat.mmd`.
+- **T+4** — Grepped extracted text for Theorem statements. Identified the reproducible claim: Theorem 5 (`|t - t̃| < (2π/P)·√(tN) + (π²/P²)·N` with prob ≥ 8/π²) — this is C2.
+- **T+5** — Set up Python venv, `pip install qiskit qiskit-aer numpy`. Qiskit 2.5.0, qiskit-aer 0.17.2.
+- **T+6** — Wrote `work/quantum_counting.py`. Chose to compute the QPE marginal analytically (Dirichlet kernel on eigenphases ± θ/π) rather than shot-sample — much cleaner test of the 8/π² bound.
+- **T+7** — Ran sweep: 90 configs. **90/90 within Theorem-5 bound; 90/90 with exact P(success) ≥ 8/π²**.
+- **T+8** — Wrote `work/verify_qiskit.py` gate-level cross-check on one case (n=4, t=3, p=5).
+- **T+9** — Cross-check FAILED: L∞ ≈ 0.6 between gate and analytic marginals; gate said `argmax=0` (nonsense).
+- **T+10** — Debugged. First tried flipping controlled-U index order (`j` vs `p-1-j`) — no change. Then re-verified my analytic QPE against a hand-rolled numpy circuit (n=2, t=1, p=3) — matched to 3e-16. So analytic is correct; qiskit circuit has the bug.
+- **T+11** — Root cause: in `qc.append(unitary_gate, qubit_list)`, Qiskit interprets `qubit_list[0]` as LSB of the gate's matrix indexing. With `full = block_diag(I, U)`, the control must be the MSB (last in qubit_list), not first. Fixed to `qc.append(cU, list(search_reg) + [count_reg[j]])`.
+- **T+12** — Re-ran verify: L∞ = 1.61e-15. Passed.
+- **T+13** — Wrote `work/verify_qiskit_multi.py` — 7 diverse cases, worst L∞ = 2.72e-15. All pass.
+- **T+14** — Wrote `work/llm_judge.py` and attempted `argo:claude-opus-4.8`. Failed with "Value at 'choices[0].message' does not match any variant" — Argo upstream JSON parse issue at 26k-char prompt. Fell back to `argo:gpt-5.4`.
+- **T+15** — LLM-judge returned well-formed JSON: verdict=PARTIAL, agreement=1.0, coverage=0.67. Saved raw + parsed.
+- **T+16** — Wrote LaTeX report `report/REPORT.tex`, compiled with pdflatex → `report/REPORT.pdf` (4 pages, 262 kB, clean build).
+- **T+17** — Wrote `open_questions.json` (5 heavy-duty questions with next_steps), `workflow.md`, `artifacts_summary.md`, `failure_analysis.md`, `brief.md`, `artifact_harvest.md`, `REPORT.md`.
+- **T+18** — Final artifact-standard check + emit WAVE_RESULT.

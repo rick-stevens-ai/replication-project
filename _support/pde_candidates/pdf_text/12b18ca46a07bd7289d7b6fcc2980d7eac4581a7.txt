@@ -1,0 +1,1666 @@
+                                                                                                                     KCL-PH-TH/2021-89
+
+
+
+
+                                         Lessons for adaptive mesh refinement in numerical relativity
+
+
+                                                     Miren Radia1 , Ulrich Sperhake1,2,3 , Amelia Drew1 , Katy
+                                                     Clough4 , Pau Figueras4 , Eugene A. Lim5 , Justin L. Ripley1 ,
+                                                     Josu C. Aurrekoetxea6 , Tiago França4 , Thomas Helfer2 ,
+
+
+
+
+arXiv:2112.10567v3 [gr-qc] 20 Jun 2022
+                                                     1 Department of Applied Mathematics and Theoretical Physics, Centre for
+                                                     Mathematical Sciences, University of Cambridge, Wilberforce Road, Cambridge
+                                                     CB3 0WA, United Kingdom
+                                                     2 Department of Physics and Astronomy, Johns Hopkins University, 3400 N.
+
+                                                     Charles Street, Baltimore, Maryland 21218, USA
+                                                     3 California Institute of Technology, Pasadena, California 91125, USA
+                                                     4 Geometry, Analysis and Gravitation, School of Mathematical Sciences, Queen
+
+                                                     Mary University of London, Mile End Road, London E1 4NS, United Kingdom
+                                                     5 Theoretical Particle Physics and Cosmology Group, Physics Department,
+
+                                                     Kings College London, Strand, London WC2R 2LS, United Kingdom
+                                                     6 Astrophysics, Denys Wilkinson Building, University of Oxford, Keble Road,
+
+                                                     Oxford OX1 3RH, United Kingdom
+                                                     E-mail: m.r.radia@damtp.cam.ac.uk, u.sperhake@damtp.cam.ac.uk,
+                                                     a.drew@damtp.cam.ac.uk, k.clough@qmul.ac.uk, p.figueras@qmul.ac.uk,
+                                                     eugene.a.lim@gmail.com, lloydripley@gmail.com,
+                                                     josu.aurrekoetxea@physics.ox.ac.uk, t.e.franca@qmul.ac.uk,
+                                                     thomashelfer@live.de
+
+
+                                                     Abstract. We demonstrate the flexibility and utility of the Berger-Rigoutsos
+                                                     Adaptive Mesh Refinement (AMR) algorithm used in the open-source numerical
+                                                     relativity code GRChombo for generating gravitational waveforms from binary
+                                                     black-hole inspirals, and for studying other problems involving non-trivial matter
+                                                     configurations. We show that GRChombo can produce high quality binary
+                                                     black-hole waveforms through a code comparison with the established numerical
+                                                     relativity code Lean. We also discuss some of the technical challenges involved
+                                                     in making use of full AMR (as opposed to, e.g. moving box mesh refinement),
+                                                     including the numerical effects caused by using various refinement criteria when
+                                                     regridding. We suggest several “rules of thumb” for when to use different tagging
+                                                     criteria for simulating a variety of physical phenomena. We demonstrate the use of
+                                                     these different criteria through example evolutions of a scalar field theory. Finally,
+                                                     we also review the current status and general capabilities of GRChombo.
+
+
+                                                     Keywords: numerical relativity, adaptive mesh refinement, gravitational waves,
+                                                     compact objects, computational methods
+Lessons for adaptive mesh refinement in numerical relativity                              2
+
+1. Introduction
+
+One of the key theoretical achievements that underpins the momentous detection of
+gravitational waves (GWs) from the inspiralling black-hole (BH) binary GW150914
+[1] is the the numerical relativity (NR) breakthrough in binary BH modeling in 2005
+[2–4]. About 90 compact binary merger events have by now been observed by the GW
+detector network [5–7] with a wide range of total masses and mass ratios of the binary
+constituents. Indeed, it is a generic feature of general relativity and its character as
+a highly non-linear theory that its solutions often span across a large range of spatial
+and temporal scales. Combined with the inherent limits of computational resources,
+it follows that any finite difference numerical code will require some form of spatial
+and temporal mesh refinement to fully capture the dynamics of these solutions.
+      In the numerical relativity (NR) community, many codes rely on the technique of
+so-called “moving boxes” for mesh refinement, where a hierarchy of nested boxes with
+increasingly fine meshes is centered around specified points (also sometimes referred
+to as the “box-in-box” approach). Within this framework, boxes move around either
+dynamically or along predetermined paths, in order to track objects’ trajectories1 .
+This technique has proved remarkably successful, particularly in the case of generating
+gravitational waveforms from binaries of compact objects for the template banks for
+gravitational wave (GW) detectors, such as LIGO-Virgo-KAGRA [21–25]. Moving box
+codes have matured to allow exploration of a wide variety of physics with a plethora
+of diagnostic tools [26, 27].
+      However, there are classes of problems for which the moving boxes technique
+becomes impractical due to the topology of the system. Here, the use of “fully
+adaptive” mesh refinement (AMR) is required where the mesh dynamically adjusts
+itself in response to the underlying physical system being simulated, following user-
+specified mesh refinement criteria. In general, there are two broad classes of AMR,
+depending on whether newly refined meshes are added to the grid on a cell-by-cell
+“tree-structured” basis [28–30] or on a box-by-box “block-structured” basis. In this
+work, we will exclusively discuss the latter.
+      In block-structured AMR, first described and implemented by Berger et al. [31],
+the computational domain is built from a hierarchy of increasingly fine levels, with
+each one containing a set of (not necessarily contiguous) boxes of meshes, with the
+only condition being that a finer mesh must lie on top of one or possibly more meshes
+from the next coarsest level. It is important to stress that this means it is allowed for
+a fine mesh to straddle more than one coarse mesh—in other words the grid structure
+is level -centric rather than box-centric. In contrast to the moving boxes approach,
+this approach allows for highly flexible “many-boxes-in-many-boxes” mesh topologies,
+enabling the study of dynamical systems where the spacetime dynamics are not driven
+by localized compact systems e.g. in studying non spherical collapse scenarios [32, 33],
+higher dimensional black holes/black string evolution [34–39], cosmic string evolution
+[40–42], and the behavior of strongly inhomogeneous cosmological spacetimes [43–51].
+      Despite its advantages, AMR is a double-edged sword and its flexibility comes
+with a cost—each coarse-fine transition may introduce unwanted interpolation and
+prolongation errors whose magnitude depends on the order of the coarse-fine boundary
+    1 In addition, boxes may be allowed to merge if they come close enough together.   These
+codes include those built upon the popular Cactus computational framework [8–10] such as the
+McLachlan [11], LazEv [12], Maya [13], Lean [14, 15] and Canuda [16] codes, and the BAM code
+[17–20].
+Lessons for adaptive mesh refinement in numerical relativity                                     3
+
+operators, in addition to introducing a “hard surface” which can generate spurious
+unphysical reflections. We emphasize that AMR should not be treated as a “black
+box”, but requires careful control and fine-tuning of refinement criteria, that often
+depend on the physics being simulated, in order to work effectively. In particular, the
+creation/destruction of a finer grid is determined by the tagging of cells for refinement,
+which in turn is controlled by a tagging criterion. Although this ability to refine
+regions can be incredibly powerful, in practice it can be difficult to manage the exact
+placement of refined grids. Furthermore, we find that the management of coarse-
+fine boundaries in dynamically sensitive regions of spacetime, such as near apparent
+horizons, is essential for producing accurate results.
+     In this paper we explain some of the tagging criteria and numerical techniques we
+have used to obtain convergent, reliable results when using block-structured AMR. We
+will discuss these issues in the context of the AMR NR code GRChombo [52, 53]2 ,
+which was first introduced in 2015 and uses the Chombo [76] library. While our
+methods apply directly to GRChombo, we believe many of the lessons we have learned
+are general and may be useful to researchers who work with other numerical relativity
+codes that make use of block-structured AMR, in particular those which rely on the
+Berger-Rigoutsos [77] style grid generation methods.
+     We demonstrate the utility of the techniques we have employed through a direct
+comparison of gravitational waveforms generated by binary black-hole inspiral and
+merger calculated by GRChombo and the more established Lean code which uses
+the aforementioned “moving boxes” style mesh refinement, and show that GRChombo
+is capable of achieving comparable production-level accuracy. We secondly apply AMR
+techniques to the evolution of several scalar field models which exhibit dynamics on a
+wide range of spatial and temporal scales, to demonstrate the relative advantages of
+several tagging criteria implemented in GRChombo.
+     This paper is organized as follows:
+  • In section 2 we detail the computational framework of GRChombo with a focus
+    on the AMR aspects.
+  • In section 3 we discuss considerations for tagging criteria in AMR grid generation.
+  • In sections 4 and 5 we illustrate how these techniques are applied in practice to
+    simulations of BH binaries and spacetimes with a (self-interacting) scalar field.
+     Our notation conventions are as follows. We use Greek letters µ, ν, . . . = 0, 1, 2, 3
+for spacetime indices and Latin letters i, j, . . . = 1, 2, 3 for spatial indices. We use
+a mostly plus signature (−+++) and geometric units c = G = 1. When there is a
+potential for ambiguity between spacetime and purely spatial tensors (e.g. the Ricci
+scalar R), we prepend a (4) to denote the spacetime quantity. In the sections on black
+    2 Adaptive mesh refinement is now being used in several other NR codes. For example, those
+
+based on the PAMR/AMRD mesh refinement libraries [54–56], the Hahndol code [4], which uses
+PARAMESH [57], the HAD code [58], and the pseudospectral codes, SpEC [59], bamps [60] and
+SFINGE [61] in which the AMR implementation is somewhat different to finite difference codes like
+GRChombo. More recently, CosmoGRaPH [62], and Simflowny [63] both based on the SAMRAI
+library [64–66], GRAthena++ [67], Gmunu [68] and Dendro-GR [69], all based on oct-tree AMR,
+and GRAMSES [30] have been introduced. Alternatives are problem-adapted coordinate systems,
+e.g. NRPy+ [70] or discontinuous Galerkin methods as in SpECTRE [71, 72] (see also [73, 74]).
+Furthermore, it should be noted that some code frameworks, such as those based on the Carpet mesh
+refinement driver [10], are technically capable of performing block-structured AMR. However, it can
+be cumbersome to use and these codes typically rely on moving-box type methods (e.g. the codes
+referenced in footnote 1). A brief overview of the history of NR codes can be found in [75].
+Lessons for adaptive mesh refinement in numerical relativity                                              4
+
+holes we set the mass scales with respect to the ADM mass of the spacetime, whereas
+for the section on scalar fields we set µ = mc/~ = 1, which then describes lengths
+relative to the scalar Compton wavelength3 .
+
+2. Computational Framework
+
+This section provides a comprehensive update of the methodology discussed in section
+2 of [53]. See also Appendix D for details on how GRChombo is parallelized.
+
+2.1. Mathematical equations and notational conventions
+2.1.1. Evolution equations and gauge conditions GRChombo implements the CCZ4
+formulation [78, 79] in order to evolve solutions of the Einstein equations, which we
+review below. We have found empirically with AMR that the inclusion of constraint
+damping terms in this formalism can be important to maintain accuracy; these
+mitigate the additional noise introduced by spurious reflections off the refinement
+boundaries due to the more complicated grid structures [80] (when compared with
+moving-box mesh refinement grids). The Z4 equation of motion with constraint
+damping and cosmological constant is [78]4
+                                                                              
+ (4)                                                     α               1
+     Rµν −Λgµν +2∇(µ Zν) −2κ1 n(µ Zν) +κ1 (1+κ2 )gµν nα Z = 8π Tµν − gµν T , (1)
+                                                                         2
+
+where ∇ is the Levi-Civita connection of the metric gµν , (4) Rµν is the Ricci tensor of ∇,
+Λ is the cosmological constant, Z µ is the Z4 vector which vanishes on physical solutions
+of the Einstein equation, nµ is the future-directed unit normal to the foliation of spatial
+slices, κ1 and κ2 are constant damping parameters, Tµν is the energy-momentum
+tensor, and T = g αβ Tαβ is its trace.
+     In the standard 3 + 1 decomposition of spacetime [81, 82], the metric in adapted
+coordinates (t, xi ) takes the form
+
+                        ds2 = −α2 dt2 + γij (dxi + β i dt)(dxj + β j dt),                               (2)
+
+where γij is the spatial metric, α = 1/kdtk is the lapse function and β i is the shift
+vector. The future-directed unit normal to the foliation is
+                                                             1 µ
+                                                     nµ =      ∂t − β k ∂kµ ,
+                                                                           
+                          nµ := −α(dt)µ ,                                                               (3)
+                                                             α
+and the extrinsic curvature is
+                                                1
+                                        Kµν := − (Ln γ)µν ,                                             (4)
+                                                2
+which in adapted coordinates (2) becomes
+                                     1 
+                                        ∂t γij − β m ∂m γij − 2γm(i ∂j) β m .
+                                                                           
+                         Kij = −                                                                        (5)
+                                    2α
+    3 If we are interpreting the results in terms of a physical particle mass, this is equivalent to setting
+
+the value of ~ in the code. Note that in general ~ 6= 1 in NR simulations (as this would imply that
+one unit in the length scale is equal to the Planck length lPl ).
+    4 Note the sign difference between the unit normal in [78] and here. We choose the sign which
+
+ensures the unit normal is future-directed.
+Lessons for adaptive mesh refinement in numerical relativity                                             5
+
+In analogy to the spacetime metric, we decompose the energy-momentum tensor
+according to
+
+         ρ := nα nβ T αβ ,     Si := −γiα nβ T αβ ,       Sij := γiα γjβ T αβ ,    S := γ ij Sij .     (6)
+
+We conformally rescale the spatial metric as5
+                                                                   1 ij
+                                   γ̃ij = χγij ,         γ̃ ij =     γ ,                               (7)
+                                                                   χ
+
+where χ = [det(γij )]−1/3 so that the determinant of the conformal metric γ̃ij is
+unity. As in the BSSNOK formulation, we introduce the conformally rescaled traceless
+extrinsic curvature,                              
+                                             1
+                            Ãij := χ Kij − Kγij ,                               (8)
+                                             3
+with K = γ ij Kij and the conformal connection functions
+
+                                      Γ̃i := γ̃ jk Γ̃ijk = −∂j γ̃ ij ,                                 (9)
+
+where Γ̃ijk are the Christoffel symbols with respect to the conformal metric γ̃ij . Finally,
+we decompose the Z4 vector by defining6
+
+                                Θ := −nα Z α ,            Θi := γ iα Z α .                           (10)
+
+Rather than evolving the Θi directly, we instead incorporate them into a set of modified
+conformal connection functions
+
+                                                                         Θi
+                                  Γ̂i := Γ̃i + 2γ̃ ik Θk = Γ̃i + 2          .                        (11)
+                                                                         χ
+Finally our complete set of dynamical variables are
+                               n                          o
+                                χ, γ̃ij , K, Ãij , Θ, Γ̂i ,                                         (12)
+
+and the CCZ4 evolution equations are7
+    5 This is the main difference with the previous GRChombo paper [53], where χ2 was used in
+
+place of χ.
+    6 The spatial projection is often denoted just Z i in the literature e.g. [78], but we have changed the
+
+symbol in order to make clear that this is the projected 3-vector as opposed to the spatial components
+of the Z4 vector
+    7 Note that by default we make the modification ακ → κ mentioned in [79] that allows stable
+                                                            1       1
+evolution of BHs with κ3 = 1. However, Eqs. (13-18) do not have this modification.
+Lessons for adaptive mesh refinement in numerical relativity                                6
+
+
+
+                    2
+   ∂t χ = β k ∂k χ + χ(αK − ∂k β k ),                                                     (13)
+                    3
+                                                              2
+  ∂t γ̃ij = β k ∂k γ̃ij + γ̃ki ∂j β k + γ̃kj ∂i β k − 2αÃij − γ̃ij ∂k β k ,              (14)
+                                                            3
+   ∂t K = β ∂k K + α R̂ + K(K − 2Θ) − 3ακ1 (1 + κ2 )Θ − γ kl Dk Dl α
+              k
+                                                                               (15)
+                + 4πα(S − 3ρ) − 3αΛ,
+                           h                          iTF
+ ∂t Ãij = β k ∂k Ãij + χ −Di Dj α + α(R̂ij − 8πSij )
+                                                                             (16)
+                                     2
+                + Ãij α(K − 2Θ) − ∂k β + 2Ãk(i ∂j) β k − 2αγ̃ kl Ãik Ãlj ,
+                                          k
+                                     3
+                                                      
+                        1                 2 2
+  ∂t Θ = β ∂k Θ + α R̂ − Ãkl Ã + K − 2ΘK − ακ1 Θ(2 + κ2 ) − Θk ∂k α
+             k                       kl
+                        2                 3                                    (17)
+                − 8παρ − αΛ,
+                                         Θi            Θi          Θi
+                                                       
+       i     k      i   2      k   i
+  ∂t Γ̂ = β ∂k Γ̂ +        ∂k β Γ̃ + 2κ3       − 2αK        − 2ακ1
+                        3                 χ            χ           χ
+              + 2γ̃ ik (α∂k Θ − Θ∂k α) − 2Ãik ∂k α + 2αΓ̃ikl Ãkl
+                          
+                            4                    ∂k χ
+                                                        
+                                                                          Θk
+                                                                                         (18)
+                     − α γ̃ ik ∂k K + 3Ãik               − Γ̃k + 2κ3            ∂k β i
+                            3                      χ                       χ
+                                               1
+                            + γ̃ kl ∂k ∂l β i + γ̃ ik ∂l ∂k β l − 16παγ̃ ik Sk ,
+                                               3
+where Di is the Levi-Civita connection on the spatial slice, [·]TF denotes the trace-free
+part of the expression in square brackets, R̂ij is the modified Ricci tensor, given in
+terms of the normal Ricci tensor of Di , Rij by
+
+                                     R̂ij := Rij + 2D(i Θj) ,                             (19)
+
+and κ3 is a third damping parameter. At each right-hand side evaluation, we construct
+the quantity Θi /χ using the evolved Γ̂i and Γ̃i computed from the metric and its
+derivatives in (11). The covariant second derivatives of the lapse are computed via
+                                                   1
+                   γ kl Dk Dl α = γ̃ kl χ∂k ∂l α − γ̃ kl ∂k α∂l χ − χΓ̃k ∂k α,            (20)
+                                                   2
+                                                k           1
+                        Di Dj α = ∂i ∂j α − Γ̃ij ∂k α +         (∂i α∂j χ
+                                                          2χ                              (21)
+                                        +∂i χ∂j α − γ̃ij γ̃ kl ∂k α∂l χ .
+                                                                       
+
+
+The modified Ricci tensor (19) is given by8
+                                                  1  χ     Z
+                                                              
+                                  R̂ij = R̃ij +     Rij + Rij   ,                         (22)
+                                                  χ
+   8 Note the somewhat unconventional factor of χ−1 multiplying Rχ .
+                                                                 ij
+Lessons for adaptive mesh refinement in numerical relativity                                        7
+
+with
+                             1                                  1
+                     R̃ij = − γ̃ kl ∂k ∂l γ̃ij + γ̃k(i ∂j) Γ̂k + Γ̂k ∂k γ̃ij
+                             2                                 2                               (23)
+                               + γ̃ lm Γ̃kli Γ̃jkm + Γ̃klj Γ̃ikm + Γ̃kim Γ̃klj ,
+                      χ    1h                                  i
+                     Rij =     D̃i D̃j χ + γ̃ij γ̃ kl D̃k D̃l χ
+                           2
+                                    1                                                           (24)
+                                         ∂i χ∂j χ + 3γ̃ij γ̃ kl ∂k χ∂l χ ,
+                                                                        
+                               −
+                                   4χ
+                             k
+                      Z    Θ
+                     Rij =      (γ̃ik ∂j χ + γ̃jk ∂i χ − γ̃ij ∂k χ) ,                            (25)
+                            χ
+
+and Γ̃ijk = γ̃il Γ̃ljk . Finally, the modified Ricci scalar is given by the trace of the
+modified Ricci tensor:
+                                       R̂ = χγ̃ kl R̂kl .                           (26)
+By default, GRChombo uses the damping parameters7
+
+                                  ακ1 = 0.1, κ2 = 0 and κ3 = 1.                                  (27)
+
+    To close the system (13)-(18), we need to specify gauge conditions for the lapse
+and shift. Although the structure of the code allows easy modification of the gauge,
+by default we use a Bona-Masso-type slicing condition [83] of the form
+
+                                 ∂t α = a1 β k ∂k α − a2 αa3 (K − 2Θ),                           (28)
+
+where a1 , a2 and a3 are constant parameters. Note that this reduces to the familiar
+1+log slicing in the case
+                             a1 = 1, a2 = 2 and a3 = 1,                        (29)
+which is the default. For the shift, we use the Gamma-driver shift condition [3, 4] in
+the form:
+
+                         ∂t β i = b1 β k ∂k β i + b2 B i ,                                       (30)
+                             i           k     i      k      i      i          i
+                         ∂t B = b1 (β ∂k B − β ∂k Γ̂ ) + ∂t Γ̂ − ηB ,                            (31)
+
+where b1 , b2 and η are constant parameters. By default we take b1 = 0 and b2 = 3/4,
+whereas the value of η depends on the specific configuration considered (typically
+O(1/MADM )). Together, these gauge conditions are commonly referred to as the
+moving puncture gauge.
+    We enforce the tracelessness of Ãij (8) before every RHS evaluation and at the
+end of each full timestep. Furthermore, we also enforce the condition χ ≥ χmin and
+α ≥ αmin before every RHS evaluation and at the end of each full timestep, where
+the default values are χmin = 10−4 = αmin , in order to ensure these variables do not
+become arbitrarily small or negative due to discretization error9 .
+    9 Typically any values that are affected by this procedure lie behind a horizon so are causally
+
+disconnected from most of the computational domain. In cosmological simulations the conformal
+factor is directly related to the scale factor and thus in rapidly expanding or contracting spacetimes
+this limit may need to be adjusted.
+Lessons for adaptive mesh refinement in numerical relativity                                     8
+
+  As is common when using the moving puncture gauge with BH spacetimes,
+GRChombo can track the position of the puncture(s) xp by solving [26]
+
+                                        dxip
+                                             = −β i (xp ),                                    (32)
+                                         dt
+which is integrated using the trapezium rule at user-specified time intervals.
+    During evolutions, we monitor the violations of the Hamiltonian and momentum
+constraints which are given by
+                           2
+               H := R + K 2 − Ãkl Ãkl − 2Λ − 16πρ,                                          (33)
+                          3                                  
+                       kl                                ∂l χ    2
+              Mi := γ̃     ∂k Ãli − 2Γ̃m  Ã
+                                        l(i k)m − 3Ã ik        − ∂i K − 8πSi .               (34)
+                                                         2χ      3
+
+In the continuum limit these two quantities should vanish. From the Bianchi identities,
+if the constraints vanish on the initial data surface, they vanish throughout the
+spacetime [84]. However, given errors due to our discretization of the equations of
+motion, we expect there to be small violations of the constraints in our numerical
+simulations. We often monitor the constraint violation to assess the accuracy of a
+given run.
+     In the case of non-vacuum spacetimes, one can normalize the constraints with
+some measure (e.g. the maximum) of their matter sources, i.e. H with ρ and Mi with
+Si .
+
+2.1.2. Initial Data For BH binaries, we have integrated the TwoPunctures
+spectral solver [85] into GRChombo. This provides binary puncture data [86] of
+Bowen-York type [87]; the version we use also incorporates the improvements described
+in [88] that allows for fast spectral interpolation of the pseudospectral solution onto,
+e.g. a Cartesian grid. Besides TwoPunctures, GRChombo includes a class for non-
+spinning binary Bowen-York data with an approximate solution of the Hamiltonian
+constraint for the conformal factor [89], which is valid in the limit of small boosts
+|P|  M , where P is the initial momentum of an individual black hole and M is some
+measure of the total mass.
+     We also provide initial data for Kerr BHs using the formulation in [90], which
+allows for the evolution of near-extremal BHs within the moving puncture approach
+to black hole evolution.
+     For matter spacetimes, one must in general solve the Hamiltonian and momentum
+constraints numerically to obtain valid initial conditions for the metric that correspond
+to the energy and momentum distributions which are chosen (including BHs using the
+methods above, where required). For time-symmetric spherically symmetric initial
+data this can be done using shooting methods, as for the axion star data used in
+section 5 and previous works [91–98]. In inhomogeneous cosmological spacetimes,
+numerical solutions for an initial matter configuration should be obtained using
+relaxation or multigrid methods, as in [47–50]10 .
+  10 Most of these works assume an initial time symmetry in order to avoid solving the momentum
+
+constraints. A fully general multigrid initial condition solver for GRChombo that solves the
+coupled constraint system for any scalar field distribution with and without BHs is currently under
+development.
+Lessons for adaptive mesh refinement in numerical relativity                                        9
+
+2.2. Code features
+2.2.1. Discretization and time-stepping GRChombo evolves the CCZ4 equations
+using the method of lines with a standard fourth-order Runge-Kutta method (RK4).
+For the spatial discretization, we typically use either fourth or sixth order centered
+stencils except for the advection terms, for which we switch to lopsided stencils of the
+same order depending on the sign of the shift vector component. For completeness,
+the expressions for the stencils are provided in Appendix B.
+     Finite difference methods can often introduce spurious high-frequency modes,
+particularly when using adaptive mesh refinement and regridding. To ameliorate this,
+GRChombo uses N = 3 Kreiss-Oliger (KO) dissipation [99]; at every evaluation of
+the right-hand side (RHS) for an evolution variable F , we add the term
+               σ
+                  (Fi−3 − 6Fi−2 + 15Fi−1 − 20Fi + 15Fi+1 − 6Fi+2 + Fi+3 )                        (35)
+             64∆x
+to the RHS, where ∆x is the relevant grid spacing (cf. (37)). A von Neumann stability
+analysis [26] shows that this scheme, when applied to the trivial partial differential
+equation (PDE) ∂t F = 0, is linearly stable only if
+                                                      2
+                                           0≤σ≤         ,                                        (36)
+                                                     αC
+where αC = ∆t/∆x is the Courant-Friedrichs-Lewy factor, which we typically set
+to 1/4, and ∆t is the size of the timestep11 . Note that we always use N = 3 KO
+dissipation, independent of the order of spatial discretization. Naively, one might
+question this choice for sixth order spatial derivative stencils as the conventional
+wisdom is to pick N such that 2N − 1 > m, where m is the order of the finite
+difference scheme (see, for example, [26]). However, in this case, what matters is the
+order of the time stepping which is still fourth order12 , hence the dissipation operator
+does not “spoil” the convergence properties of the scheme. This is consistent with the
+approach discussed in section 3.2 of [100].
+
+2.2.2. Berger-Rigoutsos AMR In GRChombo, the grid comprises a hierarchy of
+cell-centered Cartesian meshes consisting of up to lmax + 1 refinement levels labeled13
+l = 0, . . . , lmax each with grid spacing
+
+                                ∆xl = 2lmax −l ∆xlmax = ∆x0 /2l .                                (37)
+
+GRChombo uses block-structured AMR, so each refinement level is split into boxes
+which are distributed between the CPUs as described in Appendix D.
+     At regridding or initial grid creation, on a given refinement level l, cells are tagged
+for refinement according to a tagging criterion C = C(i). In a given cell with indices
+i = (i, j, k) and corresponding Cartesian coordinates14 x = (xi , yj , zk ), if C(i) > τR ,
+   11 Note that the stability analysis makes a number of assumptions and problems can begin to
+
+appear towards the upper end of the range (36). We have observed that a typical symptom of an
+instability due to too large σ is the appearance of a checkerboard-like pattern in otherwise spatially
+homogeneous regions of the spacetime.
+   12 Also note that Theorem 9.1 in [99] only refers to the order of the time stepping.
+   13 Note that the finest level that exists may be less than l
+                                                               max .
+   14 Note that the indices here are of the discrete cells on the grid as opposed to spacetime
+
+components.
+Lessons for adaptive mesh refinement in numerical relativity                                    10
+
+                          Sx
+
+
+                                                                           x
+
+
+
+              (1)
+
+
+                                                     ∆Sx
+
+                                                                                 x
+
+
+
+
+              (2)
+
+
+
+
+              (3)
+
+
+                 Figure 1. Schematic illustration of the partitioning algorithm. For simplicity,
+                 we show a 2D grid and only consider partitioning in the x direction. The cells
+                 tagged for refinement are indicated with •. In (1), the signature Sx is computed
+                 and two “holes” are found where the signature vanishes. The line (plane in 3D)
+                 of partition is then at the hole with the largest index (rightmost). The result of
+                 the partitioning is shown in (2). To partition the right box in (2), the signature
+                 is computed but this time there are no holes so the algorithm looks for zero
+                 crossings of the discrete Laplacian of the signature ∆Sx . The zero-crossing with
+                 largest change is then selected. This algorithm terminates once all boxes have
+                 reached the required fill ratio FR .
+
+
+where τR is a pre-specified threshold value (which may vary with l), then the cell is
+tagged for refinement. We discuss techniques to design a suitable tagging criterion
+and aspects to consider in section 3.
+      In block-structured AMR, the main challenge after tagging cells is finding an
+efficient algorithm to partition the cells that require refinement into blocks or boxes.
+GRChombo uses Chombo’s implementation of the Berger-Rigoutsos grid generation
+Lessons for adaptive mesh refinement in numerical relativity                                          11
+
+algorithm [77] in order to do this.
+      For this purpose, we define the block factor as the number of cells that must
+divide the side lengths of all blocks; it is a specifiable parameter. Furthermore these
+side lengths must not exceed the specified maximum box size. In order to enforce the
+block factor on level l + 1, starting with the tagged cells on level l, Chombo generates
+a temporary new set of tagged cells on a virtual coarser level l − n where n is chosen
+such that the length of one cell on level l − n corresponds to the block factor on level
+l + 115 . The new set of coarser tags are derived using a global OR operation, i.e. as
+long as any of the l level cells corresponding to the coarser level cell is tagged, the
+virtual coarser level cell will be tagged. Chombo then applies the Berger-Rigoutsos
+partitioning algorithm on this coarser level to construct boxes of grids which obey
+both the desired block factor and maximum box size. We typically choose both to be
+a multiple of the processor vector width for optimal performance.
+      For completeness, we next review the Berger-Rigoutsos algorithm (see also figure
+1). We find the minimum box that encloses all of the tagged cells on this level. Let
+T (i) be the tagging indicator function defined by
+                                        (
+                                          1, if C(i) > τR ,
+                                T (i) =                                             (38)
+                                          0, otherwise.
+
+and define the signatures or traces of the tagging by
+                                    X          Z
+                          Sx (i) :=     T (i) = T (i) dy dz,                                       (39)
+                                            j,k
+                                            X               Z
+                                Sy (j) :=         T (i) =       T (i) dx dz,                       (40)
+                                            i,k
+                                            X               Z
+                               Sz (k) :=          T (i) =       T (i) dx dy.                       (41)
+                                            i,j
+
+First, we look for “holes” in the signatures i.e. if there exist i, j or k for which Sx (i),
+Sy (j) or Sz (k) vanish which corresponds to there being no tagged cells along the plane
+orthogonal to the signature direction. If there are holes, we choose the one with largest
+index over all the dimensions (since it is more efficient to have fewer big boxes than
+more small boxes) as the plane of partition. If there are no holes, we next look for
+inflections (see [77] and their discussion of figure 10 for details) in the signatures by
+computing their discrete Laplacian, for example,
+
+                           ∆Sx (i) = Sx (i − 1) − 2Sx (i) + Sx (i + 1),                            (42)
+
+and searching for zero-crossings in ∆Sx (i). Heuristically, this corresponds to a rough
+boundary between tagged and untagged regions; cf. the partitioning in step (2) of
+figure 1). If there are inflections, then, in each direction, we pick the inflection with
+the greatest difference, for example,
+
+                             |δ(∆Sx (i))| = |∆Sx (i − 1) − ∆Sx (i)|,                               (43)
+   15 For example if the block factor is 4, then n = 1 since the refinement ratio is 2 and 2(l+1)−(l−1) =
+
+4. Note that this means the block factor must be a power of 2.
+Lessons for adaptive mesh refinement in numerical relativity                                          12
+
+As for the holes, we then pick the greatest inflection index over all the dimensions as
+our plane of partition. If there are no holes or inflections in the signatures, we simply
+split the box along the midpoint of the direction with the longest side.
+     After partitioning, we check whether the partition is sufficiently efficient,
+specifically whether the proportion of tagged cells to all cells in the partition exceeds
+a user-specified fill ratio threshold, FR < 1 and that the lengths of the boxes are at
+most the pre-specified maximum box size (which we choose in order to ensure sufficient
+load balancing). If these tests are passed then we accept the partition and, if not, we
+continue to partition recursively discarding any boxes that do not contain tagged cells.
+     Note that, whilst a higher value of FR will result in a more efficient partition
+in the sense that there will be a greater ratio of tagged to untagged cells, this is not
+always the most computationally efficient choice as there are greater overheads with
+smaller boxes (for example, there will be more ghost cells). There could also be more
+fluctuation in the structure of the grids between consecutive regrids which may result
+in greater noise. Although the optimal fill ratio depends on the particular physical
+problem and the computational resources, we typically use FR = 0.7.
+     Finally the boxes in the partition are refined, that is, they are defined on the next
+finer level (l + 1) with twice the resolution (37). For newly created regions on this finer
+level, we interpolate the data from the coarser level using fourth-order interpolation.
+     The regridding process starts on the finest level that currently exist (or at most
+level lmax − 1) and works up the hierarchy on increasingly coarse levels until the base
+level, from whose timestep the regrid was called, is reached (which need not be l = 0).
+It is therefore only possible to add a single extra level (up to lmax ) at each regrid.
+After the regrid on level l, the union of the set of cells in the new boxes on this level
+(plus an additional pre-specified buffer region) with the set of cells tagged on level
+l − 1 is used as the final set of tagged cells on level l − 1 in order to ensure proper
+nesting 16 [101]. This also ensures that cells on coarser levels will be tagged if any of
+their corresponding finer level cells are tagged.
+     The frequency of regridding is user-specifiable on each refinement level l < lmax ,
+though, since a regrid on level l = l0 enforces a regrid on all levels l0 ≤ l < lmax ,
+for problems without rapidly varying (in time) length scales, it is usually sufficient to
+regrid every few timesteps on one of the more coarse levels (e.g. for compact object
+binaries). Not only does reducing the frequency of regridding reduce the computational
+cost, but since regridding introduces errors/noise due to interpolation, we have also
+found that this can improve the accuracy of the simulation.
+     The Courant condition limits the size of the maximum time steps one can take
+on the finer levels. Rather than evolving all refinement levels with the same timestep,
+we use subcycling by following the Berger-Colella evolution algorithm [101], which we
+now review. As the algorithm is recursive, we can consider evolving a set of coarser
+and finer grids at level l and l + 1 respectively in the AMR grid hierarchy. First, one
+time step is taken on the coarser grids (i.e. those at level l). One then evolves the
+finer (level l + 1) grids for as many time steps until they have advanced to the same
+  16 By proper nesting we mean that
+
+ (i) The physical region corresponding to a level l − 1 cell must be fully refined or not refined at all,
+     that is it must be completely covered by level l cells and not partially refined.
+(ii) There must be at least one level l cell between the boundary of l + 1 and the boundary of level l
+     except at the boundary of the entire computational domain. In practice we even need two such
+     buffer cells (corresponding to 4 cells on level l + 1) for fourth and sixth-order spatial stencils.
+Lessons for adaptive mesh refinement in numerical relativity                                        13
+
+time as the coarse grid. As we have hard-coded the time steps on each level, ∆tl ,
+so that ∆tl = ∆tl−1 /2, the grids on level l + 1 will then take two time steps after
+the grids on level l take one time step. After level l + 1 has “caught up” with level
+l, the mean of the data in the [23 = 8] cells covering a single level l cell is calculated
+and this value is copied back onto level l. Note that this particular procedure is only
+second-order accurate in contrast to the restriction operation in a vertex-centred code
+which requires no approximation. This may partially explain some of the difference
+in convergence orders we observed between GRChombo and the vertex-centred code
+Lean in section 4.
+     The ghost cells at the interface between the finer and coarser grids are set by
+interpolating the values of the coarser grid in both space (due to the cell centered grid)
+and time (due to the requirement for intermediate values in the RK4 timestepping).
+The time interpolation is achieved by fitting the coefficients of a 3rd order polynomial
+in t using the values obtained at each substep of the RK4 timestepping on the relevant
+cells of the coarser level (see [102] for more detail).17
+
+2.2.3. Boundary Conditions GRChombo implements several classes of boundary
+conditions, including:
+  • Periodic - evolution variables ϕ obey ϕ(x + L) = ϕ(x) in some or all Cartesian
+    directions.
+  • Static - boundary values are fixed at their initial values.
+  • Reflective - one uses the symmetry of the spacetime to reduce the volume evolved.
+    For example, in a simple equal mass head-on BH merger, one needs only 1/8 of
+    the domain; the rest can be inferred from the evolved values [103]. Note that
+    each evolution variable has a different parity across each reflective boundary.
+  • Extrapolating - both zeroth and first order schemes (by radial distance from a
+    central point). These are especially useful for variables which asymptote to a
+    spatially uniform but time varying value (see [104–106]).
+  • Sommerfeld/radiative - these permit (massless) outgoing radiation to leave the
+    grid without reflections by assuming a solution of the form ϕ = ϕ0 + u(r − t)/r
+    at the boundaries, where u can be any arbitrary function and ϕ0 is a constant
+    asymptotic value (see section 5.9 of [26]).
+
+2.2.4. Interpolation and wave extraction GRChombo features an AMR interpolator
+which allows the user to interpolate any grid variable, its first derivatives and any
+second derivative at an arbitrary point within the computational domain. The AMR
+interpolator starts searching for the requested points on the finest available level and
+then progresses down the hierarchy to increasingly coarse levels until all requested
+points are found in order to ensure the most accurate result. It supports interpolation
+via an arbitrary interpolation algorithm. The provided algorithms include Lagrange
+polynomial interpolation up to arbitrary order (although this is limited by the number
+of available ghost cells), using the algorithm of [107] to calculate the stencils on the
+fly and then memoizing them in order to increase efficiency, and “nearest neighbour”
+   17 An alternative approach would be the use of larger ghost zones in the finer level, with the outer
+
+ones discarded at each RK step (for example, see section 2.3 of [10]). One disadvantage here is the
+extra memory use, especially beyond the fixed-box-hierarchy case.
+Lessons for adaptive mesh refinement in numerical relativity                             14
+
+interpolation. By default, and in the remainder of this paper, we use fourth order
+Lagrange polynomial interpolation.
+     GRChombo includes tools for the extraction of data over an arbitrary user-
+defined 2D surface, built on top of the AMR interpolator, with spherical and cylindrical
+surfaces being implemented as examples. There is also a user-friendly interface for
+integrating arbitrary functions of the extracted grid variables and their derivatives
+over the surface using either the trapezium rule, Simpson’s rule, Boole’s rule or the
+midpoint rule in each surface coordinate direction.
+     Often the most important outputs of a numerical relativity simulation are the
+calculated gravitational waves. To that end, GRChombo uses the Newman-Penrose
+formalism [108]. We describe the formulae for calculating the relevant Weyl scalar Ψ4
+(including terms arising from the Z4 vector) in Appendix A. We use the extraction
+routines described above to interpolate the values of Ψ4 on multiple spheres of fixed
+coordinate radius and then determine the modes ψlm with respect to the spin-weight
+−2 spherical harmonics −2 Y lm using the formula
+                                    I
+                                        rex Ψ4 |r=rex −2 Ȳ lm dΩ,
+                                                             
+                         rex ψlm =                                                 (44)
+                                     S2
+
+where dΩ = sin θ dθ dφ is the area element on the unit sphere S 2 . We use the trapezium
+rule for the integration over φ (since the periodicity means that any quadrature
+converges exponentially [109]) and Simpson’s rule for the integration over θ.
+
+3. Considerations for tagging criteria used for grid generation
+
+We have found that the choice of tagging criteria can greatly impact the stability and
+accuracy of a given simulation. Here we mention several factors to consider when
+designing tagging criteria for use in GRChombo and other codes with similar AMR
+algorithms. We also provide some explicit examples of tagging criteria and discuss
+their relative merits.
+
+3.1. Buffer Regions
+One of the problems of many tagging criteria we have tried is that they can often
+introduce several refinement levels over a relatively small distance in space. This leads
+to the boundaries of these refinement levels being particularly close to one another.
+Due to the errors introduced by interpolation at these boundaries, they can add
+spurious reflections or noise. This is exacerbated when other refinement boundaries
+are nearby, allowing for this noise to be repeatedly reflected and even amplified before
+it has time to dissipate (e.g. via Kreiss-Oliger dissipation – see section 2.2.1). A
+particularly simple way to mitigate this problem is to increase the buffer regions,
+i.e. the number of cells nB between refinement levels. Since the regridding algorithm
+starts at the finest level and works up the hierarchy to coarser levels (see section 2.2.2),
+increasing this parameter actually increases the size of the coarser levels rather than
+shrinking the finer levels in order to enforce this buffer region restriction.
+
+3.2. Considerations for black-hole spacetimes
+Here we describe several techniques that we have used when creating tagging criteria
+to evolve black-hole spacetimes. The major complication with evolving black holes is
+Lessons for adaptive mesh refinement in numerical relativity                          15
+
+that they have an event horizon. In practice, it is often challenging to find the true
+event horizon, which would require tracing geodesics through the full evolution of the
+spacetime. Therefore NR simulations typically consider the location of the apparent
+horizon instead, which always lies inside the event horizon [110]. Mathematically,
+the region within an apparent horizon is causally disconnected from its exterior.
+For a given numerical approximation, however, artifacts from the discretization can
+propagate from behind the horizon and contaminate the rest of the computational
+domain.
+     As a consequence of this superluminal propagation of numerical noise, we often
+find that GRChombo simulations of BHs are particularly sensitive to the presence of
+refinement boundaries. One should avoid adding refinement within the horizon (which
+in any case is unobservable and not usually of interest), but problems are particularly
+severe where a refinement boundary intersects the apparent horizon. In such cases
+we have observed significant phase inaccuracies and drifts in the horizon area (some
+even violating the second law of black hole mechanics). Similar problems may occur
+if a refinement boundary is close to but does not intersect the horizon. In order to
+avoid these issues, we typically enforce the tagging of all cells within the horizon plus
+                                          max
+a buffer radius up to a maximum level lBH      (which need not necessarily be lmax and
+may differ for each BH in the simulation). If rp is the coordinate distance from the
+puncture of a BH of mass MBH in a spacetime with total mass M ∼ 2MBH , then, for
+η ∼ 1/M in the moving puncture gauge (28-31), after the initial gauge adjustment
+the apparent horizon is at approximately rp = MBH (see figure 4 in [18]). Guided by
+this approximation, we can tag all cells with rp < MBH + b, where b is a pre-specified
+parameter. Although one might think choosing b ∝ MBH for each BH might be the
+most sensible choice for unequal mass configurations, we have found larger BHs less
+sensitive to the presence of refinement boundaries. Thus, choosing b ∝ M the same
+for each BH in a binary usually works sufficiently well.
+     Increasing the size of the buffer regions between refinement boundaries by
+adjusting nB as discussed in section 3.1 can help to keep refinement boundaries
+sufficiently spaced apart. However, we have also separately enforced the spacing out
+of refinement boundaries by doubling the radius of the second and third finest levels
+covering a BH. This leads to tagging cells on level l (to be refined on level l + 1) with
+                                                  max
+                            rp < (MBH + b)2min(lBH −l−1,2)                          (45)
+
+     In spacetimes where BH horizons are dynamical (often the target of AMR
+simulations), one can in principle use the locations of apparent horizons to define
+tagged regions. However, rather than incorporating the output of a horizon finder
+into the tagging criterion, a simpler and in most cases equally effective method
+can be obtained from using contours of the conformal factor χ and tagging regions
+with χ < χ0 , where χ0 is a prespecified threshold value which may vary on each
+refinement level. This gives a reasonably robust and general method of identifying
+the approximate locations of horizons. Further details on precise values and their
+dependence on the BH spin are given in Appendix C.
+
+3.3. Asymmetric grids
+The grid-generation algorithm (section 2.2.2) is inherently asymmetric, for example,
+it picks the “hole” with largest index as the partition plane. This means that even
+if the tagging has symmetries, the grids themselves may not obey the same or any
+Lessons for adaptive mesh refinement in numerical relativity                          16
+
+symmetries. For example, whilst one might expect that, for tagging cells with (45), the
+grids would have reflective symmetry in all three coordinate directions, this is often
+not the case, particularly for larger FR . This asymmetry can lead to undesirable
+behaviour. For example, when simulating the head-on collision of two BHs with no
+symmetry assumptions (as described in section 2.2.3) with the tagging of (45), the
+punctures can deviate slightly from the collision axis. We can “fix” this asymmetry by
+replacing
+                      rp → % = max(|x − xp |, |y − yp |, |z − zp |)                (46)
+in (45) so that the tagged regions are boxes rather than spheres (this tagging is similar
+to what is done in some moving-box style mesh refinement codes). Whilst there is
+inevitably a loss of efficiency from this choice, this is typically outweighed by the
+reductions in error achieved. Clearly, this approach pushes the AMR method in the
+direction of a moving boxes approach; in practice, we therefore apply it predominantly
+to BH simulations but not for more complex matter structures that require the full
+flexibility of AMR.
+
+3.4. Using truncation error for tagging cells
+Truncation error tagging was introduced by Berger et al. [31]. We have implemented
+truncation error tagging in GRChombo by using a shadow hierarchy (e.g. [111]).
+In this scheme, we estimate the truncation error on a grid at level l by comparing
+the solution of a specially chosen variable f on that level to the coarser level directly
+“beneath” it on the grid:
+                               τl,f (i) = |fl (i) − fl−1 (i)| .                      (47)
+We note that the error (47) clearly must be computed before we average the finer grid
+values onto the coarser grid. As Chombo uses a cell-centered scheme, in order to
+compare the values of f on the two levels, we interpolate f from the coarser level onto
+the finer level using fourth order interpolation. If we compute the truncation error of
+multiple grid variables, we combine the error estimates for each variable at each point:
+                                         v
+                                         uX              2
+                                         u     (τl,f (i))
+                                τl (i) = t                 ,                       (48)
+                                                   Lf
+                                           f
+
+
+where Lf is a normalizing factor for each variable f . We then set this as our tagging
+criterion in (38): C(i) = τl (i). The free parameters in this scheme of tagging are
+the choice of grid variables that one computes truncation error estimates for and the
+normalization factors for each variable.
+     The main advantages of truncation error tagging are that it allows for a
+conceptually straightforward way to implement convergence tests in AMR codes: as
+one increases the base grid resolution, one should scale the truncation error tagging
+threshold for grid generation with the expected convergence of the code. Additionally,
+truncation error tagging is a “natural” tagging criterion as it refines regions that are
+most likely to be under resolved.
+
+3.5. Tagging criteria based on grid variables and derived quantities
+Some physical problems lend themselves to other tagging criteria, and GRChombo
+permits the user to easily specify refinement criteria based on any properties of
+Lessons for adaptive mesh refinement in numerical relativity                                     17
+
+the local grid variables or derived expressions of them, for example, derivatives or
+curvature scalars. We caution though that the tagging criteria we discuss below are
+not functions of geometric scalars, so the performance of a given criterion will depend
+on the formulation and gauge conditions used. Nevertheless, for the Bona-Masso-type
+slicing ((28)) and gamma-driver ((30)-(31)) conditions we have the most experience
+with, these gauge conditions have proven to be reliable and robust.
+      First we discuss tagging criteria based on the conformal factor of the spatial
+metric χ. Contours of χ can provide a good choice in dynamical BH cases as detailed
+in section 3.2 and Appendix C, to ensure that horizons are covered. Takingp differences
+of χ across a cell using locally evaluated derivatives, i.e. using C = δ ij ∂i χ∂j χ∆x,
+also provides an efficient measure
+                            p      to refine key areas18 . In particular, using the second
+                               ij
+derivative of χ, i.e. C = δ ∂i ∂j χ∆x, is efficient because usually it is the regions
+in which gradients are changing most rapidly that require greater resolution, rather
+than steep linear gradients. However, in practice any derivative can be used provided
+the thresholds are tuned appropriately for the problem at hand.
+      Alternatively, we find empirically that the sum of the absolute value of the
+different components of the Hamiltonian constraint proves to be an efficient tagging
+criteria in dynamical matter spacetimes. The condition is
+                                                   2
+                    C = Habs = |R| + |Ãkl Ãkl | + K 2 + 16π|ρ| + 2|Λ|,                       (49)
+                                                   3
+where R = γ ij Rij is the Ricci scalar. As we will see in section 5.2, this quantity
+generally remains constant in regions of spacetime where the individual metric and
+matter components oscillate in a stable, time-invariant manner (as in the case of the
+stable axion star we present later). Thus using this measure reduces the amount
+of spurious regridding that occurs, which in turn reduces errors introduced by that
+process. Where it starts to grow in some region, this generally reflects a decrease in
+the local dynamical timescales and thus physically motivated regridding.
+     A disadvantage of using these more arbitrary criteria over error tagging is that
+convergence testing is more challenging - one must ensure that similar regions are
+refined at the appropriate resolutions in the convergence runs, which necessitates
+tuning of the threshold at each different base resolution. Depending on the regridding
+condition, halving the threshold τR , for example, may not result in double the
+resolution being applied. Nevertheless, if one ensures that the regions of most physical
+significance have an appropriate increase in refinement, convergence can usually be
+demonstrated, as we show below.
+     In order to obtain convergent results and use resolution most efficiently in a
+physical problem, it is often helpful to implement rules to enforce that given regions
+are refined for a given amount of time at least to a given level. Whilst this may seem
+to go against the spirit of AMR, it is easy to implement within that formalism as a
+secondary condition, and is often required to avoid excessive or insufficient tagging in
+very dynamical cases. For example, when one is not interested in resolving outgoing
+scalar radiation, one may choose to suppress regridding above a particular level outside
+of a particular radius. In the opposite sense, we often enforce extra regridding over the
+extraction surfaces for the Weyl scalars, to ensure that they have sufficient resolution
+and that noise is not introduced from grid boundaries crossing the spheres.
+  18 Imposing simply that ∂ χ (without the factor of ∆x) is higher that some threshold results in
+                           i
+unlimited regridding, since one does not reduce the local gradient in a variable by refinement, only
+the difference across the cell.
+Lessons for adaptive mesh refinement in numerical relativity                                       18
+
+                                                                   Pr
+
+                                                    y          P        Pt   S2
+                                                                             α
+                             M1                                     M2
+                        α                                  x
+                       S1   Pt        P
+
+                                 Pr
+                                               d
+
+
+                 Figure 2. Schematic illustration of the parameters characterizing the BH binary
+                 configurations under consideration: the mass ratio q = M2 /M1 > 1, the initial
+                 separation d, the initial tangential linear momentum Pt , the initial inward radial
+                 linear momentum Pr , the dimensionless spin of each black hole χi = |Si |/Mi2 and
+                 the angle of the spin in the orbital plane α relative to the outward radial direction
+                 of the initial BH positions.
+
+
+     Several examples of the application of these criteria to black-hole binary inspirals
+and matter field evolutions are presented in the following, sections 4 and 5. These two
+examples cover the main considerations when using AMR in NR codes. Spacetimes
+with singularities have particular requirements related to the resolution of the horizons.
+Furthermore, in dynamical matter spacetimes achieving an optimum frequency of
+regridding can be crucial in obtaining convergence. In the matter case we focus
+on an isolated real scalar (axion) star, which provides a very good test of AMR
+capabilities. In particular, it tests the ability to resolve stably oscillating matter
+configurations without excessive gridding and ungridding, and to follow the dynamical
+timescales of gravitational collapse, which are the key challenges in many simulations
+of fundamental fields in NR, including the modeling of cosmic strings, inflationary
+spacetimes and exotic compact objects. Fully AMR techniques are also likely to create
+significant challenges for high-resolution shock capturing, but we leave this topic for
+future investigations.
+
+4. Binary black-hole simulations with adaptive mesh refinement
+
+In this section, we demonstrate the efficacy of some of the techniques discussed in
+section 3 in the context of BH binaries. To do this, we select a representative
+sample of BH binary configurations, analyze the accuracy of the resulting gravitational
+waveforms and compare the results obtained with GRChombo to that obtained with
+a more conventional moving boxes style mesh refinement code, Lean [14].
+     Before we present our results, we first provide details of the explicit tagging
+criteria used in our GRChombo simulations and the methods we use to analyze and
+compare our results.
+
+4.1. Methods
+We consider three different BH binary configurations with the parameters provided in
+table 1 and illustrated schematically in figure 2. All simulations include an inspiral,
+merger and ringdown.
+     The first configuration consists of two equal-mass non-spinning BHs with a
+quasicircular inspiral lasting about 10 orbits; this configuration is labeled q1-d12
+(for mass ratio q = 1 and distance d ≈ 12). The parameters were computed in order
+Lessons for adaptive mesh refinement in numerical relativity                                      19
+
+
+                  Table 1. A list of the parameter values (cf. figure 2) for the BH binary
+                  configurations simulated in this work. M = M1 + M2 denotes the total black
+                  hole mass of the spacetime.
+
+                   Label   q    d/M        Pt /M         Pr /M            χi    α     Reference
+                  q1-d12   1    12.21358   0.08417       5.10846 × 10−4   0     -     [112]
+                  q2-d10   2    10         0.08566       0                0     -     [113]
+                  q1-s09   1    11.01768   0.075         0                0.9   30◦   [114]
+
+
+
+to minimize the initial eccentricity of the simulation using standard techniques [112].
+     The second configuration involves two BHs with mass ratio 2 : 1. The inspiral is
+about 6 orbits and is approximately quasicircular. This is one of the configurations
+simulated in the lq1:2 sequence of [113]19 . Here we label this configuration q2-d10
+(for mass ratio q = 2 and distance d = 10).
+     The final configuration consists of a mildly eccentric inspiral of two equal-mass
+highly-spinning BHs. The spins lie in the plane as shown in figure 2, which is the
+“superkick” configuration [115–117]. Here, the quantity we analyze is the gravitational
+recoil of the remnant BH. This configuration is taken from the sequence simulated in
+[114] and we label it q1-s09 (for mass ratio q = 1 and spin χ = 0.9).
+
+4.1.1. GRChombo setup and tagging criteria For the GRChombo simulations of
+the BH binary configurations in table. 1, we use the CCZ4 equations (13-18) with
+the default damping parameters (27) (note that in code units, M = 1). We use the
+moving puncture gauge (28-31) with the default lapse parameters (29) and the shift
+parameters b1 = 1, b2 = 3/4, M η = 1 for q1-d12 and q1-s09 and b1 = 1, b2 = 3/4,
+M η = 3/4 for q2-d10. For q1-d12 and q2-d10, we use reflective BCs along one
+boundary to impose bitant symmetry (i.e. symmetry across the equatorial plane) and
+Sommerfeld BCs for all other boundaries. Following sections 3.2, 3.3 and 3.5, we use
+a tagging criterion of the following form
+
+                                C = max (Cχ , Cpunc , Cex ) ,                                 (50)
+
+where the quantities on the right-hand side are defined below. Note that we use the
+value +∞ to denote a large value that always exceeds the threshold τR .
+ (i) Cχ tags regions in which the derivatives of the conformal factor χ become steep.
+                                                               max
+     It is the dominant criterion for the intermediate levels lex  ≤ l < lmax − 3, where
+      max
+     lex is the maximum extraction level (see item (iii) below). It is given by
+                                             sX
+                                                           2
+                                  Cχ = ∆xl        (∂i ∂j χ) ,                       (51)
+                                                   i,j
+
+
+    where ∆xl is the grid spacing on refinement level l.
+(ii) Cpunc includes parts of the tagging criterion that use the location of the punctures.
+     It is the dominant criterion on the finest three levels and is comprised of two parts,
+     Cinsp and Cmerg that are used depending on the coordinate distance between the
+  19 Note that, in this paper, GRChombo was not used to evolve this configuration.
+Lessons for adaptive mesh refinement in numerical relativity                                   20
+
+     punctures sp = |xp,1 − xp,2 | as follows:
+                            
+                            Cinsp ,
+                                               sp ≥ M + b
+                   Cpunc = max(Cinsp , Cmerg ), 10−3 ≤ sp < M + b                            (52)
+                                                sp < 10−3 ,
+                            
+                              Cmerg ,
+                            
+
+     where M = M1 + M2 is the sum of the individual BH masses, b is a buffer
+     parameter (cf. section 3.2), and 10−3 is a choice in the cutoff for the distance
+     between the punctures sp which determines when the merger has completed. The
+     inspiral criterion is given by
+                              
+                                                      min(lmax −l−1,2)
+                              +∞, if %1 < (M1 + b)2
+                                                                      ,
+                     Cinsp =                          min(l     −l−1,2)
+                                     or %2 < (M2 + b)2      max
+                                                                         ,       (53)
+                              
+                                0,  otherwise,
+                              
+
+     where %i is the “max” or “infinity” norm (46) of the coordinate position vector
+     relative to puncture i. Similarly, the merger criterion is given by
+                              (
+                                +∞, if % < (M + b)2min(lmax −l−1,2) ,
+                     Cmerg =                                                    (54)
+                                0,      otherwise,
+
+      where % is the max-norm (46) of the coordinate position vector relative to the
+      center of mass x = (M1 xp,1 + M2 xp,2 )/M .
+(iii) Cex ensures the Ψ4 extraction spheres are suitably well resolved. It is the
+                                               max
+      dominant tagging criterion for 0 ≤ l < lex   and is given by Cex = maxi {Cex,i },
+      where i labels the extraction spheres and
+                                 (
+                                   +∞, if r < 1.2rex,i and l < lex,i ,
+                         Cex,i =                                                 (55)
+                                   0,    otherwise,
+
+     where rex,i and lex,i are the radius and level of the ith extraction sphere and
+      max
+     lex  = maxi lex,i . The factor of 1.2 is present to add a 20 % buffer radius around
+     the extraction spheres in order to reduce the effect of spurious reflections off the
+     refinement level boundaries.
+A summary of the grid configuration parameters is given in table 2.
+
+4.1.2. Comparison code: Lean The Lean code [14] is based on the Cactus
+computational toolkit [8] and uses the method of lines with fourth-order Runge-Kutta
+time stepping and sixth-order spatial stencils. The Einstein equations are implemented
+in the form of the Baumgarte-Shapiro-Shibata-Nakamura-Oohara-Kojima (BSSNOK)
+formulation [118–120] with the moving-puncture gauge [3, 4] (cf. equations (28-31)).
+The Carpet driver [10] provides mesh refinement using the method of “moving
+boxes.” For the non-spinning binary configurations q1-d12 and q2-d10, we use bitant
+symmetry to reduce computational expense, whereas configuration q1-s09 is evolved
+without symmetries. The computational domains used for these simulations are
+characterized by the parameters listed in table 3. The domain comprises a hierarchy
+of lmax +1 refinement levels labeled from l = 0, . . . lF , . . . , lmax , with grid spacing given
+by (37). Before applying the symmetry, for l ≤ lF each level consists of a single fixed
+Lessons for adaptive mesh refinement in numerical relativity                                     21
+
+
+                  Table 2. GRChombo grid parameters for the configurations in table 1 There
+                  are (lmax + 1) refinement levels and the coarsest level has length (without
+                  symmetries applied) L. The grid spacing on the finest level is ∆xlmax and the
+                  minimum number of cells in the buffer regions between consecutive refinement
+                  level boundaries is nB . The regrid threshold for the tagging criterion (50) is τR
+                  and the the BH buffer parameter is b.
+
+                   Configuration       lmax       L/M      ∆xlmax /M   nB     τR         b/M
+                      q1-d12 low       9          1024     1/80        20     0.016      0.7
+                  q1-d12 medium        9          1024     1/96        24     0.0133     0.7
+                     q1-d12 high       9          1024     1/128       32     0.01       0.7
+                      q2-d10 low       7           512     1/88        48     0.01       0.467
+                  q2-d10 medium        7           512     1/104       52     0.00923    0.467
+                     q2-d10 high       7           512     1/112       56     0.00857    0.467
+                      q1-s09 low       7           512     1/64        16     0.02       0.7
+                  q1-s09 medium        7           512     1/96        24     0.0133     0.7
+                     q1-s09 high       7           512     1/112       28     0.0114     0.7
+
+
+
+                  Table 3. Lean grid parameters for the configurations in table 1. There are
+                  (lmax + 1) levels of which the first (lF + 1) comprises a single box that covers
+                  both BHs with the remaining levels consisting of two separate box components
+                  that cover each BH separately. The half-width of the coarsest level is R0 and the
+                  half-width of a single component on the finest level is Rlmax . The grid spacing
+                  on the finest level for the three resolutions used in the convergence analysis is
+                  ∆xlmax .
+
+                  Configuration    lmax       lF     R0 /M     Rlmax /M     ∆xlmax /M
+                        q1-d12     9          5      512       1/2          1/64, 1/96, 1/128
+                        q2-d10     8          4      256       1/3          1/84, 1/96, 1/108
+                        q1-s09     8          3      256       1            1/80, 1/88, 1/96
+
+
+
+cubic grid of half-length Rl = R0 /2l , and for lF < l ≤ lmax , each level consists of two
+cubic components of half-length Rl = 2lmax −l Rlmax centered around each BH puncture.
+We adopt this notation for consistency with that used to describe GRChombo. This
+translates into the more conventional Lean grid setup notation (cf. [14]) as
+
+                (R0 , . . . , 2−lF R0 ) × (2lmax −lF −1 Rlmax , . . . , Rlmax ), ∆xlmax .
+              
+                                                                                          (56)
+
+ A CFL factor of 1/2 is used in all simulations, and apparent horizons are computed
+with AHFinderDirect [121, 122].
+    For all our BH evolutions, with Lean and GRChombo, the initial data are
+constructed with the TwoPunctures spectral solver [85].
+
+4.1.3. Gravitational wave analysis One of the most important diagnostics from our
+simulations is the GW signal which we compute from the Weyl scalar Ψ4 . For
+GRChombo, the calculation of Ψ4 is explained in Appendix A and technical details of
+the extraction procedure can be found in section 2.2.4. For Lean, details can be found
+in [14]. Below, we describe further analysis we have performed in order to compare
+the gravitational wave output from each code.
+Lessons for adaptive mesh refinement in numerical relativity                          22
+
+    We start with the multipolar decomposition of the Weyl scalar,
+                                     ∞
+                                     X   `
+                                         X
+                                                       `m
+                              Ψ4 =              −2 Y        ψ`m .                   (57)
+                                     l=2 m=−`
+
+Next, we translate to the gravitational-wave strain h according to
+
+                                 Ψ4 = ḧ = −ḧ+ + i ḧ×                             (58)
+
+which gives us the strain multipoles as ḧ+                       ×
+                                          `m = −Re(ψ`m ) and ḧ`m = Im(ψ`m ). To
+avoid spurious drift resulting from numerical inaccuracies, we perform the necessary
+integrations in time in the Fourier domain [123]. We then rewrite the strain modes in
+terms of their amplitude and phase
+                                                        
+                                                      φ
+                           − h+       ×      A
+                               `m + ih`m = h`m exp ih`m ,                       (59)
+
+where multiples of 2π are added to hφ`m appropriately in order to minimize the
+difference between consecutive data points.
+     The radiated quantities derived from Ψ4 are affected by two main error sources;
+the discretization error due to finite resolution and an uncertainty arising from
+the extraction at finite radii instead of null infinity. We determine the former by
+conducting a convergence analysis of the quantities extracted at finite radius. In order
+to determine the second error contribution, we compute a given radiated quantity f
+at several finite extraction radii and extrapolate to infinity by fitting a polynomial in
+1/r of the form
+                                              N
+                                             X fn,N (u)
+                                 fN (u, r) =            .                           (60)
+                                             n=0
+                                                   rn
+Here, r is the coordinate radius and u = t − r∗ denotes the retarded time evaluated
+with the tortoise coordinate
+                                                  r
+                              r∗ = r + 2M ln        −1 .                            (61)
+                                                 2M
+We uniformly observe that time shifts in terms of r∗ result in slightly better alignment
+of wave signals extracted at different coordinate radii r. If we take f0,N (u) as our
+estimate of the extrapolated quantity, we then estimate the error  in our result from
+r = rex by computing
+                           f,rex ,N = |f (u, rex ) − f0,N (u)| .                    (62)
+Typically, and unless stated otherwise, we set N = 1 and drop the N subscripts.
+Our total error budget is then given by the sum of the discretization and extraction
+uncertainties.
+     We quantify the agreement between the two codes’ results in the context of
+GW analysis by computing the overlap following the procedure of [124, 125]. In the
+following, we restrict our analysis to the dominant (2,2) quadrupole part of the signal
+and drop the subscript “` = 2, m = 2”. Before computing the overlap, we extrapolate
+the strain to infinity using the procedure explained above.
+     Given the power spectral density Sn (f ) of a detector’s strain noise as a function
+of frequency f , the inner product of two signals g, h on the space of waveforms is
+Lessons for adaptive mesh refinement in numerical relativity                                      23
+
+given by20                                  (Z                               )
+                                                    ∞
+                                                        g̃ ∗ (f )h̃(f )
+                             hg|hi := 4Re                               df       ,              (63)
+                                                0           Sn (f )
+where the Fourier transform is defined by
+                                      Z ∞
+                            g̃(f ) :=     g(t)e−2πif t dt.                                      (64)
+                                             −∞
+
+We next define the overlap of the two signals as the normalized inner product
+maximized over shifts ∆t, ∆hφ in time and phase,
+
+                                                             hg|hi
+                                ρ(g, h) := max p                             .                  (65)
+                                            ∆hφ ,∆t        hg|gihh|hi
+
+The quantity 1 − ρ(g, h) then provides a measure for the discrepancy between the two
+waveforms, analogous to the mismatch introduced as a measure for signal-to-noise
+reduction due to model imperfections in GW data analysis [126, 127].
+     For q1-s09, we instead analyze the convergence of the linear momentum radiated
+in GWs in the form of the BH recoil velocity or kick. First we compute the radiated
+momentum Prad using equation (7) of [113] and then compute the recoil velocity–
+which must lie in the z-direction by symmetry–using v = −Pzrad /Mfin . Since the
+radiated momentum can be written in terms of a sum, with each term involving
+several multipolar amplitudes ψ`m (equation (40) in [128]), analyzing this quantity
+has the benefit of additionally indirectly comparing the agreement of higher order
+multipoles (i.e. ` > 2) between the codes.
+
+4.2. Results
+For each configuration in table 1, we have performed three simulations at different
+resolutions with both GRChombo and Lean in order to calibrate their accuracy
+which we discuss below. The respective grid configurations are given in tables 2 and
+3.
+     For the first configuration q1-d12 of an equal-mass binary, we show the
+convergence analysis in figure 3 with the analysis for GRChombo on the left and
+for Lean on the right. For Lean, we observe convergence of about fourth order in the
+amplitude and between fifth and sixth order in the phase of the quadrupole mode h22
+of the strain (59). For GRChombo we observe convergence of about second order in
+the amplitude and about fourth order in the phase of the same mode. We note that,
+as mentioned in [113], higher resolutions were required with GRChombo in order to
+enter the convergent regime.
+     By comparison with a Richardson extrapolation, we estimate the discretization
+errors in the amplitude and phase of the finest resolution simulations from both codes
+as follows. Excluding the early parts of the signal dominated by “junk” radiation and
+the late part of the ringdown which is dominated by noise, we obtain a discretization
+                 A
+error of ∆hA22 /h22 . 1 % in the amplitude assuming fourth order convergence for Lean
+and second order convergence for GRChombo. Up to the late ringdown where the
+   20 We use in our calculation one-sided, as opposed to two-sided, spectral power densities, i.e. we
+
+only consider non-negative frequencies, hence the factor 4 in (63).
+          Lessons for adaptive mesh refinement in numerical relativity                                             24
+
+
+10 - 2                                                             10 - 1
+                                                                             10-2
+                                                                   10 - 2
+10 - 3                                                                       10-3
+
+                                                                        -3          - 20   0   20
+                                                                   10
+10 - 4                            10-3
+                                                                   10 - 4
+                                  10-4
+     -5
+10                                10-5
+                                                                   10 - 5
+                                  10-6
+                                         - 20   0   20
+
+10 - 6                                                             10 - 6
+-0.2
+                                                                    2.5
+-0.3                                                                2.0
+
+-0.4                                                                1.5
+
+                                                                    1.0
+-0.5
+                                                                    0.5
+-0.6
+                                                                    0.0
+ 0.4                                                         200    0.4                                                     200
+
+ 0.3                                                         150    0.3                                                     150
+
+ 0.2                                                         100    0.2                                                     100
+
+ 0.1                                                         50     0.1                                                     50
+
+ 0.0                                                         0      0.0                                                     0
+  -2000       -1500     -1000      -500                  0           -2000            -1500         -1000   -500        0
+
+
+                          (a)                                                                        (b)
+
+                                                                                                             ×
+                           Figure 3. Convergence of the quadrupole mode of the strain h22 = −h+       22 + ih22
+                           calculated from the values of Ψ4 extracted for configuration q1-d12 at rex = 120 M
+                           for both GRChombo with finest grid resolutions ∆xlmax = M/80, M/96 and
+                           M/128 (a) and Lean with finest grid resolutions ∆xlmax = M/64, M/96 and
+                           M/128 (b). Top panels: Convergence of the amplitude hA           22 = |h22 |.   The
+                           difference between the higher resolution results is rescaled according to fourth
+                           and fifth order convergence for Lean and according to second and third-order
+                           convergence for GRChombo. In each case, the inset shows an interval around
+                           the peak amplitude. Middle panels: Convergence of the phase hφ      22 = Arg(h22 ).
+                           The difference between the higher resolution results is rescaled according to fifth
+                           and sixth order convergence for Lean and third and fourth order convergence for
+                           GRChombo. Bottom panels: For reference we plot the amplitude hA          22 and the
+                           phase hφ22 of the highest resolution waveform   on the same  time axis. For  the two
+                           lower resolution waveforms from each code, we have time-shifted each of them
+                           in order to maximize the overlap (cf. (65)) with the highest resolution waveform.
+                           ∆t = 0 corresponds to the maximum in hA    22 for the highest resolution waveform.
+
+
+
+
+          phase becomes inaccurate, we estimate the phase error is ∆hφ22 ≤ 0.15 assuming sixth
+          order convergence for Lean and fourth order convergence for GRChombo.
+               Following the procedure in section 4.1.3, we estimate the error in the phase, due
+          to finite-radius extraction, is hφ ,120M . 0.4, and, in the amplitude is hA
+                                                                                      22 ,120M
+                                                                                               /hA
+                                                                                                 22 .
+                                            22
+          8 % (although this steadily decreases towards . 2% near merger) for both codes. Here
+          we have ignored the early part of the signal where the amplitude is dominated by the
+          “junk” radiation up to u = 300M .
+Lessons for adaptive mesh refinement in numerical relativity                                   25
+
+                                                                           10 - 2
+                      -1
+                 10
+                                                                           10 - 3
+                      -2
+                 10
+                                                                           10 - 4
+                      -3
+                 10
+                                                                           10 - 5
+                      -4
+                 10
+                                                                           10 - 6
+                 10 - 5
+                   -2000       -1500       -1000        -500           0
+
+
+
+                 Figure 4. The relative and absolute difference between the GRChombo and
+                 Lean outputs for the amplitude and phase of h22 respectively from the simulation
+                 of configuration q1-d12. In both cases, the data comes from the simulations with
+                 finest grid spacing ∆xlmax = M/128 with Ψ4 extracted at rex = 120M . As for the
+                 convergence plots in figure 3, the time has been shifted in order to maximize the
+                 overlap (cf. (65)) between the two waveforms and ∆t = 0 at the peak in hA,Lean
+                                                                                           22    .
+
+
+
+      We next directly compare the results of the two codes by computing the relative
+                                                                                φ
+difference in the amplitude hA 22 and the absolute difference in the phase h22 which is
+shown in figure 4. Again, ignoring the early part of the signal and the late ringdown,
+the relative difference in the amplitudes is . 1 %, consistent with the individual error
+estimates from the two codes. The discrepancy in phase remains O(10−3 ) or smaller
+throughout the inspiral, merger and early ringdown–well within the error estimates of
+each code.
+      For the first asymmetric BH binary configuration, q2-d10, we proceed in the
+same way. We study the convergence in analogy to figure 3. Ignoring again the
+contamination at early times, we obtain third-order convergence in the amplitude and
+fifth-order convergence in the phase for Lean. For GRChombo, we obtain fourth
+order convergence in the amplitude and mild overconvergence of about eighth order in
+the phase21 . This leads to uncertainty estimates of ∆hA     A
+                                                        22 /h22 . 2.5 % in the amplitude
+         φ
+and ∆h22 . 0.25 in the phase for both codes.
+      The error due to finite-radius extraction in the amplitudes is hA  22 ,86.7M
+                                                                                    /hA
+                                                                                      22 .
+10 % in the early inspiral decreasing down to . 2 % in the late inspiral, and in the
+phase is hφ ,86.7M ∼ 0.5 for both codes.
+            22
+      In figure 5, we display as a function of the total mass M the discrepancy
+1 − ρ (where ρ is the overlap given by (65)) between the GRChombo and Lean
+waveforms for both q1-d12 and q2-d10, with the spectral noise density Sn (f ) given
+by (i) the updated Advanced LIGO sensitivity design curve (aLIGODesign.txt in
+[129]) and (ii) the zero detuned, high power noise curve from the Advanced LIGO
+anticipated sensitivity curves (ZERO_DET_high_P.txt in [130]). For q1-d12, the
+figure demonstrates excellent agreement of the two waveforms for the entire range
+M = 10 . . . 200 M with a discrepancy 1 − ρ ≈ 0.03 % or less, whereas for q2-d10, the
+agreement is not quite as strong but nevertheless demonstrates very good consistency
+with a discrepancy 1 − ρ ≈ 0.7 % or less. The larger difference for q2-d10 compared
+  21 We assume fourth order convergence for our GRChombo phase error.
+Lessons for adaptive mesh refinement in numerical relativity                                 26
+
+                10 - 2
+
+
+
+
+                10 - 3
+
+
+
+
+                10 - 4
+                         20   40   60    80   100   120   140    160   180   200
+
+
+
+                Figure 5. The discrepancy 1 − ρ between the (`, m) = (2, 2) mode of the
+                gravitational wave signal from the q1-d12 (10 orbits, non-spinning, equal mass)
+                and q2-d10 (6 orbits, non-spinning, 2 : 1 mass ratio) BH binary configurations
+                simulated with Lean and GRChombo. For q1-d12, we use the simulation with
+                resolution ∆xlmax = M/128 for both codes and for q2-d10, we use the simulation
+                with resolution ∆xlmax = M/96 for both codes. For each configuration, we show
+                the difference computed with the updated Advanced LIGO sensitivity design curve
+                (aLIGODesign.txt in [129]) and the zero detuned, high power noise curve from the
+                Advanced LIGO anticipated sensitivity curves (ZERO_DET_high_P.txt in [130]).
+
+
+to q1-d12 may be attributed to the slightly lower resolutions employed for this
+configuration, especially near the smaller BH. To put these numbers into context,
+Lindblomet al. [127] estimate that a mismatch of 3.5 % would result in a reduction in
+the GW event detection rate by about 10 %.
+     Our final BH binary features asymmetry in the form of non-zero spins. This
+time, we focus on the BH recoil velocity v calculated from the linear momentum
+radiated in GWs, and the analysis is shown in figure 6. From the plots, we can see
+that Lean exhibits convergence between third and fourth order, whilst GRChombo
+exhibits convergence between fourth and fifth order. We illustrate our estimate of the
+total error for each code in figure 7. Here, the error bands—around the curve from
+the highest resolution simulation in each case—correspond to the difference with the
+Richardson extrapolated curve assuming fourth-order convergence plus the estimated
+error due to finite-radius extraction (about 1.5 % + 2 % for Lean and 0.5 % + 3 % for
+GRChombo). This total error is about 3.5 % for both codes.
+     As is not uncommon, the convergence orders obtained from numerical relativity
+simulations can be fickle due to the various ingredients in the codes with differing
+orders of accuracy which can dominate in certain regimes. This inherent complexity
+makes it difficult to attribute the difference in convergence orders we obtain between
+the two codes and we therefore do not attempt to do so.
+
+5. Comparing tagging criteria using axion stars
+
+In order to demonstrate the application of our techniques to problems with matter
+fields and dynamically varying length scales, we consider the evolution of a single
+axion star—a compact object composed of a real scalar bosonic field. We analyze the
+  Lessons for adaptive mesh refinement in numerical relativity                                    27
+
+
+  200
+                                                          30
+    0
+-200                                                      20
+
+-400                                                      10
+-600
+                                                           0
+-800
+                                                         -10
+-1000
+
+ 3000                                                 3000
+
+
+ 2000                                                 2000
+
+
+ 1000                                                 1000
+
+
+    0                                                      0
+           100       125         150         175                  100         125         150           175
+
+
+                   (a)                                                       (b)
+
+                   Figure 6. Convergence plots for the accumulated linear momentum radiated from
+                   configuration q1-s09 for GRChombo with finest grid resolutions ∆xlmax = M/64,
+                   M/96 and M/112 (a) and for Lean with finest grid resolutions ∆xlmax = M/80,
+                   M/88 and M/96 (b). This is shown in the form of the BH recoil velocity in the
+                   bottom panels. For both codes, the radiated linear momentum is calculated from
+                   the extracted Ψ4 values at rex = 90M , and the extrapolated curve corresponds
+                   to a Richardson extrapolation assuming fourth order convergence. In the top
+                   panels, we show the difference between the results from different resolutions with
+                   rescalings according to third and fourth order convergence for Lean and according
+                   to fourth and fifth order convergence for GRChombo.
+
+                      3700
+
+
+                      3600
+
+
+                      3500
+
+
+                      3400
+
+
+                      3300
+                         140           150         160           170          180
+
+
+
+                   Figure 7. The accumulated radiated linear momentum at the end of the
+                   highest resolution simulations of configuration q1-s09 from each code. The linear
+                   momentum is shown in the form of the BH recoil velocity and the error bands show
+                   our estimate of the total error coming from both discretization and finite-radius
+                   effects.
+
+
+  evolution of a star that is stable on the timescale of the simulation, as well as one in
+Lessons for adaptive mesh refinement in numerical relativity                                      28
+
+
+                  Table 4. GRChombo grid parameters for axion star configurations using
+                  different tagging criteria. There are (lmax + 1) refinement levels and the coarsest
+                  level has length (without symmetries applied) L. The grid spacing on the coarsest
+                  level is ∆x0 and the minimum number of cells in the buffer regions between
+                  consecutive refinement level boundaries is nB . The regrid thresholds for the
+                  different tagging criteria are given by τR . We consider two cases; a stable axion
+                  star (fa = 1) and an unstable collapse to a BH (fa = 0.05), with µ = ma c/~ = 1
+                  in code units.
+                  fa     Tagging    lmax      µL      µ∆x0     nB    τR
+                  1.0    Ham        3          512      4       8    0.1
+                  1.0    Ham        3          512      2      16    0.05
+                  1.0    Ham        3          512      1      32    0.025
+                  1.0    Trunc      3          512      4       8    0.0625
+                  1.0    Trunc      3          512      2      16    3.91 x 10−3
+                  1.0    Trunc      3          512      1      32    2.44 x 10−4
+                  0.05   Ham        8         1024      4       8    0.1
+                  0.05   Ham        8         1024    2.67     12    0.067
+                  0.05   Trunc      8         1024      4       8    0.001
+                  0.05   Trunc      8         1024    2.67     12    2.96 x 10−4
+
+
+
+which the self-interaction is increased in order to trigger gravitational collapse to a
+BH. As discussed previously, this simple example tests many of the key requirements
+in using AMR to evolve fundamental fields coupled to gravity, in particular, the
+ability to follow stable oscillations and to adapt to changing dynamical timescales.
+Similar considerations apply, for example, to cosmological spacetimes, cosmic strings
+and collisions of exotic compact objects.
+     We demonstrate the use of two effective tagging criteria; first, tagging by the
+magnitude of terms in the Hamiltonian constraint (70), and second, by the numerical
+truncation error between refinement levels (48).
+
+5.1. Methods
+5.1.1. Setup We consider the evolution of two different axion star configurations.
+Axion stars are quasi-equilibrium configurations of a self-gravitating real scalar field φ
+[131] that is subject to a periodic self-interaction potential V (φ). A canonical potential
+is
+                               V (φ) = µ2 fa2 [1 − cos (φ/fa )] ,                     (66)
+where this form arises as a result of the spontaneously broken U (1) Peccei-Quinn
+symmetry and subsequent “tilting” of the potential due to instanton effects [132, 133].
+The decay constant fa quantifies the symmetry breaking scale and determines the
+strength of the scalar field self-interactions (their strength for a given central amplitude
+is inversely related to fa ) and µ = ma c/~ is an inverse length scale related to the scalar
+mass22 ma . Axion stars on the main stability branch are characterized by their central
+amplitude φ0 or equivalently their ADM mass MADM ∼ µ−1 . They have a physical
+size R (defined as the radius containing 99 % of the total mass) that is approximately
+inversely related to their ADM mass, and thus a useful descriptor is their compactness
+C = MADM /R. Axion stars with C ∼ 1/2 are highly relativistic and may form BHs if
+they collapse or collide. For ma ∼ 10−14 eV, they are of a mass and size comparable to
+  22 In Planck units one can write µ = m       2
+                                           a /MPl , where MPl is the Planck mass.
+Lessons for adaptive mesh refinement in numerical relativity                                   29
+
+solar mass BHs, and thus potentially of astrophysical interest. Further details related
+to the setup used here can be found in [95, 106], and a useful general review of axion
+physics is provided in [134].
+     The equation of motion for the scalar field φ is given by the Klein-Gordon equation
+for a real scalar field minimally coupled to gravity
+                                                  dV
+                                     ∇ µ ∇µ φ −      = 0,                                    (67)
+                                                  dφ
+and the system is completed with the Z4 equations (1) for the metric components. To
+construct localised, quasi-equilibrium oscillatory (axion star) solutions, we solve the
+Einstein-Klein-Gordon (EKG) system of equations with a harmonic field ansatz and
+appropriate boundary conditions [131, 135].
+      Unlike the case of complex scalar boson stars, for axion star solutions the metric
+components gµν also oscillate in time, with energy being transferred between the
+matter and curvature terms in the Hamiltonian constraint [106]. This makes them
+challenging targets for dynamical refinement; simple criteria based solely on matter
+field gradients will fail to achieve a stable grid structure, as the gradients change over
+time even in the quasi-stable case. If the gradients are close in value to a tagging
+threshold, frequent regridding will occur, which introduces errors.
+      The stability of the axion star solution comes from the balance of its tendency to
+disperse due to gradient pressure from spatial field derivatives, with the tendency to
+collapse due to its energy density. The relative strengths of these effects determines
+whether the axion star remains stable, disperses through scalar radiation or collapses
+to a black hole when perturbed. In particular, if the self-interaction scale fa is too
+low, this can cause the axion star to collapse to a BH [98]. In the last case, a key AMR
+challenge is determining tagging criteria that progressively track the axion star collapse
+without triggering too frequent regridding from the more rapid field oscillations.
+      We consider two cases, both with central amplitude φ0 = 0.020 and µMADM =
+0.4131:
+ (i) An axion star with weak self-interactions (fa = 1)23 , where the scalar field and
+     metric oscillate over time in a localized configuration that is stable over time
+     periods much longer than that of the simulation. We would ideally like the
+     refinement to remain constant, despite the oscillations of the fields.
+(ii) An unstable configuration where we increase the attractive self interaction by
+     reducing the self interaction scale to fa = 0.05, such that the axion star is
+     destabilized and undergoes collapse to a BH. We need the mesh refinement to
+     follow this process sufficiently rapidly, but without excessive regridding.
+    To evolve this system in GRChombo, the EKG equation (67) is decomposed into
+two first order equations in the 3+1 formulation
+
+         ∂t φ = β i ∂i φ + αΠ,                                                               (68)
+                                                                         
+                 i         ij                              ij k        dV
+         ∂t Π = β ∂i Π + αγ (∂i ∂j φ + ∂i φ∂j α) + α KΠ − γ Γij ∂k φ −      ,                (69)
+                                                                       dφ
+and added to the CCZ4 evolution scheme (13-18). The initial data are set up as in
+the previous study [98] using the numerically obtained axion star profile for an m2 φ2
+  23 The decay constant f is dimensionless in geometric units as used here; to obtain its value in
+                         a
+Planck units one simply multiplies by the Planck mass MPl .
+Lessons for adaptive mesh refinement in numerical relativity                        30
+
+potential [131, 135, 136]. We choose the initial hypersurface such that φ = 0 and
+hence V (φ) = 0 everywhere. The Hamiltonian constraint is thereby satisfied for both
+the V = m2 φ2 and the axion potential (66) cases. Furthermore, if we impose the
+extrinsic curvature Kij = 0, the momentum constraint is trivially satisfied and all
+the dynamical information is encoded in the kinetic term of the field Π. The system
+is evolved in the moving puncture gauge using the default 1+log parameters (29)
+for the lapse evolution equation (28) with the exception of a1 = 0 and the default
+Gamma-driver shift parameters for (30) and (31) with η = µ.
+
+5.1.2. Tagging criteria We demonstrate the suitability of two different tagging
+methods for tracking the axion star evolution in both the stable and unstable cases.
+In the case of collapse to a BH, for both tagging methods, the threshold τR must
+be chosen such that the apparent horizon is covered entirely by the finest refinement
+level, as discussed in section 3.2. In our case, we choose a maximum refinement level
+lmax = 8, which covers up to µr ≥ 0.5 > µMADM .
+     The first tagging criterion we consider is based on physical quantities in the
+simulation, as outlined in Section 3.5. We choose the absolute sum of the terms in the
+Hamiltonian constraint Habs (49), setting the criterion
+                                       C(i) ≡ Habs                                 (70)
+in the tagging indicator function (38).
+     We also show the efficacy of truncation error tagging, outlined in section 3.4.
+We choose the variables f as defined in (47) to be χ, K, φ and π, as these capture
+the information in the Hamiltonian constraint H. We use the tagging criterion (48),
+explicitly             q
+               C(i) =    (τl,χ (i))2 + (τl,K (i))2 + (τl,φ (i))2 + (τl,π (i))2 ,   (71)
+where τl,f (i) is defined by (47) and we have set the normalizing factor Lf = 1 for all
+f.
+
+5.1.3. Diagnostics and convergence testing We perform convergence tests using
+several key physical quantities from the evolution. The first quantity is the L2 norm
+of the Hamiltonian constraint violations (33) ||H||2 over a coordinate volume V
+                                         sZ
+                                 ||H||2 =           d3 x H2 .                      (72)
+                                                V
+
+For the case of a stable axion star, in order to exclude the constraint violation at
+the outer boundaries, we choose V to be the volume enclosed by a sphere of fixed
+coordinate radius rout , Brout , with a center that coincides with that of the star:
+                                        V = Brout .                                (73)
+In the case of an unstable axion star that collapses to a BH, we furthermore excise
+the volume enclosed by a smaller sphere of fixed coordinate radius rin < rout with the
+same center in order to exclude the constraint violations near the puncture that arises
+after the collapse. The radius rin is chosen such that the sphere will lie within the
+apparent horizon once it is formed. This means that
+                                    V = Brout \ Brin .                             (74)
+

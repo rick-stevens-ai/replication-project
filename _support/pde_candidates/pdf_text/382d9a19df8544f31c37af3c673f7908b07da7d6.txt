@@ -1,0 +1,1722 @@
+                                                                Dielectric continuum methods for quantum chemistry
+
+
+
+
+arXiv:2203.06846v1 [physics.chem-ph] 14 Mar 2022
+                                                                                       John M. Herbert∗
+                                                    Department of Chemistry and Biochemistry, The Ohio State University, Columbus, Ohio, USA
+
+                                                                                                 March 15, 2022
+
+
+
+                                                                                                     Abstract
+                                                           This review describes the theory and implementation of implicit solvation models based on
+                                                           continuum electrostatics. Within quantum chemistry this formalism is sometimes synonymous
+                                                           with the polarizable continuum model, a particular boundary-element approach to the problem
+                                                           defined by the Poisson or Poisson-Boltzmann equation, but that moniker belies the diversity
+                                                           of available methods. This work reviews the current state-of-the art, with emphasis on theory
+                                                           and methods rather than applications. The basics of continuum electrostatics are described,
+                                                           including the nonequilibrium polarization response upon excitation or ionization of the solute.
+                                                           Nonelectrostatic interactions, which must be included in the model in order to obtain accurate
+                                                           solvation energies, are described as well. Numerical techniques for implementing the equations
+                                                           are discussed, including linear-scaling algorithms that can be used in classical or mixed quan-
+                                                           tum/classical biomolecular electrostatics calculations. Anisotropic models that can describe
+                                                           interfacial solvation are briefly described.
+
+
+                                                   Contents
+
+                                                   1 Overview                                                                                                 2
+
+                                                   2 Continuum Electrostatics                                                                          4
+                                                     2.1 Poisson’s equation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4
+                                                     2.2 Solute cavity . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+                                                     2.3 Polarizable continuum models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+                                                     2.4 Comparison of ASC-PCMs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+
+                                                   3 Implementation                                                                                          16
+                                                     3.1 Matrix equations for PCMs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .           16
+                                                     3.2 Discretization . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .      19
+                                                     3.3 Isodensity and self-consistent cavity surfaces . . . . . . . . . . . . . . . . . . . . . . .        22
+                                                     3.4 Linear-scaling algorithms . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .         24
+
+                                                   4 Solvation Energies                                                                               26
+                                                     4.1 SMx and SASA-based models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+                                                     4.2 Physics-based models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31
+                                                     ∗
+                                                         herbert@chemistry.ohio-state.edu
+
+
+
+
+                                                                                                         1
+5 Nonequilibrium Solvation                                                                            36
+  5.1 Conceptual overview . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .     36
+  5.2 State-specific approach . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .   38
+  5.3 Linear response approach . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .      47
+
+6 Anisotropic Solvation                                                                               48
+
+7 Closing remarks                                                                                     50
+
+References                                                                                            51
+
+
+1    Overview
+The use of dielectric continuum models in quantum chemistry dates to the mid-1970s, 1–6 to when
+the field itself was still in its infancy. In their simplest form, these models describe the solvent in
+terms of a single parameter εs , the (static) dielectric constant, a dimensionless quantity equal to the
+electric permittivity relative to vacuum and ranging (for simple liquids) from εs ≈ 2 for non-polar
+solvents such as benzene and hexane, up to εs = 78 for water and εs = 110 for formamide. This
+constant describes the solvent’s ability to screen a charge, and the Coulomb interaction between
+charges Q1 and Q2 separated by a distance r is modified from V (r) = Q1 Q2 /4πε0 r in the gas phase,
+to an attenuated version V (r) = Q1 Q2 /4πε0 εs r within the dielectric medium. The continuum de-
+scription represents the ultimate in coarse-graining, reducing the solvent to a single parameter,
+which has obvious utility in a quantum chemistry calculation whose cost rises steeply with system
+size. Within a continuum description, there is no need for sampling over solvent degrees of freedom
+(e.g., solvent reorganization in response to an electron transfer event that modifies the solute’s
+charge distribution), because this averaging is implicitly encoded into the value of εs . While advan-
+tageous from the standpoint of cost, limitations of the continuum description are equally apparent:
+“specific” solvation effects such as hydrogen bonding are not captured, and dielectric continuum
+theory alone does not describe nonelectrostatic interactions including dispersion and Pauli repul-
+sion. Without the latter, there is nothing to imbue the molecules with finite size, necessitating ad
+hoc introduction of a “solute cavity” to define the interface between the atomistic solute and the
+continuum solvent, as depicted in Fig. 1.
+    Some of the aforementioned limitations can be overcome, in principle, by admission of a small
+number of explicit solvent molecules into the atomistic part of the calculation, in what is often called
+a “semicontinuum” or a “cluster + continuum” approach. 8 As such, the continuum description
+serves as a flexible and highly useful starting point for the description of solvation effects in quantum
+chemistry. Introduction of continuum solvation models into quantum chemistry was led by the
+group of Tomasi in Pisa, 9–16 who refer to this approach as the polarizable continuum models (PCM).
+That terminology will be introduced in Section 2.3, to refer to a particular class of continuum
+solvation models that replace the three-dimensional partial differential equations of continuum
+electrostatics with a two-dimensional boundary element problem, defined on the surface of a cavity
+representing the interface between atomistic solute and continuum solvent. Although PCMs are
+ubiquitous in quantum chemistry, they are not the only continuum solvation models that are used
+in the field and not the only ones discussed herein. In any case, the combination of a quantum-
+mechanical (QM) description of the solute sets up a self-consistent reaction-field (SCRF) problem
+in which the solute’s charge distribution both polarizes, and is polarized by, its environment. The
+two effects must be iterated to self-consistency.
+
+
+
+                                                   2
+                                                                                     ΓvdW
+                   (a)                            (b)      ΓSAS                                                              –
+                                                                                                            –
+                                                                                                             +           –
+                                                                                                                     +           –
+                                                                                                –
+                                                                                            +
+                                                                                                    +                        –
+                                                                                                                     +
+                                                                                                                         + –         –
+                                                                           +
+                                                                               –                                         + –         –
+
+                                                               +
+                                                                       +
+                                                                           –
+                                                                                     εin                                 +
+                                                                                                                             –
+
+                                                               +
+                                                                       + –          ∍
+                                                                                   (r Ω)                         +
+
+
+
+                                                                        + – –
+                                                                   +
+                                                                           +                            –
+                                                                                     + – – – –
+                                                                                                            +
+                                                                           +
+                                                                                               +
+                                                          εout                     +    + +      +
+                                                                                        +           +
+                                                           ∍
+                                                         (r Ω)
+
+
+Fig. 1: (a) Zwitterionic tautomer of glycine (− O2 CCH2 NH+     3 ) in a molecular cavity constructed
+from atom-centered spheres. Coloring reflects the sign and magnitude of the molecular electrostatic
+potential evaluated at the cavity surface, ϕρ (s) for s ∈ Γ. (b) Schematic illustration of the same
+molecular cavity (in green) embedded in a dielectric medium (in blue), illustrating how the contin-
+uum polarizes in response to the solute’s electrostatic potential. The orange probe sphere illustrates
+how the atomic radii that define the van der Waals (vdW) cavity surface might be augmented to
+afford a “solvent-accessible surface” (SAS). The region interior to the solute cavity is designated
+as Ω, and for a sharp dielectric interface one sets ε(r) ≡ εin for r ∈ Ω. If the solute is described
+using quantum chemistry then the natural choice is εin = 1. Outside of the cavity, the permittivity
+function ε(r) takes the value εout , which is usually the static dielectric constant of the solvent, εs .
+Panel (b) is adapted from Ref. 7; copyright 2008 John Wiley & Sons.
+
+
+    The remainder of this review is organized as follows. Section 2 provides the elementary specifi-
+cation of the continuum electrostatics problem, starting from the Poisson and Poisson-Boltzmann
+equations. The mechanics of turning that formalism into a computationally-tractable model are
+discussed in Section 3, with an emphasis on the smooth discretization approach developed by this
+author’s group. 17–21 The focus here is on continuum solvation models in quantum chemistry but the
+formalism in Sections 2 and 3 is perfectly applicable to biomolecular implicit solvent calculations,
+in which a macromolecular solute is described using a classical force field. 19 Section 3 also intro-
+duces the various flavors of PCM that can be found in the literature and discusses how they can
+be understood in one another’s context. It should be noted that the solution of Poisson’s equation,
+or equivalently the apparent surface charge PCM problem, specifies only the electrostatic contribu-
+tion to the solvation energy. Other contributions including cavitation, dispersion, Pauli repulsion,
+and hydrogen bonding must be included in order to predict free energies of solvation (∆solv G) in
+reasonable agreement with experiment. Section 4 introduces models for these nonelectrostatic con-
+tributions and provides an overview of the accuracy that can be expected for ∆solv G. Section 5
+introduces several “nonequilibrium” formulations of the continuum electrostatics problem, which
+are used to describe the continuum’s response to a sudden change in the solute’s charge density,
+as in photoexcitation or photoionization. This provides the machinery to compute solvent effects
+on vertical excitation, ionization, or fluorescence energies. Finally, Section 6 discusses modifica-
+tions to the isotropic continuum model that are necessary in order to describe anisotropic solvation
+environments, such as the air/water interface or the solid-state/aqueous interface.
+    This review is focused on the theoretical framework and computational mechanics of continuum
+solvation models, not on applications. While some limited data to describe the performance of the
+models are provided, for a complete overview of continuum solvation methods in action, the reader is
+directed to several general reviews, 8,13–15,22–24 as well as specialized ones concerning the application
+of PCMs to specific types of spectroscopy. 25–31 In lieu of a great deal of data, the present work
+
+                                                   3
+provides copious references to the primary literature.
+
+
+2     Continuum Electrostatics
+This section reviews the basic electrostatic formalism that underlies continuum solvation theory.
+The physical model is defined by Poisson’s equation in three-dimensional space (Section 2.1) but is
+not fully specified without a surface to demarcate the boundary of the atomistic region (Section 2.2).
+The polarizable continuum models that were introduced into quantum chemistry by Tomasi and co-
+workers 6,9,13 are introduced in Section 2.3, and stem from a reformulation of the Poisson problem
+as a boundary-element of “apparent surface charge” problem. There are several variants, and these
+are compared side-by-side in Section 2.4.
+
+2.1   Poisson’s equation
+The basic tenet of dielectric continuum theory is an assumption that the electric response of matter
+can be coarse-grained in the form of a dipole density P that defines the polarization of the medium.
+In the presence of this dielectric medium, the role of the electric field E(r) in vacuum is supplanted
+by the electric displacement field (or electric induction),
+
+                                 D(r) = E(r) + 4πP(r) = ε(r) E(r) .                               (2.1)
+
+The electric permittivity ε(r) is defined by the manner in which polarization P(r) is induced by
+the external field E(r), and Eq. (2.1) amounts to the definition of a linear dielectric material whose
+polarization is proportional to field strength. Nonlinear susceptibilities are harder to describe within
+a continuum formalism and have received less attention. 13 Whereas a fully general discussion of
+(linear) dielectric materials would allow for a permittivity that is a function of frequency also (or
+even a nonlocal function of space and/or time, in some formulations), 32–34 the ground-state SCRF
+problem does not require this generality, and unless otherwise specified, ε will mean the static (zero-
+frequency) dielectric constant, εs . (The continuum electrostatics community has stubbornly defied
+the suggestion 35 that “dielectric constant” is obsolete and should be replaced by “relative electric
+permittivity”.) For an anisotropic medium, ε would take the form of a 3 × 3 tensor rather than
+scalar, which could be used to model a liquid crystal in which the electric susceptibility depends
+on the orientation of the applied field. 36,37 This review will not consider such cases, although a
+different form of anisotropic solvation is considered in Section 6. Herein, ε is a scalar.
+    That said, Eq. (2.1) does express the permittivity as a scalar-valued function, ε(r), rather than
+simply a dielectric constant. This allows for a situation such as that depicted in Fig. 1(b), wherein
+a “solute cavity” (two-dimensional surface Γ) defines an interface between the continuum solvent
+and an atomistic region, the latter of which shall be described using quantum chemistry. Within
+the cavity, inter-particle Coulomb interactions are included explicitly in the Hamiltonian and thus
+ε = 1 in this region. Outside of the cavity, the permittivity function takes on a value equal to the
+(static) dielectric constant of the solvent, e.g., ε = 78 for water. Given a charge density ρ(r) for
+the solute, including both nuclei and electrons, Maxwell’s equation for the displacement field D(r)
+is
+                                           ˆ · D(r) = 4πρ(r) .
+                                           ∇                                                       (2.2)
+                                                 ˆ
+Recognizing that the electric field is E(r) = −∇ϕ(r),    where ϕ(r) is the electrostatic potential,
+Eq. (2.2) can be written in the more familiar form of Poisson’s equation,
+                                       h          i
+                                   ˆ · ε(r) ∇ϕ(r)
+                                   ∇        ˆ       = −4πρ(r) .                              (2.3)
+
+                                                   4
+All of these equations are expressed in Gaussian electrostatic units, where 4πε0 = 1. 38
+    Poisson’s equation is the mathematical starting point for continuum electrostatics. Given the
+charge density ρ(r) from an electronic structure calculation, Eq. (2.3) is solved for ϕ(r) throughout
+space, including both the atomistic region and the surrounding dielectric medium. This potential
+can be separated into two parts,
+                                      ϕ(r) = ϕρ (r) + ϕrxn (r) ,                                 (2.4)
+where the first term is the electrostatic potential generated by the solute’s charge density,
+                                               Z
+                                        ρ           ρ(r′ )
+                                       ϕ (r) =              dr′ ,                                  (2.5)
+                                                  kr − r′ k
+
+whereas the “reaction field” contribution ϕrxn (r) arises from polarization of the continuum, resulting
+in an additional charge density ρpol (r). Having obtained ρ(r) from Schrödinger’s equation and then
+ϕ(r) by solving Eq. (2.3), the electrostatic solvation energy can be expressed variously as 18,39
+                                  Z                        Z
+                                1                        1
+                        Gelst =       ϕrxn (r) ρ(r) dr =      ϕρ (r) ρpol (r) dr .                (2.6)
+                                2                        2
+
+This is sometimes alternatively called the polarization energy (Gpol ), 18 but we will use the term
+electrostatic energy (Gelst ) as that is the nomenclature typically encountered in the literature on
+dielectric materials. 38 Unlike the theory of intermolecular interactions, 40 it makes little sense in
+the present context to consider electrostatics separate from polarization but the reader may, if
+desired, substitute the phrase “electrostatics + polarization” whenever “electrostatics” is used
+herein. The quantity Gelst is a free energy insofar as the dielectric formalism implicitly accounts for
+the averaging over solvent degrees of freedom, and the factor of 1/2 in Eq. (2.6) reflects the fact
+that the interaction energy is reduced, by precisely half its value, on account of the work required
+to polarize the environment. 9,18,41,42
+    From the point of view of electronic structure theory, Gelst [ε, ρ] is a functional of both the
+permittivity function ε(r) and the solute’s charge density ρ(r). The total (free) energy is
+
+                                  G0 [Ψ] = Ψ Ĥvac Ψ + Gelst [ε, ρ] ,                              (2.7)
+
+where the first term represents the electronic energy in vacuo. (It is written here in a form that
+suggests wave function quantum mechanics but could be replaced by a density functional.) This
+can equivalently be expressed as a total energy functional
+
+                                     G0 [Ψ] = Ψ Ĥvac + 12 R̂0 Ψ                                   (2.8)
+
+where R̂0 is a reaction-field operator that generates the integral in Eq. (2.6). Minimization of G0 [Ψ],
+or G0 [ρ] in density functional theory (DFT), in conjunction with Poisson’s equation to obtain the
+electrostatic potential that defines R̂0 , defines the SCRF problem. Provided that the electronic
+structure model satisfies a variational principle, as it does for self-consistent field (SCF) models,
+then the total energy defined by Eq. (2.7) satisfies a variational principle as well, 18,43
+    Equation (2.3) is sometimes called the “generalized” form of Poisson’s equation, with the “or-
+dinary” form being
+                                         ε∇ˆ 2 ϕ(r) = −4πρ(r) .                                   (2.9)
+The distinction is that the permittivity function ε(r) in Eq. (2.3) is replaced in Eq. (2.9) by a scalar,
+ε. It is the latter equation that is often taken to define the continuum electrostatics problem, but
+this requires additional specification because ε = 1 for the atomistic interactions. Some sort of
+
+                                                   5
+molecular surface is needed to delineate the boundary with the continuum, as shown in Fig. 1
+where the cavity is defined by a union of atom-centered spheres. Given a cavity surface, Eq. (2.9)
+is shorthand for Eq. (2.3) with the permittivity function
+                                             (
+                                               εin , r ∈ Ω
+                                      ε(r) =               .                               (2.10)
+                                               εout , r ∈
+                                                        /Ω
+
+Note that ϕ(r) is continuous across the cavity surface but its derivative is not. 9 In general it makes
+sense to take εin = 1 although larger values (commonly εin = 2–4, 7,44,45 but in some cases εin =
+10–20 45–48 ) have sometimes been used in biomolecular electrostatics calculations, in an effort to
+approximate a “dielectric constant of protein”. (However, the very concept that such a “constant”
+exists has been vociferously criticized. 44,49–52 ) If the solute is described using quantum mechanics,
+however, then any choice other than εin = 1 represents an inconsistent treatment of the Coulomb
+interactions unless the Coulomb operators that define Ĥvac are modified, which is seldom done.
+    Although we have introduced it as a quantum-mechanical SCRF problem that must be solved
+in tandem with the electronic structure problem, Eq. (2.3) is also used in classical electrostatics
+calculations for biomolecules, 53–56 where ρ(r) is comprised of classical point charges (or higher-order
+multipoles 57,58 ) that come from a force field, e.g.,
+                                                   atoms
+                                                    X
+                                       ρ(r) =              QA δ(r − RA ) .                           (2.11)
+                                                      A
+
+For biomolecular applications, one is often interested in an aqueous solvent containing some con-
+centration of dissolved ions. The continuum analogue of that situation is described by the Poisson-
+Boltzmann equation, 7,59–62
+                                 h           i                     
+                              ˆ · ε(r) ˆ
+                              ∇        ∇ϕ(r) = −4π ρ(r) + ρions (r) ,                        (2.12)
+
+in which the right side of Eq. (2.3) has been augmented with a term that accounts for a thermal
+distribution of dissolved ions. 7,60 Whereas the solute’s charge density ρ(r) reflects atomistic model-
+ing, using either a classical force field or else an electronic structure calculation, the density ρions (r)
+of “mobile” ions is treated statistically. 60,63 For an electrolyte with dissolved ion concentrations
+{ci }, whose ionic charges are denoted {qi }, the statistical charge density for the ions is 7
+                                              ions                                    
+                                              X                             −qi ϕ(r)
+                                ρions (r) =          qi ci λi (r) exp                      .         (2.13)
+                                                                             kB T
+                                               i
+
+The ion accessibility function λi (r) represents some type of step function that serves to exclude
+the ions from the atomistic region. With this form for the density of mobile ions, Eq. (2.12) is
+sometimes known as the size-modified version of the (nonlinear) Poisson-Boltzmann equation. 7,64
+In the case of a 1:1 electrolyte with monovalent ions (q1 = e = −q2 ), Eq. (2.13) reduces to
+                                                                  
+                                                            e ϕ(r)
+                                 ρions (r) = −2cλ(r) sinh            .                       (2.14)
+                                                             kB T
+At the physiological ionic strengths, the hyperbolic sine function can be linearized without signifi-
+cant error, 65,66 resulting in a linearized Poisson-Boltzmann equation, 7,62
+                                   h           i
+                              ∇ˆ · ε(r) ∇ϕ(r)
+                                         ˆ       = −4πρ(r) + κ2 λ(r) ϕ(r) ,                   (2.15)
+
+                                                            6
+where                                                       1/2
+                                                   8πe2 c
+                                          κ=                        .                             (2.16)
+                                                    kB T
+The dissolved ions screen electrostatic interactions over a length scale ∼ κ−1 known as the Debye
+screening length, such that the potential that appears in Debye-Hückel theory is the attenuated
+Coulomb potential e−κr /(εs r). 7,60,67,68
+     Within the biomolecular electrostatics community there has been significant discussion regard-
+ing the accuracy of the linearization approximation, with studies noting that the nonlinear form
+[Eq. (2.12), with Eq. (2.13) for ρions (r)] affords better agreement with explicit solvent simulations
+when the ionic strength is high. 66,69 Deficiencies in the Poisson-Boltzmann model itself—even even
+in its nonlinear form and especially for polyvalent ions—have also been pointed out. 70 It is therefore
+worth noting that for the small solutes that characterize most quantum chemistry applications, the
+effect of the mobile ions on Gelst is quite modest, 64,68 although there are effects on activity co-
+efficients. 64,71 These effects are presumably magnified for a solute the size of a protein, but the
+intermediate size regime has hardly been explored.
+     Methods for solving the partial differential equations introduced in this section will be intro-
+duced below. First, however, we need to discuss one more aspect of the model problem itself,
+namely, the definition a surface that establishes the boundary between atomistic solute and con-
+tinuum solvent.
+
+2.2     Solute cavity
+For the case of a sharp dielectric boundary, Eq. (2.3) has an analytic solution if the cavity surface
+is spherical and contains the entire charge density ρ(r). For a solute consisting of a single point
+charge, Q, centered in a spherical cavity of radius R̄ in a medium with dielectric constant ε, this
+solution affords the well-known “Born model” for ion solvation, 72,73
+                                                          
+                                                Q2 ε − 1
+                                      ∆GQ = −                .                                 (2.17)
+                                                2R̄     ε
+
+Here, ∆G indicates the change in Gelst from its gas-phase value of zero to the solution-phase value
+obtained from Eq. (2.6). Replacing the point charge Q by a point dipole µ, the solvation energy is
+
+                                                      (ε − 1)µ2
+                                        ∆Gµ = −                  .                                (2.18)
+                                                     (2ε + 1)R̄3
+
+(This result is often attributed to Onsager, 74 although it was derived a few years earlier by Bell. 75 )
+The dipole solvation energy can alternatively be written ∆Gµ = − 21 (µ · Erxn ), where
+                                                     
+                                         1 2(ε − 1)
+                                Erxn = 3                µ = g1 (ε, R̄) µ                        (2.19)
+                                       R̄      2ε + 1
+                                       |       {z     }
+                                             g1 (ε,R̄)
+
+is the “reaction field” induced by µ. 41 If µ is polarizable (µ = µ0 + α · E), then Eq. (2.19)
+provides the earliest example of a SCRF model. 41 Historically, this model was used to formulate a
+microscopic theory for the dielectric constant of a polar liquid, 74,76,77 going beyond the mean-field
+description contained in the Clausius-Mossotti equation. 78,79 These attempts were not particularly
+quantitative, 77 and for modern purposes a dipolar description of the solute constitutes a needless
+approximation.
+
+                                                         7
+   The aforementioned results for ∆G were quickly generalized by Kirkwood, 80–82 and later by
+others, 57,83–87 to an arbitrary multipole in a spherical cavity, with the general result
+                                                          ℓ
+                               1 X (ℓ + 1)(ε − 1)      1    X                    2
+                     Gelst = −                                  Ψ T̂ℓm Ψ                         (2.20)
+                               2       ℓ + (ℓ + 1)ε R̄2ℓ+1
+                                 ℓ≥0 |         {z        } m=−ℓ
+                                              gℓ (ε,R̄)
+
+
+where the T̂ℓm are spherical multipole operators. 88,89 Since then, analytic results for ellipsoidal
+cavities, 82,84 off-center charges, 81 and higher-order off-center multipoles 87 have also been derived,
+along with formulas for the interaction of multipoles contained in disjoint spheres with a dielectric
+medium in between. 90 Insofar as an arbitrary charge distribution ρ(r) has a single-center multipole
+expansion, these results provide an analytic solution for a charge density of arbitrary complexity in
+a spherical or ellipsoidal cavity, assuming there is no penetration of ρ(r) into the continuum region.
+(The latter effect, known as volume polarization, 91–97 is discussed below.) The multipole expansion
+method has been called a “generalized Kirkwood” solvation model, 57 and using multipolar formulas
+for R̂0 in Eq. (2.8), it can be turned into a generalized Kirkwood SCRF for quantum chemistry.
+Multipolar methods are reviewed elsewhere, 9,98 but have effectively been rendered obsolete by the
+polarizable continuum methods described in Section 2.3. In the absence of volume polarization,
+these approaches also afford an exact (albeit numerical) solution to the continuum electrostatics
+problem, yet can used in conjunction with molecule-shaped cavities.
+    A spherical cavity may make sense if a large number of explicit solvent molecules are included
+in the atomistic solute region, and such approaches are known as solvent boundary potential meth-
+ods. 99–101 These have been developed as replacements for periodic boundary conditions in both
+QM/MM simulations 102–108 and in fully quantum-mechanical calculations. 109–112 Spherical cavi-
+ties make little sense for single molecules, however, and it is clear from Eq. (2.17) that ∆G will be
+quite sensitive to the cavity radius. This is especially problematic if that cavity does not corre-
+spond closely to the size of the molecule itself, and results in Section 3.3 demonstrate that even for
+realistic “molecule-shaped” cavities, solvation energies are quite sensitive to cavity construction.
+    Examples of some molecule-shaped cavity constructions are provided in Fig. 2. A simple union
+of atom-centered spheres is often called a van der Waals (vdW) cavity surface. The atomic radii
+might simply be empirical parameters of the model, 113 or alternatively covalent radii extracted
+from crystal structures, 114,115 or based on calculations of atomic size. 116 In the latter two cases
+these radii represent close-contact distances, meaning that an implicit or continuum solvent should
+not be allowed to approach all the way to the vdW radii of the solute atoms. This exclusion effect
+has been treated in several ways, most commonly by scaling the atomic vdW radii by a factor
+α > 1. A scaling factor α = 1.2 was chosen early on, 117 and factors α ≈ 1.1–1.2 have since become
+standard choices, albeit with little theoretical justification to choose one value over another within
+a modest range. Alternatively, and with somewhat better justification, the atomic vdW radii can
+be augmented by a “probe radius” representing the assumed size of a solute molecule, which can
+be extracted from the liquid structure of the solvent. For example, Rprobe = 1.4 Å is often used
+for water, representing half the distance to the first peak in the oxygen–oxygen radial distribution
+function. 118 Values for water as small as Rprobe = 0.2 Å have also been used, however, in an effort
+to match solvation energy benchmarks from simulations with explicit solvent. 119 The cavity surface
+generated using atomic radii RvdW + Rprobe is known as the solvent-accessible surface (SAS), which
+was first introduced as a means to measure accessible surface area in proteins and is often used to
+define the ion accessibility function λ(r) in Eq. (2.15). Note that it does not make sense to augment
+a scaled vdW radius with a probe radius, as this double counts the size of the exclusion layer.
+
+
+                                                     8
+                                                         solvent-excluded surface (SES)
+
+
+
+                             solvent probe
+                                   sphere
+                                                                        van der Waals
+                                                        vdW             (vdW) surface
+
+
+
+                     solvent-accessible
+                         surface (SAS)
+
+
+
+
+Fig. 2: Illustration of cavity surface definitions using a set of atomic spheres (in gray) whose
+envelope defines the vdW surface (in black). The solvent-accessible surface (in green) is defined
+either by augmenting the atomic radii by a probe radius (Rprobe , taken here to be smaller than
+the vdW radii), or equivalently as the center point of the probe sphere as it rolls over the vdW
+surface. The solvent-excluded surface (SES, in magenta, sometimes called the “molecular surface”)
+is traced out by arcs of the probe that connect points of contact between the probe and the vdW
+surface. The SES eliminates the cusps in the vdW surface that otherwise appear along seams of
+intersection between atom-centered spheres.
+
+
+    Both the vdW surface and the SAS exhibit cusps where atomic spheres intersect. These cusps
+are eliminated by solvent-excluded surface (SES) that is generated by the probe sphere as it rolls over
+the vdW surface; see Fig. 2. (In principle, this procedure could be applied to eliminate cusps in the
+SAS as well, but that is less often done because cusps in the SAS are less problematic, numerically
+speaking. 21 ) The center of the probe sphere traces out the SES while its points of contact with
+the vdW surface, combined with the concave arcs of the probe sphere that smooth over the cusps,
+constitute the SES. (The SES is also known as the Connolly surface, 120 or sometimes simply the
+“molecular surface”, 121 as it is probably the closest approximation to the true shape of the molecule.
+However, these names have sometimes been used interchangeably or ambiguously in the literature,
+and in particular the term “Lee-Richards surface” 122 has been used to mean either the SAS and
+the SES. 21,119,123 (The notation used here is standard in the quantum chemistry literature. 124 ) The
+SES has an analytic construction, 21,120 although it has most often been constructed numerically,
+for visualization purposes.
+    To a greater or lesser degree each of these cavity definitions seems physically reasonable, but
+beyond that there is little theoretical justification for any of them, and no guarantee that small
+changes in one or more atomic radii will not have a significant impact on computed observables. 97,125
+It has been suggested that the “optimal” atomic radius for a given atom likely ought to vary as
+a function of its partial atomic charge, 126,127 but this effect is generally handled empirically, if at
+all. “United-atom” models, in which hydrogen atoms are not given explicit spheres and the radii
+of the other atoms are increased to compensate, 126 are also in widespread use. A more justifiable
+definition of the solute cavity surface might involve an isocontour of the molecular electron density
+ρ(r), 94,96,128–130 as it is the density that is ultimately responsible for molecular size and shape. 131
+Isodensity cavity definitions are considered in Section 3.3.
+    With the introduction of a molecule-shaped cavity, one must forego analytic solution of Poisson’s
+equation. A variety of numerical algorithms have been introduced, either for classical biomolecular
+applications, 132–142 or else for quantum electronic structure calculations. 39,64,143–145 Numerically,
+Eq. (2.3) and its Poisson-Boltzmann analogue are partial differential equations (for ϕ) that require
+
+
+                                                   9
+discretization of three-dimensional space, which must extend well into the continuum region due
+to the (εs r)−1 asymptotic decay of ϕ(r). This necessitates the use of multiresolution techniques
+for efficiency. 39,55,62,132,134,142 Worth mentioning also is the Langevin dipoles model, 146–148 which
+discretizes the continuum solvent using a three-dimensional grid of point dipoles, and is therefore
+a direct realization of the conceptual notion that P is a dipole density.
+    As compared to these approaches, each of which requires discretization of three-dimensional
+space, a much more efficient two-dimensional formulation of the continuum electrostatics problem
+is often feasible. The transformation of Eq. (2.3) from a partial differential equation in three
+dimensions to an integral equation in two dimensions (over the cavity surface Γ) defines the class
+of methods known as polarizable continuum models (PCMs), 13,15,19 which we next describe.
+
+2.3   Polarizable continuum models
+In quantum chemistry, PCMs are so widely used as to be nearly synonymous with continuum
+solvation itself. This popularity stems from efficiency, which in turn derives from a transformation
+of the volumetric polarization theory of the Poisson or Poisson-Boltzmann equation (Section 2.1)
+into a surface charge problem that can be solved with numerical methods that are described in
+Section 3.2. That transformation, and the basic working equations of PCMs, are introduced in this
+section. Matrix analogues of these integral equations, which define the various PCMs in practice,
+are introduced in Section 3.1.
+    Physically speaking, polarization of the continuum extends beyond the solute cavity surface,
+as indicated pictorially in Fig. 1(b). Transformation of the three-dimensional polarization problem
+into a two-dimensional problem defined on the cavity surface Γ relies on a characteristic feature
+of a sharp dielectric interface, namely, a discontinuity in the electric field resulting from a buildup
+of charge at the interface. This occurs at any dielectric interface, including the one that defines
+the boundary between atomistic solute and continuum solvent. Let s ∈ Γ denote a point on the
+interface (cavity surface), and let ns be the outward-pointing unit vector normal to the cavity
+surface at the point s. At a sharp interface in the permittivity function ε(r), as in Eq. (2.10), the
+normal electric field satisfies a “jump” boundary condition, 9,92
+                                                              
+                                    ˆ ϕ(s)
+                          εout ns · ∇              = εin ns · ˆ ϕ(s)
+                                                              ∇                .                  (2.21)
+                                              s=s+                      s=s−
+
+This ensures that the electric displacement D(r) = ε(r) E(r) is continuous across the interface. 38,41
+The notation s± indicates that these are one-sided derivatives to be evaluated immediately inside
+(s− ∈ Ω) or outside (s+ ∈ / Ω) of the solute cavity, as ϕ is only semi-differentiable at the interface.
+    Polarization of the continuum manifests as a surface charge that accumulates at the boundary
+between the atomistic and the continuum region in order to satisfy Eq. (2.21), and whose magnitude
+is proportional to the outward-pointing normal electric field at the dielectric interface. 38 Let us call
+that charge σ(s), where s ∈ Γ, so as to distinguish it from a volume charge such as ρ(r), where
+r ∈ R3 . Introducing the notation ∂ˆs = ns · ∇ˆ to indicate the normal derivative, the surface charge
+at the dielectric boundary can be expressed in several equivalent ways, 14,92 two of which are
+                                                                    
+                        1 εout − εin ˆ                   1 εout − εin ˆ
+                σ(s) =                  ∂ s ϕ(s)      =                   ∂ s ϕ(s)      .         (2.22)
+                       4π       εin              s=s+   4π       εout              s=s−
+
+These differ depending on whether the normal electric field is evaluated immediately inside or
+outside of the cavity. In the usual quantum chemistry case where εin = 1 and εout = εs , the first
+form of this equation (in which the field is evaluated within the continuum region) is merely the
+
+
+                                                    10
+definition of the polarization,                                     
+                                                            εs − 1
+                                                P=                       E,                      (2.23)
+                                                              4π
+as obtained from Eq. (2.1). If the entirety of the solute charge ρ(r) is confined within the cavity
+surface, then Eq. (2.22) is simply a reflection of Gauss’ Law. For cavities that are realistic approx-
+imations to the size and shape of a molecular solute, however, the tails of a quantum-mechanical
+charge distribution will penetrate into the continuum region. 91–97 This outlying or “escaped” charge
+is discussed in more detail below but will be ignored for now.
+    It has been argued that the second form of Eq. (2.22), in which the derivative is evaluated
+inside of the cavity, should be used in order to avoid “self-polarization” of the medium. 9 Then
+taking εin = 1 and εout = εs and recognizing that E = −∇ϕ, ˆ one obtains a model
+                                                                             
+                         1 εs − 1  ρ             σ
+                                                              1 εs − 1       ∂ϕ
+              σ(s) = −                 E (s) + E (s) · ns =                                      (2.24)
+                        4π     εs     |        {z         } 4π       εs       ∂ns s=s−
+                                                       E⊥ (s)
+
+
+that corresponds to the original PCM introduced by Tomasi and co-workers. 3–5,9 Here, the induced
+surface charge density σ(s) is proportional to the outward-directed normal electric field, E⊥ (s) =
+E(s)·ns , which is separated into two contributions in Eq. (2.24), analogous to how ϕ(r) is partitioned
+in Eq. (2.4). The contribution Eρ = −∇ϕ   ˆ ρ comes from the solute, whose electrostatic potential
+  ρ                                     σ
+ϕ (r) is defined in Eq. (2.4), whereas E = −∇ϕ ˆ σ can be identified as the reaction-field contribution
+and originates in the electrostatic potential
+                                                Z
+                                        σ              σ(s)
+                                       ϕ (r) =                ds                                  (2.25)
+                                                 s∈Γ ks − rk
+
+that is generated by the surface charge σ. To compute ϕσ (r), it is only necessary to discretize
+the cavity surface Γ rather than the whole of three-dimensional space. Historically, Eq. (2.24)
+was the first example of what has been called an apparent surface charge (ASC) formulation of
+the continuum electrostatics problem. Nowadays the term “ASC model” is essentially synonymous
+with PCM, as multipolar expansions and other simplified treatments see little use in contemporary
+quantum chemistry because the model defined by Eq. (2.24) makes it easy to use the exact solute
+density ρ(r) along with a cavity or arbitrary shape. (Discretization of the surface is considered in
+Section 3.) For a spherical cavity, Eq. (2.24) is equivalent to the use of the Kirkwood multipolar
+expansion formulas if the latter are carried to arbitrary order, as can be proven explicitly. 149
+    In early literature, the model defined by Eq. (2.24) is often called “the” ASC-PCM, 9 whereas in
+contemporary literature it is usually called D-PCM, 13,15 or sometimes the Miertuš-Scrocco-Tomasi
+model. 98,150 The somewhat arbitrary decision to use the right side of Eq. (2.22) can be avoided,
+and a somewhat different version of this model obtained, by noting that the discontinuity in E⊥ at
+the cavity surface can be expressed as 92
+
+                                  ∂ˆ s ϕσ (s)           = 2πσ(s) + ∂ˆs ϕσ (s)                   (2.26a)
+                                                s=s−
+
+                                  ∂ˆs ϕσ (s)            = −2πσ(s) + ∂ˆ s ϕσ (s) .               (2.26b)
+                                                s=s+
+
+Adding these two equations and combining them with Eq. (2.22) affords a different expression for
+the surface charge, 92,149,151         
+                                       fε ˆ  ρ              
+                               σ(s) =      ∂ s ϕ (s) + ϕσ (s) ,                           (2.27)
+                                       2π
+
+                                                             11
+in which the normal derivative is evaluated at (rather than near) the point s ∈ Γ. The permittivity-
+dependent prefactor in this expression is
+                                                  εout − εin
+                                           fε =              .                                   (2.28)
+                                                  εout + εin
+(For a QM solute the only sensible choice is εin = 1, but the more general notation is retained
+for now, in order to accommodate different values of εin that are sometimes used in biomolecular
+electrostatics calculations. 7,44–48 )
+    The model of Eq. (2.27) can be recast in a convenient form by defining an operator D̂ † that
+acts on surface functions (s ∈ Γ) according to 94–96
+                                       Z                          
+                             †               ′   ′ ∂         1           σ
+                          D̂ σ(s) =        ds σ(s )             ′k
+                                                                     = −E⊥ (s) .          (2.29)
+                                         Γ          ∂ns   ks − s
+
+The first equality defines D̂ † and the second follows upon realization that ∂/∂ns = ns · ∇  ˆ can be
+pulled outside of the integral, leaving (ns · ˆ       σ       σ                      †
+                                                ∇)ϕ (s) = −E⊥ (s). The operator D̂ is often called
+  ∗
+D̂ in the literature, 94–96,152 but is the adjoint of the double-layer operator D̂ that is introduced
+below, and the notation used here is selected to reflect that fact. Using D̂ † to rewrite Eq. (2.27)
+affords an alternative to Eq. (2.24), namely
+                                                  
+                                       2π          †           ρ
+                                            1̂ − D̂ σ(s) = −E⊥   (s) .                          (2.30)
+                                       fε
+This equation makes clear that the sole ingredient needed to determine the induced surface charge
+is                                                          ρ
+                               ρ              ˆ   ρ          ∂ϕ
+                             E⊥ (s) = −(ns · ∇)ϕ (s) = −           ,                        (2.31)
+                                                             ∂ns
+which is the normal electric field due to the solute, evaluated at the cavity surface. Chipman refers
+to Eq. (2.30) as the surface polarization for electrostatics (SPE) method, 95 but others have called
+it D-PCM, 152 or simply PCM. 153
+    The D-PCM approach, which requires explicit calculation of the electric field at the cavity
+surface, has largely been superseded by alternative ASC-PCMs that determines σ(s) using only
+electrostatic potentials and not their derivatives, which might be more sensitive to discretization
+error. The modern approach is known as the integral equation formalism (IEF-) PCM, 152,154 and
+is based on a reformulation of the continuum electrostatics problem as a boundary-value prob-
+lem. 155–157 This reformulation is exact provided that the escaped charge is zero (e.g., for a classical
+solute), and we continue to defer a discussion of the escaped charge problem. IEF-PCM is for-
+mulated in terms of integral operators Ŝ and D̂ that act on surface functions (defined on Γ) to
+generate the single- and double-layer potentials, respectively. These operators are defined by
+                                            Z
+                                                   σ(s′ )
+                                   Ŝσ(s) =    ds′ ′       = ϕσ (s) ,                            (2.32)
+                                             Γ    ks  − sk
+which generates the electrostatic potential associated with the surface charge distribution σ(s), and
+                                        Z                         
+                                              ′   ′    ∂      1
+                              D̂σ(s) =      ds σ(s )                  ,                        (2.33)
+                                          Γ          ∂ns′ ks′ − sk
+                                                     |     {z       }
+                                                            D(s,s′ )
+
+which generates the double-layer potential, in the language of integral equations. 152 [The operator
+D̂ is the adjoint of D̂ † in Eq. (2.29), 13 as becomes clear upon reversing the indices of the kernel
+
+                                                   12
+D(s, s′ ).] Using Ŝ and D̂, the continuum electrostatics problem can be recast as an integral equation
+on the surface of the cavity: 13
+                                           
+                                  2π                                
+                                       1̂ − D̂ Ŝσ(s) = − 2π 1̂ + D̂ ϕρ (s) .                    (2.34)
+                                  fε
+Equation (2.34) is the basic working equation of IEF-PCM. In early papers the working equation
+                                                    ρ
+was formulated somewhat differently, requiring E⊥      in addition to ϕρ . 155–157 That form is sometimes
+called simply “IEF”, 95,152 to distinguish it from the IEF-PCM that requires ϕρ but not its deriva-
+tive, and should therefore be more stable numerically. Equivalence of the two forms is demonstrated
+in Ref. 158, and in fact Eq. (2.34) can be cast in a variety of equivalent forms, 94,95,152 by taking
+advantage of the fact that Ŝ = Ŝ † and
+                                              D̂Ŝ = Ŝ D̂ † .                                      (2.35)
+However, except for spherical cavities (for which D̂ = D̂ † ), 94 the operator identity in Eq. (2.35)
+is not generally preserved upon discretization, 20,153 with the practical result that various forms
+of Eq. (2.34) are inequivalent as finite-dimensional matrix equations. 19,20 These equations are dis-
+cussed in Section 3.1.
+    For now, we simply note that Eq. (2.34) is an exact reformulation of the classical continuum
+electrostatics problem, meaning the problem that is defined by Poisson’s equation with a sharp
+dielectric boundary and where the solute’s charge density ρ(r) is contained entirely within the
+cavity. That caveat is satisfied if the solute consists of atomic point charges (or higher-order
+multipoles, including polarizable ones) from a force field. In that case, solution of Eq. (2.34) for
+σ(s) constitutes an exact solution to the electrostatics problem, and the electrostatic solvation
+energy is 18                        Z                      Z
+                                  1                      1
+                          Gelst =       ϕσ (r) ρ(r) dr =     ϕρ (s) σ(s) ds .                  (2.36)
+                                  2 R3                   2 Γ
+These are analogous to the two forms of Gelst that are given in Eq. (2.6), however the second form
+in Eq. (2.36) requires only surface integration. Using this ASC formulation, in lieu of discretizing
+three-dimensional space, has significant advantages over the traditional approach to biomolecular
+electrostatics, which require discretization far enough into the continuum such that ϕρ (r) has
+decayed to zero. Most contemporary biomolecular electrostatics calculations are also based on finite-
+difference evaluation of the Laplacian ˆ  ∇2 ϕ(r), 159,160 which leads to problems in obtaining smooth
+forces for molecular dynamics. 161–163 Discretization of the action of D̂ and Ŝ on surface functions can
+be accomplished in a manner that affords inherently smooth forces; 17–19 see Section 3.2. Especially
+for biomolecular applications it is worth noting that the IEF-PCM has been adapted to provide
+a solution to the linearized Poisson-Boltzmann problem, 68,155,156,164 including the “size-modified”
+version that accounts for finite size of the mobile ions. 68 Large biomolecular solutes have been
+tackled in this way, 19,165–167 but this requires iterative solvers for the matrix equations that define
+the PCM. Linear-scaling implementations that can handle biomolecular solutes are discussed in
+Section 3.4.
+    For QM solutes, however, there is always escaped charge for realistic cavity sizes, and therefore
+IEF-PCM is not a fully equivalent substitute for Poisson’s equation. The extent to which this is
+a problem is unclear from the original derivation of IEF-PCM provided by Cancès et al., 152,155–157
+which does not provide much physical insight, nor does it emphasize the assumption (inherent in the
+derivation) that there is no outlying charge. That issue was addressed directly by Chipman, 92–95
+who assumes from the start that there is outlying charge and that as a consequence the correct
+reaction-field potential is not ϕσ (r) but rather
+                                       ϕrxn (r) = ϕσ (r) + ϕβ (r) ,                                (2.37)
+
+                                                   13
+where ϕσ (r) arises from the accumulation of charge σ(s) at the dielectric interface but is accompa-
+nied by an additional potential ϕβ (r) due to volume polarization. The latter originates with the tail
+of the solute’s charge density that extends beyond the cavity surface. Including an additional term
+for ϕβ on the right side of Eq. (2.27), and recognizing that ∂ˆs ϕσ (s) = D̂ † σ(s), an exact equation
+for the surface charge that includes the effects of volume polarization is 94
+                                  
+                                  fε                fε  ˆ ρ                   
+                            1̂ −       D̂ † σ(s) =      ∂ s ϕ (s) + ∂ˆ s ϕβ (s)
+                                  2π               2π
+                                                                                                (2.38)
+                                                      fε  ρ          β     
+                                                 =−       E (s) + E⊥ (s) .
+                                                     2π ⊥
+The potential ϕβ (r) can be modeled as the electrostatic potential generated by a charge density
+                                     (
+                                       0                  for r ∈ Ω
+                             β(r) =      −1     −1
+                                                                                           (2.39)
+                                        εout − εin ρ(r) for r ∈ /Ω
+that satisfies a vacuum-like Poisson equation,
+                                         ˆ 2 ϕβ (r) = −4πβ(r) .
+                                         ∇                                                       (2.40)
+Equation (2.38) can be solved numerically, 91 to afford an exact solution to the continuum electro-
+statics problem, in a method that Chipman calls surface and volume polarization for electrostatics
+(SVPE). 95 This approach is challenging in practice because the volume charge density β(r) is dis-
+continuous at the cavity surface, however Eq. (2.38) can be recast into a form that requires only
+                           ρ
+the normal electric field E⊥ (s) at the cavity surface, along with the solution of the ASC-PCM that
+                     96
+is introduced next. This provides a practical means to access exact electrostatics, even in the
+presence of outlying charge, while staying within a two-dimensional surface integral formalism.
+    A simplified (if approximate) treatment is possible, which eliminates the normal electric field
+in Eq. (2.38) and ultimately connects back to IEF-PCM. This model is obtained by introducing an
+additional surface charge α(s), distinct from σ(s), that is defined by the condition
+                                           Ŝα(s) = ϕβ (s) ,                                     (2.41)
+meaning that its electrostatic potential ϕα = Ŝα must reproduce ϕβ on the cavity surface. 91–94
+This also ensures that ϕα (r) = ϕβ (r) for all interior points r ∈ Ω, and while the two potentials may
+differ outside of the cavity, those contributions are scaled by ε−1s and therefore less important. (This
+is confirmed in numerical tests. 91,97 ) Assuming that the true surface charge, augmented to reflect
+volume polarization, is σ̃(s) = α(s) + σ(s), the term ∂ˆ s ϕβ (s) in Eq. (2.38) can be manipulated into
+a form that is consistent with the ASC formalism. 94 The result is a model that Chipman has called
+surface and simulation of volume polarization for electrostatics [SS(V)PE], 94–96
+                                                                   
+                                      fε †                  1
+                              Ŝ 1̂ −    D̂ σ̃(s) = fε         D̂ − 1̂ ϕρ (s) .                   (2.42)
+                                      2π                   2π
+                              |      {z     }         |       {z      }
+                                   K̂ε                     Ŷε
+
+Using the identity in Eq. (2.35), this equation is easily rearranged to afford Eq. (2.34) that defines
+IEF-PCM, and therefore the two models are equivalent at the level of integral operators. 94,95,158
+(They differ in practice, as described in Section 3.1.) Importantly, what the derivation of SS(V)PE
+makes clear is that the surface charge that is determined by solving Eq. (2.34) implicitly contains
+the (approximate) effects of volume polarization, which was not evident from the derivation by
+Cancès and co-workers. 152,155–157 Chipman’s derivation clarifies that both approaches constitute
+an exact treatment of electrostatic interactions in the limiting case that there is no escaped charge
+(α ≡ 0).
+
+                                                  14
+Table 1: Electrostatic solvation energies in toluene (εs = 2.4) and in water (εs = 78.3), computed
+with various approaches.a The SVPE method [Eq. (2.38)] affords the exact result and SPE is the
+method in Eq. (2.30).
+       Solute          εs                        Gelst (kcal/mol)                      Qout
+                              SVPE     SS(V)PE         SPE           COSMOb           (a.u.)c
+                                                                 ζ=0      ζ = 1/2
+       H2 O            2.4    −3.9       −3.9         −4.0       −4.8     −3.9
+       CH3 CONH2       2.4    −5.3       −5.0         −5.2       −5.9     −4.8
+       NO+             2.4 −52.2        −52.2        −55.3     −52.5     −43.4
+       CN−             2.4 −39.4        −39.4        −35.0     −39.4     −32.5
+       H2 O           78.3    −8.6       −8.6         −8.7       −8.6     −8.6       −0.06
+       CH3 CONH2 78.3 −10.9             −10.8        −11.1     −10.9     −10.8       −0.15
+       NO+            78.3 −89.5        −89.5        −94.7     −89.5     −88.9       −0.07
+       CN−            78.3 −67.4        −67.3        −56.8     −67.3     −66.9       −0.17
+      a
+        From Ref. 95; all calculations used an isodensity cavity with ρ0 = 0.001 a.u.. b Using a renormalization
+      factor f˜ε (ζ), Eq. (2.45). c From Ref. 97.
+
+
+2.4   Comparison of ASC-PCMs
+Table 1 presents electrostatic solvation energies (Gelst ) for several small molecules and ions, in both a
+low-dielectric solvent (toluene, εs = 2.4) and a high-dielectric solvent (water, εs = 78). 95 The SVPE
+method [Eq. (2.38)] affords the exact result but SS(V)PE solvation energies are within 0.1 kcal/mol.
+In comparison, the SPE method of Eq. (2.30), which is equivalent to D-PCM, exhibits noticeable
+differences, especially for ions. The amount of outlying charge (Qout ) is also quantified in Table 1.
+For future reference we note the obvious definitions
+                                              Z
+                                        Qin =       ρ(r) dr                                        (2.43a)
+                                                r∈Ω
+                                              Z
+                                       Qout =      ρ(r) dr − Qin .                                 (2.43b)
+                                                      R3
+
+The charge density ρ(r) includes both nuclei and electrons, so Qin +Qout = 0 for a neutral molecule.
+The escaped charge is generally |Qin | ≈ 0.1–0.2e for small solutes. 91,97
+    By arbitrarily dropping the D̂- and D̂ † -dependent terms in Eq. (2.42), one obtains a model
+Ŝσ = −fε ϕρ that we rewrite as
+                                       Ŝσ(s) = −f˜ε (ζ) ϕρ (s) .                             (2.44)
+This introduces a parameter ζ into the permittivity factor that was defined in Eq. (2.28), rewriting
+it as
+                                                   εs − 1
+                                         f˜ε (ζ) =                                            (2.45)
+                                                   εs + ζ
+for the usual QM case where εin = 1 and εout = εs . The model in Eq. (2.44) has a long history
+and a variety of names, one of which is the conductor-like screening model (COSMO). 168 Since the
+neglected double-layer operator embodies the electric field discontinuity at the cavity surface, this
+condition is not satisfied when these terms are neglected to obtain Eq. (2.44), 68,152 and rescaling
+the surface charge by f˜ε (ζ) can be seen as an attempt to mimic the effect of the jump boundary
+condition.
+    The name COSMO hints at the original derivation of the model in Eq. (2.44): for a conductor
+(εs = ∞), the total electrostatic potential vanishes at the cavity surface and the ASC formulation
+
+                                                           15
+of the Poisson problem is simply Ŝσ = −ϕρ . 93 A scaling factor f˜ε (ζ) is then introduced to account
+for the fact that εs is finite, and that there is charge penetration into the medium. The scaling
+factor [Eq. (2.45)] can be justified based on the normalization condition for the total surface charge,
+which is 92,156,169                Z                         
+                                                      1    1
+                                       σ(s) ds = −      −       Qin .                            (2.46)
+                                     Γ               εin εout
+For εin = 1 and εout = εs , the total surface charge Qsurf = −[(εs − 1)/εs ]Qin , and it was originally
+suggested to take ζ = 1/2 in order to renormalize for outlying charge, 168 although the value ζ = 0
+was later recommended for ions, 170 and values 0 ≤ ζ ≤ 2 have also been used. 10 The choice ζ = 0
+has variously been called the “generalized COSMO” (GCOSMO) model, 171–174 or the conductor-
+like PCM (C-PCM). 175,176 In fact, the normalization condition in Eq. (2.46) forms the basis of
+various ad hoc attempts to rescale the surface charge, 3,5,177–179 but tests against exact results from
+Poisson’s equation suggest that none of these schemes is very satisfactory. 91 Charge rescaling also
+complicates analytic energy gradients. 180
+    At a practical level, the choice ζ = 1/2 for neutral solutes and ζ = 0 for ions works remarkably
+well in comparison to the IEF-PCM and SS(V)PE methods, even in low-dielectric solvents. This is
+suggested by the smattering of data in Table 1 and confirmed by calculations on a much larger data
+set, for which the statistical difference between these methods is . 0.1 kcal/mol for neutral solutes
+and ≈ 0.5 kcal/mol for ions, even at εs = 2. 170 Some justification for these parameter choices is
+found in the fact that f˜ε (0) looks like the ε-dependent factor in the Born ion model [Eq. (2.17)],
+whereas f˜ε (1/2) affords the prefactor in the Bell-Onsager model of dipole solvation [Eq. (2.18)].
+With appropriate choice of ζ, COSMO is therefore little different from SS(V)PE or IEF-PCM
+in practice, and considerably simpler. It can be extended in a straightforward way to solvents
+with nonzero ionic strength, with or without size exclusion. 68 For large biomolecular applications
+in aqueous solvent, there seems little reason not to use this approach, in lieu of exact but more
+complicated models, and as an alternative to finite-difference solution of Poisson’s equation.
+
+
+3     Implementation
+Poisson’s equation with a sharp dielectric interface makes for a cute problem in applied mathematics
+and there has sometimes been a tendency in that community to analyze its properties, or those of
+the various cavity surfaces discussed in Section 2.2, at fixed molecular geometries only. This is not
+useful for chemistry, which requires a potential energy surface. Exploration of that surface requires
+gradients of the total energy functional G[Ψ], which in turn requires discretization of the integral
+equations introduced above. In addition, many spectroscopic observables can be formulated as
+analytic energy derivatives, 181–183 so a solution-phase theory that encompasses molecular properties
+requires a differentiable model. Numerical implementation of the models introduced in Section 2 is
+the topic of this section. We deal specifically with PCMs in Sections 3.1 and 3.2, but admit more
+general Poisson equation models in Section 3.3. Linear-scaling implementations, which are useful
+for hybrid QM/MM simulations with PCM boundary conditions, are discussed in Section 3.4.
+
+3.1   Matrix equations for PCMs
+In practice, the integral equation that defines any PCM must be discretized in order to obtain a
+finite-dimensional matrix equation. As such, it is convenient to rewrite the equation that defines
+SS(V)PE and IEF-PCM as
+                                        K̂ε σ(s) = Ŷε ϕρ (s) ,                              (3.1)
+
+
+                                                  16
+       Table 2: Matrices that define various PCMs according to Kε q = Yε vρ [Eq. (3.2)].
+                    Method           Matrix Kε                              Matrix Yε
+                    C-PCMa,b         S                                      −f˜ε (0) 1
+                    COSMOb           S                                      −f˜ε (ζ) 1
+                    DESMOc           S                                      −1 + (1/ε)M
+                                                                                            
+                    SS(V)PEd         S − (fε /4π)(DAS + SAD† )              −fε 1 − (1/2π)DA
+                                                                                            
+                    IEF-PCMd         S − (fε /2π)DAS                        −fε 1 − (1/2π)DA
+                 a
+                     Also known as GCOSMO. b f˜ε (ζ) = (ε − 1)/(ε + ζ). c Mij = δij ϕρκ (si )/ϕρ0 (si ).
+                d
+                    fε = (ε − 1)/(ε + 1).
+
+
+which is simply a restatement of Eq. (2.42). Using various definitions for K̂ε and Ŷε , this equation
+can encompass a whole family of ASC-PCMs including the simplified C-PCM and COSMO methods
+(Table 2). 19,20,95,129
+    To discretize Eq. (3.1), one must first generate a surface grid of points si ∈ Γ. The surface
+charge distribution σ(s) is thereby replaced by a set of point charges {qi } at the discretization
+points {si }. The details of this procedure are discussed in the next section but for now it suffices
+to introduce a matrix notation
+                                            Kε q = Yε vρ                                         (3.2)
+for the discretized form ofEq. (3.1), where q is a vector of surface charges and vρ denotes the
+molecular electrostatic potential evaluated at the cavity surface, υiρ = ϕρ (si ). In this form, surface
+integrals are replaced by scalar products, e.g., Gelst = 21 q · vρ replaces Eq. (2.36). An alternative
+form of Eq. (3.2) that is sometimes encountered is q = Qε vρ where Qε = K−1          ε Yε , but whereas
+                                          −1
+the corresponding operator Q̂ε = K̂ε Ŷε is self-adjoint, this property is generally not preserved by
+discretization except in the special case of C-PCM and COSMO. 18 This means that the mapping
+from Eq. (3.1) to Eq. (3.2) is not unique, because discretization fails to preserve the condition D̂ Ŝ =
+Ŝ D̂ † . 20 In matrix form, this implies that DAS 6= SAD† (except for spherical cavities), 20,153 where
+A is a diagonal matrix consisting of the surface area ai associated with each discretization point
+si . This leads to an ambiguity in the matrix representation of the operator K̂ε = Ŝ − (fε /2π)Ŝ D̂ †
+[Eq. (2.42)], since it can be argued that any matrix of the form
+                                              
+                                               fε                     
+                                   Kε = S −         c1 DAS + c2 SAD† .                              (3.3)
+                                               4π |        {z         }
+                                                                      X
+
+is an equally valid representation, provided that c1 + c2 = 1. 20 The various choices for X are
+inequivalent in matrix form. Historically, IEF-PCM has been implemented using X = DAS
+(that is, c1 = 1 and c2 = 0), whereas SS(V)PE was implemented using the symmetrized matrix
+(DAS + SAD† )/2. 19,95 This is indicated in Table 2, which provides matrix definitions for these and
+other commonly-encountered PCMs. Precise definitions of the matrices S and D that represent
+the operators Ŝ and D̂ can be found elsewhere. 18–20,124,129 These depend somewhat upon the dis-
+cretization algorithm that is selected, but generally Sij represents the Coulomb interaction between
+qi and qj (which is straightforward to discretize except when i = j), whereas Dij incorporates the
+effects of the outward-pointing electric field.
+    In the absence of outlying charge, the IEF-PCM and SS(V)PE models are exact up to dis-
+cretization errors, which can be driven to zero in a controlled way. Although this fact follows from
+
+                                                           17
+                                                                                                                                           h
+                                                                                                                                           beexa            Et
+          (a)                                                                                               (b)
+                                                                                                                                                              O
+                                                                                                                                                            C H
+                                                                                                                                              nz ne          H
+                                                                                                                                           Et e n e
+                                                                                                                                             2O             H2O
+                                                                                                                                                               3C N
+                                                         1
+                                                    10
+
+
+
+
+        |Gelst(PCM) – Gelst(APBS)| Ê
+                                                                                                                                 –25
+                                                                                     †
+                                                                           X = SAD                                               –30
+                                                                                                                                                                   X = SAD
+                                                                                                                                                                           †
+
+
+
+
+                                                                                                              Gelst (kcal/mol)
+                                                    100
+
+
+                                       (kcal/mol)
+                                                                                                                                 –35                               X = DAS (IEF-PCM)
+                                                                                                                                                                   C-PCM
+                                                                                                                                 –40
+
+                                                    10–1                                                                         –45
+
+                                                                                     X = DAS                                     –50
+
+                                                                                                                                 –55
+                                                    10–2
+                                                             A C F G I L M N P Q S T V W Y H K R E D                                   1               10            100         1000
+                                                                         amino acids                                                                  dielectric constant, ε
+
+
+Fig. 3: (a) Comparison of aqueous solvation energies, |Gelst (PCM) − Gelst (APBS)|, computed
+using either an ASC-PCM or else by numerical solution of Poisson’s equation using the apbs
+software. The data set of solutes consists of amino acids described using atomic partial charges
+from a force field, so that there is no outlying charge. The traditional implementation of IEF-PCM
+corresponds to X = DAS (see Table 2) but results are also shown for the transpose matrix, SAD† ,
+and SS(V)PE is essentially the average of these two choices. (b) Convergence of Gelst for classical
+histidine as a function of the solvent’s dielectric constant, using the SwiG discretization scheme
+described in Section 3.2. Dielectric constants for a few common solvents are indicated along the
+top axis. Adapted from Ref. 20; copyright 2011 Elsevier.
+
+
+the derivation in Section 2.3, it is worth emphasizing via numerical calculations. For classical so-
+lutes with no outlying charge, which are described using atomic partial charges from a force field,
+Fig. 3(a) presents a comparison of PCM solvation energies to those obtained by numerical solu-
+tion of Poisson’s equation, 19,20 using a standard multiresolution algorithm as implemented in the
+apbs software. 184 To examine the ambiguity regarding the choice of X, these calculations test both
+X = DAS (i.e., IEF-PCM) and also X = SAD† ; the SS(V)PE model should be essentially the
+average of these two choices. Calculations in Fig. 3 use dense but finite discretization grids, and a
+small systematic discrepancy is evident between the two choices of X, indicating a systematic dis-
+crepancy between SS(V)PE and IEF-PCM. Numerical values of Gelst obtained using the IEF-PCM
+choice of X agree to within . 0.1 kcal/mol of apbs results, demonstrating the operational equiv-
+alence of the ASC and the volumetric implementation of continuum electrostatics. This renders
+the Kirkwood (multipolar expansion) formulas obsolete, since the requisite formulas are only valid
+in the absence of escaped charge anyway, and in that case the ASC-PCM formalism furnishes an
+exact numerical solution to the continuum electrostatics problem, for cavities of arbitrary shape,
+while also providing a correction for outlying charge. 94,96,169
+    The conductor-like model (C-PCM) represents the high-dielectric limit of IEF-PCM and the two
+models do indeed become equivalent as ε → ∞, 20,68,93 as demonstrated numerically in Fig. 3(b).
+In practice, there is little difference between the two models already for moderately polar solvents.
+For ε > 10, there seems little justification for the increased complexity of IEF-PCM relative to C-
+PCM. That said, for non-spherical cavities only the X = DAS form of the Kε matrix achieves the
+correct conductor limit for finite discretization grids, as demonstrated by both formal and numerical
+arguments. 20 In general, D̂ † proves more challenging to implement as compared to D̂, 20,185 so the
+absence of D̂ † is one reason to prefer the IEF-PCM form with X = DAS.
+    It is illustrative to note that C-PCM can be derived in an alternative way, 68 which also general-
+izes the method to the Poisson-Boltzmann case in which the solvent contains a dissolved electrolyte.
+
+
+                                                                                                       18
+This can be done by introducing the following ansatz for the electrostatic potential: 19,68
+                                     (
+                                        ϕρ0 (r) + ϕσ0 (r) for r ∈ Ω
+                              ϕ(r) =                                .                             (3.4)
+                                        ϕρκ (r)/ε         for r ∈
+                                                                /Ω
+
+Within the solute cavity, this looks like the solute’s electrostatic potential (ϕρ0 ≡ ϕρ ) plus that
+arising from the apparent surface charge, whereas outside of the cavity the potential is modified to
+include screening by dissolved ions:
+                                       Z
+                                               exp(−κkr − r′ k) ′
+                              ϕρκ (r) = ρ(r′ )                   dr .                          (3.5)
+                                                   kr − r′ k
+
+The screened Coulomb potential e−κr /(εs r) is the form encountered in Debye-Hückel theory, 7,60,67,68
+with screening length κ−1 that is defined in Eq. (2.16). C-PCM is immediately recovered by
+requiring ϕ(r) in Eq. (3.4) to remain continuous across the solute cavity surface. 68 This simple
+ansatz cannot, however, be made to satisfy the jump boundary condition in Eq. (2.21) and incurs
+an error of O(1/ε). 19,68 (This is consistent with the fact that C-PCM can be “derived” from
+IEF-PCM simply by dropping the D̂- and D̂ † -dependent terms from IEF-PCM and rescaling the
+surface charge to compensate, 152 as described in Section 2.4.) The simple ansatz in Eq. (3.4) is
+easily modifiable to incorporate the effects of an ion exclusion layer (Stern layer) around the solute
+cavity, as in the size-modified Poisson-Boltzmann equation of Eq. (2.12), where the ion accessibility
+function λ(r) serves the same purpose. In homage to GCOSMO, and in recognition of the fact that
+this approach generalizes Debye-Hückel theory to cavities of arbitrary shape, this approach has
+been named the Debye-Hückel-like screening model (DESMO). 19,68
+
+3.2   Discretization
+Having introduced various PCMs in matrix form, we now turn to the details of discretizing the
+cavity surface. Historically, this has been accomplished using various “tessellation” schemes, 124
+in which small, flat surface elements approximate the curved surface of the cavity. The “gepol”
+algorithm 186–189 is a popular version of this finite-element approach, and an example of a molecu-
+lar cavity discretized in this way is presented in Fig. 4(a). This approach has several limitations,
+however, including the fact that the number of tesserae per atomic sphere cannot be increased
+arbitrarily and thus the discretization error cannot be systematically driven to zero. 20 Further-
+more, the solid geometry of the tessellation procedure is complicated, leading to very complex
+formulas for surface areas 190 and analytic energy gradients. 191 (In fact, second derivatives of the
+tesserae areas ai were considered sufficiently complicated that they were not originally formulated,
+and the PCM Hessian was implemented in a semi-analytic way, via finite-difference evaluation of
+∂ 2 ai /∂x∂y. 153 ) More recently, these complexities have been overcome by discretizing the surface
+using atom-centered Lebedev grids, 17–21,192–194 which are already widely used in density functional
+theory, 195–198 and therefore widely available in quantum chemistry codes. An example is depicted
+in Fig. 4(b), where the outline of the vdW surface is evident even though only the discretization
+grid points (and the underlying nuclear framework) are shown. Relative to gepol and other tessel-
+lation schemes, Lebedev grids have the advantage of being systematically improvable so that results
+can be converged to the infinite-grid limit. 18,20 Fully analytic Hessians have been formulated and
+implemented. 199
+     An important issue faced by both tessellation and quadrature is ensuring that the discretization
+algorithm produces a smooth potential energy surface as the atoms are displaced. The appearance
+
+
+                                                  19
+                         (a)                           (b)
+
+
+
+
+Fig. 4: (a) Example of a molecular surface (top) and its tessellation using the gepol algorithm
+(bottom). (b) Surface discretization grid for a double-stranded segment of DNA. Panel (a) is
+reprinted from Ref. 15; copyright 2012 John Wiley & Sons.
+
+of discontinuities in molecular surface area algorithms used in biomolecular electrostatics calcula-
+tions was pointed out long ago, 200 and discontinuities are likely the cause of anecodotal complaints
+about slow convergence of geometry optimizations using PCMs. These discontinuities arise because
+grid points may disappear into (or emerge from within) the interior of the solute cavity, as dis-
+placement of the nuclei modifies the extent of interpenetration amongst the atomic spheres that
+define the cavity. An example is shown in Fig. 5(a), which plots convergence of the energy during
+geometry optimization of (adenine)(H2 O)52 in implicit solvent. Two discretization algorithms, the
+variable tesserae number (VTN) method 201 and the fixed points with variable areas (FixPVA) ap-
+proach, 202 are shown to exhibit repeated spikes in the energy. 17 The VTN algorithm uses a fixed
+surface grid that unceremoniously discards surface elements that are swallowed by the cavity, and
+it is unsurprising that the corresponding potential surface exhibits discontinuities, although their
+magnitude (> 20 kcal/mol in one case) is disturbing. The FixPVA algorithm, however, specifically
+introduces a switching function to attenuate the surface area of each atomic tesserae within the
+cavity’s interior. In fact, the sharp changes in energy along the FixPVA optimization in Fig. 5(a)
+are not discontinuities per se but rather near-singularities induced by the switching function, which
+allows surface discretization charges to approach one another much more closely as compared to
+the VTN scheme. 17,20
+     To avoid this, one can use a combination of a switching function with Gaussian blurring of the
+surface charges, as illustrated in Fig. 5(b), in what has been called the switching/Gaussian (SwiG)
+discretization procedure. This ensures that Coulomb interactions between surface discretization
+elements remain finite even as the distance between them approaches zero. Such a procedure was
+originally developed by York and Karplus to obtain a “smooth COSMO”, 192 then later extended
+by Lange and Herbert to the complete family of PCMs. 17,18,20,21 This scheme uses Lebedev points
+to discretize the surface rather than tesserae of finite area. Nevertheless, the solvent-accessible
+surface area (SASA) for atom B (whose radius is RB ) is easily defined:
+                                                        grid
+                                                        X
+                                                2
+                                     SASA(B) = RB              wi Fi .                            (3.6)
+                                                        i∈B
+
+Here, wi is the quadrature weight for Lebedev discretization point si , and Fi is the switching
+function associated with that point (0 ≤ Fi ≤ 1), so ai = wi Fi is the surface area that is assigned to
+the point si . 17 Equation (3.6) is considerably simpler than geometric algorithms for determining the
+
+                                                  20
+            (a)                                                                      (b)
+                                                                                                           q1
+                               –570                                                                                A    B
+                                                                                                           q2
+                               –580                                                                         q3
+                                                                                                             ...
+
+
+
+
+           energy (kcal/mol)
+                               –590
+                                                                                     (c)
+                                                                                                  14
+                               –600
+                                                                                                  13
+                                                                      VTN
+                               –610                                                    Gnonelst   12
+                                                           SwiG                                                            VTN
+                                                                                                                           FixPVA
+                                                                                     (kcal/mol)
+                               –620                                                               11                       SwiG
+                                                                       FixPVA                     10
+                               –630
+                                                                                                   9
+                                      0   200   400     600     800    1000   1200                     2     3     4   5      6     7
+                                                optimization step                                                  RAB (Å)
+
+
+Fig. 5: Demonstration of the SwiG-PCM discretization approach. (a) Geometry optimization
+trajectories of (adenine)(H2 O)52 in a C-PCM representation of bulk water, using several different
+algorithms to discretize the vdW cavity surface. (The surface itself is not shown, but the atomistic
+region appears in the blue inset.) Optimizations are performed in Cartesian coordinates so the total
+number of steps is large. (b) Schematic of the SwiG discretization algorithm, in which the surface
+charges {qi } are subject to Gaussian blurring and also to a switching function that attenuates
+the quadratures weights near the cavity surface. (c) Nonelectrostatic solvation energy (Gnonelst ) as
+spheres A and B are pulled part. The value of Gnonelst is related to the solvent-exposed surface area
+and inherits any discontinuities in the surface area function. Panels (a) and (c) are adapted from
+Ref. 17; copyright 2010 American Chemical Society.
+
+
+exposed surface areas. 190 As discussed in Section 4.1, models of the nonelectrostatic contributions
+to the solvation energy usually include terms proportional to the solvent-exposed surface area so
+continuity of the potential energy surface also demands that the surface area be a continuous
+function of the nuclear coordinates. For SwiG discretization, it is evident from Fig. 5(c) that this
+is indeed the case.
+    Analytic gradients of SwiG-PCMs are greatly simplified relative to those of the corresponding
+gepol-discretized models. 18 SwiG-PCM potential energy surfaces are provably continuous and
+differentiable, 18,192 and are free of the unwanted oscillations that plague the FixPVA approach
+(see Fig. 5). 18,20 SwiG discretization is well-behaved enough to be used for ab initio molecular
+dynamics simulations involving bond-breaking, as shown in Fig. 6 for intramolecular proton transfer
+in glycine. SwiG-PCM provides forces that are stable enough to afford good energy conservation
+despite the significant deformation of the solute cavity as it transforms between two tautomeric
+forms of glycine. This is demonstrated by the energy profile in Fig. 6(b), which provides a closeup
+view of ≈ 250 fs of dynamics during which a bond-breaking event occurs. On the other hand, it
+appears that SwiG discretization exacerbates differences between the X = DAS and X = SAD†
+forms of Kε [Eq. (3.3)], at least in comparison to gepol results where these differences are small. 153
+This is not a major problem insofar as the X = DAS form provides correct formal properties and
+good numerical agreement with Poisson’s equation, as demonstrated in Fig. 3.
+    The SwiG implementation of PCMs first appeared in the Q-Chem program 203 and related
+discretization schemes have since been adopted in other software. 204,205 Other discretization ap-
+proaches have been described 206–209 but it is unclear that they have been formulated with gradients
+in mind. Given the simplicity and success of the SwiG approach, it is also unclear what is to be
+gained from these formulations.
+
+                                                                        21
+                      (a)
+                                                                                                         (b)
+                                                                                                     0
+
+                                                                                                   –10
+
+
+
+
+                                                                                Gelst (kcal/mol)
+                                                                                                   –20
+
+                             –10                                                                   –30
+
+
+
+
+          Gelst (kcal/mol)
+                             –20
+                                                                                                   –40
+                             –30
+                             –40                                                                   –50
+                             –50
+                                                                                                   –60
+                             –60
+                             –70                                                                   –70
+                                0   1000     2000     3000        4000   5000                        2350      2400    2450     2500    2550   2600
+                                           number of time steps                                                       number of time steps
+
+
+Fig. 6: (a) Electrostatic solvation energy along an ab initio molecular dynamics trajectory of
+glycine (PBE0/6-31+G* level) in implicit water (SwiG/C-PCM). The simulation starts at t = 0
+from the amino acid tautomer (energy data in orange), which is the most stable form of gas-phase
+glycine, but this species spontaneously transfers a proton to form the zwitterionic tautomer (energy
+data in blue), during the time window highlighted in the gray box and shown in detail in (b). The
+time step is 0.97 fs. (b) Close-up view of Gelst in the region where the proton transfer occurs.
+Energy fluctuations are smooth despite the bond-breaking even that occurs around 2.3 ps. Data
+are from Ref. 18.
+
+3.3   Isodensity and self-consistent cavity surfaces
+Smooth SwiG-PCM discretization schemes been developed for both vdW cavities 18 (including the
+SAS) and for the “molecular surface” or SES, 21 thus providing a solution to the practical prob-
+lem of discontinuities in potential energy surfaces. Unfortunately, these methods do not alter an
+arguably more fundamental problem, namely, that construction of the solute cavity remains a non-
+trivial source of arbitrariness in both PCMs and in biomolecular Poisson-Boltzmann electrostatics
+calculations. Solvation energies 119 and other properties 210 can be quite sensitive to the particular
+atomic radii that are used, and often the atomic radii that work well for small-molecule solvation
+energies do not work well for proteins. 211
+    Both the vdW and SAS cavity constructions consist of atom-centered spheres with radii
+
+                                                             RA = αRvdW,A + Rprobe .                                                                  (3.7)
+
+The atomic vdW radii {RvdW,A } might be taken from crystal structure data (e.g., Bondi’s radii set
+of radii and its subsequent extensions), 114–116 or might simply be parameters of the model. 113 For
+vdW cavities, Rprobe = 0 and a typical scaling factor is α = 1.2, 9 whereas one generally does not
+scale the vdW radii for SAS cavities. (As discussed in Ref. 9, the choice α = 1.2 does not result
+from any kind of elaborate fitting procedure and is intended only as a rough guide; common choices
+range from α = 1.1–1.4.) As an example of just how sensitive Gelst is to cavity construction, Table 3
+reports calculations for the two tautomers of glycine from Fig. 6, using various cavity definitions. A
+change from α = 1.2 to either α = 1.1 or α = 1.3 results in changes of anywhere from 3–9 kcal/mol
+in Gelst .
+    When the solute is described using electronic structure theory, a more satisfying cavity definition
+uses the solute’s own electron density. 96,128–130 It is possible to settle on a numerical isocontour
+value (generally ρ0 ∼ 0.001 a.u.) that appears to have some universal validity, 125,210 and results
+using ρ0 = 0.001 a.u. are shown in Table 3. It is noteworthy that the standard vdW scaling factor
+α = 1.2 affords the best agreement with the isodensity result for both tautomers of glycine, despite
+
+                                                                           22
+Table 3: Aqueous solvation energies computed with the SS(V)PE model for two tautomers of
+glycine using atomic radii in Eq. (3.7). Electronic structure calculations were performed at the
+B3LYP/6-31+G* level.
+                       Cavity        α Rprobe          Gelst (kcal/mol)
+                                          (Å)    amino acid zwitterion
+                       vdWa         1.0    0.0      −26.1         −68.2
+                       vdWa         1.1    0.0      −20.2         −56.0
+                       vdW   a      1.2    0.0      −16.1         −46.8
+                       vdWa         1.3    0.0      −12.9         −39.0
+                       vdWa         1.4    0.0      −10.6         −32.6
+                       SAS  a       1.0    0.2      −18.0         −51.4
+                       SASa         1.0    1.4       −4.3         −13.9
+                       isodensity b                 −16.4         −48.1
+                       a
+                         Using RvdW = 1.10 Å (H), 1.70 Å (C), 1.55 Å (N), and 1.52 Å
+                       (O), discretized using SwiG with 302 points per atom. b Using
+                       an isocontour ρ0 = 0.001 a.u. and 1,202 grid points.
+
+
+their very different solvation energies. It is also noteworthy that the two SAS cavities in Table 3,
+using values of Rprobe that are common in biomolecular Poisson-Boltzmann calculations, 119 afford
+very different solvation energies. The probe radius Rprobe = 1.4 Å is a realistic measure of the size
+of a water molecule (based on radial distribution functions for liquid water), 118 but affords rather
+small values of Gelst . In contrast, Rprobe = 0.2 Å is much too small to represent an actual water
+molecule but affords solvation energies much closer to values obtained using the isodensity and
+canonical vdW surface definitions. Values Rprobe = 0.2–0.3 Å are consistent with typical solvent
+probe radii used since the early days of continuum solvation models in quantum chemistry. 3–5
+    Although the isodensity cavity construction is an appealing choice on physical grounds, ex-
+isting algorithms to compute this surface are subject to occasional failure for certain molecular
+geometries. 129,130 In principle, these difficulties could likely be overcome using an implementation
+based on the “marching cubes” algorithm that is well known in computer graphics. 212,213 A more
+fundamental problem is that for an isodensity cavity the surface normal vector ns , which is needed
+to define the ASC-PCM double-layer operator D̂, depends on the density: 96,128,129
+                                                      ˆ
+                                                      ∇ρ(s)
+                                            ns = −           .                                   (3.8)
+                                                      ˆ
+                                                     k∇ρ(s)k
+
+The surface area associated with the discretization point si inherits a density dependence as well,
+and this significantly complicates the formulation of analytic energy gradients. To date, these
+have never been published for the combination of PCM (or related models) with an isodensity
+cavity construction. This limitation could be overcome using an analytically-differentiable pseudo-
+density, as has sometimes been used in biomolecular electrostatics calculations, 19,214 perhaps using
+a superposition of frozen atomic densities. Although this might remove some arbitrariness from
+the selection of atomic radii, however, it would not represent a self-consistent determination of the
+cavity surface that could deform to reflect changes in the molecular electronic structure. Conversely,
+a pseudo-density that is determined in order to reproduce the molecular electrostatic potential ϕρ (r)
+may afford better solvation energies as compared to vdW radii that do not respond to the electronic
+structure, 215 but reintroduces the problem of how to compute the analytic gradient. As such, it
+is unclear whether such constructions offer advantages over the simplicity of the vdW cavity. As
+
+                                                      23
+a simpler workaround, united-atom radii (in which hydrogen atoms are not given atomic spheres)
+have been parameterized in an effort to reproduce results obtained with an isodensity cavity. 126
+    Within the context of solving Poisson’s equation in three-dimensional space, this idea has more
+merit, as one can define “soft” atomic spheres that interpolate the permittivity ε(r) between limiting
+values inside (ε = 1) and outside (ε = εs ) of the cavity. 216 Related to this, and offering a more
+compelling scheme for self-consistent determination of the solute/continuum interface, is a scheme
+that takes ε(r) to be a functional of the solute’s charge density, ε[ρ](r), with limiting values ε = 1
+near the nuclei and ε = εs farther away. In practice, “near” and “far” are determined not by distance
+but by comparison of ρ(r) to a pair of parameters ρmax and ρmin , the latter of which establishes what
+constitutes the “tail” of the density. This idea was originally developed by Fattebert and Gygi 217–219
+then later refined by others; 220–223 see Ref. 24 for a review. In its modern incarnation, 221 it uses
+a permittivity functional
+                                      
+                                      1 
+                                      
+                                                      
+                                                          ρ(r) > ρmax
+                            ε[ρ](r) = exp t(ln ρ(r)) ρmin < ρ(r) < ρmax                           (3.9)
+                                      
+                                      
+                                        εs                ρ(r) < ρmin
+
+in which t(x) is a switching function that interpolates smoothly between values t(ln ρmin ) = ln εs
+and t(ln ρmax ) = 0, so that ε(r) achieves the limits indicated in Eq. (3.9). Inserting this ansatz into
+Poisson’s equation [Eq. (2.3)] affords a model in which the dielectric interface is smooth, rather
+than sharp as it is in PCMs, yet one where the definition of the interface is updated self-consistently
+as the density ρ(r) is iterated to convergence. For that reason, this approach has been called simply
+the self-consistent continuum solvation (SCCS) model. 24 The dependence of εs (r) on the density
+does mean that the Fock operator δG/δρ acquires an extra term relative to what was discussed in
+Section 2.1, namely 221                                             
+                                                1 ˆ        2   δε[ρ]
+                                 υε [ρ](r) = −    ∇ϕ(r)                .                          (3.10)
+                                               8π              δρ(r)
+The SCCS model is increasingly being used in ab initio simulations of materials, e.g., to model
+the aqueous electrolyte/solid-state interfaces relevant in electrochemistry. 24,71,223–230 Some of that
+work points to limitations of the linear dielectric model itself (i.e., the assumption that P ∝ E),
+because the rotational response of the water molecules saturates at the electrode interface and
+consequently the susceptibility is smaller than in bulk water. 227,228 Limitations in the linearized
+Poisson-Boltzmann description of electrolyte effects have also been demonstrated. 226–228
+
+3.4   Linear-scaling algorithms
+As noted above, the electrostatic solvation energy obtained from IEF-PCM should be exactly equiv-
+alent to that obtained by solving Poisson’s equation, in the case of a classical solute for which there
+is no outlying charge. (This equivalence holds only up to discretization errors, but those are
+controllable and can be driven to zero if systematically-improvable grids are employed.) It is there-
+fore surprising that the PCM formulation of the classical continuum problem has seen very little
+use in biomolecular electrostatics calculations. Such calculations are almost always performed in
+water, meaning that the simpler C-PCM should be essentially exact, and modifications have been
+proposed to treat the linearized Poisson-Boltzmann problem, 68,155,156,164 including modifications to
+simulate an ion exclusion layer. 68 The Poisson-Boltzmann equation in three dimensions [Eq. (2.12)]
+is typically solved using a finite-difference scheme for the Laplacian operator, 39,231 and this poses
+problems for molecular dynamics simulations with implicit solvent, because the forces need not be
+
+
+                                                  24
+                                 (a)                                                                                   (b)                                                                       (c)
+                        180                                          1.0                                         50                                                                         90
+                                                                                                                                                                (Ala)4000
+                        160                  (Ala)250                                                                        CG-FMM                                                         80           CG-FMM
+                                                                     0.9                                         45                                             192 cores
+
+
+
+
+                                                                           parallel efficiency
+                        140                  wall time, CG-FMM                                                                                                                              70           ddCOSMO
+                                                                                                                         (Ala)1000
+
+
+
+                                                                                                 wall time (s)
+                                                                     0.8                                         40
+
+
+
+        wall time (s)                                                                                                                                                       wall time (s)
+                        120                  parallel efficiency                                                         48 cores                                                           60
+                        100                                          0.7                                         35                           (Ala)2000                                     50
+                                                                                                                                              96 cores                                                 (Ala)1000
+                        80                                           0.6                                         30                                                                         40
+                                                                                                                                                                                                                                   (Ala)4000
+                        60                                                                                                                                                                  30
+                                                                     0.5                                         25          (Ala)500, 24 cores
+                        40                                                                                                                                                                  20                         (Ala)2000
+                        20                                           0.4                                         20      (Ala)250, 12 cores                                                 10
+                         0                                           0.3                                         15                                                                         0
+                             0         50     100       150        200                                             0         1       2        3     4       5        6                       0     5      10   15 20     25   30      35   40
+                                       no. of processors                                                                         no. of grid points / 106                                                 no. of atoms / 1000
+
+
+
+Fig. 7: Timings and parallel scalability data for linear-scaling PCM solvers applied to polyalanine
+helices, using a classical force field description of the solute. (a) Strong-scaling data for a CG-FMM
+algorithm applied to (Ala)250 , running on 12 shared-memory cores per node. (b) Weak-scaling data
+for (Ala)n helices of increasing length, versus the number of Lebedev grid points used to discretize
+the cavity surface. (c) Comparison of timing data for CG-FMM versus ddCOSMO for (Ala)n . The
+CG-FMM data in (c) are the same as those in (b), but all ddCOSMO calculations were run on a
+single 12-core node. Data in (a) and (b) are from Ref. 19 and ddCOSMO data in (c) are from Ref.
+165.
+
+continuous when discretized in this way. Although significant effort has gone into obtaining high-
+quality forces, 161–163,232–236 from a certain point of view this looks like engineering an elaborate
+means of escape from the very deep hole created by a numerical framework that admits discontinu-
+ities. A better strategy is not to get trapped in that hole in the first place. The SwiG discretization
+procedure for PCMs (Section 3.2) was designed as a starting point that is free of discontinuities.
+     All of this suggests that SwiG-PCMs could make very attractive replacements for the finite-
+difference Poisson-Boltzmann solvers that are commonplace in biomolecular electrostatics calcula-
+tions. Efforts to do so will quickly run up against the size of the PCM matrix equation, which
+is equal to the number of discretization grid points, itself proportional to the number of solvent-
+exposed atoms. This means that a straightforward solution of Eq. (3.2), based on constructing
+K−1                                                     3                                        2
+   ε Yε or its equivalent, incurs a CPU cost of O(Natoms ) and a memory footprint of O(Natoms ),
+albeit with significant prefactors in both cases that reflect the number of discretization points per
+atom. In QM/MM calculations with continuum boundary conditions, it is the size of the MM
+region that dictates the matrix dimension and for small QM regions with large MM environments,
+one can easily encounter scenarios wherein the cost of classical electrostatics (PCM part of the
+calculation) exceeds the cost of doing the quantum mechanics! 19
+     A straightforward solution to that problem is to introduce iterative solvers that do not require
+storage or inversion of the matrix Kε , 19,237,238 such as conjugate gradient (CG) or biconjugate
+gradient algorithms. 19 The bottleneck in these methods is computing the Coulomb interactions
+between surface discretization points, and this can be accelerated using the fast multipole method
+(FMM), 238 in either its original formulation or using a simpler tree-code approach. 19,141 Paral-
+lelization strategies have also been discussed. 19 Data for polyalanine helices (Fig. 7) show that wall
+times for iterative solution of the PCM equation (to obtain surface charges) can be reduced to a few
+seconds, even for (Ala)4000 with 5.6 × 106 surface discretization points. Proof-of-concept MM/PCM
+molecular dynamics simulations have been reported in which the atomistic MM region consists of
+a segment of DNA bound to a histone (21,734 classical atoms from a force field), with ≈124,000
+point charges used to discretize the surface. 19
+     An alternative algorithm for fast iterative solution of the PCM equation is based on a domain
+decomposition procedure. 165–167,239–241 Here, the solute cavity is divided into overlapping domains,
+
+
+                                                                                                                                      25
+Table 4: Mean unsigned errors (MUEs) for aqueous hydration energies (∆hyd G ◦ ), using continuum
+solvation models, for small molecules in the Minnesota Solvation Database. 246–249 Estimated un-
+certainties in the experimental data are ±0.2 kcal/mol for neutral solutes 246,247 and ±3 kcal/mol
+for ions. 247
+        Data       Ndata                          MUE (kcal/mol)
+        Set                                       PCM-based              Poisson-based
+                          IEF-PCMa SM12b SMDc CMIRSd                  SCCSe soft-spheref
+        neutrals     274      5.7        0.7     0.8       0.8          1.1          1.1
+        cations       52     12.7        3.5     3.2       1.8          2.3          2.1
+        anions        60      8.0        3.8     6.2       2.8          5.5          3.0
+        all ions     112      9.7        3.7     4.7       2.4          4.0          2.6
+      a
+        B3LYP/6-31G* level using united-atom radii, 126 from Ref. 244. b B3LYP/6-31G* level using ChElPG
+      charges, from Ref. 248, c mPW1PW/6-31G* level, from Ref. 250, d B3LYP/6-31G* level using isodensity
+      cavity with ρ0 = 0.001 a.u., from Ref. 251. e PBE in a plane-wave basis, from Ref. 252. f PBE in a
+      wavelet basis, from Ref. 216.
+
+
+each consisting of a single atomic sphere, for which the PCM equation can be solved analytically.
+These single-sphere solutions form the basis for an iterative solution of the PCM equation for the full
+domain, which can be formulated as sparse matrix equations that can be solved in O(Natoms ) time.
+This method was originally developed for C-PCM and is thus named “ddCOSMO”, 165–167,239,240
+although it has now been extended to arbitrary PCMs (“ddPCM”). 241 Timing data on just a single
+compute node [Fig. 7(c)] show that the method is competitive with a parallel CG-FMM solver. The
+ddCOSMO algorithm has been implemented for MM/PCM molecular dynamics in the Tinker-HP
+code, 242 using a switching function is used to guarantee smooth forces. 243 Such an approach seems
+like a practical replacement for finite-difference Poisson-Boltzmann solvers that is inherently free
+of problems with discontinuous forces.
+
+
+4    Solvation Energies
+Perhaps the single most important property afforded by a solvation model is the free energy of
+solvation, ∆solv G. Using a solvation model to compute ∆solv G ◦ for the reactant and product species
+in a chemical reaction, combined with a gas-phase calculation of the reaction energy ∆rxn U and
+free energy                                                            
+                                   ◦                         Zproducts
+                             ∆rxn G [gas] = ∆rxn U − RT ln                ,                     (4.1)
+                                                             Zreactants
+where Z represents the partition function, one may obtain a value for the solution-phase reaction
+energy, ∆rxn G ◦ [solv]. This procedure is illustrated by the thermodynamic cycle shown in Fig. 8.
+However, the continuum electrostatics problem discussed heretofore defines only the electrostatic
+contribution to ∆solv G ◦ , and this is generally insufficient to predict accurate solvation energies. This
+point is demonstrated vividly by statistical errors in IEF-PCM solvation energies, 244 summarized
+for aqueous solutes in Table 4. Errors with respect to experimental solvation energies average
+about 6 kcal/mol for charge-neutral solutes, 8 kcal/mol for anions, and 13 kcal/mol for cations,
+despite much smaller errors with respect to exact Poisson electrostatics (see Table 1). In nonaqueous
+solvents, IEF-PCM errors with respect to experimental values of ∆solv G ◦ are 4.9 kcal/mol for neutral
+solutes and 12.4 kcal/mol for ions. 244 Similarly poor results confirmed using other electrostatics-
+only PCM approaches including C- and D-PCM. 220,245
+
+
+                                                      26
+                                                ∆ rxnGº[gas]
+                                  A      B                       C
+                                              A(g)+B(g)   C(g)
+
+
+                         ∆ solvGº[A+B]                               –∆ solvGº[C]
+
+
+                                                 ∆ rxnGº[solv]
+                                          B
+                                  A                              C
+
+
+
+
+Fig. 8: Thermodynamic cycle connecting gas- and solution-phase reaction energies for A + B → C.
+The gas-phase value of ∆rxn G ◦ contains the vibrational entropy change in addition to the reaction
+enthalpy, and a continuum solvation model is used to compute ∆solv G ◦ for each reactant and product
+species. This completes the thermodynamic cycle to compute the solution-phase value of ∆rxn G ◦ .
+Changes in shape signify that geometries of A, B, and C may be different in solution than they are
+in the gas phase, in which case the solvation energies ∆solv G ◦ should include a term representing
+the gas-phase deformation energy.
+
+
+    To do better, these electrostatic solvation models must be augmented to include nonelectrostatic
+interactions (Gnonelst ), 253 a catch-all term that includes
+
+   • cavitation, meaning the energy required to carve out a space in the continuum solvent;
+
+   • Pauli repulsion, i.e., short-range repulsive interactions with the solvent molecules;
+
+   • dispersion, which is non-specific but attractive, and finally
+
+   • hydrogen-bonding between solute and solvent.
+
+Harder-to-define entropic changes to the solvent make a contribution to ∆solv G ◦ as well, 244 although
+this effect could be classified as part of the cavitation (free) energy. Indeed, the phenomena on the
+list above are not wholly independent, e.g., short-range repulsion is also related to cavitation, and
+hydrogen bonding has contributions from electrostatics, repulsion, and dispersion. In protic sol-
+vents, and for solutes where hydrogen bonding is important, one or more explicit solvent molecules
+could be included as part of the atomistic solute, thereby removing the largest part of the last item
+on the list. Semicontinuum or “cluster + continuum” approaches of this kind are common, e.g., for
+calculating hydration energies of ions. 8,254 An important special case is pKa calculations, 8,255–257
+corresponding to the ionization reaction
+
+                                      HA(aq) → H+ (aq) + A− (aq) .                                (4.2)
+
+Even with one or more explicit solvent molecules to capture hydrogen bonding, however, the remain-
+ing contributions to Gnonelst must be added to the electrostatic model in order to obtain accurate
+reaction energetics. It has occasionally been noted that semicontinuum predictions of hydration
+energies ∆hyd G ◦ may fail to converge as the number of explicit water molecules is increased. 258–261
+In truth, there is no reason why such a calculation should converge to ∆hyd G ◦ , at least in the
+absence of sampling over the explicit water molecules, because such an approach treats entropic
+contributions in an unbalanced way.
+
+                                                     27
+    Nonelectrostatic models appropriate for use with PCMs have been developed over the years
+on an ad hoc basis. 9,13 These have often appeared under the name of “Miertuš-Scrocco-Tomasi”
+solvation model, 98,253,262,263 a term that in practice means a PCM used in conjunction with a SASA-
+type parameterization of Gnonelst along the lines of what is discussed in Section 4.1. These models
+have retained something of a do-it-yourself aesthetic and have not been packaged into “canned”
+or “black-box” solvation models, a fact that has occasionally led to hard feelings when errors in
+IEF-PCM solvation energies (such as those in Table 4) are pointed out. 253,264 Section 4.1 examines
+one particular class of black-box solvation model, namely, the SMx models developed by Cramer,
+Truhlar, and co-workers. 244,247–250,265,266 An even blacker-box approach is “COSMO-RS”, 267,268
+which is an extension of the COSMO method 168 designed for “real solvents”. The formulation
+and parameters of COSMO-RS are proprietary, however, so the black box cannot be opened and
+this method’s performance cannot be independently implemented, verified, or tested. As such,
+COSMO-RS is not discussed any further.
+
+4.1   SMx and SASA-based models
+For computing free energies of solvation, the most successful and popular models within the
+quantum chemistry community are the “SMx” models. 244 These have version numbers through
+x = 12, 248 and later x = D (for “density”). 249 Only the most recent versions (SM12 and SMD) are
+included in Table 4.
+    To understand how these models work, we first take a step back to discuss implicit solvation
+in classical biomolecular simulations. Owing in no small part to difficulties in obtaining stable nu-
+merical forces for Poisson-Boltzmann electrostatics, 161–163,236 as discussed in Section 3.4, the most
+popular implicit solvation models in that context are not based directly on solution of the Poisson-
+Boltzmann equation but instead are methods known as generalized Born (GB) models, 269,270 whose
+name is a nod to the Born ion formula of Eq. (2.17). GB models use the Born model as a pairwise
+ansatz to compute the total electrostatic solvation energy according to
+                                                           atoms
+                               GB      1         1   1        X      QA QB
+                              Gelst =−             −                       .                     (4.3)
+                                        2       εin εout              fAB
+                                                            A,B>A
+
+This expression allows for the possibility of a dielectric constant εin that is different from unity
+                                            −1
+inside of the solute cavity. The quantity fAB   in Eq. (4.3) is a parameterized, effective Coulomb
+potential, the canonical example of which is 269–271
+                               2                   2
+                                                                 1/2
+                         fAB = RAB + R̄A R̄B exp − RAB /4R̄A R̄B       .                         (4.4)
+
+Here, RAB = RA − RB is the interatomic distance and the quantity Q2A /fAA is the Coulomb
+self-energy in the Born ion model, with an effective cavity radius fAA ≡ R̄A . As such, the quantities
+{R̄A } are a set of effective radii that measure the “electrostatic size” of each atom in the molecule
++ continuum environment. 272–274 For a classical solute, in which ρ(r) is a collection of atom-
+centered point charges {QA }, these radii can be computed exactly by solving either Poisson’s
+equation, 273 or else its PCM analogue, 275 once per atomic charge QA , in a cavity representing the
+entire molecule. This procedure effectively forces the pairwise GB ansatz in Eq. (4.3) to reproduce
+the exact electrostatic energy defined by the continuum electrostatics problem, and these values of
+R̄A have been called the “perfect” Born radii. 270,273 The procedure just described is not a practical
+way to determine R̄A but can be useful to generate data sets that may suggest new analytical forms
+for GB models. 19,275–278
+
+
+                                                    28
+   In practice, the radii {R̄K } are typically determined using various surface integration proce-
+dures. 274 The most popular of these is 269,270,272,274
+                                            Z                             !−1
+                               1      1             θ kr − RK k − RvdW,K
+                   R̄K =           +                                      dr   .                 (4.5)
+                            RvdW,K   4π         r∈Ω       kr − RK k4
+
+Here, θ is a step function with θ(x) = 1 for x > 0 and θ(x) = 0 for x ≤ 0; this limits the in-
+tegration domain to the region of the solute cavity (r ∈ Ω) that lies outside of the vdW sphere
+for atom K. The expression for R̄K in Eq. (4.5) comes from the so-called Coulomb-field approx-
+imation, 269,270,272 a charge-in-a-sphere model for the reaction-field potential. This is thought to
+overestimate electrostatic size, especially for charges close to the cavity surface, and alternatives
+have been developed, 270,274 but Eq. (4.5) is the form used in the SMx models that are described
+below. The requisite integral can be evaluated numerically using concentric atomic radical shells, 279
+                                                                                      GB /dx, is com-
+but its gradient with respect to nuclear displacements, which is needed to obtain dGelst
+plicated when defined in terms of the solid geometry of interpenetrating vdW spheres. 190 Both the
+integral in Eq. (4.5) and its gradient would be straightforward to evaluate using SwiG discretization;
+see Fig. 5(b).
+    The GB ansatz in Eq. (4.3) specifies only the electrostatic component of the solvation energy.
+The model is completed by adding a nonelectrostatic term Gnonelst , for which two forms are common.
+The simpler of the two consists of a term proportional to the volume of the solute cavity, to model
+the cavitation energy, and another term proportional to the SASA, which serves to model dispersion:
+
+                                   Gnonelst = βVcavity + γ × (SASA) .                            (4.6)
+
+The quantities β and γ are empirical parameters. An alternative form that is also widely used is
+                                                atoms
+                                                 X
+                                   Gnonelst =           γK × SASA(K) ,                           (4.7)
+                                                 K
+
+where SASA(K) is the solvent-exposed surface area of atom K and the parameter {γK } have units of
+surface tension. Note that there is no volumetric term in Eq. (4.7). It has been argued, based on the
+scaled-particle theory of hard-sphere fluids, 280 that for small molecules the cavitation energy ought
+to be parametrizable in terms of the solvent-exposed surface area, 98,149,281,282 although the form
+in Eq. (4.7) has been used for macromolecules as well. 283 Models that combine GB electrostatics
+[Eq. (4.3)] with force-field charges to represent the solute, using either Eq. (4.6) or Eq. (4.7) for
+Gnonelst , are known as “MM/GBSA” methods. 284–292 There is an analogous set of “MM/PBSA”
+methods that substitute Poisson-Boltzmann electrostatics in place of the GB model. 284–293 The
+MM/GBSA method is the most widely-used implicit solvation model in biomolecular simulation, 270
+but both approaches are popular in drug-discovery applications, e.g., for calculating ligand–protein
+binding affinities. 293–296 In that context, these methods are often used as low-resolution screening
+tools representing a level of sophistication that is intermediate between “knowledge-based” (but
+largely physics-free) docking or scoring-function procedures, and much more expensive atomistic
+free energy simulations in explicit solvent.
+    In quantum chemistry contexts, it is not uncommon to use different definitions of the cavity
+surface for the electrostatic and nonelectrostatic interactions. Models for Gnonelst introduced above
+suggest a SAS cavity but numerical results for Gelst in Table 3 suggest that atomic radii R = 1.2RvdW
+correspond more closely to isodensity results as compared to SAS radii (R = RvdW + Rprobe ), at
+least when Rprobe corresponds to a realistic estimate of the size of a solvent molecule. The SMx
+
+
+                                                        29
+models, 244 which are the most popular methods for predicting ∆solv G in quantum chemistry cal-
+culations, exemplify this distinction. The SM8 265 and SM12 248 variants, for example, employ GB
+electrostatics based on radii obtained from Eq. (4.5), along with atom-centered charges derived from
+the quantum-mechanical charge density by means of certain charge models, CMx. 247,297–300 The lat-
+ter are empirically-parameterized improvements upon standard atomic partial charge prescriptions
+(Mulliken, Hirshfeld, etc.), with additional parameters designed to improve the dipole moments
+obtained from the partial charges, since Mulliken and Hirshfeld charges known to do a poor job
+of reproducing the dipole moment corresponding to the SCF charge density from which they were
+obtained. 301 CMx charges inherit the basis-set sensitivity of the underlying wave function-derived
+charges, therefore the SMx models through SM12 are each parameterized for use with particular
+(small) basis sets, e.g. 6-31G*. The SMD model 249 was introduced to overcome this limitation, by
+substituting IEF-PCM electrostatics in place of a GB model, with the result that SMD can be used
+with arbitrary basis sets whereas other SMx models should only be used in conjunction with the
+basis sets for which they were parameterized.
+    The SMx models are completed by adding a nonelectrostatic term of the form in Eq. (4.7).
+Atomic “surface-tension” parameters {γK } are themselves empirically-fitted functions of certain
+“solvent descriptors”, which include the surface tension of the solvent itself, its refractive index
+(which is related to polarizability), and certain Lewis acidity parameters. 302 The result is a “uni-
+versal” model, 244 in the sense that once the fitting procedure is completed, parameters {γK } are
+available for any solvent for which the various solvent descriptors are known. The SM8 model
+additionally parameterizes Gnonelst as a function of temperature. 303,304
+    Error statistics for small-molecule hydration free energies (∆hyd G ◦ ), obtained using SM12 and
+SMD, are listed in Table 4. (The SM8 model has slightly larger errors for ions; see Ref. 244.) The
+comparison between IEF-PCM and SMD is especially revealing because these two approaches use
+the same approach for Gelst : IEF-PCM is just SMD without Gnonelst . Evidently, the nonelectrostatic
+contribution dramatically reduces errors in ∆hyd G ◦ for both cations and for charge-neutral solutes.
+Errors for anions are reduced as well although the impact of Gnonelst is more muted in that case,
+which may simply reflect the difficulty of the anion solvation problem. In any case, it is clear
+that nonelectrostatic interactions must be included to obtain accurate solvation energies. For
+properties that depend on only a single geometry (e.g., for some spectroscopic applications), the
+nonelectrostatic contributions may be less important but to compute a reaction profile—reactant,
+product, and transition state energies in solution—one might worry that changes in geometry along
+the reaction coordinate could affect the nonelectrostatic contribution differently for the various
+chemical species involved.
+    Error statistics for solvents other than water are on par with results for aqueous solutes, e.g.,
+mean unsigned errors (MUEs) of 0.6 kcal/mol for neutral solutes and 4.5 kcal/mol for ions, in the
+case of SM12, 248 versus 0.7 kcal/mol for neutrals and 4.2 kcal/mol for ions using SMD. 249 Predic-
+tion of ∆solv G ◦ in nonaqueous solvents is necessary in order to predict partition coefficients between
+different solvents. In particular, the octanol/water partition coefficient (equilibrium constant Kow )
+is a common measure of lipophilicity (or conversely, hydrophobicity), 305–307 and is related to sol-
+vation energies according to
+
+                         ∆solv G ◦ [octanol] − ∆solv G ◦ [water] = −RT ln Kow .                    (4.8)
+
+The value of Kow is widely used in drug-discovery applications, 307–309 and atomic decomposition of
+terms contributing to ∆∆G ◦ in Eq. (4.8) has been used to determine similarity indices for predicting
+quantitative structure–activity relationships. 307 For environmental toxicology purposes, Kow is an
+important physical parameter to determine for any new compound. 310 The octanol/water partition
+
+
+                                                  30
+

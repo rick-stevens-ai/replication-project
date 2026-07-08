@@ -48,7 +48,7 @@ ALIAS = {
 NON_PAPER = {"common","drafts","scoring","scripts","papers","priority-lists",
              "pde_candidates","pde_corpus","special-categories","report_figs",
              "LUCID-replications","LUCID-second100","PDE-replications","QC-100",
-             "QC-200","OTHER-100","docs",
+             "QC-200","OTHER-100","docs","_support",
              "pvmol-gen","pvmol-gen-fajar2026","replicate-msm","rosters_5x100",
              "perovskite-Passivation-Molecules-AI-Discovery"}
 
@@ -205,6 +205,7 @@ def main():
             paper_dirs.append(d)
     for d in sorted(ROOT.glob("*/")):
         if d.name in NON_PAPER: continue
+        if d.name.startswith("."): continue      # skip .git and other hidden dirs
         paper_dirs.append(d)
 
     census=[]

@@ -1,0 +1,701 @@
+                                                 TISCC: A Surface Code Compiler and Resource Estimator for
+                                                                   Trapped-Ion Processors
+                                                                              Tyler LeBlond                                                                   Justin G. Lietz
+                                                     Computational Sciences and Engineering Division                                        National Center for Computational Sciences
+                                                            Oak Ridge National Laboratory                                                         Oak Ridge National Laboratory
+                                                                     Oak Ridge, USA                                                                      Oak Ridge, USA
+                                                                   leblondtr@ornl.gov                                                                    lietzjg@ornl.gov
+
+                                                                        Christopher M. Seck                                                                 Ryan S. Bennink
+
+
+
+
+arXiv:2311.10687v1 [quant-ph] 17 Nov 2023
+                                                     Computational Sciences and Engineering Division                                    Computational Sciences and Engineering Division
+                                                            Oak Ridge National Laboratory                                                      Oak Ridge National Laboratory
+                                                                     Oak Ridge, USA                                                                    Oak Ridge, USA
+                                                                    seckcm@ornl.gov                                                                  benninkrs@ornl.gov
+
+                                            ABSTRACT                                                                                 technique for implementing fault-tolerant operations with surface
+                                            We introduce the Trapped-Ion Surface Code Compiler (TISCC), a                            codes [2, 3, 11, 14, 18, 21, 29]. While compilers that transform quan-
+                                            software tool that generates circuits for a universal set of surface                     tum circuits into fault-tolerant operations on the surface code ex-
+                                            code patch operations in terms of a native trapped-ion gate set. To                      ist [21, 29], we are not aware of any compilers that transform the
+                                            accomplish this, TISCC manages an internal representation of a                           latter into explicit hardware circuits. Such a tool is not only essential
+                                            trapped-ion system where a repeating pattern of trapping zones                           to an end-to-end fault-tolerant compilation pipeline for quantum
+                                            and junctions is arranged in an arbitrarily large rectangular grid.                      circuits, which might be used once quantum computing hardware
+                                            Surface code operations are compiled by instantiating surface code                       reaches the requisite level of maturity, but it is also helpful in the
+                                            patches on the grid and using methods to generate transversal op-                        near-term for the purposes of:
+                                            erations over data qubits, rounds of error correction over stabilizer                       (1) resource estimation for fault-tolerant implementations of
+                                            plaquettes, and/or lattice surgery operations between neighboring                               quantum algorithms using a realistic hardware model,
+                                            patches. Beyond the implementation of a basic surface code instruc-                         (2) co-design of the fault-tolerant and hardware layers of the
+                                            tion set, TISCC contains corner movement functionality and a patch                              quantum computing stack,
+                                            translation that is implemented using ion movement alone. Except                            (3) simulation of logical error rates for fault-tolerant operations
+                                            in the latter case, all TISCC functionality is extensible to alternative                        using error channels derived from a realistic hardware model,
+                                            grid-like hardware architectures. TISCC output has been verified                            (4) and developing explicit workflows for translating measure-
+                                            using the Oak Ridge Quasi-Clifford Simulator (ORQCS).                                           ment outcomes into values of logical operators.
+                                            ACM Reference Format:                                                                        To this end, we introduce the Trapped-Ion Surface Code Com-
+                                            Tyler LeBlond, Justin G. Lietz, Christopher M. Seck, and Ryan S. Bennink.                piler (TISCC), which is a software tool that generates hardware-level
+                                            2023. TISCC: A Surface Code Compiler and Resource Estimator for Trapped-                 circuits and resource estimates for surface code patch operations
+                                            Ion Processors. In Workshops of The International Conference on High Per-
+                                                                                                                                     on trapped-ion processors 1 . By combining TISCC with other tools
+                                            formance Computing, Network, Storage, and Analysis (SC-W 2023), Novem-
+                                                                                                                                     that compile logical circuits to surface code instructions, an end-to-
+                                            ber 12–17, 2023, Denver, CO, USA. ACM, New York, NY, USA, 10 pages.
+                                            https://doi.org/10.1145/3624062.3624214                                                  end pipeline for compilation and resource analysis can be realized.
+                                                                                                                                     TISCC utilizes a realistic trapped-ion hardware model; in compiling
+                                                                                                                                     surface code operations into hardware instructions, it explicitly
+                                            1     INTRODUCTION
+                                                                                                                                     accounts for the movement of ions between trapping zones on a
+                                            The surface code is the most popular quantum error-correcting                            two-dimensional grid of repeating units which themselves consist
+                                            code (QECC) due to its high error threshold (∼ 1%) and nearest-                          of sites serving as either memory sites, operation sites, or junctions.
+                                            neighbor connectivity, which improves its applicability to real hard-                    Given a compiled hardware circuit, TISCC ensures its validity by
+                                            ware [12]. It is therefore important for the broader community to                        simulating ion movements on the grid and resolving junction con-
+                                            focus on developing surface code compilation frameworks, and                             flicts. The TISCC hardware model also counts space-time resources
+                                            several authors have proposed such frameworks (either abstractly                         required for surface code operations by tracking the nominal time
+                                            or in software) using so-called lattice surgery, which is the leading                    at which each hardware operation should occur in the final circuit
+                                            SC-W 2023, November 12–17, 2023, Denver, CO, USA
+                                                                                                                                     using literature-derived estimates of the duration of each hardware
+                                            © 2023 Copyright held by the owner/author(s).                                            instruction and accounting for parallelism. Members of a universal
+                                            This is the author’s version of the work. It is posted here for your personal use. Not   instruction set for surface code quantum computing are built out of
+                                            for redistribution. The definitive Version of Record was published in Workshops of
+                                            The International Conference on High Performance Computing, Network, Storage, and        a set of verified surface code patch primitive operations, including
+                                            Analysis (SC-W 2023), November 12–17, 2023, Denver, CO, USA, https://doi.org/10.1145/
+                                            3624062.3624214.
+                                                                                                                                     1 The open-source repository can be found at https://github.com/ORNL-QCI/TISCC.
+SC-W 2023, November 12–17, 2023, Denver, CO, USA                                    Tyler LeBlond, Justin G. Lietz, Christopher M. Seck, and Ryan S. Bennink
+
+
+transversal operations over data qubits, rounds of error correc-         primitives that we implement within TISCC. This discussion will be
+tion over stabilizer plaquettes, lattice surgery operations between      abstracted from the details of our chosen hardware model, which
+pairs of patches, corner movements, and an operation that swaps          will be discussed in Sec. 3. We will assume that the reader knows
+columns of data qubits left-ward.                                        some basics about quantum computing and the surface code.
+   As was argued in Ref. [16], the development of open-source fault-
+tolerant compilers that are both extensible and verified is timely.      2.1     Motivation for the Choice of a Local
+Recent demonstrations of fault-tolerance using the surface code on               Tile-Based Lattice Surgery Instruction Set
+real hardware (e.g. Ref. [1]) make surface code compilation software
+                                                                         Firstly, one must appreciate that there are (at least) two steps to sur-
+a present need. In this vein, many different surface code compilation
+                                                                         face code compilation. In the first step, logical circuits are compiled
+methodologies have been proposed, but little work has been done in
+                                                                         to a surface code instruction set, and in the second step, surface
+benchmarking them using software implementations. Therefore, in
+                                                                         code instructions are compiled to hardware instruction set. This
+the near term, the extensibility of compilers to different visions of
+                                                                         means that there are at least three layers to the stack, each hav-
+surface code compilation could enable the exploration of resource
+                                                                         ing both its own instruction set and entities (abstract or real) on
+trade-offs between these visions. As mentioned above, TISCC uses
+                                                                         which its instruction set acts. The top layer, which is the most famil-
+a set of verified primitives to implement members of a higher-level
+                                                                         iar, consists of logical gates acting on logical qubits. In the middle
+surface code instruction set. These combinations of operations are
+                                                                         (fault-tolerant) layer, logical qubits are encoded in large blocks of
+verified by extension as long as the primitives are correctly used.
+                                                                         physical qubits as part of a QECC. If purposed to serve as more
+Although we have not done so here, the verified primitives available
+                                                                         than a quantum memory, this QECC ought to have a known set
+in the TISCC library can aid in the implementation of alternative
+                                                                         of fault-tolerant operations that forms a complete instruction set
+instruction sets, making TISCC extensible to other surface code
+                                                                         for universal quantum computation using their encoded logical
+compilation methodologies and useful for benchmarking them.
+                                                                         information. The bottom layer of the stack is the hardware layer,
+   Additionally worthy of note is that recent progress in quantum
+                                                                         the discussion of which we reserve for Sec. 3.
+low-density parity check (QLDPC) codes with higher encoding
+                                                                            For surface codes (our chosen QECC), there have been many
+rates and and better code distance scaling than the surface code
+                                                                         propositions for instruction sets, but there appears to be consen-
+begs the question of its longevity as the preferred QECC [5]. That
+                                                                         sus that the lowest-overhead instruction set uses so-called lattice
+said, roadblocks to implementing QLDPC codes involve the fact
+                                                                         surgery on surface code patches, contiguous regions of hardware
+that their Tanner graphs often include non-local connections that
+                                                                         that each encode one logical qubit [11, 14]2 . In lattice surgery, edge-
+make them difficult to embed in a 2D grid-like hardware architec-
+                                                                         wise merge and split operations between adjacent patches are used
+ture, though recent work has explored the decomposition of their
+                                                                         to produce entanglement between logical qubits. This enables the
+Tanner graphs into planar subgraphs, potentially improving their
+                                                                         compilation of CNOT gates, which in turn enables the compila-
+implementation feasibility [4, 27]. While TISCC has been written
+                                                                         tion of T and S gates using typical state teleportation circuits [12]
+specifically for surface codes, it has been written in a modular fash-
+                                                                         and the ability to inject appropriate resource states [13, 15, 17].
+ion with extensibility to different grid-like hardware architectures
+                                                                         Together with the Hadamard gate, which can be accomplished
+and logical qubit implementations on those architectures in mind.
+                                                                         through a transversal Hadamard followed by patch rotation (if nec-
+We foresee that the functionality of TISCC could be expanded to
+                                                                         essary) [2, 11, 18, 28], these gates complete the Clifford+T gate set,
+QLDPC codes as they become practical.
+                                                                         which is universal for quantum computing.
+   This paper is organized as follows: In Sec. 2, we introduce the
+                                                                            Explicitly compiling and estimating resources for a limited yet
+surface code lattice surgery model targeted by TISCC in a way
+                                                                         universal set of surface code operations was a guiding motiva-
+that is abstracted from the trapped-ion hardware model. In Sec. 3,
+                                                                         tion for the development of TISCC. However, some popular lattice
+we describe the trapped-ion hardware model employed by TISCC,
+                                                                         surgery approaches rely on Pauli product measurements with sup-
+explain how surface codes are mapped onto hardware in this model,
+                                                                         port on an arbitrary number of logical qubits [3, 18], which leads
+and describe our approach to resource estimation using TISCC-
+                                                                         to an unbounded set of possibilities. This approach, often called
+generated circuits. In Sec. 4, we describe our method for verifying
+                                                                         sequential Pauli-based computation [2], also results in a serializa-
+TISCC circuits using quasi-Clifford simulation and process tomog-
+                                                                         tion of logical circuits that we wished to avoid in our conceptual
+raphy in the logical sub-space. Finally, in Sec. 5, we conclude by
+                                                                         framework. For these reasons, we decided that a local lattice surgery
+providing an outlook for surface code compilation and the future
+                                                                         instruction set that was compatible with a direct Clifford+T compi-
+of TISCC. In the appendices, we include alternative surface code
+                                                                         lation strategy would be desirable. The surface code instruction set
+instructions that were not included in the main text (Sec. A) and
+                                                                         that has been targeted by TISCC includes instructions acting on one
+some details about the software design and implementation (Sec. B).
+                                                                         or two neighboring units of area on an extended two-dimensional
+                                                                         grid. We call these units of area logical tiles in order to abstract
+2    ABSTRACT SURFACE CODE LATTICE                                       them from their hardware implementation and to consider them
+     SURGERY MODEL                                                       as a resource analogous to the number of fault-tolerant clock cy-
+                                                                         cles required to execute a quantum circuit, commonly referred to
+In this section, we will introduce the fault-tolerant instruction set
+that we have in mind when we discuss surface code compilation.           2 Recent authors using twist-based lattice surgery have occasionally supported the use
+We will also discuss some details of operation for these instructions    of patches that encode two logical qubits each [3, 18]. We avoid twist-based lattice
+themselves in order to motivate a particular set of surface code         surgery in this work (see Sec. 3.3 for an explanation).
+TISCC: A Surface Code Compiler and Resource Estimator for Trapped-Ion Processors                                   SC-W 2023, November 12–17, 2023, Denver, CO, USA
+
+
+Table 1: Local lattice surgery instruction set implemented using TISCC primitives. All instructions in this set are implied to act
+on (and return) one or two logical tiles as defined in Sec. 2.3.
+
+ Instruction              Description                                                                     Logical Tiles In/Out             Logical Time-Steps
+ Prepare X/Z              Initializes one uninitialized tile to a |+⟩ or |0⟩ state fault-tolerantly                1                               1 (0)
+ Inject Y/T               Initializes one uninitialized tile to a |𝑌 ⟩ or |𝑇 ⟩ state non-fault-tolerantly          1                                 0
+ Measure X/Z              Measures one initialized tile in the X/Z basis and makes uninitialized                   1                                 0
+ Pauli X/Y/Z              Applies logical Pauli operator to an initialized tile                                    1                                 0
+ Hadamard                 Performs a transversal Hadamard gate over an initialized tile                            1                                 0
+ Idle                     Performs 𝑑𝑡 cycles of error correction on an initialized tile                            1                                 1
+ Measure XX/ZZ            Measures the joint XX/ZZ operators of two vertically/horizontally-                       2                                 1
+                          adjacent initialized tiles
+
+
+as logical time-steps in surface code compilation references. Many
+other references on surface code compilation have considered the
+notion of tiles in the fault-tolerant layer; e.g. Refs. [2, 3, 8, 18, 29].
+However, as far as we know, others have not considered tiles—as
+opposed to patches or logical qubits—to be the fundamental entities
+within the fault-tolerant layer.
+                                                                                                           X
+   A significant motivation for using a tile-based instruction set is
+that tiles are a natural basis for the placement3 and scheduling of lat-                              Z
+tice surgery operations. While quantum circuits nominally concern
+logical qubits only, data movement and/or non-local operations
+such as CNOT involve ancillary resources that do not necessarily
+correspond to qubits from the logical circuit and which must be
+tracked to avoid resource contention. As a case in point, a protocol
+to implement CNOT operations between diagonally adjacent tiles,
+using a third tile between them, was presented in [14]. Ref. [2]
+generalized this protocol to implement long-range CNOT opera-
+tions via Bell states encoded in intermediary patches connecting
+the targeted qubit tiles. We find that tiles are convenient units for
+mapping out patches, identifying paths between them, and tracking
+free and busy regions of the hardware. Moreover, long-range opera-                       Figure 1: Pictorial representation of a surface code patch
+tions between remote patches can be conveniently implemented in                          in what we call the ‘standard arrangement’ of stabilizers,
+just two time steps using parallel local tile-based operations. In one                   with X stabilizers colored red (dark) and Z stabilizers colored
+step, local tile-based operations create a chain of local Bell states                    green (light). The patch is superimposed over a section of
+along a path of tiles connecting the targets. In a second step, a set                    the trapped-ion hardware that we abstractly call a ‘logical
+of Bell measurements along the chain propagate entanglement to                           tile’, with memory (‘M’) sites colored dark blue, operations
+the chain ends, effectively performing the CNOT.                                         (‘O’) sites colored gold, and junction (‘J’) sites colored grey.
+                                                                                         Sites are shown occupied by data qubits (black circles) and
+2.2     Local Lattice Surgery Instruction Set                                            measure qubits (white circles).
+Having established that we intend to use a local, tile-based surface
+code lattice surgery instruction set, here we consider the necessary
+elements of this set and how these elements lend themselves to
+our choice of verified primitives. Our chosen set (see Table 1) is                       a universal instruction set. Our Hadamard instruction is transver-
+very similar to the one that was presented in Ref. [2], though with                      sal, and though we do not include a subsequent rotation, TISCC
+a few modifications. We have demoted the local Bell preparation,                         contains functionality that could be used to this end (see Sec. 2.5).
+Bell measurement, and Move instructions to what we call ‘derived’                        Finally, we note that our Prepare X/Z instructions require a full
+instructions (they can be built from instructions in Table 1 but have                    logical time-step as stand-alone instructions; this is to preserve the
+more efficient implementations, see Sec. A). We include explicit                         requirement that all instructions output valid tiles. However, as is
+logical Pauli X/Y/Z operators, though these are typically thought                        often noted in the literature, state preparation operations can be
+of as being tracked in software using the Pauli frame [12, 25], and                      combined with subsequent lattice surgery operations to take effec-
+state injection circuits since they are required in order to complete                    tively take 0 time-steps; several of the instructions in Table 3 exploit
+3 As we are concerned with tile-to-hardware compilation rather than circuit-to-tile
+                                                                                         this feature. Interestingly, Table 1 does not include any entangling
+compilation, we do not address tile layout or macro architecture here; see [18] for an   gates (e.g. CNOT); instead, entangling operations are realized via
+approach that minimizes spatial resources.                                               entangling measurements (Measure XX/ZZ).
+SC-W 2023, November 12–17, 2023, Denver, CO, USA                                                          Tyler LeBlond, Justin G. Lietz, Christopher M. Seck, and Ryan S. Bennink
+
+
+
+
+                     X                                          Z                                    Z                                        X
+
+                 Z                                          X                                                          X                                         Z
+
+
+
+
+            (a) Standard Arrangement                  (b) Rotated Arrangement                (c) Flipped Arrangement                  (d) Rotated-flipped Arrangement
+
+
+
+Figure 2: We refer to four canonical stabilizer arrangements (left to right): (a) the standard arrangement (same as Fig. 1), (b) the
+rotated arrangement, (c) the flipped arrangement, and (d) the rotated-flipped arrangement. All arrangements are accessible
+through combinations of the LogicalQubit::xz_swap and LogicalQubit::flip_patch member functions.
+
+
+2.3      Definition of Logical Tile                                                           between patches in this arrangement correspond with XX (ZZ)
+The logical tile is an abstraction of the hardware area capable of                            measurements. In order to facilitate two-patch operations, one
+supporting a single surface code patch encoding one logical qubit                             (two) strips of ancillary qubits are inserted between the patches to
+with X and Z code distances 𝑑𝑥 and 𝑑𝑧 . Knowing the elements of our                           facilitate merge operations in the case of odd (even) code distances6 .
+local, tile-based lattice surgery instruction set, we now define our                          While literature sources differ on whether an ancillary strip of
+logical tile and the constraints that this definition imposes. Firstly,                       physical qubits located in between surface code patches is necessary
+notice that each instruction in Table 1 specifies either one or two                           to perform lattice surgery operations (see Refs. [10, 11, 14] and
+logical tiles as input and one or two logical tiles as output, and that                       Refs. [3, 18] for examples in either case), we make use of one in
+these logical tiles are specified as either initialized or uninitialized in                   order to (a) avoid two boundary stabilizers ever occupying a unit
+the description. In our conception, the ‘initialized’ or ‘uninitialized’                      of space that is typically serviced by one measurement qubit (see
+status of a logical tile refers to whether or not there is an operable                        Sec. 3.3 for details on how stabilizer circuits are executed on the
+surface code patch occupying it. Our notion of operability is that                            hardware) and (b) enable logical XX and ZZ measurements to take
+a surface code patch consists of what we define as the ‘standard                              place in only the time needed to perform the corresponding merge
+arrangement’ of stabilizer plaquettes, which can be seen visually                             operation fault-tolerantly7 . Thus, a logical tile in TISCC consists
+in Fig. 1. Typically, tiles become initialized through a Prepare X/Z                          of 2⌈ 𝑑𝑧2+1 ⌉ rows and 2⌈ 𝑑𝑥2+1 ⌉ columns on the underlying hardware
+operation or uninitialized through a Measure X/Z operation, but                               grid.
+other derived instructions (see Table 3 in Sec. A) might also toggle
+their initialization status. While alternative stabilizer arrangements                        2.4        Primitive Surface Code Operations
+are available within TISCC (see Fig. 2 for what we call the four                              In Table 2 we list the primitives used within TISCC to implement
+canonical arrangements), the elements of Table 1 always leave                                 instructions from Table 1 and Table 3. Some members of Table 1
+surface code patches in the standard arrangement if an initialized                            are implemented using only one of these primitives, while others
+tile is output4 . Additionally, while a merged patch (spanning two                            consist of combinations of them. In most cases TISCC contains
+tiles) is an intermediate state in the Measure XX/ZZ instruction,                             functionality for applying these primitives to alternative stabilizer
+these patches are always subsequently split. These considerations                             arrangements (see Fig. 2) or deformed patches (see Sec. 2.5), but
+prevent the need to generalize our instruction set to act on patches                          for the purpose of implementing Table 1 and Table 3 they should
+spanning arbitrary numbers of tiles or on patches with arbitrary                              be thought of as acting on patches in the standard arrangement
+valid stabilizer arrangements, which aids in the reduction of the                             of Fig. 1. The primitives in Table 2 operate on patches rather than
+elements of Table 1 into the verified primitives of Table 2.                                  tiles, and do not need to output the same number of patches that
+    There are further corollaries to our definition of logical tile that                      they act on. They are not constrained to the specification of Sec. 2.3.
+assist in the reduction of our instruction set into primitives. First,                        Therefore, we emphasize that the set of primitives in Table 2 is
+the standard arrangement implies that logical Z (X) operators run                             not itself our local, tile-based surface code instruction set. Instead,
+vertically (horizontally)5 . Therefore, vertical (horizontal) merges                          we use combinations of these primitives under the constraints of
+4 The Hadamard instruction, which leaves behind a rotated patch, is the exception to          Sec. 2.3 to implement our instruction set. It should also be noted that
+this rule.                                                                                    instructions other than those presented here can be implemented
+5While all logical Z (X) operators are topologically equivalent to each other in the sense
+that they are the same up to products of stabilizers, in practice one must account for the
+                                                                                              6 TISCC includes functionality for even code distances although it is standard to only
+signs of stabilizer measurement outcomes to map from one to another [11]. In TISCC,
+there are notions of default-edge and opposite-edge logical operators for a patch, where      employ odd code distances for surface codes.
+the default-edge for the standard arrangement is depicted in Fig. 1. If new boundary          7 It seems to be a common oversight in the literature that, without this ancillary strip,
+stabilizers are measured, the qubits supported by a default-edge logical operator may         the post-split boundary stabilizers would require 𝑑𝑡 measurement cycles in order for
+change. TISCC includes functionality both to perform such transformations and track           them to be known fault-tolerantly, causing the full XX/ZZ measurement to take two
+resulting operator deformations (see Sec. 2.5)                                                surface code time steps instead of one.
+TISCC: A Surface Code Compiler and Resource Estimator for Trapped-Ion Processors                                      SC-W 2023, November 12–17, 2023, Denver, CO, USA
+
+
+         Table 2: Surface code primitive operations that TISCC uses to implement instructions from Table 1 and Table 3.
+
+ Name               Function Call                            Description                                         No. Patches                      Logical Time-Steps
+ Prepare Z          LogicalQubit::transversal_op             Initializes data qubits in the X/Z basis                 1                                    0
+ Measure Z          LogicalQubit::transversal_op             Measures data qubits in the X/Z basis                    1                                    0
+ Hadamard           LogicalQubit::transversal_op             Applies Hadamard gate to data qubits and swaps           1                                    0
+                                                             roles of X and Z operators
+ Inject Y/T         LogicalQubit::inject_state               Initializes data qubits according to desired state       1                                         0
+ Pauli X/Y/Z        LogicalQubit::apply_pauli                Applies Pauli gate according to logical operator         1                                         0
+ Idle               LogicalQubit::idle                       Performs 𝑑𝑡 cycles of error correction                   1                                         1
+ Merge              LogicalQubit::merge                      Merges two patches into a larger patch in the stan-      2                                         1
+                                                             dard arrangement
+ Split              LogicalQubit::split                      Splits a merged patch into two patches with their        2                                         0
+                                                             same pre-merge specification
+
+
+using the TISCC library, and that the verification of the primitives                 encoded by a patch and cannot add stabilizers other than boundary
+of Table 2 is in most cases not limited to patches in the standard                   stabilizers.
+stabilizer arrangement (details on the verification process can be                       A note of caution is that, while the corner movements imple-
+found in Sec. 4). Having enumerated the primitives that were used to                 mented within TISCC are general and have in many cases been
+implement our instruction set, we now discuss further functionality                  verified to preserve the encoded logical state (see Sec. 4), not all
+available within TISCC.                                                              valid patch deformations can be implemented fault-tolerantly [28].
+                                                                                     For example, consider the Flip Patch operation, an operation im-
+2.5      Patch Deformations and Translations                                         plemented within TISCC that can take a patch from the standard
+In some cases, it may be desirable to perform a patch rotation im-                   arrangement [Fig. 2(a)] to the flipped arrangement [Fig. 2(c)] or
+mediately following a Hadamard instruction8 . There have been                        from the rotated arrangement [Fig. 2(b)] to the rotated-flipped ar-
+several different proposals for patch rotation protocols in the lit-                 rangement [Fig. 2(d)] by performing a sequence of four clockwise
+erature, each with a different required overhead [2, 11, 14, 18, 28].                corner movements (see Fig. 3 for details). This operation was used
+While we have not yet implemented any of them here, we have                          as a proxy to verify our corner movement functionality and ensure
+included some of the enabling functionality for TISCC users to                       its robustness to different combinations of code distances, but may
+experiment with different trapped-ion implementations of patch                       not be fault-tolerant by the criteria of Ref. [28].
+rotations themselves.                                                                    In addition to patch deformations, since the ability to translate
+   To this end, methods are implemented within TISCC to deform                       patches without resorting to lattice surgery is often required by
+patches by adding and removing boundary stabilizers. This re-                        authors proposing protocols for patch rotation [2, 11], we have
+sults in the modification of logical operators existing along patch                  implemented and verified a primitive called Swap Left that relies on
+boundaries, which is typically called corner movement. Corner                        trapped-ion movement alone to move data qubits left-ward, effec-
+movements can be useful either within patch rotation protocols                       tively ‘swapping’ them with the ancilla strip residing to the right on
+or to expose logical operators as desired for subsequent lattice                     their respective logical tile. When Swap Left follows a Move Right
+surgery operations [11, 18]. Crucial to the way that TISCC han-                      operation9 , a patch can fault-tolerantly be transferred between the
+dles corner movements is the construction and maintenance of                         standard [Fig. 2(a)] and the rotated-flipped [Fig. 2(d)] or between
+a parity check matrix by every LogicalQubit object. Using this                       the rotated [Fig. 2(b)] and the flipped [Fig. 2(c)] arrangements in
+matrix, a given boundary stabilizer is added by finding (and re-                     one logical time-step and on a single tile10 . For the sake of brevity,
+moving or replacing) the existing stabilizers and logical opera-                     we do not provide detail on the pattern of movements used within
+tors that anti-commute with it. Any logical operator with sup-                       Swap Left. See Fig. 4 for details of the Move Right and Swap Left
+port on the added stabilizer is also updated in favor of its lower-                  operations.
+weight counterpart. Modifications made to default-edge logical                           To conclude Sec. 2, we remind the reader that TISCC focuses on
+operators are tracked in order to aid users in reconstructing their                  what we have called the second step of surface code compilation, in
+values in classical post-processing (see Sec. 4.5). Where necessary,                 which surface code instructions are compiled into hardware instruc-
+TISCC also handles the measurement and/or preparation of cor-                        tions. We have reviewed the literature on the first step of surface
+ner qubits as needed to maintain a valid single-qubit patch. Cor-                    code compilation and determined that a local, tile-based lattice
+ner movement functionality can be accessed through the Logi-
+calQubit::extend_logical_operator_clockwise method, which finds                      9 Move Right is another verified primitive available in TISCC; it simply performs a
+
+the sequence of boundary stabilizers that need to be measured in                     one-column move operation to the right, and is considered a primitive in itself since
+                                                                                     our Move operation (a derived instruction, see Table 3) consists of movement over an
+order to accomplish the desired movement. Currently, patch defor-                    entire tile.
+mations within TISCC cannot change the number of logical qubits                      10 Technically, Move Right requires a tile to borrow a column from the tile to the
+                                                                                     right of itself to support syndrome measurement qubits for the resultant boundary
+8 A transversal Hadamard gate leaves the patch in a rotated stabilizer arrangement   stabilizers. This is acceptable as long as the adjacent tile, if initialized, does not enter
+[Fig. 2(b)], and the rotation returns the patch to the standard arrangement.         the flipped or rotated-flipped arrangements during this time-step.
+SC-W 2023, November 12–17, 2023, Denver, CO, USA                                                  Tyler LeBlond, Justin G. Lietz, Christopher M. Seck, and Ryan S. Bennink
+
+
+
+                Details of Flip Patch                                                   3  SURFACE CODE MAPPING ONTO
+                    Z X            Z X                 Z X
+                                                                                           TRAPPED-ION HARDWARE MODEL
+                                                                                        3.1 Trapped-Ion Hardware Architecture
+                                                                                        We have loosely based our trapped-ion hardware model off of
+                                                                                        Quantinuum’s system model H1 [23], which uses the quantum
+                                                                                        charge-coupled device (QCCD) architecture, and the Sandia Na-
+                                                                                        tional Laboratories Phoenix ion trap [24]. Surface code patches
+                                                                                        are mapped onto an arbitrarily large rectangular grid of trapping
+            X                                              Z
+                                                                                        zones, with three trapping zones per straight segment and straight
+        Z                                                                X              segments connected by junctions. In TISCC, where we consider an
+                                                                                        abstract representation of a trapped-ion architecture, we will re-
+                                                                                        fer to these elements of the grid as quantum sites, or qsites for
+                                                                                        short. See Fig. 1 for a representation of the grid of ‘M’ (mem-
+                                                                                        ory), ‘O’ (operation), and ‘J’ (junction) qsites. The architecture
+                                                                                        as a whole can be thought of as grid-like, where a repeating unit
+   (a) Before Flip Patch                        (b) After Flip Patch                    {‘𝑀 ′, ‘𝑂 ′, ‘𝑀 ′, ‘𝐽 ′, ‘𝑀 ′, ‘𝑂 ′, ‘𝑀 ′ } (two straight segments, one pointed
+                                                                                        down-ward and one pointed right-ward, connected by a junction)
+                                                                                        is tiled over the plane.
+Figure 3: The Flip Patch operation is a particular sequence
+of four corner movements that was used as a proxy for the
+verification of corner movements in general, though it is                               3.2     Trapped-Ion Instruction Set and Hardware
+not considered one of our primitives. The inset shows the                                       Parameters
+intermediate patch states after the first, second, and third                            In QCCD trapped-ion compilation, where qubits are mobile, it is
+corner movements.                                                                       sensible to consider trapping zones to be the target acted upon
+                                                                                        by hardware instructions instead of physical qubits. The native
+                                                                                        trapped-ion gate set that is implemented within TISCC is given in
+                                                                                        Table 5. Because TISCC is specialized to surface code compilation,
+                    X                                  X                                which primarily involves circuits composed of the Clifford+T gate
+                Z                                  Z                                    set and not arbitrary rotations, we have chosen to specialize to
+                                                                                        𝑃𝜃 = 𝑒 −𝑖𝑃𝜃 , where 𝑃 ∈ {𝑋, 𝑌, 𝑍 } are the Pauli operators and 𝜃 ∈
+                                                                                        {𝜋/2, ±𝜋/4, ±𝜋/8} are particularly useful angles. For comparison,
+                                                                                        the H1 documentation [23] defines a native arbitrary single-qubit
+                                                                                        rotation gate in the X-Y plane as 𝑈 1𝑞 (𝜃, 𝜙) = 𝑒 −𝑖 (cos 𝜙𝑋 +sin 𝜙𝑌 )𝜃 /2
+                                                                                        and a native arbitrary Z-axis rotation as 𝑅𝑧 (𝜆) = 𝑒 −𝑖𝑍 𝜆/2 . It is
+                                                                                        worth noting that our 𝑋𝜃 = 𝑈 1𝑞 (2𝜃, 0), 𝑌𝜃 = 𝑈 1𝑞 (2𝜃, 𝜋/2), and 𝑍𝜃 =
+  (a) Apply Move Right in one time-step (b) Apply Swap Left to finish                   𝑅𝑧 (2𝜃 ). The ZZ operation is actually (𝑍𝑍 )𝜋 /4 . We build Hadamard
+                                                                                        and CNOT gates out of these native gates according to Ref. [23].
+                                                                                           TISCC explicitly handles movement operations that cause qubits
+Figure 4: Move Right (a) and Swap Left (b) are primitives
+                                                                                        to travel between adjacent trapping zones or through junctions.
+that can be performed in sequence to fault-tolerantly map
+                                                                                        The Move and Junction operations in Table 5 correspond with
+between the Standard and Rotated-Flipped arrangements
+                                                                                        per-site movement between trapping zones and to/from junctions,
+(shown) or the Rotated and Flipped arrangements (not
+                                                                                        respectively. The timings of the Move and Junction operations are
+shown) in one logical time-step on one logical tile. The Stan-
+                                                                                        calculated using velocities of 80 m/s [9] and 4 m/s [6], respectively,
+dard arrangement is the implied precursor in (a).
+                                                                                        and a trapping zone width of 420 𝜇m. Since we enforce the con-
+                                                                                        straint that ions cannot sit at junctions, a Junction move will appear
+surgery instruction set suits our purposes of using verified prim-                      in compiled output as Move qsite1 qsite2, where qsite1 and qsite2
+itive surface code operations to compile and estimate resources                         are two trapping zones adjacent to the same junction, and time is
+for a limited yet universal set of surface code operations. For a                       allocated for 2 Junction move operations.
+compiler that focuses on the first compilation step and can be con-                        In the current verison of TISCC, the Split, Merge, and Cool op-
+figured to use the same (local, tile-based) surface code instruction                    erations that are typically required during the ZZ operation are
+set in the fault-tolerant layer as TISCC, see the Lattice Surgery                       implied to take place during the time allocated to the ZZ operation.
+Compiler [29]11 . Next, we move into our discussion on how the                          Here, we assume that the Split, Merge, and Cool operations (≈ 2 ms)
+surface code is mapped onto a trapped-ion hardware model.                               dominate the ZZ operation time (≈ 25 𝜇s) with times generalized
+11 In particular, see the May 2023 release of the Lattice Surgery Compiler, which was
+                                                                                        from Ref. [22]. It is anticipated that these operations, as well as
+co-written with TISCC as part of a broader end-to-end resource estimation effort for    qubit loss, will be handled explicitly in future versions to improve
+fault-tolerant implementations of quantum algorithms.                                   the realism of TISCC.
+TISCC: A Surface Code Compiler and Resource Estimator for Trapped-Ion Processors                                     SC-W 2023, November 12–17, 2023, Denver, CO, USA
+
+
+                                                                                      hardware validity checker detects a junction conflict, it resolves it
+                                                                                      by inserting appropriate time to perform the conflicting junction
+Figure 5: Native trapped-                                                             moves sequentially.
+ion gate set implemented                                                                 Explicit hardware circuits for extended stabilizers and twist de-
+within TISCC.                                                                         fects have not been devised because they are not required by our
+  Operation Time (𝜇s)                                                                 primitives. The most general lattice surgery instruction set, which
+  Prepare_Z       10                                                                  includes the measurement of arbitrary Pauli products over the
+  Measure_Z      120                                  𝑎          𝑏                    support of the logical qubit register, requires these [18, 19]. The
+  X_pi/2          10                                                                  implementation of these defects in lattice surgery protocols is not
+  X_pi/4          10                                                                  well-understood due to challenges related to syndrome extraction
+  Y_pi/2          10                                  𝑐          𝑑                    circuit scheduling and decoding algorithms [7, 8]. Avoiding these
+  Y_pi/4          10                                                                  complexities was one of the motives for our instruction set choice.
+  Z_pi/2           3                             𝑎           𝑏   𝑎        𝑏           However, since there is an ongoing debate about whether a twist-
+  Z_pi/4           3                                                                  based instruction set would improve or worsen the overhead of
+                                                         Z           X
+  Z_pi/8           3                                                                  fault-tolerance [7, 8], and given our considerations about extensibil-
+  ZZ            2000                             𝑐           𝑑   𝑐        𝑑           ity being necessary for a good compiler from Sec. 1, we believe that
+  Move           5.25                                                                 it may be pertinent to implement twist-based protocols in future
+  Junction       105                         Figure 6: To interact, the               versions of TISCC.
+                                             measure qubit (white)
+                                             moves adjacent to each                   3.4     Hardware Resource Estimation
+                                             data qubit (black) in a
+                                                                                      In addition to being a compiler, TISCC is a resource estimator.
+                                             sequence specified by the
+                                                                                      The circuits output by TISCC are time-resolved, incorporating the
+                                             (Z or N) measurement
+                                                                                      values from Table 5 and considering operations that are done in
+                                             pattern.
+                                                                                      parallel. Thus, execution time is explicitly calculated for each patch
+                                                                                      operation. Using the master hardware circuit for a given operation,
+                                                                                      resources such as grid area (in 𝑚 2 ), computation time (in 𝑠), space-
+3.3     Explicit X and Z Stabilizer Circuit Mappings                                  time volume (𝑠 ∗ 𝑚 2 ), number of trapping zones, trapping zone-
+Each plaquette is serviced by one mobile syndrome measurement                         seconds, and active trapping zone-seconds are calculated.
+qubit that moves to interact with data qubits in a specified se-
+quence given by the standard surface code syndrome extraction
+                                                                                      4     VERIFICATION OF LOGICAL STATE USING
+circuits [12]; see Fig. 6 for details of this sequence. For a given round                   ORQCS
+of error correction over a patch, the syndrome extraction circuits                    In order to verify that hardware circuits output by TISCC correctly
+are performed in parallel over all its plaquettes. In order to prevent                correspond with their intended transformations of the logical sub-
+errors on syndrome measurement qubits from becoming two data                          space, we have employed the Oak Ridge Quasi-Clifford Simulator
+qubit errors parallel to the logical operator of the same kind, thus                  (ORQCS) to perform (near-)Clifford simulation of these circuits and
+reducing the effective code distance, we employ two different move-                   collect expectation values of both Pauli strings (corresponding with
+ment patterns for the “measure” qubit: Z pattern and N pattern.                       logical operators) and simulated measurement outcomes. ORQCS
+This problem (and solution) has been noted elsewhere [7, 11, 19, 26].                 implements a parser and hardware model for the TISCC instruction
+In general within TISCC, Z-type stabilizers are measured using the                    set so that the TISCC circuits, written in terms of gates acting on
+Z pattern and X-type stabilizers are measured using the N pattern.                    qsites residing on the trapped-ion hardware, are interpreted as uni-
+Exceptions to this rule occur when the patch is set to either the                     tary operations acting on a quantum state. These results are used
+rotated or flipped arrangement [see Fig. 2(b) and (c)] following a                    together in quantum state and process tomography protocols to
+transversal Hadamard operation or the Flip Patch operation, respec-                   verify that final density matrices (in the case of state preparation
+tively, since in those cases the logical operators change direction.                  circuits) and process matrices (in the case of operations that can
+If Flip Patch is followed by the transversal Hadamard [leaving the                    act on arbitrary encoded states) agree with expectations13 . This
+rotated-flipped arrangement, Fig. 2(d)], the circuit patterns are reset               procedure has been used to verify our primitives (including those
+to the standard ones. Other deviations from this rule could occur                     from Table 2 and others discussed in Sec. 2.5), some combinations
+following corner movements as described in Ref. [11]. This level of                   of primitives representing members of our instruction set from Ta-
+stabilizer circuit generality has not yet been implemented in TISCC.                  ble 1, and members of the derived instruction set that is discussed in
+    There are occasions where the parallel operation of adjacent sta-                 Sec. A. The verification of some operations required us to incorpo-
+bilizer patterns leads to junction conflicts. In TISCC, we implement                  rate simulated measurement outcomes in classical post-processing
+basic hardware validity checks such as that two qubits do not move                    to recover correct values of logical operators. This is often relevant
+through the same junction at the same time, and that two qubits                       when measurements on data qubits are made during circuit execu-
+do not occupy the same site at the same time12 . When the TISCC                       tion (e.g. in Merge, Split, and Measure X/Z) and when corners are
+                                                                                      moved and boundary stabilizers are modified (e.g. in Flip Patch). We
+12 Though trapped-ion systems typically can have qubits occupying the same trapping
+zone, we do not make us of this in our hardware model.                                13 All verification is performed in the absence of simulated hardware errors.
+SC-W 2023, November 12–17, 2023, Denver, CO, USA                                     Tyler LeBlond, Justin G. Lietz, Christopher M. Seck, and Ryan S. Bennink
+
+
+follow Ref. [20] for the tomography protocols. Verification has been        selves. In contrast to other operations, Flip Patch was only verified
+performed for various even and odd code distances ≥ 5, including            from the standard and rotated arrangements since those are the
+cases where 𝑑𝑥 = 𝑑𝑧 and cases where 𝑑𝑥 ≠ 𝑑𝑧 .                               only arrangements from which it was implemented. See Fig. 3 for
+                                                                            details of its implementation.
+4.1    Clifford (and Near-Clifford) Simulation                                 Several of our primitives were expected (and verified) to yield a
+Verification of non-Clifford circuits has additional overhead. ORQCS        process matrix that is consistent with the identity process. This is
+computes expectation values of observables by taking a weighted             the case for Idle, Flip Patch, Swap Left, and Move Right. Since the
+average over a number of samples, where each sample is itself a             Idle operation, which is actually a round of syndrome extraction,
+Clifford circuit. Each non-Clifford gate is represented by a decom-         lies at the heart of TISCC, we additionally verified for patches as
+position of Clifford gates, and in each sample, only one of these           large as 𝑑 = 30 that measurement outcomes were stable upon re-
+Clifford gates is randomly chosen to be simulated. The probability          peated applications of it, which is consistent with the expectation
+that a Clifford gate is selected is determined by the decomposition         that the surface code is in a quiescent state after the first round of
+coefficients, and the weight of the sample is adjusted based on the         syndrome extraction [12]. For a more low-level verification of the
+probability of the selected Clifford gate. Thus the expectation value       Idle operation, we verified by hand, for 𝑑 = 2, that the stabilizer
+is computed via a Monte Carlo process, and a number of samples              generators are identical to our expectations after each layer of the
+(depending on the number of non-Clifford gates) is required to con-         parallelized syndrome extraction circuits (including three parallel
+verge. For our purposes, the only non-Clifford circuit that we verify       syndrome extraction circuits in this case) was executed. Specifically,
+is a T-state injection circuit that contains a single non-Clifford gate.    ORQCS outputs a set of generators for the stabilizer group after
+In this case, verification is done statistically, not exactly, due to the   the application of each layer (e.g. after a couple of parallel CNOT
+Monte Carlo nature of our simulation technique.                             gates are performed). We then generate the whole stabilizer group
+                                                                            from these, and check by hand that the expected stabilizer genera-
+                                                                            tors are present in that group. To verify the Hadamard and Pauli
+4.2    Verification of State Preparation Circuits
+                                                                            X/Y/Z primitives, we ensured that the process matrices (which were
+We have verified our state preparation primitive circuits (Prepare Z        simulated exactly) had the expected non-zero entries.
+and Inject Y/T) using quantum state tomography within the logical
+subspace of a single surface code patch; i.e. we construct single-
+qubit density matrices corresponding with the final logical state
+                                                                            4.4    Verification of Two-Tile Operations
+using the simulated expectation values of logical operators accord-         The instruction set in Table 1 contains only two members that
+ing to the procedure in Ref. [20]. We obtain the correct results for        operate on two tiles, namely Measure XX/ZZ. For both of these
+these circuits both with and without the subsequent round of syn-           instructions, quantum process tomography on the two-qubit logical
+drome extraction needed to produce a quiescent state of the surface         sub-space was used for verification, and verification was performed
+code [12] using all four canonical arrangements from Fig. 2. In the         statistically because each instruction has two branches depend-
+absence of hardware errors, the final round of syndrome extraction          ing on measurement outcomes during the Merge operation (see
+does not change the result since encoded logical states are unaltered       Ref. [10]). In order to individually verify the primitives that com-
+by syndrome extraction [12]. We note that the Prepare X operation           pose this operation (Merge and Split), we chose not to explicitly
+from Table 1 does not have a corresponding primitive because it             construct process matrices that map two logical qubits to one logical
+is composed of Prepare Z followed by a Hadamard. Further veri-              qubit (in the case of Merge) or one logical qubit to two logical qubits
+fication of the Idle operation, which is composed of 𝑑𝑡 rounds of           (in the case of Split). Instead, we verified by inspection that the
+syndrome extraction, is given in Sec. 4.3. To verify the Bell State         resultant density matrices were as expected for an informationally-
+Preparation instruction (Table 3) we used state tomography within           complete set of input states using the conditional mapping of the
+the two-qubit logical sub-space and made classical corrections de-          logical sub-spaces set forth in Ref. [10]. These primitives were also
+pendent on measurements performed during the merge and split.               verified within the context of derived instructions; namely, both
+                                                                            the patch contraction and patch extension sub-instructions from
+4.3    Verification of One-Tile Operations                                  Table 3 were verified to be identity processes using single-qubit pro-
+                                                                            cess tomography. We note that, because Merge and Split were only
+To verify the effect of one-tile operations on the encoded logical sub-
+                                                                            implemented for patches in the standard stabilizer arrangement,
+space, we used a single-qubit quantum process tomography proto-
+                                                                            this is the only case for which they were verified.
+col and used our verified state preparation circuits to input encoded
+logical states. All but one of our one-tile operations were verified
+starting from all of the canonical stabilizer arrangements. As men-         4.5    Post-Processing with Measurements
+tioned in Sec. 2.5, Flip Patch, though not one of our primitives, was       While certain stabilizer measurement outcomes are initially non-
+used as a proxy to verify our corner movement functionality. When           deterministic, in the absence of noise they are deterministic upon
+applied to even, odd, and mixtures of even and odd code distances,          repeated cycles. Also, while the expected values of Pauli strings
+Flip Patch covers all of the situations that can arise during corner        representing logical operators on the surface code depend on this
+movements, especially the removal and re-preparation of corner              initial set of measurement outcomes, one typically tracks the Pauli
+qubits. Flip Patch also serves as an exemplar for the re-construction       frame [25] to reconstruct logical operators post hoc. Ref. [11] de-
+of logical operators in post-processing since neither of the default        scribes how to use the Pauli frame to adapt the expected values of
+logical operators have any overlap in support with their previous           logical operators by products of stabilizers using a process called
+TISCC: A Surface Code Compiler and Resource Estimator for Trapped-Ion Processors                                   SC-W 2023, November 12–17, 2023, Denver, CO, USA
+
+
+operator movement. Methods have been incorporated within TISCC                     set to include Y-basis measurements by implementing twist defects
+to aid the user in tracking operator deformations and operator                     and extended stabilizers as mentioned in Sec. 3.3, (ii) extending
+movements for use in post-processing logical operators using mea-                  TISCC to other hardware models such as 1D QCCD architectures
+surement outcomes.                                                                 for near-term applications (e.g. Quantinuum’s H1 and H2 systems)
+   We can look to the Flip Patch and Move Right primitives for                     or even to other modalities such as superconducting qubits, and
+two concrete examples. To aid in the former case, upon modifying                   (iii) improving the TISCC API for better usage as a programming
+boundary stabilizers, TISCC stores the qsite indices pertaining to                 language for surface code quantum computing.
+logical operator deformations within the member variables of the
+LogicalQubit object, from which they can later be extracted. To aid                ACKNOWLEDGMENTS
+in the latter case, TISCC contains operator movement functionality                 This work was completed as part of the Defense Advanced Research
+wherein one can specify a logical operator and a number of rows or                 Projects Agency Quantum Benchmarking program. This manu-
+columns to shift and it returns all of the qsites corresponding with               script has been authored by UT-Battelle, LLC, under contract DE-
+the stabilizer measurements needed to deform the operator. Both of                 AC05-00OR22725 with the US Department of Energy (DOE). The US
+these examples show how TISCC gives users the needed informa-                      government retains and the publisher, by accepting the article for
+tion to combine measurement outcomes with expectation values                       publication, acknowledges that the US government retains a nonex-
+of logical operators to obtain correct results. Similar methods to                 clusive, paid-up, irrevocable, worldwide license to publish or repro-
+these are used to verify the the Patch Contraction sub-instructions.               duce the published form of this manuscript, or allow others to do
+Thus, TISCC and ORQCS together provide a valuable platform for                     so, for US government purposes. DOE will provide public access to
+simulating and verifying surface code operations.                                  these results of federally sponsored research in accordance with the
+                                                                                   DOE Public Access Plan (https://www.energy.gov/downloads/doe-
+                                                                                   public-access-plan).
+5    CONCLUSION
+In conclusion, we have written a software library that produces                    REFERENCES
+trapped-ion hardware circuits for a universal lattice surgery in-                   [1] 2023. Suppressing quantum errors by scaling a surface code logical qubit. Nature
+struction set. Since it keeps track of parallel operations and the                      614, 7949 (2023), 676–681.
+nominal time at which each hardware gate is applied, it is addi-                    [2] Michael Beverland, Vadym Kliuchnikov, and Eddie Schoute. 2022. Surface code
+                                                                                        compilation via edge-disjoint paths. PRX Quantum 3, 2 (2022), 020342.
+tionally useful as a resource estimator for surface code operations                 [3] Michael E Beverland, Prakash Murali, Matthias Troyer, Krysta M Svore, Torsten
+on trapped-ion processors. Because TISCC constructs a surface                           Hoeffler, Vadym Kliuchnikov, Guang Hao Low, Mathias Soeken, Aarthi Sundaram,
+                                                                                        and Alexander Vaschillo. 2022. Assessing requirements to practical quantum
+code instruction set out of verified primitives, it is known that the                   advantage. arXiv preprint arXiv:2211.07629 (2022).
+circuits it produces are correct. In addition to the instruction set                [4] S. Bravyi, A. W. Cross, J. M. Gambetta, D. Maslov, P. Rall, and T. J. Yoder. 2023.
+presented here, the verified primitives available within TISCC could                    High-threshold and low-overhead fault-tolerant quantum memory. arXiv preprint
+                                                                                        arXiv:2308.07915 (2023).
+aid in the compilation of alternative instruction sets. While TISCC                 [5] Nikolas P Breuckmann and Jens Niklas Eberhardt. 2021. Quantum low-density
+has been specialized to surface codes and trapped-ion processors,                       parity-check codes. PRX Quantum 2, 4 (2021), 040101.
+we note that it was designed to be modular enough to be extensible                  [6] William Cody Burton, Brian Estey, Ian M. Hoffman, Abigail R. Perry, Curtis Volin,
+                                                                                        and Gabriel Price. 2022. Transport of multispecies ion crystals through a junction
+to other grid-like hardware architectures and QECC implementable                        in an RF Paul trap. arXiv preprint arXiv:2206.11888 (2022).
+on those architectures.                                                             [7] Christopher Chamberland and Earl T Campbell. 2022. Circuit-level protocol
+                                                                                        and analysis for twist-based lattice surgery. Physical Review Research 4, 2 (2022),
+   In the near future, we foresee that TISCC circuits could be used                     023090.
+to produce error rates for each member of our instruction set and                   [8] Christopher Chamberland and Earl T Campbell. 2022. Universal quantum com-
+could therefore lend themselves to logical error rate estimates for                     puting with twist-free and temporally encoded lattice surgery. PRX Quantum 3,
+                                                                                        1 (2022), 010331.
+entire circuits when combined with output from lattice surgery                      [9] Craig R Clark, Creston D Herold, J True Merrill, Holly N Tinkey, Wade Rellergert,
+compilation tools such as the Lattice Surgery Compiler [29]. While                      Robert Clark, Roger Brown, Wesley D Robertson, Curtis Volin, Kara Maller,
+TISCC is currently a proof-of-concept compiler with a limited out-                      et al. 2023. Characterization of fast ion transport via position-dependent optical
+                                                                                        deshelving. Physical Review A 107, 4 (2023), 043119.
+put instruction set of verified operations involving one to two                    [10] Niel de Beaudrap and Dominic Horsman. 2020. The ZX calculus is a language
+logical tiles, TISCC can in principle be used to compile circuits for                   for surface code lattice surgery. Quantum 4 (2020), 218.
+                                                                                   [11] Austin G Fowler and Craig Gidney. 2018. Low overhead quantum computation
+larger systems of logical qubits. Since the primitives have been                        using lattice surgery. arXiv preprint arXiv:1808.06709 (2018).
+verified to be correct, combinations of the primitives applied in                  [12] Austin G Fowler, Matteo Mariantoni, John M Martinis, and Andrew N Cleland.
+serial or parallel to non-overlapping sets of surface code patches                      2012. Surface codes: Towards practical large-scale quantum computation. Physical
+                                                                                        Review A 86, 3 (2012), 032324.
+should also be correct, with only minor caveats. This goes beyond                  [13] Jason Gavriel, Daniel Herr, Alexis Shaw, Michael J Bremner, Alexandru Paler,
+what we have tested in the preparation of this manuscript.                              and Simon J Devitt. 2023. Transversal injection for direct encoding of ancilla
+   In the farther future, there are a few directions in which we can                    states for non-Clifford gates using stabilizer codes. Physical Review Research 5, 3
+                                                                                        (2023), 033019.
+foresee TISCC evolving: (i) building a better trapped-ion surface                  [14] Clare Horsman, Austin G Fowler, Simon Devitt, and Rodney Van Meter. 2012.
+code compiler through (a) a more realistic trapped-ion instruction                      Surface code quantum computing by lattice surgery. New Journal of Physics 14,
+                                                                                        12 (2012), 123011.
+set (including explicit split, merge, swap, and cool operations), (b)              [15] Lingling Lao and Ben Criger. 2022. Magic state injection on the rotated surface
+implementations of surface code operations that take better advan-                      code. In Proceedings of the 19th ACM International Conference on Computing
+tage of the expediencies presented by the QCCD architecture (e.g.                       Frontiers. 113–120.
+                                                                                   [16] Tyler LeBlond, Xiao Xiao, Eugene Dumitrescu, Ryan Bennink, and Alexandru
+using ion shuttling instead of lattice surgery for patch movements                      Paler. 2023. On the Need for Extensible Quantum Compilers with Verification. In
+and rotations), and (c) broadening the lattice surgery instruction                      ASCR Workshop on Basic Research Needs in Quantum Computing and Networking.
+SC-W 2023, November 12–17, 2023, Denver, CO, USA                                                       Tyler LeBlond, Justin G. Lietz, Christopher M. Seck, and Ryan S. Bennink
+
+
+Table 3: ‘Derived’ local lattice surgery instruction set implemented using TISCC primitives. Italicized instructions are not
+considered part of our instruction set but are included for reference as sub-circuits used by other members.
+
+ Operation                            Description                                                                     Logical Tiles In/Out           Logical Time-Steps
+ Bell State Preparation               Initializes a Bell state on two adjacent uninitialized tiles                             2                              1
+ Bell Basis Measurement               Performs a destructive Bell basis measurement on two adjacent                            2                              1
+                                      (initialized) tiles and makes uninitialized
+ Extend-Split                         Composed of a patch extension followed by a split operation                                 2                              1
+ Merge-Contract                       Composed of a merge operation followed by a patch contraction                               2                              1
+ Move                                 Composed of a patch extension followed by a patch contraction                               2                              1
+ Patch Contraction                    Contracts one initialized two-tile patch into a one-tile patch                             2/1                             0
+                                      while preserving the encoded state
+ Patch Extension                      Extends one initialized one-tile patch into a two-tile patch while                         1/2                             1
+                                      preserving the encoded state
+
+
+     https://custom.cvent.com/DCBD4ADAAD004096B1E4AD96F3C8049E/files/                         are possible is well known [2, 18]. See Table 3 for the list of these
+     event/6e6af0a541664baa9bd2bc48ab7be5c3/1f0b81de978241df848f5f375b8cf4b0.                 instructions and their description as implemented by TISCC.
+     pdf
+[17] Ying Li. 2015. A magic state’s fidelity can be superior to the operations that
+     created it. New Journal of Physics 17, 2 (2015), 023037.                                 B  SOFTWARE DESIGN AND
+[18] Daniel Litinski. 2019. A game of surface codes: Large-scale quantum computing
+     with lattice surgery. Quantum 3 (2019), 128.                                                IMPLEMENTATION
+[19] Daniel Litinski and Felix von Oppen. 2018. Lattice surgery with a twist: simplify-
+     ing clifford gates of surface codes. Quantum 2 (2018), 62.                               B.1 Class Structure
+[20] Michael A. Nielsen and Isaac L. Chuang. 2010. Quantum Computation and                    TISCC can either be compiled into an executable and given com-
+     Quantum Information: 10th Anniversary Edition. Cambridge University Press.
+     https://doi.org/10.1017/CBO9780511976667                                                 mand line input (code distances, operation of interest) or used as a
+[21] Alexandru Paler and Austin G Fowler. 2020. OpenSurgery for topological assem-            library. Important TISCC classes include:
+     blies. In 2020 IEEE Globecom Workshops (GC Wkshps. IEEE, 1–4.
+[22] J. M. Pino, J. M Dreiling, C. Figgatt, J. P. Gaebler, S. A. moses, M. S. Allman, C. H.        • GridManager: Provides access to an array representation
+     Baldwin, M. Foss-Feig, D. Hayes, K. Mayer, C. Ryan-Anderson, and B. Neyenhuis.                   of the trapped-ion architecture along with functions to help
+     2021. Demonstration of fault-tolerant universal quantum gate operations. 592
+     (2021), 209–213.
+                                                                                                      navigate it. Enforces validity of the final hardware circuit by
+[23] Quantinuum. 2023. Quantinuum System Model H1: Product Data Sheet.                                tracking qubit movement.
+[24] Melissa C. Reelle. 2020. Phoenix and Peregrine Ion Traps. arXiv preprint                      • Plaquette: Primarily tracks the grid indices (qsites) occupied
+     arXiv:2009.02398 (2020).
+[25] Leon Riesebos, Xiang Fu, Savvas Varsamopoulos, Carmen G Almudever, and Koen                      by the qubits supported by a stabilizer plaquette.
+     Bertels. 2017. Pauli frames for quantum computer architectures. In Proceedings                • LogicalQubit: Constructed by requesting Plaquettes from
+     of the 54th Annual Design Automation Conference 2017. 1–6.                                       the GridManager. Provides functions to compile the patch-
+[26] Yu Tomita and Krysta M Svore. 2014. Low-distance surface codes under realistic
+     quantum noise. Physical Review A 90, 6 (2014), 062320.                                           level operations mentioned in Sec. 1. Manages its Plaquettes,
+[27] M. A. Tremblay, N. Delfosse, and M. E. Beverland. 2022. Constant-overhead                        parity check matrix, and logical operators by updating them
+     quantum error correction with thin planar connectivity. Physical Review Letters
+     129, 5 (2022), 050504.
+                                                                                                      when necessary and testing validity.
+[28] Christophe Vuillot, Lingling Lao, Ben Criger, Carmen García Almudéver, Koen                   • HardwareModel: Defines a set of native hardware opera-
+     Bertels, and Barbara M Terhal. 2019. Code deformation and lattice surgery are                    tions and related parameters. Compiles gates requested by
+     gauge fixing. New Journal of Physics 21, 3 (2019), 033028.
+[29] George Watkins, Hoang Minh Nguyen, Varun Seshadri, Keelan Watkins, Steven                        LogicalQubit to the native gate set and adds native gates
+     Pearce, Hoi-Kwan Lau, and Alexandru Paler. 2023. A High Performance Compiler                     to a time-resolved hardware circuit.
+     for Very Large Scale Surface Code Computations. arXiv preprint arXiv:2302.02459
+     (2023).                                                                                     To use TISCC, one typically initializes the GridManager with
+                                                                                              the size of the hardware grid. Then, LogicalQubit(s) are added.
+                                                                                              Finally, primitive operations from Table 2 are appended using the
+                                                                                              appropriate LogicalQubit methods. Lastly, validity of the hardware
+A      DERIVED INSTRUCTION SET                                                                circuit is enforced through the GridManager and the circuit and/or
+Besides the minimal instruction set (Table 1), TISCC implements                               final resource counts are printed.
+several other instructions (Table 3). While these additional instruc-
+tions could be implemented using instructions from Table 1, TISCC
+implements them more efficiently in terms of primitive operations
+(Table 2) by exploiting commutation of stabilizers. For example, a
+Prepare X operation on one tile followed by a Measure ZZ opera-
+tion between that tile and an adjacent one need not be performed
+in two time steps because the logical |+⟩ state need not be fault-
+tolerantly encoded before the Measure ZZ operation is performed.
+Because of this, we lump these two operations together into a two-
+tile operation called Extend-Split. That these types of expediencies
+

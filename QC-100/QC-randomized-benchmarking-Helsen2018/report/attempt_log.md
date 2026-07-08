@@ -1,0 +1,13 @@
+# Attempt Log
+
+1. Read WAVE_BRIEF_2026-07-01.md and QC-100/STATUS_AUDIT.md. Confirmed randomized benchmarking (RB) is an explicitly *untaken* direction; no RB dir/collision in QC-100 (grep + ls verified). Dedup list respected.
+2. Selected candidate #32 (rank-32, 127 cites): Helsen et al., "A new class of efficient randomized benchmarking protocols" (1806.02048). Clean classical-simulator core + OA.
+3. Fetched paper via arXiv abstract + ar5iv full HTML (curl), NOT the paid pdf tool. Extracted Eq.1 (single-exp Clifford RB), Eq.2 (multi-exp for general gatesets), Theorem 1 (multiplicity-free PTM ⇒ single exp per irrep), gateset examples.
+4. Environment: only numpy/scipy locally; qiskit/stim/cirq absent. Decision: build RB core in pure numpy PTM/Liouville picture for full independence (single-qubit Clifford group has 24 elements — exactly constructible). qiskit 2.4.2 installed in /tmp venv as backup (not needed for core; matplotlib used from venv for the figure).
+5. Implemented: PTM of any unitary; generated the 24-element Clifford group from ⟨H,S⟩ (verified size=24); depolarizing + anisotropic noise channels; exact twirl-based RB curve AND Monte-Carlo RB (random Clifford sequences + exact inverse); single- and double-exponential fits; irrep counting via commutant dimension (1/|G|)Σχ(g)².
+6. **C1 run:** For q∈{0.99,0.98,0.95,0.90}, RB recovers injected F_avg to |err| ≤ 1e-10 (mostly ~1e-12/1e-16); single-exp SS ~1e-20; Monte-Carlo (400 seq) matches exact to 4 decimals. ✓
+7. **C3 run:** Clifford PTM rep commutant dim = 2.000 → multiplicity-free, 2 irreps (trivial ⊕ adjoint) → single decay rate, consistent with Eq.1. ✓ (⟨H,S,T⟩ gave 2.186 — artefact of near-dense finite closure at PTM size 6310; noted, not used for the crisp C2 demo.)
+8. **C2 first attempt:** used ⟨H,S,T⟩ gateset — single exp still fit well (the large group nearly depolarizes). Recognized this does not expose Eq.2. Root-caused: need a gateset whose PTM is genuinely NOT multiplicity-free.
+9. **C2 fix:** switched to the single-qubit Pauli group {I,X,Y,Z} (abelian ⇒ 4 one-dim irreps, commutant dim = 4.000 verified). Under anisotropic noise diag(1,0.97,0.94,0.85) with a probe state overlapping X and Z axes, the survival is a genuine sum of exponentials: single-exp fit SS=2.07e-3 (biased), double-exp fit SS=2.56e-26 and recovers injected rates {0.97, 0.85} exactly. This is the paper's Eq.2 central claim. ✓
+10. Generated figure (C1 single-exp panel + C2 single-vs-double-exp panel). Saved results.json + figure to report/evidence/.
+11. LLM-judge (Argo gpt-5.2, free) scored coverage/agreement and verdict. Wrote REPORT.md.

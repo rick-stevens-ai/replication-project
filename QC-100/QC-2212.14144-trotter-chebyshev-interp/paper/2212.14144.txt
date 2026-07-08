@@ -1,0 +1,6765 @@
+Improved Accuracy for Trotter Simulations
+Using Chebyshev Interpolation
+arXiv:2212.14144v4 [quant-ph] 22 Feb 2024
+
+Gumaro Rendon1 , Jacob Watkins2 , and Nathan Wiebe3,4
+1
+
+Zapata Computing Inc., Boston, MA 02110, USA
+Facility for Rare Isotope Beams, Michigan State University, East Lansing, MI 48824, USA
+3
+Department of Computer Science, University of Toronto, Toronto, ON M5S 2E4, Canada
+4
+Pacific Northwest National Laboratory, Richland, WA 99352, USA
+2
+
+Quantum metrology allows for measuring properties of a quantum system at the optimal Heisenberg limit. However, when the relevant quantum
+states are prepared using digital Hamiltonian simulation, the accrued algorithmic errors will cause deviations from this fundamental limit. In this
+work, we show how algorithmic errors due to Trotterized time evolution can
+be mitigated through the use of standard polynomial interpolation techniques. Our approach is to extrapolate to zero Trotter step size, akin to
+zero-noise extrapolation techniques for mitigating hardware errors. We perform a rigorous error analysis of the interpolation approach for estimating
+eigenvalues and time-evolved expectation values, and show that the Heisenberg limit is achieved up to polylogarithmic factors in the error. Our work
+suggests that accuracies approaching those of state-of-the-art simulation algorithms may be achieved using Trotter and classical resources alone for a
+number of relevant algorithmic tasks.
+
+1 Introduction
+Quantum simulation has become, arguably, the most promising application of quantum
+computing in the near-term [1, 2], with the potential to provide exponential speedups
+for a host of problems ranging from the electronic structure [2, 3, 4, 5] to simulation
+of scattering dynamics within quantum field theories [6, 7, 8]. The central challenge of
+digital Hamiltonian simulation is, given a fixed Hamiltonian, simulation time, and error
+tolerance, provide a minimal-length sequence of quantum gates that approximates the
+unitary dynamics within that error tolerance.
+Gumaro Rendon: gumaro.rendon@proton.me
+Jacob Watkins: watki243@msu.edu
+Nathan Wiebe: nawiebe@cs.toronto.edu
+
+1
+
+Major strides have been made in the last several years towards this goal. Several
+classes of methods, such as Linear Combinations of Unitaries (LCU) methods [9, 10,
+11, 12, 13], qubitization [14, 15] and Trotter-based methods [16, 17, 18, 19, 20, 21]
+have emerged as leading approaches for simulating quantum dynamics. Unlike the
+other aforementioned methods, Trotter methods yield a complexity that scales with the
+commutators of the Hamiltonian terms [18], which can lead to substantial performance
+improvements for simulations of local Hamiltonian [19]. However, Trotter methods scale
+super-polynomially worse with the error tolerance than other existing methods [22, 11].
+This makes such methods inferior to other strategies in cases where high accuracy is
+required.
+It would be interesting if the gap in simulation accuracy between Trotter and
+other approaches could be bridged in a minimal way, such as classical post processing. Richardson extrapolation has been proposed as a method to mitigate algorithmic
+and hardware errors for simulation and linear systems [23, 24]. Recently, the approach
+been demonstrated on quantum hardware [25] and yielded improvements compared to
+Trotter simulation alone. However, there remains a gap in the theoretical understanding of the errors, though one may be able to adapt existing results from the theory of
+multiproduct formulas.
+The present work takes a different approach to the problem, achieving improved accuracy using polynomial interpolation, hereafter referred to simply as "interpolation."
+In this scheme, we take Trotter simulation data at various time step sizes, then interpolate this data with a polynomial. Our estimator is then the value of this polynomial
+at the desired ideal of zero step size. By choosing our nodes so that the interpolation
+is well-conditioned, we show that a Heisenberg-limited 1/ϵ scaling can be attained for
+estimating observables up to logarithmic factors. This is in contrast to the 1/ϵ1+1/p
+scaling obtained with a single Trotter estimate alone, where p is the order of the Trotter formula. Interestingly, our result also holds in cases where only the lowest order
+Trotter formula is used, providing the first poly-logarithmic scaling method with the
+error that uses a constant number of ancillary qubits. We study this method in two
+cases. The first case uses phase estimation to extract eigenvalues of the Hamiltonian;
+whereas the second method uses dynamical simulation and amplitude estimation to
+learn expectation values of observables. We further validate these methods numerically
+using a newly proposed unbiased phase estimation method that we call Gaussian phase
+estimation.
+Similar to the aforementioned Richardson extrapolation, our approach is best thought
+of as algorithmic error mitigation. The particular error we are mitigating is imperfect
+Hamiltonian evolution due to the use of product formulas. Rather than being a new
+approach to eigenvalue or expectation value estimation, our proposed protocol relies on
+existing methods for, say, phase or amplitude estimation as a subroutine. We will make
+use of the known performance of these subroutines as we quantify the effectiveness of
+our full procedure.
+The layout of the paper is as follows. In Section 2, we go over the basic setup of our
+work, including assumptions and notation. We review Suzuki-Trotter (ST) formulas and
+2
+
+polynomial interpolation, state an important lemma, and present the well-conditioned
+interpolation formulas that we use to enable our approach. Section 3 contains our analysis and applications of interpolation to eigenvalue estimation. Specifically, Section 3.1
+takes a perturbative approach to deriving error bounds and complexity, and applies the
+results to the problem of estimating Trotter error on a quantum computer. Section 3.2
+approaches the problem through complex analysis and the Bernstein ellipse, and applies
+the analysis to the newly proposed Gaussian phase estimation. In Section 4, we present
+our main results involving extrapolation of expectation values of time-evolved observables. This case is conceptually distinct from the case of phase estimation, because here
+the time evolutions are generally long. In Section 5 we validate our claims numerically
+for small instances of transverse Ising models. Finally, we conclude in Section 6 and
+discuss future avenues of research.
+
+2 Setup and Notation
+The algorithms presented in this paper are simply an application of standard polynomial interpolation to data obtained from Trotter simulations. These two pieces are, in
+many respects, disjoint, and the interpolation can be thought of as a form of classical
+post processing. Thus, we will begin this section with a review of the quantum part,
+Trotterization, then move to interpolation.
+
+2.1 Trotter
+Consider a Hamiltonian H on a collection of n qubits, decomposed in a specified way
+into a sum of m terms.
+H=
+
+m
+X
+
+Hj
+
+(2.1)
+
+j=1
+
+Notice that both the Hamiltonian and decomposition are specified, as the decomposition
+is not unique and can have implications for algorithmic performance. Questions about
+optimal decompositions are entirely neglected in this work, as well as questions of how
+one maps a quantum system of interest (such as a molecule or crystal) onto a set of n
+qubits appropriately.
+In our results, as a proxy for the true simulation cost, we will quote the number of
+exponentials Uj = e−iHj t used to approximate e−iHt . Of course, this is only indicates
+the true cost when each Uj is computationally cheap. In a number of relevant situations, the Hamiltonian is k-local or sparse, and it is possible to identify decompositions
+such that each Uj has constant cost and m grows polynomially with respect to the
+number of qubits n. For such Hamiltonians, there exist efficient quantum algorithms
+to approximate the time evolution operator U (t) = e−iHt to some desired precision ϵ,
+many of which rely on Trotter formulas. Standard examples of Trotter formulas include
+
+3
+
+the first-order formula
+S1 (t) :=
+
+m
+Y
+
+e−iHj t ,
+
+(2.2)
+
+j=1
+
+the second-order symmetric formula
+S2 (t) := e−iH1 t/2 . . . e−iHm t/2 e−iHm t/2 . . . e−iH1 t/2 ,
+
+(2.3)
+
+and more generally, the order 2k symmetric ST formula, defined recursively as
+S2k (t) := [S2k−2 (uk t)]2 S2k−2 ((1 − 4uk )t) [S2k−2 (uk t)]2
+
+(2.4)
+
+for every k ∈ Z+ \{1}, where uk := (4−41/(2k−1) )−1 [26]. Though many kinds of Trotter
+formulas exist, the ST formulas (2.4) will be our primary tool in this work for several
+reasons. First, they are symmetric under naive1 time reversal
+S2k (−t) = S2k (t)†
+
+(2.5)
+
+which will allow us to effectively double the number of interpolation points. Second,
+the order of the formula 2k can be taken arbitrarily large, and therefore our results
+will apply to quite a general class. Finally, the lowest order k = 1 symmetric formula
+is actually practical, having small constant factors, and therefore our bounds will have
+something to say about actual simulations.
+Trotter formulas approximate U (t) only in a neighborhood around t = 0. Thus,
+the standard trick is to divide the time interval [0, t] into r subintervals, such that each
+interval is sufficiently small that the Trotter approximation is valid, then string together
+these simulations. For the simple case of a uniform mesh of r subintervals, this becomes
+S2k (t/r)r = U (t) + O(t2k+1 /r2k )
+
+(2.6)
+
+where big O is understood as taking r large. Clearly, we have that limr→∞ S2k (t/r)r =
+U (t).
+Rather than thinking about the number of steps r tending to infinity, it is simpler
+for our subsequent analysis to consider s = 1/r as a "dimensionless step size," and
+instead think about s → 0. In terms of s, we define
+Ũs (t) := S2k (st)1/s .
+
+(2.7)
+
+as the approximate evolution operator for s ̸= 0. The discontinuity at s = 0 in (2.7)
+may be filled by the exact evolution Ũ0 (t) := U (t). Though we defined s as a reciprocal
+integer, definition (2.7) together with Ũ0 (t) suggests an extension to allow s to be realvalued. In fact, the resulting function Ũs is smooth on a neighborhood of s = 0, a fact
+that will allow us to precisely characterize the interpolation error. For our purposes,
+1
+
+Not to be confused with actual time reversal, which is an antilinear operator.
+
+4
+
+we will only consider |s| ≤ 1. When 1/s is not an integer, we may implement Ũs using
+fractional queries [27] by splitting 1/s into integer and fractional parts.
+1/s = r + f
+
+(2.8)
+
+Here, r = rnd(1/s) ∈ Z is 1/s rounded to the nearest integer, and f ∈ [−1/2, 1/2].
+Finally, we note that Ũs is an even function of s, which we will make use of to cut the
+number of interpolation points in half by reflecting across s = 0.
+Prior work has demonstrated the value of considering the effective Trotter Hamiltonian in the analysis of Trotter formulas [28]. This approach is also helps us calculate
+high order derivatives of Ũs as needed for our error bounds. We thus define an effective
+Hamiltonian
+H̃s :=
+
+i
+log S2k (st)
+st
+
+(2.9)
+
+so that
+Ũs (t) = e−iH̃s t .
+
+(2.10)
+
+Note that H̃s depends on t as well, though this dependence will be left implicit. For
+the purposes of bounding the interpolation error, we require a bound on the norm of
+H̃s . This is supplied by the following lemma.
+Lemma 1. In the notation introduced above, let s be chosen such that
+k(5/3)k m max ∥Hl ∥ |s| t ≤ π/20.
+l∈[1,m]
+
+(2.11)
+
+Then the following bound on the derivatives of H̃s with respect to s holds.
+∥∂sn H̃s ∥ ≤ 2t−1 nn (e2 k(5/3)k m max ∥Hl ∥t)n+1 .
+l∈[1,m]
+
+The proof of this lemma is technical, so it is relegated to Appendix A. Note that our
+bounds are uniformly worse for larger k, i.e., higher order ST formulas. Assuming that
+this is not an artifact of our mathematical treatment, this suggests low order formulas
+are unconditionally preferred over high order ones for interpolation. Numerical studies
+could help determine the true impact of higher order formulas on the interpolation
+procedure.
+
+2.2 Polynomial Interpolation
+Having introduced ST formulas and stated a needed lemma, we turn our attention to
+interpolation. Essentially, our goal is to use interpolation to "extrapolate" to the ideal
+
+5
+
+of s = 0.2 There are many quantities that we could be interested in extrapolating,
+including the eigenvalues λi (s) of the effective Hamiltonian,
+H̃s |λi (s)⟩ = λi (s) |λi (s)⟩
+
+(2.12)
+
+and expectation values of time-evolved observables.
+⟨Os (t)⟩ = Tr (ρOs (t))
+Os (t) := Ũs (t)† OŨs (t)
+
+(2.13)
+
+These will be the primary focus of the present work. No matter what quantity we are
+interested in, we’ll assume it was obtained from ST on a quantum computer for the
+purposes of subsequent cost analysis. However, in principle our approach should work
+for any Trotter scheme, not just ST.
+While the interpolation is classical and independent of the method in which the
+data is generated, we will assume a quantum simulation was used when considering
+the computational cost. We assume all quantum operations are executed perfectly,
+including the exponentials exp(−iHj t) for simulation. Thus, the primary sources of
+error are the interpolation error and error in the calculation of the data points (e.g.
+the Hamiltonian energies or expectation values at various points si ). Error in the data
+points may arise from hardware noise, but even in its absence, a measurement protocol
+such as phase estimation induces a systematic error that cannot be removed. In this
+work, we only account for the latter: algorithmic errors. This is not to say that the
+interpolation method could not be applied to noisy quantum systems, but rather that
+our cost analysis does not account for it.
+We now describe the interpolation framework. Let f ∈ C ∞ ([−a, a]) be a smooth,
+real-valued function of a single variable s ∈ [−a, a] and suppose we have calculated
+f for n distinct points s1 , s2 . . . sn ∈ [−a, a]. That is, we have data in the form of a
+set of tuples D = {(si , fi )}ni=1 , where fi = f (si ). Let Pn−1 f be the unique (n − 1)degree polynomial interpolating D, i.e. P fn−1 (si ) = fi for each i = 1, . . . , n. For any
+s ∈ [−a, a], standard results in polynomial interpolation [29] tell us that the signed
+error is given by
+f (n) (ξ)
+ωn (s)
+(2.14)
+n!
+for some ξ ∈ Is , where Is ⊂ [−a, a] is the smallest interval containing s and the
+interpolation points {si }. Throughout this work, superscripts such as in f (n) will refer
+to nth-order derivatives. The nth degree nodal polynomial ωn (s) is defined as the
+unique monic polynomial with zeros at the interpolation points.
+En−1 (s) := f (s) − Pn−1 f (s) =
+
+ωn (s) :=
+
+n
+Y
+
+(s − si )
+
+(2.15)
+
+i=1
+2
+
+We occassionally interchange between the terminology "extra-" and "interpolation." We view our
+method as an extrapolation beyond the data using a numerical technique commonly known as polynomial interpolation.
+
+6
+
+Our estimate for f (0) is Pn−1 f (0). Since we are interested in s = 0, ωn becomes
+a (signed) product of the interpolation points. We can bound the interpolation error
+En (0) in a way that is independent of the precise value of ξ (which is unknown and
+difficult to find) by maximizing over ξ ∈ Is .
+|En−1 (0)| ≤ max
+s∈Is
+
+n
+f (n) (s) Y
+
+n!
+
+|si |
+
+(2.16)
+
+i=1
+
+Much of the technical work in this paper involves finding suitable bounds on the size
+of the derivatives f (n) for different forms of f . For example, in the eigenvalue setting3
+of equation (2.12), f (s) = λ(s) while for the expectation values of equation (2.13),
+f (s) = ⟨Os (t)⟩.
+For reasons which we discuss in the next subsection, we choose the Chebyshev nodes
+on [−a, a] as our interpolation points.
+2i − 1
+π
+si = a cos
+2n
+
+
+
+
+(2.17)
+
+This allows us to specialize our interpolation error in the manner described in the
+following lemma.
+Lemma 2. Let si , i = 1, 2, . . . , n be the collection of Chebyshev interpolation points on
+the interval [−a, a]. In the notation above, we have
+|En−1 (0)| ≤ max f (n) (s)
+s∈[−a,a]
+
+
+
+a
+2n
+
+n
+
+.
+
+(2.18)
+
+Proof. For n odd, s = 0 is one of the interpolation points, so the error is zero and the
+bound holds automatically. Hereafter, we only consider n even (which will be the case
+of practical interest).
+Using the generic bound (2.16) with the Chebyshev nodes,
+n
+2i − 1
+1 nY
+cos
+a
+π
+n! i=1
+2n
+
+
+
+|En−1 (0)| ≤ max f (n) (ξ)
+ξ∈[−a,a]
+
+
+
+.
+
+(2.19)
+
+To obtain the lemma, we just need to appropriately bound the product of cosines. Since
+n is even, n = 2m for some m ∈ Z+ . Moreover, we have a reflectional symmetry about
+m, in the sense that
+2i − 1
+cos
+π
+2n
+
+
+
+
+2(n − i + 1) − 1
+π
+= cos
+2n
+
+3
+
+!
+
+.
+
+(2.20)
+
+Smoothness assumptions can be violated by eigenvalue "level crossings." Our results will require a
+minimum gap as s → 0 to this and other technical problems.
+
+7
+
+Hence, we only need to take the product over i = 1, . . . , m and square it.
+n
+Y
+
+2i − 1
+cos
+π
+2n
+i=1
+
+
+m
+Y
+
+2i − 1
+=
+cos
+π
+4m
+i=1
+
+
+
+
+
+!2
+
+(2.21)
+
+To proceed further, let’s reindex the remaining product by i → m − i + 1. This gives
+m
+Y
+i=1
+
+
+
+cos
+
+m
+Y
+π 2i − 1
+2i − 1
+π =
+−
+π
+cos
+4m
+2
+4m
+i=1
+
+
+
+
+
+m
+Y
+
+2i − 1
+=
+sin
+4m
+i=1
+≤
+
+
+
+
+
+
+
+(2.22)
+
+m
+Y
+2i − 1
+i=1
+
+4m
+
+where we used the fact that sin(x) ≤ x for all x ≥ 0. Factoring out the denominator
+from the product, the remaining terms become a double factorial.
+m
+Y
+2i − 1
+i=1
+
+4m
+
+=
+
+(2m − 1)!!
+(4m)m
+
+(2.23)
+
+The double factorial can be bounded as follows.
+(2m − 1)!!2 ≤ (2m − 1)!!(2m)!! = 2m!
+
+(2.24)
+
+q
+
+so that (2m − 1)!! ≤ (2m)!. Returning to the original product of equation (2.21), and
+reintroducing n = 2m, the resulting bound is
+n
+Y
+
+2i − 1
+π
+cos
+2n
+i=1
+
+
+√
+
+
+
+≤
+
+n!
+(2n)n/2
+
+!2
+
+=
+
+n!
+(2n)n
+
+(2.25)
+
+Reinserting this result into the last line of equation (2.19) gives the bound stated in
+the lemma.
+Though Chebyshev interpolation enjoys nice mathematical properties, it presents
+a challenge for Trotter simulation because of the need for noninteger time steps in
+equation (2.7). In the face of this, there are several options one could take: restricting
+to integer time steps, or perform fractional queries using, say the Quantum Singular
+Value Transformation (QSVT).
+First, consider restricting to integer time steps, by gathering data at the nearest
+reciprocal integer 1/r̃ to the Chebyshev node s. For symmetrical interval [−a, a], this
+distance goes as O(a2 ) as a → 0. From here, one could either (a) take the estimate for
+f (1/r̃) as the estimate for f (s), accruing some error in the process, or (b) perform the
+interpolation at the approximate Chebyshev nodes given by the collection of points 1/ri .
+Unfortunately, for our purposes, option (a) leads to unacceptable errors of order O(a) in
+8
+
+the data, eliminating accuracy gains. As for option (b), it is possible to use robustness
+results on Chebyshev interpolation [30] to argue that almost-Chebyshev nodes should
+be almost as well-conditioned. Again, however, we find that our scaling of the number
+of nodes is such that the node displacements must be quite small, leading again to poor
+scaling.
+Because of this, for most of this work we choose to invoke access to fractional queries
+using the QSVT [27]. A notable exception to this is in application to Gaussian phase
+estimation in Section 3.2.3, where the error in the fractional part can be mitigated in
+that context. While fractional queries increase the overhead compared to Trotter alone,
+this overhead is a constant.
+
+2.3 Stability Analysis and Interpolation
+Polynomial interpolation is a valuable numerical tool, but some implementations can
+lead to numerical instability [31]. However, the situation is not as bad as often presented
+in textbooks [32]. While linear algebraic approaches involving Vandermonde matrices
+suffer instability for high degree polynomials [33], methods such as barycentric formulas
+are provably stable with respect to floating point arithmetic [34].
+A particularly important consideration is the choice of interpolation nodes. It is well
+known that equally spaced nodes can lead to the Runge phenomenon: rapid oscillations
+near the ends of the interval that grow with polynomial degree [29]. These oscillations
+can be overcome with a superior choice of nodes, such as the zeros of the Chebyshev
+polynomials. Interpolations done with this set of nodes are guaranteed to converge to
+functions that are Lipschitz continuous as n → ∞. Moreover, they are well-conditioned
+in the sense of small errors in the data values. Finally, because they anti-cluster around
+s = 0, they are relatively cheap to compute with Trotter formulas. In this work, we will
+always interpolate at the nth-degree Chebyshev nodes, or approximations thereof, on a
+symmetric interval [−a, a] about the origin, defined in (2.17). We choose even n so as
+to avoid the origin (which has infinite cost to compute), and also utilize the reflectional
+symmetry of f (s).
+To compute the interpolant Pn−1 f linear algebraically, we overcome the limitations
+of the standard Vandemonde approach by expanding in terms of orthonormal Chebyshev polynomials rather than monomials xj .
+Pn−1 f (s) =
+
+n−1
+X
+
+cj pj (s).
+
+(2.26)
+
+j=0
+
+Here, pj is defined by
+q
+ 1 T (s),
+0
+pj (s) := q n2
+T (s),
+n
+
+j
+
+j=0
+j = 1, 2, . . .
+
+(2.27)
+
+where Tj is the standard jth Chebyshev polynomial.
+Tj (x) := cos(j cos−1 x)
+9
+
+(2.28)
+
+By orthonormality, we are referring to the condition [35]
+n
+X
+
+pi (sk )pj (sk ) = δij
+
+(2.29)
+
+k=1
+
+for all 0 ≤ i, j < n, with sk being the zeros of Tn given in (2.17). This immediately
+implies the matrix
+
+
+p0 (s1 ) p1 (s1 )
+
+ p0 (s2 ) p1 (s2 )
+V := 
+..
+ ..
+ .
+.
+p0 (sn ) p1 (sn )
+
+
+
+. . . pn−1 (s1 )
+. . . pn−1 (s2 ) 
+
+
+..
+..
+
+.
+
+.
+
+(2.30)
+
+. . . pn−1 (sn )
+
+is orthogonal, and therefore has condition number κ(V) := ∥V∥ ∥V−1 ∥ equal to one.
+This is the source of well-conditioning in our approach. The coefficients c = (c0 , c1 , . . . , cn−1 )
+in equation (2.26) satisfy
+y = Vc
+
+(2.31)
+
+for the vector of values y = (f (s1 ), f (s2 ), . . . , f (sn )), since Pn−1 f is an interpolant.
+Hence, c = VT y gives the vector of coefficients.
+We now develop our argument for well-conditioning. Unless otherwise subscripted,
+all logarithms are natural.
+Lemma 3. Let s1 , s2 , . . . , sn be the standard Chebyshev nodes on [−a, a] (2.17) with n
+even. Then the nodes satisfy
+n
+X
+
+1
+4n
+≤
+(γ + log(2n + 2)) ,
+πa
+k=1 |sk |
+where γ ≈ 0.577 is the Euler-Mascheroni constant.
+Proof. We focus on the case a = 1, since the general result follows by a simple rescaling.
+Because sine and cosine are phase shifted by π/2,
+n
+X
+
+n
+n
+X
+X
+1
+1
+1
+
+
+
+ .
+=
+=
+2k−1
+n−2k+1
+|s
+|
+k
+cos
+π
+sin
+π
+k=1
+k=1
+k=1
+2n
+
+(2.32)
+
+2n
+
+Taking advantage of the symmetry about s = 0,
+n
+X
+
+1
+
+k=1 sin
+
+
+
+n−2k+1
+π
+2n
+
+
+
+=2
+
+n/2
+X
+k=1 sin
+
+1
+
+
+2k−1
+π
+2n
+
+.
+
+(2.33)
+
+Next, we use the lower bound
+sin x ≥ x/2
+
+(0 ≤ x ≤ π/2)
+10
+
+(2.34)
+
+in order to bound the terms of the sum.
+2
+
+n/2
+X
+
+1
+
+k=1 sin
+
+
+
+2k−1
+π
+2n
+
+ ≤
+
+n/2
+8n X
+1
+π k=1 2k − 1
+
+1
+8n
+Hn − Hn/2
+=
+π
+2
+
+
+(2.35)
+
+
+Here, Hn denotes the nth harmonic number. From the relation Hn = γ + ψ(n + 1),
+where ψ is the digamma function,
+1
+1
+Hn − Hn/2 = γ/2 + ψ(n + 1) − ψ(n/2 + 1).
+2
+2
+
+
+(2.36)
+
+
+
+Moreover, since ψ(x) ∈ (log x − 12 , log x) for any x > 1/2, this is upper bounded by
+1
+n+1
+γ + log 2 log(n + 1)
+1
+)=
++
+.
+Hn − Hn/2 < γ/2 + log(n + 1) − log(
+2
+2
+2
+2
+2
+
+(2.37)
+
+Reinserting this into (2.35), one obtains the bound
+n
+X
+
+1
+4n
+≤
+(γ + log(2n + 2))
+π
+k=1 |sk |
+
+(2.38)
+
+The general lemma follows from a rescaling by 1/a.
+Remark. Observe that 1/ |sk | is essentially the number of Trotter steps to compute the
+kth interpolation point. Thus, Lemma 3 amounts to a bound on the total number of
+Trotter steps, and we see this grows as O(a−1 n log n).
+Lemma 4. Let p(s) = (p0 (s), p1 (s), . . . , pn−1 (s)) be a vector of (normalized) Chebyshev
+polynomials on [−a, a]. Then,
+∥Vp(0)∥1 <
+
+2
+log (n + 1) + 1
+π
+
+where ∥·∥1 denotes the vector 1-norm.
+Proof. Let d(s) = Vp(s). For each k = 1, 2, . . . n we have
+dk (s) =
+
+n−1
+X
+j=0
+
+Vkj pj (s) =
+
+n−1
+X
+
+pj (sk )pj (s)
+
+j=0
+
+X
+1
+2 n−1
+2k − 1
+= +
+cos j
+π
+n n j=1
+2n
+
+11
+
+(2.39)
+
+!!
+
+cos(j cos−1 (s)).
+
+At s = 0, cos(j cos−1 (0)) = cos(jπ/2), which is zero for odd j. Hence,
+X
+2 n−2
+1
+2k − 1
+π
+dk (0) = +
+cos j
+n n j=2,even
+2n
+
+!!
+
+(−1)j/2
+(2.40)
+
+X
+1
+2 n/2−1
+2k − 1
+′
+= +
+.
+(−1)j cos πj ′
+n n j ′ =1
+n
+!
+
+The sum can be evaluated exactly (the authors used Mathematica), yielding
+)
+1
+2 1 − cos((k + n/2)π) tan(π 2k−1
+2n
+dk (0) = −
+n n
+2
+!
+1
+1
+2k − 1
+k+n/2
+= −
+1 − (−1)
+tan(
+π)
+n n
+2n
+!
+2k − 1
+1
+k+n/2
+tan
+π .
+= (−1)
+n
+2n
+
+!
+
+(2.41)
+(2.42)
+(2.43)
+
+With coefficients in hand, we now compute the one norm of d(0).
+X
+1 n
+2k − 1
+tan
+∥d(0)∥1 =
+n k=1
+2n
+
+!
+
+(2.44)
+
+We have a reflectional symmetry about k → n − k + 1, allowing us to cut the sum in
+half and remove the absolute value sign.
+n/2
+2k − 1
+2X
+tan
+π
+∥d(0)∥1 =
+n k=1
+2n
+
+!
+
+m
+1 X
+2k − 1 π
+=
+tan
+m k=1
+2m 2
+
+!
+
+(2.45)
+
+Here, m ≡ n/2. We observe that the sum increases as k approaches m due to the first
+order pole at π/2. We can upper bound tan(x), and therefore the sum above, as follows.
+X
+1 m
+2k − 1 π
+tan
+m k=1
+2m 2
+
+!
+
+≤
+
+X
+X
+1 m
+1
+4 m
+1
+
+ =
+π
+π
+2k−1
+m k=1 −
+π k=1 2(m − k) + 1
+2
+
+2
+
+2m
+
+m
+4X
+1
+=
+π j=1 2j − 1
+
+(2.46)
+
+In the last line, we reindexed by j = m − k + 1. Borrowing the reasoning from the prior
+lemma,
+m
+1
+4X
+2
+< (γ + log(2n + 2)).
+π j=1 2j − 1
+π
+
+12
+
+(2.47)
+
+Tracing back, this is an upper bound on ∥d(0)∥1 . Hence,
+∥d(0)∥1 <
+
+2
+2(γ + log(2))
+2
+log(n + 1) +
+< log(n + 1) + 1
+π
+π
+π
+
+(2.48)
+
+The benefit of well-conditioning comes from relaxing the need to have exquisitely
+precise data to achieve good interpolations. This property is captured by the following
+theorem.
+Theorem 5. Let y = (f (s1 ), f (s2 ), . . . , f (sn ))T , and let ỹ ∈ Rn be an approximation of
+y in the sense that, for all 1 ≤ j ≤ n, |f (sj )− ỹj | ≤ ϵ/( π2 log(n+1)+1) with probability at
+least 1 − δ/n. Let p(s) = (p0 (s), . . . , pn−1 (s))T be the vector of orthonormal Chebyshev
+polynomials. Then ỹ T Vp(s) is an estimate of the interpolant Pn−1 f (s) at s = 0 to
+precision
+Pn−1 f (0) − ỹ T Vp(0) ≤ ϵ
+with probability at least 1 − δ.
+Proof. First, observe that Pn−1 f (s) = p(s)T c = p(s)T VT y by the discussion surrounding (2.31). Hence,
+Pn−1 f (0) − p(0)T VT ỹ = (Vp(0))T (y − ỹ) .
+
+(2.49)
+
+By Hölder’s inequality,
+(Vp(0))T (y − ỹ) ≤ ∥Vp(0)∥1 ∥y − ỹ∥∞ .
+
+(2.50)
+
+From Lemma 4, and from the assumptions on the distance between y and ỹ,
+∥Vp(s)∥1 ∥y − ỹ∥∞ ≤
+
+
+
+2
+log(n + 1) + 1
+π
+
+
+
+ϵ
+
+=ϵ
+2
+log(n + 1) + 1
+π
+
+(2.51)
+
+with probability Pr = (1 − δ/n)n . In fact, since the probability of each component
+ỹ exceeding the specified distance is δ/n, by the union bound the total probability of
+at least one component exceeding this distance is less than n × (δ/n) = δ. Thus, the
+inequality is satisfied with probability Pr ≥ 1 − δ. This completes the proof.
+Theorem 5 is what suggests that our interpolation approach may have the potential to achieve accuracy improvements without increasing costs compared to standard
+Trotter. It tells us that the error in Trotter data can be as large as the error of the
+final estimate up to a factor which is logarithmically small in the number of interpolation points, and therefore these data ỹi can be computed "cheaply enough." Thus,
+Theorem 5 is plays an important role in the proofs of Appendices B and E, and in the
+corresponding results presented below.
+In the applications to Gaussian phase estimation we consider in Section 3.2.3, we will
+need a probabilistic statement of well-conditioning that takes into account confidence
+intervals for the data. This is supplied by the following lemma.
+13
+
+Lemma 6. Let {Yj } be normally distributed random variables for the n Chebyshev
+interpolation points, with central values µj = f (sj ) and variances σj . Then the random variable Rn−1 (s) associated with the polynomial interpolant at value s is normally
+distributed with mean Pn−1 (s) and variance σR2 bounded as
+
+
+
+
+σR2 (s) ≤ 2 max σj2 .
+
+(2.52)
+
+j
+
+Proof. The variable Rn−1 (s) is given by p(s)T VY , with Y = (Y1 , Y2 , . . . , Yn ). By linearity, the expectation value E(Rn−1 (s)) = p(s)T VE(Y ) = p(s)T Vy = Pn−1 (s) as claimed,
+where y = (f (s1 ), . . . , f (sn )).
+To bound the variance, observe that
+σR2 (s) = Var (Rn−1 (s)) ≡ Cov (Rn−1 (s), Rn−1 (s))
+X
+
+=
+
+
+
+
+
+Cov pi (s) V
+
+i,j,k,l
+
+−1
+
+
+
+
+ij
+
+Yj , pl (s) V
+
+−1
+
+
+
+
+lk
+
+Yk
+
+= pT (s)V−1 Σ2 Vp(s)
+
+(2.53)
+
+= ∥ΣVp(s)∥22 ,
+
+(2.54)
+
+where Σ = diag (σ1 , σ2 , . . . , σn ), and the last inner product was identified as a squared
+two norm. We can bound this using the spectral norm.
+σR2 (s) ≤ ∥Σ∥2 ∥p(s)∥22 ≤ 2 max σj2
+
+(2.55)
+
+j
+
+At first, it may seem that the results of this lemma are quite restrictive, only applying
+to unbiased, normally distributed estimates of the function values f (si ). However, we
+will find occasion to apply this lemma in the context of the Gaussian phase estimation
+considered in Section 3.2.3.
+
+3 Interpolation for Eigenvalues
+3.1 Approach 1: Error Analysis through Perturbation Theory
+Having laid the groundwork for well-conditioned polynomial interpolation, we apply
+our framework to the task of phase estimation. The idea is to perform logarithmically
+many phase estimation experiments evaluated at the Chebyshev nodes 2.17. We then
+bound the error using the interpolation theory of the previous section. The following
+theorem bounds the performance of such an algorithm.
+n
+
+n
+
+Theorem 7. Let H : R 7→ C2 ×2 be a Hamiltonian of the form H(t) = m
+j=1 aj (t)Hj
+for all t ∈ R, where each Hj is a Hermitian matrix and aj (t) is real valued and in C n
+for positive integer n. For each t ∈ R, let |ℓ(t)⟩ be an eigenstate of H(t) with eigenvalue
+P
+
+14
+
+|0⟩
+
+H
+
+1/2n
+
+H
+−V
+
+U
+
+Figure 1: Quantum circuit for computing a normalized Frobenius distance d(U, V ) between unitaries U, V , where the probability of measuring zero on the first qubit is d(U, V )2 . By taking U
+as a single Trotter step and V as the s-dependent product formula of equation (2.7), polynomial
+extrapolation can be performed to estimate the true Trotter error.
+
+λℓ (t), and assume oracular preparation of |ℓ(t)⟩. Further, assume that there exists a
+minimum gap γ(t) > 0 such that for all ℓ′ ̸= ℓ and t > 0, |λℓ (t)−λℓ′ (t)| ≥ γ(t). Finally,
+that t is sufficiently small such that the assumption (2.11) of Lemma 1 holds. It is then
+possible to use an n-point polynomial interpolation formula over the 2k-th order Suzuki
+Trotter formula to estimate λℓ (0), within error ϵ and failure probability at most 1/3,
+using a number of operator exponentials and queries that is bounded above by
+2
+k
+e m (25/3) max ∥Hi ∥(1 + Γ) ,
+O
+ϵ
+
+!
+
+where
+p
+n
+
+ 
+
+Γ := max
+
+t, p=1,...,n
+
+
+
+
+
+ke2 (5/3)k m maxl∈[1,m] ∥Hl ∥
+γ(t)
+
+
+!1/p
+
+
+
+e log mk(5/3)k max ∥H ∥(1 + Γ) + log 1/ϵ .
+and n ∈ O
+i
+i
+
+The proof of this theorem is technical and relegated to Appendix B. As a brief
+sketch, the proof proceeds by using perturbation theory to evaluate the derivatives of
+the eigenvalues and eigenvectors of the effective Hamiltonian H̃s , as well as multiple
+applications of the triangle inequality and similar linearizing approximations.
+The above result applies generically to any piecewise analytic Hamiltonian H(t).
+To give a better intuition for how it could be used, let us focus our attention on a
+phase estimation protocol. There are multiple phase estimation procedures that can
+be employed, but the shared basic idea is that one provides a quantum state |ψ⟩ =
+P
+−iH(t)t
+to this state to
+j cj (t) |j(t)⟩ and performs a series of evolutions of the form e
+yield an estimate of one of the eigenvalues, exp(−iλl (t)t). Each eigenvalue is randomly
+sampled with probability |cj (t)|2 . We will usually demand that the variance of this
+estimate is bounded above by t2 and that the expected error is at most ϵ for such a
+procedure, but it is also common for the accuracy guarantees to be given in terms of a
+probability of failure.
+3.1.1 Application: Estimation of Trotter Error
+One important capability of our method is the estimation of error in ST formulas. This
+is important because existing error bounds are typically not tight, and leading order
+15
+
+expansions for the error are prohibitively expensive even for short evolutions [18]. We
+address this via a method for computing a distance metric d between two unitaries
+U, V . This metric is related to the Frobenius distance ∥U − V ∥F , where
+√
+∥A∥F := TrA† A
+(3.1)
+is the Frobenius norm. Specifically, we fix an ST order k and let Ũs be as in equation (2.7). Our method applies to any product formula, but our theoretical analysis
+restricts us to consider ST formulas. To estimate the Trotter error, we compute
+1 Ũ1 (t) − Ũs (t)
+d(Ũ1 (t), Ũs (t)) := √ n
+2
+2
+F
+
+(3.2)
+
+using the circuit of Figure 1. Observe that Ũ1 = S2k is a single Trotter step, while
+lim Ũs (t) = U (t)
+
+(3.3)
+
+s→0
+
+is the exact time evolution operator. Therefore, by estimating
+d(S2k (t), e−iHt ) = lim d(Ũs (t), Ũ1 (t)),
+s→0
+
+(3.4)
+
+we obtain a metric of the Trotter error. This metric d ≡ d(Ũ1 (t), Ũs (t)) corresponds to
+a root mean square of the singular values of S2k (t) − Ũs (t). That is,
+v
+u
+2n
+u 1 X
+t
+d(U, V ) =
+(σ /2)2
+
+2n j=1
+
+(3.5)
+
+j
+
+for singular values σj ∈ [0, 2] of U − V . It has the following relation with the spectral
+distance.
+1 U −V
+√
+2
+2n
+
+≤ d(U, V ) ≤
+
+U −V
+2
+
+(3.6)
+
+Both the lower and upper bounds are tight generically. The upper bound is tight in
+the case that all singular values are equal. The normalized Frobenius norm is best
+interpreted as an average error over all "principal directions." Thus, though not a
+worst-case error, d still provides a useful characterization of the Trotter error.
+Per usual, we consider an extrapolation of the normalized Frobenius distance d to
+s = 0.
+Corollary 8. Under the assumptions of Theorem 7, there exists a quantum algorithm
+P
+that can compute the quantity d(S2k (t), e−iHt ) for H = m
+j=1 Hj with ϵ error and failure
+probability (also) ϵ using a number of operator exponentials Nexp of the Hj satisfying
+m2 (25/3)k max ∥Hi ∥
+.
+Nexp ∈ Õ
+ϵ
+!
+
+16
+
+Proof. Consider the circuit of Figure 1, with U = Ũs and V = Ũ1 . Let SELECT
+refer to the control operations in this LCU-type circuit. We first demonstrate that the
+probability of measuring the first qubit to be zero is ∥S2k (t) − Ũs (t)∥2F /(2n+2 ). This
+fact follows from the analysis of the LCU lemma [9]; however, that analysis is typically
+performed for pure states, so we generalize it here. Let |0⟩⟨0| ⊗ ρ be the input state of
+the circuit. Then the gate operations proceed as follows.
+|0⟩⟨0| ⊗ ρ 7→H
+
+X |i⟩ ⟨j|
+
+2
+
+ij
+
+7→SELECT
+
+X |i⟩ ⟨j|
+ij
+
+7→H
+
+X
+ijkℓ
+
+⊗ρ
+
+2
+
+(−1)ik+jℓ
+
+⊗ (Ũs (t)i (−Ũ1 (t))1−i )ρ(Ũs (t)j (−Ũ1 (t))1−j )†
+
+|k⟩ ⟨ℓ|
+⊗ (Ũs (t)i (−Ũ1 (t))1−i )ρ(Ũs (t)j (−Ũ1 (t))1−j )† := σ
+4
+(3.7)
+
+We then have that the probability of measuring the first qubit to be zero is
+
+1 
+Tr((|0⟩⟨0| ⊗ ρ)σ) = Tr (Ũs (t) − Ũ1 (t))ρ(Ũs (t) − Ũ1 (t))† .
+4
+
+(3.8)
+
+Taking ρ = 1/2n in particular yields
+
+
+†
+
+
+
+
+Tr (Ũs (t) − Ũ1 (t))(Ũs (t) − Ũ1 (t))
+1 
+Tr (Ũs (t) − Ũ1 (t))ρ(Ũs (t) − Ũ1 (t))† =
+4
+2n+2
+∥Ũs (t) − Ũ1 (t)∥2F
+=
+(3.9)
+2n+2
+
+Thus, the probability of measuring 0 on the first qubit gives a normalized Frobenius
+distance between the two operators. The cost of doing this is O(1) queries to the
+underlying ST formulas, each of which boils down to O(m5k ) operator exponentials.
+Using Amplitude Estimation on the target, we can construct an operator W such
+that the eigenvalues of W within the subspace supporting the initial state are of the
+form
+
+
+s
+2 
+
+∥
+Ũ
+(t)
+−
+Ũ
+(t)∥
+s
+1
+F
+λ(W ) = exp ±i sin−1
+.
+(3.10)
+
+
+2n+2
+We then can invoke Theorem 7 to show that the number of exponentials needed to
+learn the extrapolated phase, within error ϵ′ with probability greater than 2/3, satisfies
+m2 (25/3)k max ∥Hi ∥ log5/2 (maxi ∥Hi ∥/ϵ′ )
+Nexp ∈ Õ
+.
+ϵ′
+!
+
+(3.11)
+
+The remaining question is how small ϵ′ must be to guarantee that the error in the
+normalized Frobenius distance is at most ϵ. Let ϕ̂ denote the estimate of the phase
+17
+
+returned by our protocol, which has error at most ϵ′ . Our estimate dˆ of the distance
+metric is then related to the phase in equation (3.10) as
+dˆ = sin(ϕ̂).
+
+(3.12)
+
+dˆ − d = sin θ̂ − sin θ ≤ θ̂ − θ ≤ ϵ′ .
+
+(3.13)
+
+Thus we have that
+
+Choosing ϵ′ = ϵ, then, is sufficient to ensure the desired tolerance as given in the
+lemma.
+As mentioned, d is not a worst-case simulation error, but it may be a good approximation in typical situations. To get a true upper bound, we could employ the relation
+∥A∥ ≤ ∥A∥F , but estimating ∥U − V ∥F directly from d requires precision exponential
+in n. Moreover, the upper bound would not be very tight unless d were already quite
+close to ∥U − V ∥.
+In summary, our estimates should be better when the spread of the eigenvalues in
+the error operator is not too large. We formalize this in the following theorem.
+Corollary 9. Let δU 2 = |Ũs (t) − Ũ1 (t)|2 , and suppose that
+σ 2 (δU 2 ) = Tr(δU 4 )/2n − Tr(δU 2 /2n )2 ≤ ξ
+for some ξ > 0. Then each eigenvalue λ2 of δU 2 satisfies
+!
+
+Pr
+
+q
+1
+∥Ũs (t) − Ũ1 (t)∥2F
+≥
+k
+ξ ≤ 2.
+λ −
+n
+2
+k
+2
+
+(3.14)
+
+for all k > 0. Further, even with no such promise about the variance, the following
+weaker bound holds.
+Pr
+
+∥Ũs (t) − Ũ1 (t)∥2F
+∥Ũs (t) − Ũ1 (t)∥2F
+λ −
+≥
+k
+2n
+2n
+2
+
+!
+
+≤ 1/k
+
+(3.15)
+
+Proof. The result follows from the Chebyshev and Markov inequalities.
+Corollary 8 and Corollary 9 show that we can use our interpolation procedure to
+the estimate largest eigenvalue of the error operator. In particular, let the probability
+n
+of an eigenvalue being greater than the estimate be
+√ O(1/2 ). Then the Chebyshev
+bound (3.14) implies that it suffices to take k ∈ O( 2n ). Thus, with high probability,
+√
+all of the eigenvalues for the square of the error operator will be at most 4dˆ2 + O( ξ2n ).
+Thus if ξ ∈ o(dˆ4 /2n ) then the estimate yielded by this procedure will also estimate the
+spectral norm.
+
+18
+
+3.2 Approach 2: Error Analysis through Bernstein Ellipses and Analyticity
+In this section, we propose an alternative analysis for eigenvalue estimation, as well as a
+specific approach to phase estimation. We first prepare each effective eigenstate through
+the procedure in [36], except using one single qubit the semi-classical QFT, summarized
+in Theorem 15. Then we perform a new Gaussian phase estimation (Theorem 16) on
+said eigenstate and then interpolate the estimates. The main result is summarized
+in Theorem 17.
+To analyze the error and complexity of this approach, we use a different formalism
+that relies on complex analyticity [37], which allows us to estimate the convergence rate
+of the interpolation in terms of range of analyticity rather than and not derivatives of
+the effective Hamiltonian. This is beneficial since the bounds using derivatives might
+become unmanageable near level crossings (See Appendix B).
+3.2.1 Ancillary Lemmas
+To begin, we need to introduce some notions from complex analysis. For each ρ > 1,
+let Bρ ⊂ C be the Bernstein ellipse, which is an ellipse with foci at ±1 and semimajor
+axis (ρ + ρ−1 )/2. The following lemma bounds the Chebyshev interpolation error for
+analytic functions on Bρ .
+Lemma 10. Let f (z) ∈ C be an analytic function on Bρ , and suppose C ∈ R+ is an
+upper bound such that |f (z)| ≤ C, for all z ∈ Bρ . Then the Chebyshev interpolation
+error on [−1, 1] satisfies
+4Cρ−n
+∥f − Pn f ∥∞ ≤
+ρ−1
+for each degree n > 0 of the interpolant through the n + 1 Chebyshev nodes.
+Proof. Theorem 8.2 of Ref. [37].
+Lemma 10 shows that the interpolation error shrinks exponentially in n. We would
+like to apply this lemma to analyze the eigenvalues λ(z) of the effective Hamiltonian H̃z ,
+which is a continuation of H̃s to the complex plane. However, we need to understand
+the domain under which λ(z) is analytic, i.e. free of level-crossings.
+To characterize this domain, we first utilize a result from Bauer and Fike [38] which
+bounds the shift in the eigenvalues under a shift in the operator.
+Lemma 11. Let A be a normal matrix with eigenvalues {λi }. Then, if λ is an eigenvalue of a matrix B, there exists an eigenvalue λk of A such that
+|λ − λk | ≤ ∥B − A∥
+
+(3.16)
+
+for at least one eigenvalue λk of A, where ∥·∥ is the spectral norm.
+In order to determine the radius of analyticity, we assume a specific form for the
+upper bound on ∥H − H̃z ∥, where H̃z is the analytic continuation of H̃s to the complex
+plane. Here is the resulting theorem
+19
+
+Lemma 12. Let λ(τ ) be an eigenvalue of H̃z , where τ = zt for z ∈ C and t ∈ R+ , and
+γ0 be a lower bound on the spectral gap of H̃0 = H. Let α, β ∈ R+ be constants such
+that
+α|τ |p β|τ |
+e .
+(3.17)
+∥H − H̃z ∥ ≤
+(p + 1)!
+Then λ(τ ) is analytic on any origin-centered disc of radius r provided that r ≤ rmax ,
+with
+
+
+p
+β
+rmax := W0 
+β
+p
+
+γ0 (p + 1)!
+2α
+
+!1/p 
+.
+
+(3.18)
+
+Here W0 is principal branch of the Lambert W function.
+Proof. See Appendix D.1
+The above lemma gives an upper bound rmax on the radius of analyticity. From this,
+assuming rmax > 1, we can calculate the largest possible Bρ by equating the semimajor
+axis with the maximum radius
+(ρmax + ρ−1
+max )/2 = rmax
+
+(3.19)
+
+which has solution
+ρmax = rmax +
+
+q
+
+2
+rmax
+− 1.
+
+(3.20)
+
+The following lemmas give a clue as to what α and β should look like in terms
+of commutators between the terms of H and also with respect to its overall spectral
+norm. However, first, we introduce a bound on the error on the effective total Hamiltonian evolution in terms of the "instantaneous" Hamiltonian error, E , which is defined
+through the complex-time Schrödinger equation. Let Sp (τ ) be a pth order product
+formula approximating exp(iHτ ), such that
+d
+Sp (τ ) = i(H + E (τ ))Sp (τ ).
+dτ
+For this purpose, we also introduce the "accumulated" error
+E(τ ) = log Sp (τ ) − iτ H,
+
+(3.21)
+
+(3.22)
+
+where log Sp (τ ) can be defined through the complex-time Magnus expansion (See [39]
+for compilation of proofs, complex-time extension is straight-forward)
+log Sp (τ ) = Ω = i
+
+Z X
+∞
+Bn
+P n=0 n!
+
+adnΩ (H + E (τ1 ))dτ1
+(3.23)
+
+where P is a path going from τ1 = 0 to τ1 = τ . This, like the real-time Magnus
+expansion, converges provided ∥Ω∥ ≤ π. With this, we obtain an upper bound on
+∥E(τ )∥ stated through the following lemma:
+20
+
+Lemma 13. Given the error definition
+E(τ ) = log Sp (τ ) − iτ H
+for complex τ , we can bound its norm through
+5 Z |τ |
+∥E(τ )∥ ≤
+∥E (sτ / |τ |)∥ds,
+2 0
+provided that max|τ̃ |≤|τ | ∥E(τ̃ )∥ ≤ 15/8, |τ | ≤ 1/8, and
+
+R |τ |
+0
+
+∥E (sτ / |τ |)∥ds ≤ 1/8.
+
+Proof. See Appendix D.2
+Now, we bound the norm for E (τ ) in Appendix D.3 and make use of H − H̃z ≤
+∥E(τ )∥ /|τ |.
+Lemma 14. Let H̃z be the effective Hamiltonian associated with a complex-time pth
+order product formula Sp (τ ) , where τ = zt with z ∈ C and t ∈ R+ , which is analytically
+continued to an open neighborhood containing [−1, 1]. The norm of operator error can
+upper bounded as
+H − H̃z ≤
+
+
+
+5 X
+αcomm a(Υ,m) HπΥ (m) , . . . , a(υ,m+1) Hπυ (m+1) , a(υ,m) Hπυ (m)
+2 (υ,m)
+
+·
+
+|τ |p 2|τ | Pm
+∥Hj ∥
+j
+e
+(p + 1)!
+
+provided that |τ | H − H̃z ≤ 15/8, |τ | ≤ 1/8, and
+X
+
+
+
+αcomm a(Υ,m) HπΥ (m) , . . . , a(υ,m+1) Hπυ (m+1) , a(υ,m) Hπυ (m)
+
+(υ,m)
+
+
+
+
+
+Here, αcomm As , . . . , A1 , B :=
+
+P
+
+
+
+q1 +···+qs =p
+
+p
+q1 ··· qs
+
+
+
+
+
+1
+|τ |p 2|τ | Pm
+∥Hj ∥
+j
+e
+≤ .
+(p + 1)!
+20
+
+adqAss · · · adqA11 (B) .
+
+While the above theorem is a useful theoretical bound, a problem arises because
+bounding the commutators is often impractical computationally. In such cases, αcomm
+can be upper bounded through the triangle inequality and submultiplicativity of the
+norm.
+
+
+
+
+αcomm As , . . . , A1 , B ≤ ∥B∥2p (
+
+s
+X
+
+∥Aj ∥)p .
+
+(3.24)
+
+j=1
+
+With these set of lemmas at our disposal, we can now provide a cost estimate for
+state preparation for all the ground states of H̃sk .
+
+21
+
+(q,µ=θ0 ,σf )
+
+∼ pG
+0⊗(q−m)
+
+E
+
+E
+
+...
+...
+(m,µ=0,σ)
+pG
+
+E
+
+..
+.
+
+..
+.
+
+..
+.
+
+..
+.
+
+..
+.
+
+..
+.
+
+..
+.
+
+..
+.
+
+Z(a, b)
+..
+.
+
+QF T
+..
+.
+
+z
+..
+.
+
+...
+...
+|ψ⟩
+
+′ 0
+
+′ 1
+
+Ũsk2
+
+Ũsk2
+
+...
+
+′ m−2
+
+Ũsk2
+
+′ m−1
+
+Ũsk2
+
+Figure 2: Circuit to implement a Gaussian m-qubit phase estimation algorithm with (m−q)-qubits
+for spectral interpolation. The Ũs′ k operator is evolved by an effective Hamiltonian H̃sk , with a
+Trotter step size tsk (See Theorem 15) and corresponding evolution time Tk′ = e′k × dt = Θ(ts1 ).
+
+3.2.2 State Preparation Cost
+m
+Theorem 15 (State preparation cost). Let H = m
+j=1 ∥Hj ∥ ≤ 1, and
+j=1 Hj satisfy
+let γ ∈ R+ be a lower bound on the spectral gap of H. Let s1 , . . . , sn be the nth degree
+Chebyshev nodes on [−1, 1] for even n. Then there exists an algorithm to prepare the
+′
+ground state of H̃sk to precision ϵ using controlled queries of Ũs′ k = (Sp (tsk ))ek , where
+t ∈ Θ(γ 1/p ) and e′k = sgn sk ⌈s1 /|sk |⌉, with a total gate count
+
+P
+
+P
+
+log(1/ϵ) log log(1/ϵ)
+Cprep ∈ O
+γ 1+1/p
+
+!
+
+and a single auxiliary qubit.
+Proof. See Appendix D.5.
+Now that the cost of state preparation is covered, we assume an exact state preparation for our next gate count upper bound for eigenvalue estimation. However, first, we
+will introduce a new phase estimation algorithm as one of our methods for eigenvalue
+estimation.
+3.2.3 Interlude: Gaussian Quantum Phase Estimation
+The first step in the phase estimation protocol involves preparing a Gaussian distribution in the ancillary register of m qubits. Let p(w; σ) be the probability density function
+
+22
+
+for a Gaussian distribution with zero mean (µ = 0) and variance σ 2 .
+1
+2
+2
+p(w; σ) := √ e−w /(2σ )
+σ 2π
+
+(3.25)
+
+Define
+v
+u
+u p(x T ; σ)
+t
+
+2m−1
+X−1
+
+|pG (σ, T, m)⟩ :=
+
+x=−(2m−1 −1)
+
+N (σ, T, m)
+
+|x⟩
+
+(3.26)
+
+where T > 0 plays the role of a sampling rate, and N (σ, T, m) > 0 is the normalization
+constant for the discrete, truncated Gaussian.
+2m−1
+X−1
+
+N (σ, T, m) :=
+
+p(nT ; σ).
+
+(3.27)
+
+x=−(2m−1 −1)
+
+An exact preparation of |pG ⟩ can be achieved through the methods proposed in
+Ref. [40]. However, within a target error, we can prepare a coarser Gaussian distribution and then perform an upsampling through QFT, zero-padding, and then QFT−1 .
+This is an established method for upsampling/interpolation of discrete signals in classical discrete signal processing (DSP), and was introduced for quantum distribution
+preparation in Ref [41]. In Figure 2 we illustrate the circuit used for this method. The
+operator Z plays the role of zero-padding ubiquitous to classical DSP for interpolation
+in the conjugate space. The errors introduced by truncation and finite sample rate
+in the time domain are estimated in Appendix C, and can be summarized with the
+following theorem.
+Theorem 16. Let q,
+√m be positive integers such that q ≥ m. Let T, σ q> 0 be chosen
+such that σ/T = Θ( 2m ), and define the Fourier conjugates F := 1/(2 T ) and σf :=
+1/(4πσ). Finally, let
+q
+
+X(f ) := F{ p(· ; σ)}(f ) :=
+
+Z q
+
+−2πitf
+
+p(t; σ)e
+
+dt =
+
+q√
+
+2πσf p(f ; σf )
+
+(3.28)
+
+R
+
+denote the Fourier transform of the (root of the) Gaussian p. Then the spectral norm
+error of the prepared wave function in Fourier domain is
+q
+
+2
+X
+
+2m/2
+q
+|k⟩ − QFT |pG (σ, T, m)⟩ ∈ O Ω(2m ) .
+e
+N (σf , F, q)
+k
+!
+
+X(kF )
+
+(3.29)
+
+Using these errors in the approximate state constructed in Fourier domain, we can
+perform a sequence of unitaries controlled on the Gaussian window. This approach is
+similar in spirit to the Kaiser-window approach taken in [42]. However, here we use a
+Gaussian window, which by inverting the conjugate spaces labels in Theorem 16, we
+know we can prepare efficiently with a cost O(polylog(1/ε)/σ), where ε is the vector
+error on the window state.
+23
+
+3.2.4 Phase Estimation Cost
+Via the above theorem, we can now bound the cost for extrapolating eigenvalues obtained using Gaussian phase estimation. Through Theorem 5 and Lemma 6, we estimate
+the effects of uncertainty propagation that interpolation has on the final interpolant for
+Gaussian and one-qubit phase estimation. The result goes as follows:
+Theorem 17 (Phase estimation cost). The gate count of estimating the eigenvalues of
+H̃sk using Gaussian phase estimation is
+!
+
+log(1/ϵ)
+Cest,gpe ∈ O
+,
+σP
+where σP is the standard deviation on the interpolated observable at s = 0. The number
+of auxiliary qubits required is O (log(1/σP )). Alternatively, using a single-ancillary-qubit
+approach,
+!
+
+log(1/ϵ) log log(1/ϵ)
+,
+Cest,1−qubit ∈ O
+ϵ
+where ϵ > 0 is such that maxs |λ(s) − Pn−1 λ̃(s)| ≤ ϵ and Pn−1 λ̃ is the (unique) (n − 1)degree polynomial interpolating the data λ̃i at the n interpolation points si .
+The bound for Cest,gpe can also be cast in terms of a confidence interval, ϵ = wσP ,
+around the mean, which introduces an error rate that decreases super-exponentially
+with w.
+
+4 Interpolation for Expectation Values
+We now consider the application of Chebyshev interpolation to estimate expectation
+values, a fundamental task in quantum computation. The setting is as follows: given
+a quantum state ρ and observable O, the expectation value is given by ⟨O⟩ = Tr (ρO).
+We evolve our system according to a 2k-th order ST formula Ũs given by (2.7). The
+time evolved expectation values of interest is captured by the function
+f (s) :=
+
+Tr (ρOs (t))
+∥O∥
+
+(4.1)
+
+where Os (t) is given by equation (2.13). We’ve normalized the expectation values by
+∥O∥ because the relative error is a useful and natural metric, and also the normalized
+operators may be block encoded for amplitude estimation. Alternatively, we simply
+restrict our attention to normalized observables with ∥O∥ = 1. The interpolation
+algorithm we propose can be summarized as follows.
+
+24
+
+1. Given Hamiltonian H, simulation time t, and tolerance ϵ for the estimate of
+⟨O(t)⟩/ ∥O∥, choose the appropriate interpolation interval [−a, a] and an even
+number n of Chebyshev nodes. We neglect the cost of this step. The error
+analysis we will perform subsequently will inform the choices of a and n.
+2. Compute estimates ỹi of the expectation values ⟨Osi (t)⟩ for each si with i =
+1, . . . , n/2, to an accuracy depending on ϵ and n. We will assume this step is done
+with Iterative Quantum Amplitude Estimation (IQAE) [43], a recent approach
+to amplitude estimation that exhibits low quantum overhead. Our metric of
+cost is the number of Hj exponentials executed on a quantum circuit, where
+P
+H = j Hj . Note that by symmetry, we need not compute ỹi for i > n/2. We
+have f (si ) = f (sn−i+1 ) for all i ∈ {1, . . . , n}.
+3. Perform the polynomial fit P̃n−1 f through the points (si , ỹi ) using a Chebyshev
+expansion (2.26). Note that P̃n−1 f will automatically be even. This fit is wellconditioned, and we neglect the cost of this step.
+4. Evaluate the P̃n−1 f (0) to be our estimate of ⟨O(t)⟩.
+To summarize, one performs amplitude estimation to acquire the time evolved expectation value at each Chebyshev node, then performs a polynomial interpolation of the
+data. The estimate is the value at s = 0.
+Given an even set of Chebyshev nodes {s1 , . . . , sn }, and making use of Lemma 2,
+the interpolation error En−1 assuming perfect data points is given by
+n
+∥∂sn Os (t)∥ a
+|Tr (ρ ∂sn Os (t))| Y
+|si | ≤ max
+|En−1 (0)| ≤
+s∈[−a,a]
+∥O∥ n!
+∥O∥
+2n
+i=1
+
+
+
+n
+
+.
+
+(4.2)
+
+With a suitable bound on ∂sn O(t), we can provide an upper bound on the interpolation
+error at s = 0. This bound is provided by the following lemma. In what follows, it will
+be helpful to define the parameter
+c := k(5/3)k m max ∥Hl ∥ t
+
+(4.3)
+
+l∈[1,m]
+
+for ease of notation. This parameter is proportional to the the Hamiltonian size and
+the "total Trotter time," meaning the sum of all the forward and backward time steps,
+in absolute value, for a 2kth ST formula.
+Lemma 18 (Error extrapolation for time-evolved observables). Under the conditions
+of Lemma 1 (ca ≤ π/20), the following bounds holds on the Trotterized evolution Os (t)
+with step parameter s ∈ (0, a]:
+1. for c > n we have that
+!2n
+
+q
+∥∂sn Os (t)∥
+< c e3 (1 + 8/πe2 )
+∥O∥
+r
+
+25
+
+which gives an interpolation error
+c2 a
+|En−1 (0)| < 129
+n
+
+!n
+
+.
+
+2. For c ≤ n, we have
+∥∂sn Os (t)∥
+≤
+∥O∥
+
+s
+
+2n
+π
+
+e4 c
+2
+
+!n
+
+2
+
+√
+
+n!e4ce
+
+2/π
+
+giving an interpolation error
+√
+|En−1 (0)| ≤ 2 2n (6ca)n e24c .
+The proof of this lemma is a tedious exercise in repeated in the combinatorics of
+large derivatives and the triangle inequality, and is left to Appendix E. Note that
+once the derivative bound holds, the interpolation error bound follows immediately
+from Lemma 2.
+One motivation for these bounds is deriving asymptotic expressions for the algorithmic complexity. The following theorem gives an asymptotic query complexity for the
+number Nexp of Trotter exponentials exp(−iHj τ ).
+Theorem 19. Let O(t) = U † (t)OU (t) be a time-evolved observable under a HamiltoP
+−iHt
+. Suppose there exists a γ ∈ R+ such
+nian H = m
+l=1 Hl on n qubits, so that U (t) = e
+that O/γ can be block encoded via a unitary Uenc by a state |G⟩ on a set of L auxiliary
+qubits. Let ρ be a quantum state on n qubits, and suppose γ/ ∥O∥ ∈ O(1). Then, the
+number of exponentials Nexp required to estimate Tr (ρO(t)) / ∥O∥ to precision ϵ with
+confidence 1 − δ using a 2k order Suzuki Trotter formula satisfies
+
+
+
+
+Nexp ∈ Õ c max{c, log(1/ϵ)}ϵ−1 log(1/δ) .
+Here, Õ is big-O with multiplicative terms suppressed which are logarithmically smaller
+in 1/ϵ and c. Moreover, the number of auxiliary qubits needed is O(L).
+We give a sketch of the proof. Given a choice of interval [−a, a] and (even) number
+of interpolation points n, we have from Lemma 3 that the number of exponentials to
+perform evolutions for all Chebyshev nodes goes as
+!
+
+n log n
+.
+O
+a
+
+(4.4)
+
+However, this is not the total cost since these circuits need to be repeated to perform
+the appropriate measurement protocols. Since O can be block encoded, the expectation
+value can be obtained via an amplitude estimation protocol. By the well-conditioning
+of Lemma 5, each data point needs to be within ϵ of the exact Trotter value, up to a
+e −1 ) scaling.
+logarithmic factor in n. This robustness is why our result maintains a O(ϵ
+26
+
+In our proof, we assume the IQAE protocol is used, requiring only a single qubit
+overhead. The fractional queries for the noninteger timestep also require O(1) overhead,
+meaning the total overhead is O(L) due to the block encoding. To relate n and a to
+the required precision ϵ, simulation time t and Hamiltonian H, Lemma 18 can be used.
+Thus, we can relate Nexp to these basic parameters. We carry out the formal proof in
+Appendix E.
+As advertised, we see there is a "near-Heisenberg" scaling of 1/ϵ, up to logarithmic
+factors. However, there is an unsavory quadratic scaling in the simulation time in cases
+without high accuracy demands. We believe this can be improved, because our approach
+us forces us to have n scale linearly in T . We believe this is overly pessimistic, and a
+log(∥H∥ T ) scaling is more likely. Finally, our results suggest the best performance for
+using low order formulas, since our bounds are strictly worse for increasing ST order k.
+
+5 Numerical Experiments
+In the previous sections, we presented theorems, with proofs in the appendices, that
+interpolation of Trotter data can lead to higher accuracies for eigenvalues and expectation values than Trotter alone. This section provides numerical evidence backing up
+our analytic claims, not only showing that improved scaling is possible, but also that
+high-order Trotter formulas need not always provide better error scaling when used in
+conjunction with interpolation. Specifically, we demonstrate this improved scaling for
+phase estimation using interpolation for second-order and fourth-order ST formulas.
+For our demonstration we consider the transverse Ising model of two spins.
+H = −J (Z ⊗ Z + g(X ⊗ I + I ⊗ X))
+
+(5.1)
+
+This is a minimal example with just two non-commuting terms, yielding a nonzero
+Trotter error. Our aim will be to estimate the ground state energy of the effective
+Hamiltonian H̃s in the limit s → 0, and seek numerical evidence of the improved
+performance relative to low-order Trotter formulas that Theorems 15 and 17 suggest.
+In order to avoid aliasing with our Fourier spectral methods, we must satisfy the
+bound
+H̃sk
+
+t ′
+|e sk | + ∆pad ≤ 1,
+2π k
+
+(5.2)
+
+where
+&
+
+e′k = sgn sk
+
+'
+
+s1
+.
+|sk |
+
+(5.3)
+
+The padding ∆pad is there to suppress the probability leakage wrapping around the
+boundary. For simplicity, define a dimensionless effective Hamiltonian
+h̃s := H̃s
+27
+
+te′s s
+,
+2π
+
+(5.4)
+
+with e′s = sgn s ⌈s1 / |s|⌉, such that
+h̃sk + ∆pad ≤ 1.
+
+(5.5)
+
+This way, the spectrum of h̃sk lies within the domain [−1/2 + ∆pad /2, 1/2 − ∆pad /2]
+and now is in line with the conventions of Fourier spectral methods in [36]. With this,
+we now define the normalized Hamiltonian
+h = h̃0 .
+
+(5.6)
+
+Here t is sufficiently small as to fulfill Equation (5.5). We must also make sure that s is
+chosen according to the constraints of Section 3.2 such that there are no level crossings
+throughout the interpolation interval.
+We now describe the results. Figure 3 displays the results of Chebyshev interpolation
+with second order Trotter formulas using various (even) numbers of points. For each
+H̃s′ k , we numerically simulate the ground state preparation protocol to a state error,
+ϵstate . This is efficient because the algorithm scales O(log 1/ϵstate ). We then simulate
+the Gaussian phase estimation on these states. Moreover, we have used zero-padding
+as described in the Section 3.2.3 in order to upsample the spectrum and be able to
+ignore digitization errors. The spectral upsampling through zero-padding is efficient
+since the cost scales like O(q 2 ), where q is the number of total qubits after padding.
+The blue bands in these plots show an uncertainty equivalent to 0.01 × σP (s). We have
+down-scaled the statistical uncertainties by a factor of a 100 such that the interpolation
+error changes are noticeable when we change the number of nodes.
+Next, in Figure 4, we show the exact systematic error from our simulations as
+well as the upper bounds of the Bernstein ellipse analysis of Lemmas 14, 12, and 10.
+We see from this data that interpolation indeed improves the quality of the estimate
+of the energy as anticipated, even when relatively low-precision estimates are used at
+s = 1. As discussed previously, only positive values of sk are computed due to reflection
+symmetry.
+Finally, in Figure 5 we performed ground state energy estimation using second and
+fourth order formulas without interpolation, in order to compare the costs when plotted
+against the error. From the plots, we observe that beyond n = 2 the extrapolation
+methods already outperform using second-order product formulas alone. Specifically,
+we see clear indications from this data that the bias in the interpolated error (for
+large 1/ϵ) scales logarithmically for these Gaussian phase estimation experiments. This
+agrees with our expectations from Theorem 17 wherein the systematic errors from
+interpolating phase estimation experiments are expected to scale as polylog(1/ϵ). In
+contrast, the bias from a fixed experiment is expected to be O(1/ϵ3/2 ) and O(1/ϵ5/4 )
+respectively.
+It is worth noting that this does not violate the Heisenberg limit as here we are only
+showing the interpolation error, with data computed to machine precision. The exponential reduction in the uncertainty with the number of interpolation points considered
+28
+
+4 Nodes
+
+2 Nodes
+1.118 × 100
+
+1.118 × 100
+
+1.1175 × 100
+
+1.117 × 100
+1.116 × 100
+
+1.1155 × 100
+
+1.116 × 100
+
+|E0 |
+
+1.1165 × 100
+
+|E0 |
+
+1.117 × 100
+
+interp
+exact
+data
+interpolant at s = 0
+
+1.115 × 100
+
+1.114 × 100
+
+1.1145 × 100
+1.114 × 10
+
+interp
+exact
+data
+interpolant at s = 0
+
+1.115 × 100
+
+0
+
+−1.0
+
+−0.5
+
+0.0
+s
+
+0.5
+
+−1.0
+
+1.0
+
+−0.5
+
+6 Nodes
+1.118 × 10
+
+1.117 × 100
+
+1.117 × 100
+1.116 × 100
+
+interp
+exact
+data
+interpolant at s = 0
+
+1.115 × 100
+1.114 × 100
+−1.0
+
+−0.5
+
+0.0
+s
+
+1.0
+
+0.5
+
+0
+
+|E0 |
+
+|E0 |
+
+1.116 × 100
+
+0.5
+
+8 Nodes
+
+0
+
+1.118 × 10
+
+0.0
+s
+
+interp
+exact
+data
+interpolant at s = 0
+
+1.115 × 100
+1.114 × 100
+−1.0
+
+1.0
+
+−0.5
+
+0.0
+s
+
+0.5
+
+1.0
+
+Figure 3: Estimation of the ground state energy of the two-spin transverse Ising model using
+interpolation with Gaussian phase estimation. The four plots, left to right and top to bottom, have
+n = 2, 4, 6, 8 interpolation points. In all, the second order Trotter formula was used for simulation.
+The statistical uncertainties on the data and the interpolants shown here are equivalent to 0.01
+times their standard deviation. They are scaled this way so that interpolation error changes are
+noticeable.
+
+is independently shown in Figure 4. Note that for this data we do not see an improvement from transitioning to higher-order formulas, which is consistent with our prior
+expectations. These results show that extrapolation tends to outperform transitioning
+to a higher-order product formula does not necessarily lead to an improved scaling for
+the problem of phase estimation.
+
+6 Conclusion
+In this work, we present a framework for achieving improved accuracy of Trotter simulations using polynomial interpolation. We apply our framework to the problems of
+eigenvalue and expectation value estimation, and derive query complexities assuming
+the Trotter data is computed quantumly. We find that our methods achieve a Heisenberg scaling of Õ(1/ϵ) up to polylogarithmic factors. This is an improvement relative
+to a single Trotter calculation, which would yield Õ(1/ϵ1+1/p ) for order p formulas. For
+the low-order formulas used in practice, where p is not so large, this improvement may
+29
+
+4th order
+Exact error
+Bound of error
+
+10−2
+10−5
+10−8
+10−11
+10−14
+10
+
+20
+n
+
+30
+
+10−1
+Energy estimate error
+
+Energy estimate error
+
+2nd order
+
+10
+
+Exact error
+Bound of error
+
+−4
+
+10−7
+10−10
+10−13
+
+40
+
+10
+
+20
+n
+
+30
+
+40
+
+Figure 4: The systematic error coming from truncating the polynomial expansion. In blue we have
+the exact result for the error and in orange are the upper bounds for the error. On the left, we
+used a second-order formula and on the right a fourth-order one. As we can see from this log-log
+plot, the convergence is exponential as expected.
+
+22
+
+19
+
+log2 (# of Gates)
+
+log2 (# of Gates)
+
+20
+
+18
+17
+16
+
+21
+20
+19
+18
+
+15
+2
+
+4
+
+6
+
+8
+10
+log10 1/
+
+12
+
+14
+
+6
+
+8
+
+10
+log10 1/
+
+12
+
+14
+
+Figure 5: The gate cost from using second- (left) and fourth-order (right) formulas for ground
+state estimation plotted against the systematic error on the eigenvalue estimation. In blue, we
+have the cost of using single long-depth circuits using product formulas alone. In orange, we
+have the gate cost of using multiple shallower circuits and then using the extrapolation methods
+presented in this work.
+
+30
+
+be significant.
+An interesting feature of polynomial interpolation in this context is that it provides
+a uniform approximation of the function f (s) on the interpolation interval, thereby
+giving a characterization of the Trotter error for various step sizes. In contrast, similar
+techniques such as Richardson extrapolation only attempt to estimate f (0). Whether
+this global characterization of the Trotter error can be usefully employed is a question
+we leave open.
+There are several areas in which improvements in our analysis can likely be made.
+First, in most of our claims, we resort to fractional queries in order to produce step
+sizes at the values of the Chebyshev nodes. We suspect this machinery is not needed
+in practice, and that improved analysis, coupled with mathematical results on the
+robustness of the Lesbesgue constant to node perturbations, will show that interpolating
+at nearby points will be sufficient. Second, the quadratic dependence in simulation time
+that arises for expectation value interpolation in certain regimes is unsavory. The root
+cause of this in the analysis appears to be a linear relation between the simulation time
+and number of interpolation nodes, which seems overly cautious. Numerical studies
+beyond our own, as well as implementations on quantum hardware, may reveal a rosier
+picture than our naive bounds suggest. Third, our work does not consider the effects of
+imperfect operations. We can reasonably expect quantum operational errors to be more
+severe for the foreseeable future. In this case, the most salient effect is additional error
+on the data values that, following any mitigation procedures, cannot be arbitrarily
+diminished. We should expect that this will limit the interpolation accuracy to a
+certain threshold given roughly by the product ϵphys × Λ, where ϵphys is the typical
+error from imperfect operations and Λ is the Lesbesgue constant. Finally, our results
+do not show commutator scaling, though the method itself almost certainly does. For
+Hamiltonians with almost commuting terms, this would manifest in the data being
+nearly flat, resulting in an approximately straight line fit to the correct answer. Our
+difficulty in showing this expected relationship arises from the messy expressions for
+high order derivatives of the effective Hamiltonian, but this should not be a fundamental
+issue.
+Our work shows that polynomial interpolation can be a powerful supplement to
+quantum subroutines using low-order Trotter simulations. Given that our results ameliorate the worst aspects of low order formulas, we believe that investigation of highly
+efficient low-order formulas for simulation is likely to be an increasingly important topic.
+Improvements that arise from the superior constant factors that low order formulas can
+provide may lead to a new generation of more efficient algorithms for simulating chemistry and physics using quantum computers.
+
+7 Acknowledgements
+We thank Christoph Lehner, Taku Izubuchi and Yuta Kikuchi for the insightful discussions. We also thank the reviewers for improving this article with specific feedback.
+31
+
+During the inception of this work G. R. was supported through Brookhaven National
+Laboratory (BNL), the Laboratory Directed Research and Development (LDRD) program No. 21-043, by Program Development Fund No. NPP PD 19-025, and by the
+US DOE Office of Nuclear Physics, under the Contract No. DE-SC0012704 (BNL).
+During later additions to the manuscript, G.R. and N.W. were supported by the US
+DOE National Quantum Information Science Research Centers, Co-design Center for
+Quantum Advantage (C2QA) under contract number DE-SC0012704. G.R. was also
+supported and employed by Zapata Computing, Inc. through part of the writing of
+the manuscript. J.W. is supported by the NSF Graduate Research Fellowship and U.S.
+Department of Energy grant No. DE-SC0023658.
+
+References
+[1] S. Lloyd, Universal quantum simulators, Science 273 (1996) 1073.
+[2] M. Reiher, N. Wiebe, K.M. Svore, D. Wecker and M. Troyer, Elucidating reaction
+mechanisms on quantum computers, Proceedings of the National Academy of
+Sciences 114 (2017) 7555.
+[3] J.D. Whitfield, J. Biamonte and A. Aspuru-Guzik, Simulation of electronic
+structure hamiltonians using quantum computers, Molecular Physics 109 (2011)
+735.
+[4] J. Lee, D.W. Berry, C. Gidney, W.J. Huggins, J.R. McClean, N. Wiebe et al.,
+Even more efficient quantum computations of chemistry through tensor
+hypercontraction, PRX Quantum 2 (2021) 030305.
+[5] V. von Burg, G.H. Low, T. Häner, D.S. Steiger, M. Reiher, M. Roetteler et al.,
+Quantum computing enhanced computational catalysis, Physical Review Research
+3 (2021) 033055.
+[6] S.P. Jordan, K.S. Lee and J. Preskill, Quantum algorithms for quantum field
+theories, Science 336 (2012) 1130.
+[7] A.F. Shaw, P. Lougovski, J.R. Stryker and N. Wiebe, Quantum algorithms for
+simulating the lattice schwinger model, Quantum 4 (2020) 306.
+[8] N. Klco, M.J. Savage and J.R. Stryker, Su (2) non-abelian gauge field theory in
+one dimension on digital quantum computers, Physical Review D 101 (2020)
+074512.
+[9] A.M. Childs and N. Wiebe, Hamiltonian simulation using linear combinations of
+unitary operations, Quantum Info. Comput. 12 (2012) 901–924.
+[10] G.H. Low, V. Kliuchnikov and N. Wiebe, Well-conditioned multiproduct
+hamiltonian simulation, arXiv:1907.11679 (2019) .
+32
+
+[11] D.W. Berry, A.M. Childs, R. Cleve, R. Kothari and R.D. Somma, Simulating
+hamiltonian dynamics with a truncated taylor series, Physical review letters 114
+(2015) 090502.
+[12] G.H. Low and N. Wiebe, Hamiltonian simulation in the interaction picture,
+arXiv:1805.00675 (2018) .
+[13] M. Kieferová, A. Scherer and D.W. Berry, Simulating the dynamics of
+time-dependent hamiltonians with a truncated dyson series, Physical Review A 99
+(2019) 042314.
+[14] G.H. Low and I.L. Chuang, Hamiltonian Simulation by Qubitization, Quantum 3
+(2019) 163.
+[15] R. Babbush, C. Gidney, D.W. Berry, N. Wiebe, J. McClean, A. Paler et al.,
+Encoding electronic spectra in quantum circuits with linear t complexity, Physical
+Review X 8 (2018) 041015.
+[16] D.W. Berry, G. Ahokas, R. Cleve and B.C. Sanders, Efficient quantum algorithms
+for simulating sparse hamiltonians, Communications in Mathematical Physics
+270 (2006) 359–371.
+[17] N. Wiebe, D.W. Berry, P. Høyer and B.C. Sanders, Simulating quantum
+dynamics on a quantum computer, Journal of Physics A: Mathematical and
+Theoretical 44 (2011) 445308.
+[18] A.M. Childs, Y. Su, M.C. Tran, N. Wiebe and S. Zhu, Theory of trotter error
+with commutator scaling, Physical Review X 11 (2021) 011020.
+[19] J. Haah, M.B. Hastings, R. Kothari and G.H. Low, Quantum algorithm for
+simulating real time evolution of lattice hamiltonians, SIAM Journal on
+Computing (2021) FOCS18.
+[20] M. Hagan and N. Wiebe, Composite quantum simulations, arXiv:2206.06409
+(2022) .
+[21] G.H. Low, Y. Su, Y. Tong and M.C. Tran, On the complexity of implementing
+trotter steps, arXiv:2211.09133 (2022) .
+[22] G.H. Low and I.L. Chuang, Optimal hamiltonian simulation by quantum signal
+processing, Physical Review Letters 118 (2017) .
+[23] S. Endo, Q. Zhao, Y. Li, S. Benjamin and X. Yuan, Mitigating algorithmic errors
+in a hamiltonian simulation, Phys. Rev. A 99 (2019) 012334.
+[24] A.C. Vazquez, R. Hiptmair and S. Woerner, Enhancing the quantum linear
+systems algorithm using richardson extrapolation, ACM Transactions on
+Quantum Computing 3 (2022) .
+33
+
+[25] A.C. Vazquez, D.J. Egger, D. Ochsner and S. Woerner, Well-conditioned
+multi-product formulas for hardware-friendly hamiltonian simulation, Quantum 7
+(2023) 1067.
+[26] M. Suzuki, General theory of fractal path integrals with applications to many-body
+theories and statistical physics, Journal of Mathematical Physics 32 (1991) 400.
+[27] A. Gilyén, Y. Su, G.H. Low and N. Wiebe, Quantum singular value
+transformation and beyond: exponential improvements for quantum matrix
+arithmetics, in Proceedings of the 51st Annual ACM SIGACT Symposium on
+Theory of Computing, pp. 193–204, 2019, DOI.
+[28] C. Yi and E. Crosson, Spectral analysis of product formulas for quantum
+simulation, npj Quantum Information 8 (2022) 37.
+[29] A. Quarteroni, R. Sacco and F. Saleri, Numerical mathematics, vol. 37, Springer
+Science & Business Media (2010), 10.1007/b98885.
+[30] F. Piazzon and M. Vianello, Stability inequalities for lebesgue constants via
+markov-like inequalities, Dolomites Research Notes on Approximation 11 (2018) .
+[31] A.P. de Camargo, On the numerical stability of newton’s formula for lagrange
+interpolation, Journal of Computational and Applied Mathematics 365 (2020)
+112369.
+[32] L. Trefethen, Six myths of polynomial interpolation and quadrature, .
+[33] W. Gautschi, How (un)stable are vandermonde systems? asymptotic and
+computational analysis, in Lecture Notes in Pure and Applied Mathematics,
+pp. 193–210, Marcel Dekker, Inc, 1990.
+[34] N.J. Higham, The numerical stability of barycentric lagrange interpolation, IMA
+Journal of Numerical Analysis 24 (2004) 547.
+[35] J.C. Mason and D.C. Handscomb, Chebyshev polynomials, CRC press (2002),
+10.1201/9781420036114.
+[36] G. Rendon, T. Izubuchi and Y. Kikuchi, Effects of cosine tapering window on
+quantum phase estimation, Physical Review D 106 (2022) 034503.
+[37] L.N. Trefethen, Approximation Theory and Approximation Practice, Extended
+Edition, SIAM (2019), 10.1137/1.9781611975949.
+[38] F.L. Bauer and C.T. Fike, Norms and exclusion theorems, Numer. Math. 2
+(1960) 137–141.
+[39] S. Blanes, F. Casas, J.-A. Oteo and J. Ros, The magnus expansion and some of
+its applications, Physics reports 470 (2009) 151.
+34
+
+[40] N. Klco and M.J. Savage, Minimally entangled state preparation of localized wave
+functions on quantum computers, Physical Review A 102 (2020) .
+[41] J.J. García-Ripoll, Quantum-inspired algorithms for multivariate analysis: from
+interpolation to partial differential equations, Quantum 5 (2021) 431.
+[42] W. Górecki, R. Demkowicz-Dobrzański, H.M. Wiseman and D.W. Berry,
+π-corrected heisenberg limit, Physical review letters 124 (2020) 030501.
+[43] D. Grinko, J. Gacon, C. Zoufal and S. Woerner, Iterative quantum amplitude
+estimation, npj Quantum Information 7 (2021) 52 [1912.05559].
+[44] N. Wiebe, D. Berry, P. Høyer and B.C. Sanders, Higher order decompositions of
+ordered operator exponentials, Journal of Physics A: Mathematical and
+Theoretical 43 (2010) 065203.
+[45] R.A. Horn and C.R. Johnson, Matrix analysis, Cambridge university press
+(2012), 10.1017/CBO9780511810817.
+[46] M. Chiani, D. Dardari and M.K. Simon, New exponential bounds and
+approximations for the computation of error probability in fading channels, IEEE
+Transactions on Wireless Communications 2 (2003) 840.
+[47] J.M. Borwein and P.B. Borwein, Pi and the AGM: a study in the analytic number
+theory and computational complexity, Wiley-Interscience (1987).
+[48] B.L. Higgins, D.W. Berry, S.D. Bartlett, H.M. Wiseman and G.J. Pryde,
+Entanglement-free Heisenberg-limited phase estimation, Nature 450 (2007) 393.
+[49] R.B. Griffiths and C.-S. Niu, Semiclassical Fourier Transform for Quantum
+Computation, Physical Review Letters 76 (1996) 3228.
+[50] A.Y. Kitaev, Quantum measurements and the abelian stabilizer problem,
+quant-ph/9511026 (1995) .
+[51] D.S. Abrams and S. Lloyd, Quantum Algorithm Providing Exponential Speed
+Increase for Finding Eigenvalues and Eigenvectors, Physical Review Letters 83
+(1999) 5162.
+[52] J. Watkins, N. Wiebe, A. Roggero and D. Lee, Time-dependent hamiltonian
+simulation using discrete clock constructions, arXiv:2203.11353 (2022) .
+[53] T.D. Ahle, Sharp and simple bounds for the raw moments of the binomial and
+poisson distributions, Statistics & Probability Letters 182 (2022) 109306.
+[54] T. Rivlin, Chebyshev Polynomials, Dover Books on Mathematics, Dover
+Publications (2020).
+35
+
+A Proof of Lemma 1: derivatives of effective Hamiltonian
+Proof. Recall the definition of the effective Hamiltonian
+H̃s :=
+
+i
+log S2k (st)
+st
+
+(A.1)
+
+for s ∈ R \ {0}, with H̃0 := lims→0 H̃s = H. We will understand log S2k (st) through a
+power series expansion about the identity.
+log S2k (st) =
+
+∞
+X
+(−1)j
+j=0 j + 1
+
+(S2k (st) − 1)j+1
+
+(A.2)
+
+This series converges precisely when
+∥S2k (st) − 1∥ ≤ 1.
+
+(A.3)
+
+Using the fundamental theorem of calculus, we can derive a suitable condition for
+convergence as a neighborhood about s = 0. The condition above implies
+Z st
+0
+
+S2k (x)dx ≤ 1
+
+(A.4)
+
+which is satisfied provided
+|st| max
+
+x∈[0,st]
+
+d
+S2k (x) ≤ 1.
+dx
+
+(A.5)
+
+k
+Writing out S2k (x) = N
+l=1 exp(−iHjl τl x) where Hjl is some Hamiltonian piece Hj
+indexed by l, the derivative can be upper bounded as
+
+Q
+
+max
+
+x∈[0,st]
+
+Nk
+X
+d
+S2k (x) ≤
+∥Hjl ∥ |τl |
+dx
+l=1
+
+(A.6)
+
+≤ max ∥Hj ∥ ∥τ ∥1
+j
+
+k
+where τ = (τl )N
+l=1 is the vector of ST coefficients, and in going to the second line we
+used a Hölder inequality. We have ∥τl ∥1 ≤ Nk maxl |τl |, and from Appendix A of [44]
+we have
+
+max |τl | ≤ 2k/3k .
+l
+
+(A.7)
+
+Thus, the requirement for convergence of the logarithm becomes
+4
+k(5/3)k−1 m |st| max ∥Hj ∥ ≤ 1
+j
+3
+
+(A.8)
+
+where we used the expression Nk = (2m)5k−1 for the number of ST exponentials.
+36
+
+We now assume s is within the symmetric interval defined by (A.8), such that (A.2)
+is convergent. Since log S2k (0) = 0, s = 0 is a zero of order at least one. We want to
+absorb the diverging 1/s term and better understanding the leading dependence in s.
+To facilitate this, we write
+H̃s = −
+
+∞
+(−1)j j
+1X
+s ∆S2k (st)j+1
+it j=0 j + 1
+
+(A.9)
+
+where we defined
+∆S2k (st) :=
+
+S2k (st) − 1
+.
+s
+
+(A.10)
+
+Note that ∆S2k is analytic in s, and is a finite difference around s = 0, such that
+lim ∆S2k (st) = −iHt.
+
+(A.11)
+
+s→0
+
+Through the series expansion (A.9) we may bound derivatives of H̃s via bounds on
+derivatives of ∆S2k . We first obtain a power series of ∆S2k by Taylor expanding every
+term in the product formula S2k . Regrouping in powers of st, the result is
+∆S2k (st) =
+
+∞ j−1
+X
+s (−it)j X
+j=1
+
+j!
+
+J
+
+Nk
+Y
+j
+(Hl τl )jl
+j1 . . . jNk l=1
+
+!
+
+(A.12)
+P
+
+where the parenthetical symbol is the multinomial coefficient, and the sum J is over
+P
+all values of J = (j1 , . . . , jNk ) such that k jk = j. The derivatives with respect to s
+are now easy to compute. Using the fact that
+∂sn sj−1 =
+
+(j − 1)! j−n−1
+s
+(j − 1 − n)!
+
+(A.13)
+
+for j > n (and zero otherwise), we have
+∂sn ∆S2k (st) =
+∥∂sn ∆S2k (st)∥ ≤
+
+Nk
+Y
+j
+sj−n−1 (−it)j (j − 1)! X
+(Hl τl )jl
+j!
+(j
+−
+1
+−
+n)!
+j
+.
+.
+.
+j
+1
+Nk l=1
+j=n+1
+J
+∞
+X
+
+!
+
+∞
+X
+
+tj
+sj−n−1 (τmax Nk Λ)j
+(j
+−
+n
+−
+1)!
+j=n+1
+
+(A.14)
+
+where Λ := maxj ∥Hj ∥ and τmax = maxl |τl |. Factoring out powers of n + 1 and
+reindexing, we are left with the following bound on derivatives of ∆S2k .
+∥∂sn ∆S2k (st)∥ ≤ (τmax Nk Λt)n+1 esτmax Nk Λt
+
+(A.15)
+
+This expression is quite elegant; it is as if we were taking n + 1 derivatives of the
+exponential ecs with
+c := τmax Nk Λt
+≤ k(5/3)k mΛt
+37
+
+(A.16)
+
+Factors of c will occur frequently in what follows, so we find it convenient to adopt this
+symbol as shorthand.
+We return to bounding the derivatives of powers of ∆S2k (st) as in equation (A.9).
+h
+
+∂sn ∆S2k (st)j+1
+
+i
+
+(A.17)
+
+We reduce this to the previous case by performing a multinomial expansion.
+j
+Y
+n
+∂ nl ∆S2k (st)
+n0 . . . nj l=0 s
+
+!
+
+∂sn ∆S2k (st)j+1 =
+
+X
+N
+
+(A.18)
+
+As usual, the capital letter N denotes the set of all nonnegative indices n0 , . . . , nj
+summing to n. Applying the triangle inequality and submultiplicativity, and employing
+the bound (A.15),
+j
+Y
+n
+∥∂snl ∆S2k (st)∥
+n0 . . . nj l=0
+
+!
+
+∂sn ∆S2k (st)j+1
+
+≤
+
+X
+
+≤
+
+X
+
+N
+
+j
+Y
+n
+cnl +1 ecs
+n0 . . . nj l=0
+
+!
+
+N
+
+(A.19)
+!
+
+(j+1)cs n+j+1
+
+=e
+
+c
+
+X
+N
+
+n
+,
+n0 . . . nj
+
+where we’ve used the sum property of the nl where appropriate. The remaining sum
+over the multinomial coefficient is given by (j + 1)n . Hence,
+∂sn ∆S2k (st)j+1 ≤ ((j + 1)c)n (cecs )j+1
+
+(A.20)
+
+Notice that, when j = 0, this is consistent with equation (A.15).
+With result (A.20) in hand, we return to the power series (A.9). Differentiating
+term by term
+∂sn H̃s = −
+
+∞
+
+1X
+(−1)j n  j
+∂s s ∆S2k (st)j+1
+it j=0 j + 1
+
+(A.21)
+
+and performing a binomial expansion for each term
+∂sn
+
+
+
+j
+
+j+1
+
+s ∆S2k (st)
+
+
+
+=
+
+n
+X
+q=0
+
+!
+
+n  q j   n−q
+∂s s
+∂s ∆S2k (st)j+1
+q
+
+(A.22)
+
+will allow us to apply our previous results. It will be helpful to consider two cases
+separately: j ≤ n and j > n. These regimes are somewhat qualitatively different, since
+the derivatives of sj may or may not vanish depending on the number of derivatives.
+Focusing on the case j ≤ n, we have
+∂sn
+
+
+
+j
+
+j+1
+
+s ∆S2k (st)
+
+
+
+=
+
+j
+X
+q=0
+
+!
+
+
+
+n
+j!
+sj−q ∂sn−q ∆S2k (st)j+1 .
+q (j − q)!
+
+38
+
+(A.23)
+
+Note that the sum runs only to j, not n. Taking a triangle inequality upper bound
+using (A.20), we may upper bound (A.23) as
+j
+X
+
+!
+
+n
+j!
+sj−q ((j + 1)c)n−q (cecs )j+1
+q (j − q)!
+
+q=0
+
+j
+X
+
+cs j+1
+
+= (ce )
+
+(A.24)
+
+!
+
+j
+n!
+sj−q ((j + 1)c)n−q
+q (n − q)!
+
+q=0
+
+where we have factored out terms not involving q from the sum, and manipulated the
+factorials for reasons which will be seen presently. Taking the upper bound n!/(n−q)! <
+nq , and factoring out n−j powers of (j +1)c, we may upper bound the above expression
+by
+cs j+1
+
+(ce )
+
+n−j
+
+((j + 1)c)
+
+= (cecs )j+1 ((j + 1)c)
+
+j
+X
+q=0
+n−j
+
+!
+
+j q
+n ((j + 1)cs)j−q
+q
+
+(A.25)
+
+(n + (j + 1)cs)j
+
+Thus, with some minor polishing, we may express the bound on (A.22) for j ≤ n as
+∂sn
+
+
+
+j
+
+j+1
+
+s ∆S2k (st)
+
+
+
+(j+1)cs n+1
+
+≤e
+
+c
+
+(j + 1)
+
+n
+
+n
++ cs
+j+1
+
+!j
+
+.
+
+(A.26)
+
+Now let’s move on to the j > n case. Here, there are not enough derivatives to kill
+off the sj term, so the binomial sum in (A.23) will run from q = 0 to n.
+∂sn
+
+
+
+j
+
+j+1
+
+s ∆S2k (st)
+
+
+
+=
+
+n
+X
+
+!
+
+
+
+n
+j!
+sj−q ∂sn−q ∆S2k (st)j+1
+q (j − q)!
+
+q=0
+
+(A.27)
+
+Similar to before, we use the bound (A.20), to obtain
+∂sn
+
+
+
+j
+
+j+1
+
+s ∆S2k (st)
+
+
+
+≤
+
+n
+X
+
+!
+
+q=0
+
+n
+j!
+sj−q ((j + 1)c)n−q (cecs )j+1
+q (j − q)!
+
+cs j+1 j−n
+
+= (ce )
+
+s
+
+n
+X
+q=0
+
+!
+
+n
+j!
+((j + 1)cs)n−q .
+q (j − q)!
+
+(A.28)
+
+Taking j!/(j − q)! < j q , a simpler upper bound is given by
+(cecs )j+1 sj−n
+
+n
+X
+
+!
+
+n q
+j ((j + 1)cs)n−q = (cecs )j+1 sj−n (j + (j + 1)cs)n .
+q
+
+q=0
+
+(A.29)
+
+With some minor rearrangements, this gives the following upper bound for j > n.
+∂sn
+
+
+
+j
+
+j+1
+
+s ∆S2k (st)
+
+
+
+≤e
+
+(j+1)cs n+1
+
+c
+
+n
+
+(j + 1) (cs)
+
+39
+
+j−n
+
+j
++ cs
+j+1
+
+!n
+
+(A.30)
+
+With the bounds (A.26) and (A.30), we can return to bounding ∂sn H̃s . Still separating the two cases j ≤ n and j > n, we can write
+∂sn H̃s t ≤
+
+∞
+
+
+
+
+X
+1
+1
+∂sn sj ∆S2k (st)j+1 +
+∂sn sj ∆S2k (st)j+1
+j=0 j + 1
+j=n+1 j + 1
+n
+X
+
+(A.31)
+
+= Bl + Bh
+where Bl and Bh refer to bounds on the “low” and “high” parts of the series. Employing
+the bounds from equations (A.26) and (A.30), we have
+n
+X
+
+1 (j+1)cs n+1
+n
+Bl ≤
+e
+c (j + 1)n
++ cs
+j+1
+j=0 j + 1
+= cn+1
+
+n
+X
+
+e(j+1)cs (j + 1)n−1
+
+j=0
+
+n
+cs +
+j+1
+
+!j
+
+(A.32)
+
+!j
+
+and
+∞
+X
+
+j
+1 (j+1)cs n+1
+Bh ≤
+e
+c (j + 1)n (cs)j−n
++ cs
+j+1
+j=n+1 j + 1
+≤ cn+1
+
+∞
+X
+
+!n
+
+e(j+1)cs (j + 1)n−1 (cs)j−n (1 + cs)n
+
+(A.33)
+
+j=n+1
+
+= cn+1 (1 + cs)n
+
+∞
+X
+
+e(j+1)cs (j + 1)n−1 (cs)j−n .
+
+j=n+1
+
+Let’s begin by simplifying the bound on Bl . We will at this point make the assumption
+that s is sufficiently small such that cs < 1. This will necessarily factor into the cost
+later. This simplification yields
+Bl ≤ c
+
+n+1
+
+≤ cn+1
+
+n
+X
+j=0
+n
+X
+
+j+1
+
+e
+
+(j + 1)
+
+n−1
+
+n
+1+
+j+1
+
+!j
+
+ej+1 (j + 1)n−1 en
+
+(A.34)
+
+j=0
+n+1
+X
+1
+≤ (e2 c)n+1
+j n−1
+e
+j=1
+
+The remaining sum can be bounded by (n + 1)n , hence,
+Bl ≤
+
+(e2 (n + 1)c)n+1
+≤ (e2 c)n+1 nn ,
+e(n + 1)
+
+(A.35)
+
+where the definition that 00 = 1 handles the edge case. Let’s turn our attention to Bh .
+We will start by reindexing so that the series begins at j = 0 in (A.33).
+Bh ≤ cn+1 (1 + cs)n
+
+∞
+X
+
+e(j+n+2)cs (j + n + 2)n−1 (cs)j+1
+
+j=0
+
+40
+
+(A.36)
+
+= (cecs )n+1 (1 + cs)n
+
+∞
+X
+
+(csecs )j+1 (j + n + 2)n−1
+
+(A.37)
+
+j=0
+
+The series converges if and only if
+csecs < 1.
+
+(A.38)
+
+This condition is slightly stronger than the condition (A.8) that we need for convergence
+of the logarithm (A.2), and is equivalent to cs < W (1) ≈ 0.567, where W is the principal
+brach of the Lambert W function. Returning to (A.36), we have the bound
+(j + n + 2)
+
+n−1
+
+= (n + 2)
+
+n−1
+
+
+
+j
+1+
+n+2
+
+n−1
+
+≤ (n + 2)n−1 ej .
+
+(A.39)
+
+Thus, we have
+cs n+1
+
+Bh ≤ (ce )
+
+n
+
+(1 + cs) (n + 2)
+
+n−1
+
+∞
+X
+
+(ecsecs )j
+
+j=0
+cs n+1
+
+= (ce )
+
+n
+
+(1 + cs) (n + 2)
+
+n−1
+
+1
+.
+1 − ecsecs
+
+(A.40)
+
+To be concrete, let’s take ecsecs < 1/2, which is implied by cs < π/20. Coupled with
+the inequality in (A.16), this condition can be met provided that
+k(5/3)k mΛst ≤ π/20,
+
+(A.41)
+
+which is exactly the assumption of Lemma 1. This allows us to upper bound Bh further
+as
+Bh ≤ 2eπ/20 (cs)n+1 (3eπ/20 /2)n (n + 2)n−1 ≤ 4(cs)n+1 (9/5)n (n + 2)n−1 .
+
+(A.42)
+
+Since (n + 2)n−1 ≤ e2 nn /2 (using 00 := 1 for the edge case n = 0), we have
+Bh ≤ 2e2 (cs)n+1 (9/5)n nn .
+
+(A.43)
+
+Altogether, using s ≤ 1
+
+
+∂sn H̃s t ≤ nn (e2 c)n+1 1 + 2(9/5e2 )n
+≤ 2nn (e2 c)n+1
+
+
+
+(A.44)
+
+The final result then follows from substituting for c and noting that the duration of
+each time step is at most 2k/3k−1 using the results of [17].
+
+41
+
+B Proof of Theorem 7
+In order to use the result of Lemma 1 in the proof of Theorem 7, we need to reexpress the derivatives of the eigenvalues in terms of the effective Hamiltonian H̃t (we
+use t rather than s due to the extrapolation parameter taking the role of time). The
+following lemma provides such a bound on the derivatives under the assumption that
+the Hamiltonian is gapped.
+n
+
+n
+
+Lemma 20. Let H̃t : R 7→ C2 ×2 be a Hamiltonian on n qubits with p continuous
+derivatives. Suppose H̃t has a minimum eigenvalue gap
+γ(t) := min |λk (t) − λj (t)|
+k̸=j
+
+where λj (t) and λk (t) are eigenvalues of H̃t . Define
+
+
+∥∂tp H̃t ∥
+∥∂tp H̃t ∥1/(p+1) ,
+Λγ := max
+sup
+p
+γ(t)
+t
+
+!1/p 
+,
+
+which has dimensions of 1/t. Then for all eigenvalues λk (t)
+|∂tp λk (t)| ≤ 8p−1 (p − 1)!Λp+1
+γ .
+Proof. The essence of this proof is to examine the derivatives of λk (t) by expressing
+them in terms of derivatives of H̃t via perturbation theory. Using the bound Lemma 1
+on H̃t lets us bound the eigenvalues in turn. Let |k(t)⟩ be the eigenvector
+for eigenvalue
+D
+E
+λk (t) and assume that the eigenvectors’ phases are chosen such that k(t) k̇(t) = 0 for
+all t. Such a choice is always possible. Standard results from perturbation theory [45]
+show that
+∂t λk (t) = ⟨k(t)| (∂t H̃t ) |k(t)⟩
+∂t |k(t)⟩ =
+
+X
+
+|j(t)⟩
+
+j̸=k
+
+⟨j(t)| ∂t H̃t |k(t)⟩
+.
+λk (t) − λj (t)
+
+(B.1)
+
+Further, taking the Euclidean norm of the 2nd equation,
+2
+
+∥∂t |k(t)⟩ ∥ ≤
+
+X ⟨j(t)| ∂t H̃t |k(t)⟩
+j̸=k
+
+λk (t) − λj (t)
+
+2
+
+≤
+
+∥∂t H̃t ∥2
+.
+γ 2 (t)
+
+(B.2)
+
+where γ(t) is the minimum eigenvalue gap of the effective Hamiltonian at time t.
+We now consider second- and higher-order derivatives of λk (t). By repeatedly taking
+derivatives of λk (t) in the first line of (B.1), we obtain an expression of the general form
+∂tq λk (t) =
+
+q X
+X
+
+y
+
+c⃗x,⃗y,ℓ ⟨x1 (t)| ∂t µ H̃t |x2 (t)⟩
+
+ℓ=1 x,y
+
+y
+ℓ
+Y
+⟨x2µ−1 (t)| ∂t µ H̃t |x2µ (t)⟩
+µ=2
+
+42
+
+(λx2µ (t) − λx2µ−1 (t))
+
+.
+
+(B.3)
+
+Note that there is a pattern to this series. If there are m H (p) (for p ≥ 0) present in the
+expansion there must be m − 1 powers of the gaps present in the terms. Before going
+into more detail let us define the “degree” of a term to be the number of differentiable
+factors (eigenvectors, Hamiltonians or inverse gaps) present in a product. For example
+⟨x(t)| ∂t H̃t |x(t)⟩ is degree 3.
+We have that if A is a term of degree deg(A). Then it follows from (B.1) that
+deg(∂t A) ≤ deg(A) + 4,
+
+(B.4)
+
+since from the product rule the derivative of the product of the factors is the sum of
+the distributed sum of the derivatives of the factors and that if |λk ⟩ or (λj − λk )−1
+are differentiated then the degree increases by at most 4. While the derivative of the
+effective Hamiltonian does not increase the degree, the increase in the degree is still at
+most 4 in this case thus in the worst case scenario the degree is increased by 4. As the
+degree deg(∂t λk (t)) = 3 ≤ 4, it is straight forward to see that
+deg(∂tq λk (t)) = 4q
+
+(B.5)
+
+Next, let us assume that B is a sum of Nterms (B) products of the above factors. We
+then have from (B.1) that
+Nterms (∂t B) ≤ 2Nterms (B)deg(B).
+
+(B.6)
+
+Next we will show that the number of terms present in ∂tq λk (t) obeys
+Nterms (∂tq λk (t)) ≤ 8q−1 (q − 1)!.
+
+(B.7)
+
+We prove this by induction. The number of terms present when q = 1 is 1. This
+demonstrates the base case. Assume that for some value q ′ that the induction hypothesis
+holds. Then from (B.5) and (B.6) that
+′
+
+′
+
+′
+
+Nterms (∂tq +1 λk (t)) ≤ 2(8q −1 (q ′ − 1)!)(4q ′ ) = 8q q ′ !
+
+(B.8)
+
+which proves the relation by induction.
+We then see that if any factor is differentiated ν times then its norm is bounded
+above by Λν+1
+where
+γ
+
+
+
+
+
+∥∂tp H̃t ∥
+max ∥∂tp H̃t ∥1/(p+1) ,
+Λγ := max
+p
+
+γ(t)
+
+!1/p 
+
+.
+
+
+(B.9)
+
+We therefore have that since the maximum value of the derivative is the number of
+terms multiplied by the maximum norm of the product of all the factors that
+|∂tq λk (t)| ≤ 8q−1 (q − 1)!Λq+1
+γ .
+
+43
+
+(B.10)
+
+Proof of Theorem 7. First, from the Baker Campbell Hausdorff formula,
+
+
+S2k (t) = exp −iHt + O(t2k+1 )
+
+
+
+and thus log(S2k (t))/t ∈ O(1) as t → 0. Thus, an eigenvalue Eeff (t) exists for H̃t for all
+t > 0, demonstrating the first claim.
+Next, since H̃t has p continuous derivatives, ∂tp λk (t) exists and is bounded above by
+p−1
+because
+8 (p − 1)!Λp+1
+γ
+1
+∂t H̃t = ∂s H̃(st) .
+(B.11)
+t
+The value of Λγ can then be bounded, using Lemma 1, by
+!1/(n+1)
+−n−1 n
+
+Λγ ≤ 2t
+
+k−1
+
+2
+
+n (e k(5/3)
+
+m max ∥Hl ∥t)
+
+n+1
+
+l∈[1,m]
+
+2t−p−1 pp (e2 k(5/3)k−1 m maxl∈[1,m] ∥Hl ∥t)p+1
++ max
+p
+γ
+
+
+≤ 4nke2 (5/3)k−1 m max ∥Hl ∥) 1 + max
+p
+
+l∈[1,m]
+
+p
+n
+
+ 
+
+!1/p
+
+e2 k(5/3)k−1 m maxl∈[1,m] ∥Hl ∥
+γ
+
+:= 4nke2 (5/3)k−1 m max ∥Hl ∥)(1 + Γ).
+
+!1/p 
+
+
+(B.12)
+
+l∈[1,m]
+
+This implies that
+q!q
+|∂tq λk (t)| ≤ 8q−1 (q − 1)!Λq+1
+≤
+γ
+
+!q+1
+
+q
+
+64
+
+2
+
+k−1
+
+32ke (5/3)
+
+m max ∥Hl ∥)(1 + Γ)
+l∈[1,m]
+
+. (B.13)
+
+For all t ∈ [−a, a], we have from Lemma 2 that the interpolation error satisfies the
+following upper bound.
+n!
+|λk (0) − P (0)| ≤
+32ke2 (5/3)k−1 m max ∥Hl ∥)(1 + Γ)
+l∈[1,m]
+64
+
+!n+1  
+a n
+
+2
+
+(B.14)
+
+We wish for this error to be at most ϵint . Using the inequality above, we can solve for
+a value of a such that the error is within ϵint for all t ∈ [−a, a]. Doing so, we find the
+following value of a.
+2(64ϵint )1/n
+a=
+(n!)1/n
+
+1
+2
+k−1
+32ke (5/3) m maxl∈[1,m] ∥Hl ∥)(1 + Γ)
+
+!1+1/n
+
+(B.15)
+
+We now count the number of exponentials needed for the degree n polynomial interpolation (where n is even) using (B.15). Using the fact that the error for time −t
+is equal to the error for time t, that the j th Chebyshev node sj scales like a/j, and
+
+44
+
+that the cost of phase estimation within error ϵPE with failure probability δPE scales as
+O(log(1/δPE )/ϵPE ), the number of exponentials scales as
+
+
+Nexp ∈ O 
+
+n/2
+X
+m5k−1
+j=1
+
+
+
+
+ja
+
+n log(n)m5k−1 log(1/δPE )
+=O
+aϵPE
+=O
+e
+=O
+
+!
+
+n log(n) log(1/δPE )(n!)1/n m2+1/n (5/3)2k+k/n (max ∥Hi ∥(1 + Γ)k)1+1/n
+
+!
+
+1/n
+
+ϵint ϵPE
+!
+2 2+1/n
+k
+k+k/n
+nm
+log(1/δPE )5 (5/3)
+(max ∥Hi ∥(1 + Γ)k)1+1/n
+1/n
+
+ϵint ϵPE
+
+.
+
+(B.16)
+
+There are two competing tendencies in the cost. The number of operator exponentials
+increases polynomially with n, but the scaling with the error tolerance improves exponentially with n. Setting these two equal to each other to estimate the optimal scaling
+yields
+2
+
+n =
+
+mk(5/3)k maxi ∥Hi ∥(1 + Γ)
+ϵint
+
+!1/n
+
+.
+
+(B.17)
+
+Under the assumption that ϵint ≤ 5/3, the solution is of the form
+
+
+n=
+
+ln mk(5/3)k maxi ∥Hi ∥(1 + Γ)ϵ−1
+int
+
+
+
+
+
+
+
+
+
+
+2LambertW ln mk(5/3)k maxi ∥Hi ∥(1 + Γ)ϵ−1
+int /2
+
+
+
+
+∈ O log mk(5/3)k max ∥Hi ∥(1 + Γ)ϵ−1
+int
+i
+
+(B.18)
+
+
+
+.
+
+Finally, we have from Theorem 5 that the error in the interpolated eigenvalue is within
+ϵ provided that the error in the data satisfies
+
+
+2
+2
+log(n + 1) + 1 max |λk (si ) − λ̃k (si )| ≤
+log(n + 1) + 1 ϵPE ≤ ϵ.
+i
+π
+π
+
+
+
+
+
+
+(B.19)
+
+Taking ϵPE to satisfy this, the number of exponentials scales via equation (B.16) as
+2
+k
+e m k(25/3) max ∥Hi ∥(1 + Γ) ,
+Nexp ∈ O
+ϵ
+
+!
+
+(B.20)
+
+where we’ve also implemented (B.17). By the union bound, the total probability of
+failure is at most 1/3.
+
+45
+
+C Proof of Theorem 16
+Per the statement of the theorem, we would like to estimate the error between the Discrete Fourier Transform (DFT) and corresponding samples of the Fourier transform of
+the continuous Gaussian distribution. We split this analysis in three parts: calculating
+time-domain truncation errors, estimating frequency-domain truncation errors (nonzero sampling rate), and finally calculate the error coming from renormalization. Figure 6 gives an schematic representation of the analysis, including the resulting big-O
+bounds.
+
+X1/T 2qkT
+2q N (σ,T,m)
+
+ϵtrunc ∈ O
+
+
+
+2m/4
+2q/2 eΩ(2m )
+
+)
+
+(
+
+√
+
+ϵalias ∈ O
+
+
+
+2m/4
+
+
+k
+
+2q/2 eΩ(2m )
+
+T
+
+√Xq( 2q T )
+
+2 N (σ,T,m)
+
+
+
+ϵrenorm ∈ O
+
+
+
+2(m−q)/2
+exp(Ω(2m ))
+
+
+
+k
+
+X[k]
+ϵtotal ≤ ϵtrunc + ϵalias + ϵrenorm ∈ O
+
+√
+
+
+
+2m
+
+2q/2 eΩ(2m )
+
+
+
+√X ( 2q T )
+
+N (σf ,F,q)
+
+Figure 6: Schematic representation of the error estimation
+between
+the DFT of x[n], X[k], and
+
+
+k
+the re-normalized samples of the Fourier transform X 2q T . At the edges of the diagram, we
+have noted the additive error between the expressions at the nodes.
+
+For reference, here are some useful definitions which we will use in the proof to
+follow.
+1
+2
+2
+p(w; σ) := √ e−w /(2σ )
+(C.1)
+σ 2π
+x(w) :=
+
+q
+
+p(w; σ)
+
+(C.2)
+
+X(f ) := F{x}(f ) =
+
+Z
+
+x(t)e−2πitf dt
+
+(C.3)
+
+R
+
+X1/T
+
+k
+q
+2T
+
+!
+
+:=
+
+∞
+X
+
+q
+
+x(nT ) · e−i2πkn/2
+
+k = −2q−1 , . . . , 2q−1 − 1
+
+(C.4)
+
+n=−∞
+2m−1
+X−1
+
+N (σ, T, m) :=
+
+|x(nT )|2
+
+(C.5)
+
+n=−(2m−1 −1)
+
+x[n] :=
+X[k] :=
+
+
+
+
+1
+x(nT )
+N (σ,T,m)1/2
+
+n = −2m−1 − 1, . . . , 2m−1 − 1
+n = −2m−1
+
+0
+
+1
+
+2m−1
+X−1
+
+2q/2
+
+n=−(2m−1 −1)
+
+q
+
+x[n] · e−i2πkn/2
+46
+
+(C.6)
+(C.7)
+
+It will also be convenient to define the Fourier dual sampling rates and widths,
+respectively.
+F := (2q T )−1
+σf := (4πσ)−1
+
+(C.8)
+(C.9)
+
+C.1 Truncation Error
+The error between the scaled Discrete-time Fourier Transform (DTFT)
+X1/T
+q
+
+
+
+
+
+k
+2q T
+
+(C.10)
+
+2q N (σ, T, m)
+
+and the untruncated DFT X[k] of Equation (C.7) can be estimated to be
+
+
+m−1
+
+
+
+∞
+−2
+q
+X
+X q
+1
+
+ϵtrunc = q/2
+p(nT
+;
+σ)
++
+p(nT ; σ)
+2 N (σ, T, m)1/2 n=2m−1
+n=−∞
+
+=
+
+2ϵ̃trunc
+,
+q/2
+2 N (σ, T, m)1/2
+
+(C.11)
+
+where
+∞
+X
+
+ϵ̃trunc :=
+
+q
+
+p(nT ; σ).
+
+(C.12)
+
+n=2m−1
+
+We can upper bound ϵ̃trunc using a right-Riemann sum approximation of the error
+function,
+!
+r √
+∞
+q
+X
+T (2m /2 − 1)
+π σ
+4
+p(nT ; σ) ≤
+erfc
+2 T
+2σ
+n=2m /2
+and together with the simple bound [46]
+erfc x ≤ e−x
+
+2
+
+(x > 0)
+
+(C.13)
+
+we have
+
+!2 
+√
+m−1
+
+
+π
+σ
+T
+(2
+−
+1)
+ϵ̃trunc ≤ 4
+exp −
+.
+
+
+2 T
+2σ
+r
+
+(C.14)
+
+Finally, we can express the truncation error ϵtrunc , using (C.11) and the fact that
+N (σ, T, m) ∈ O(1/T ).
+√
+
+
+
+T (2m−1 −1)
+
+−
+2σ
+23/4 π 1/4 Tσ e
+ϵtrunc ≤
+2q/2 N (σ, T, m)1/2
+
+2
+
+along
+47
+
+∈O
+
+r
+
+σ −Ω(2m /(σ/T ))
+e
+q
+2T
+
+
+
+(C.15)
+
+C.2 Aliasing error
+Now that we have estimated the error on the DTFT by time-domain truncation, we
+would also like to estimate the aliasing error, that is, the difference between the DTFT
+and the Fourier transform over a period 1/T . This is coming from having a finite
+sampling rate of a function that is not bounded in the frequency domain. In order
+to estimate the aliasing error, we must look at the Fourier transform of a Gaussian
+distribution, which is another Gaussian.
+X(f ) =
+
+q
+
+p(f ; σf )
+
+(C.16)
+
+Now, the DTFT can be expressed in terms of a Fourier transform in the following way
+X1/T (f ) =
+
+∞
+1 X
+X(f − k/T ).
+T k=−∞
+
+(C.17)
+
+Therefore, we define the aliasing error as
+−1
+∞
+1
+1 X
+1 X
+ϵ̃alias := X1/T (f ) − X(f ) =
+X(f − k/T ) +
+X(f − k/T ).
+T
+T k=−∞
+T k=1
+
+(C.18)
+
+The aliasing error has a critical point at f = 0 and its second derivative is strictly
+positive throughout f = [−1/2T, 1/2T ] and thus we know that the error is largest at
+the boundaries of the DTFT. That is, at f = −1/2T, 1/2T . The error at these two
+points is expected to be the same so we just choose f = 1/2T in order to bound the
+error from above. That means
+−1
+∞
+1 X
+1 X
+ϵ̃alias ≤
+X(1/2T − k/T ) +
+X(1/2T − k/T )
+T k=−∞
+T k=1
+∞
+1 X
+X(1/2T − k/T )
+T k=−∞
+√ 1
+2
+= π 1/4 23/4 σ θ2 (e−(2σπ/T ) )
+T
+∞
+√
+2
+2
+2 X
+= π 1/4 23/4 σ e−(πσ/T )
+(e−4(2πσ/T ) )n(n+1) ,
+T
+n=0
+
+≤
+
+(C.19)
+2
+
+where θ2 (q) ≡ θ2 (0, q) is the 2nd Jacobi theta function [47]. For e−(2πσ/T ) ≤ 1,
+∞
+√ 1
+2
+2 X
+2
+2
+ϵ̃alias ≤ π 1/4 23/4 σ · 2e−π (σ/T )
+(e−4π (σ/T ) )n
+T
+n=0
+
+
+√
+1
+1
+2
+2
+1/4 3/4
+−π (σ/T )
+=π 2
+σ · 2e
+T
+1 − e−4π2 (σ/T )2
+
+48
+
+!
+
+(C.20)
+
+2
+
+2
+
+For e−4π (σ/T ) ≤ 1/2
+
+√ 1  −π2 (σ/T )2
+1
+ϵ̃alias ≤ π 2
+σ · 2e
+T
+1 − e−4π2 (σ/T )2
+√ 1
+2
+2
+≤ 4π 1/4 23/4 σ · e−π (σ/T )
+T
+1/4 3/4
+
+(C.21)
+
+Therefore, the error ϵalias between
+X1/T (k/(2q T ))
+2q/2 N (σ, T, m)1/2
+
+(C.22)
+
+X (k/(2q T ))
+T 2q/2 N (σ, T, m)1/2
+
+(C.23)
+
+and
+
+can be estimated using (C.21) to be
+√
+2
+2!
+4π 1/4 23/4 σ T1 · e−π (σ/T )
+.
+2q/2 N (σ, T, m)1/2
+
+ϵ̃alias
+≤
+ϵalias = q/2
+2 N (σ, T, m)1/2
+
+(C.24)
+
+Thus, with a choice of
+√
+σ
+∼ 2m ,
+T
+
+(C.25)
+
+both sources of error can be bounded with
+2m/4
+ϵtrunc = O q/2 Ω(2m )
+2 e
+
+!
+
+2m/4
+ϵalias = O q/2 Ω(2m ) .
+2 e
+!
+
+(C.26)
+
+This means that after the DFT, we know that we will have in the register the amplitude
+s
+
+F
+X (kF ) + ϵDFT ,
+T N (σ, T, m)
+
+(C.27)
+
+where ϵDFT is the total error from both truncation as well as aliasing. We then bound
+the error by summing (C.21) and (C.10) to find
+ϵDFT ≤
+
+√
+(8π)1/4 σ
+q
+
+T 2q N (σ, T, m)
+
+−
+
+e
+
+
+
+T (2m−1 −1)
+2σ
+
+√
+(8π)1/4 σ
+
+2
+
+2
+
+2
+
++4 q
+e−π (σ/T )
+q
+T 2 N (σ, T, m)
+
+2m/4
+≤ 2 max (ϵalias , ϵtrunc ) ∈ O q/2 Ω(2m ) .
+2 e
+!
+
+49
+
+(C.28)
+
+C.3 Renormalization error and ultimate additive error
+We know that the signal after DFT has to be normalized, we also know that it is
+locally ϵDFT close to Equation (C.23), which is not necessarily normalized. Therefore,
+for the norm of samples of Equation (C.23) we obtain the following upper bound on
+normalization ratios
+X
+F
+F N (σf , F, q)
+|X (kF )|2 =
+T N (σ, T, m) k
+T N (σ, T, m)
+
+F
+=1−2
+T N (σ, T, m)
+≤ 1 + ∥⃗ϵDFT ∥2
+≤ 1 + ∥⃗ϵDFT ∥
+
+!1/2
+
+
+
+
+
+⃗ + ∥⃗ϵDFT ∥2
+ℜ ⃗ϵDF T · X
+
+≤ 1 + ϵDFT 2q/2 ,
+
+(C.29)
+
+where we have used the assumption ∥⃗ϵDF T ∥ ≤ 1. Similarly, the lower bound is
+X
+F
+X
+T N (σ, T, m) k
+
+k
+q
+2T
+
+!2
+
+=
+
+F N (σf , F, q)
+T N (σ, T, m)
+
+F
+≥1−2
+T N (σ, T, m)
+
+!1/2
+
+
+
+!1/2
+
+(C.30)
+
+≤ 1 + ϵDFT 2q/2
+
+(C.31)
+
+F N (σf , F, q)
+T N (σ, T, m)
+
+q/2
+
+≥ 1 − 2ϵDFT 2
+
+
+
+ℜ ∥⃗ϵDFT ∥∥ ⃗
+X∥
+
+
+
+≥ 1 − 2ϵDFT 2q/2 1 + ∥⃗ϵDFT ∥2
+
+
+
+≥ 1 − 4ϵDFT 2q/2 .
+Thus, if we take the full inequality
+1 − 4ϵDFT 2
+
+q/2
+
+F N (σf , F, q)
+T N (σ, T, m)
+
+≤
+
+!
+
+and take the square root, we obtain,
+q/2
+
+1 − 2ϵDFT 2
+
+≤
+
+F N (σf , F, q)
+T N (σ, T, m)
+
+!1/2
+
+≤ 1 + ϵDFT 2q/2 ,
+
+(C.32)
+√
+√
+where we have used 1 + x ≤ 1 + x and 1 − x ≥ 1 − x/2 for x ≤ 1. We now divide
+every side by N (σf , F, q) to obtain
+1/N (σf , F, q)1/2 − 2ϵDFT 2q/2 /N (σf , F, q) ≤
+50
+
+F
+T N (σ, T, m)
+
+!1/2
+
+≤
+
+√
+1/N (σf , F, q)1/2 + ϵDFT 2q /N (σf , F, q)1/2 .
+(C.33)
+Subtract 1/N (σf , F, q), which gives
+s
+
+− 2ϵDFT
+s
+
+≤ ϵDFT
+
+2q
+≤
+N (σf , F, q)
+
+s
+
+F
+−
+T N (σ, T, m)
+
+s
+
+1
+N (σf , F, q)
+
+2q
+.
+N (σf , F, q)
+
+(C.34)
+
+We multiply these inequalities by max |X(k)|
+s
+
+− 2ϵDFT
+s
+
+≤
+
+2q
+N (σf , F, q)
+
+1
+2πσf2
+
+F
+−
+T N (σ, T, m)
+
+s
+
+s
+
+1
+2πσf2
+
+≤ ϵDFT
+
+2q
+N (σf , F, q)
+
+!1/4
+
+!
+
+1
+max |X(k)|
+N (σf , F, q)
+!1/4
+
+.
+
+(C.35)
+
+We take the absolute value to have a two-sided inequality, and use the definitions (C.8)
+and (C.9).
+s
+
+F
+−
+T N (σ, T, m)
+
+s
+
+1
+max |X(k)|
+N (σf , F, q)
+!1/4
+
+s
+
+1
+(4πσ)2
+≤ 2ϵDFT
+T F N (σf , F, q)
+2π
+s
+√
+(8π)1/4 σ
+1
+q
+≤2
+q
+T 2 N (σ, T, m) T F N (σf , F, q)
+
+n
+
+max 4 exp −π 2 (σ/T )2
+σ
+≤4
+T
+
+s
+
+o
+
+(4πσ)2
+2π
+
+!1/4
+
+
+
+
+!2 
+
+
+
+
+
+
+
+!2 
+
+
+
+
+2m−1 − 1
+, exp −
+
+2σ/T
+
+2π
+2q T N (σ, T, m)F N (σf , F, q)
+
+n
+
+max 4 exp −π 2 (σ/T )2
+
+o
+
+2m−1 − 1
+, exp −
+
+2σ/T
+
+(C.36)
+
+It is worth noting that, for the purpose of estimating (T N (σ, T, m))1/2 , we can
+increase 2q arbitrarily (or decrease F arbitrarily). Through this, we see that:
+(2q−1 − 1/2)F
+√
+lim F N (σf , F, q) = lim erf
+F →0
+F →0
+2σf
+51
+
+!
+
+= erf
+
+√
+
+2πσ/T
+
+
+
+≥1−
+exp
+
+√
+
+1
+2πσ/T
+
+(C.37)
+
+2
+
+For our choice of Tσ this would mean that
+2m/4
+=1−O
+,
+exp (Ω(2m ))
+!
+
+1/2
+
+(T N (σ, T, m))
+
+(C.38)
+
+and
+T 1/2 N (σ, T, m)1/2 = F 1/2 N (σf , F, q)1/2
+−T
+
+1/2
+
+1/2
+
+N (σ, T, m)
+
+2m/4
+O
+exp (Ω(2m ))
+
+!
+
+2m/4
+.
+−O
+exp (Ω(2m ))
+!
+
+=F
+
+1/2
+
+1/2
+
+N (σf , F, q)
+
+(C.39)
+
+Therefore, the amplitudes that we get on the ancillary register are
+1
+q
+
+N (σf , F, q)
+
+X
+
+k
+q
+2T
+
+!
+
+!
+
+2(m−q)/2
++O
++ ϵDFT .
+exp (Ω(2m ))
+
+(C.40)
+
+D Proofs of State Preparation and Ground State Energy Extrapolation Costs
+Here we prove results related to the costs of state preparation and phase estimation for
+extrapolation of the ground state energy, from Theorem 15 and Theorem 17 respectively.
+
+D.1 Proof of Lemma 12
+Proof. Let λm−1 , λm , and λm+1 be consecutive simple eigenvalues of H
+λm−1 < λm < λm+1
+
+(D.1)
+
+such that |λm − λm−1 | ≥ γ0 , and |λm − λm+1 | ≥ γ0 . With λ(τ ) as in the lemma
+statement, we have λm (0) = λm for all indices m. By Lemma 11, there exist eigenvalues
+λj (τ ), λk (τ ), and λl (τ ) of H̃z such that
+max
+
+τ ∈{τ :|τ |≤r}
+
+max
+
+|λm−1 (0) − λj (τ )| ≤
+
+τ ∈{τ :|τ |≤r}
+
+max
+
+τ ∈{τ :|τ |≤r}
+
+|λm (0) − λk (τ )| ≤
+
+|λm+1 (0) − λl (τ )| ≤
+
+52
+
+max
+
+∥H − H̃z ∥
+
+max
+
+∥H − H̃z ∥
+
+max
+
+∥H − H̃z ∥
+
+τ ∈{τ :|τ |≤r}
+τ ∈{τ :|τ |≤r}
+τ ∈{τ :|τ |≤r}
+
+(D.2)
+
+for some j, k, and l. We are guaranteed that j ̸= m, l ̸= m and k = m if
+max
+
+τ ∈{τ :|τ |≤r}
+
+∥H − H̃z ∥ ≤ γ0 /2.
+
+(D.3)
+
+|τ |p β|τ |
+e ,
+(p + 1)!
+
+(D.4)
+
+Assuming we have the upper bound
+∥H − H̃z ∥ ≤ α
+
+this guarantee can be satisfied by the constraint
+|τ |p β|τ |
+rp
+α
+e
+=α
+eβr .
+(p + 1)!
+(p + 1)!
+!
+
+γ0 /2 ≥
+
+max
+
+τ ∈{τ :|τ |≤r}
+
+(D.5)
+
+Solving for r on the last inequality gives us
+
+
+p
+β
+r ≤ LambertW 
+β
+p
+
+γ0 (p + 1)!
+2α
+
+!1/p 
+.
+
+(D.6)
+
+If λm is the ground state or highest state of H, we just repeat a similar proof except
+there is only one state above or below respectively.
+
+D.2 Proof of Lemma 13
+Proof. We take a look at the complex-time Schrödinger equation for Sp (τ ).
+A
+
+z
+
+}|
+
+{
+
+(D.7)
+
+Ω(τ ) = log Sp (τ )
+
+(D.8)
+
+Sp′ (τ ) = i(H + E (τ )) Sp (τ )
+We now recall that we can express
+
+through the Magnus expansion for the complex-time derivative,
+Ω′ (τ ) =
+
+∞
+X
+
+Bn n
+adΩ (A).
+n=0 n!
+
+(D.9)
+
+We then re-express E(τ ) and expand Ω′
+E(τ ) =
+=
+
+Z
+ZP
+P
+
+=
+
+Z
+P
+
+′
+
+Ω (τ1 )dτ1 −
+
+Z
+P
+
+Hdτ1
+
+(Ω′ (τ1 ) − H) dτ1
+E (τ1 ) +
+
+∞
+X
+Bn
+n=1 n!
+
+53
+
+!
+
+adnΩ(τ1 ) (A(τ1 ))
+
+dτ1 .
+
+(D.10)
+
+Here, P is any path in the complex plane going from τ1 = 0 to τ1 = τ . We now
+expand out the first application of adΩ on A and separate the n = 1 term from the sum
+obtaining:
+E(τ ) =
+
+Z
+
+E (τ1 ) + B1 [Ω(τ1 ), A(τ1 )] +
+
+P
+
+∞
+X
+Bn
+n=2 n!
+
+!
+n−1
+adΩ
+[Ω(τ1 ), A(τ1 )]
+
+dτ1 .
+
+(D.11)
+
+Following this, we make use of the estimation lemma (‘ML‘ inequality) to obtain
+∥E(τ )∥ ≤
+
+Z S
+0
+
+|γP | ∥E ∥ + |B1 | ∥[Ω, A]∥ +
+
+∞
+X
+|Bn |
+n=2
+
+n!
+
+!
+n−1
+adΩ
+
+∥[Ω, A]∥ ds
+(D.12)
+
+1
+where s parametrizes the path P and |γP | ds = dτ
+ds is the arc-length differential.
+ds
+Now, we make use of the bound ∥adΩ ∥ ≤ 2∥Ω∥ to obtain:
+
+∞
+X
+
+!
+
+|Bn |
+|γP | ∥E ∥ + |B1 | ∥[Ω, A]∥ +
+≤
+(2 ∥Ω∥)n−1 ∥[Ω, A]∥ ds
+0
+n=2 n!
+Z S
+
+∞
+∥[Ω, A]∥ X
+|Bn |
+|γP | ∥E ∥ + |B1 | ∥[Ω, A]∥ +
+≤
+(2 ∥Ω∥)n ds
+(2 ∥Ω∥) n=2 n!
+0
+
+!
+
+Z S
+
+(D.13)
+
+We now make use of
+∞
+X
+
+|Bn |
+
+n=2
+
+∞
+X
+|t|n
+|t|2n
+|t|
+|t|
+Bn∗
+=
+= 1 − cot
+n!
+(2n)!
+2
+2
+n=1
+
+for |t| ≤ 2π
+
+(D.14)
+
+to obtain:
+!
+
+1
+∥[Ω, A]∥
+|γP | ∥E ∥ + ∥[Ω, A]∥ +
+∥E(τ )∥ ≤
+(1 − ∥Ω∥ cot ∥Ω∥) ds
+2
+(2 ∥Ω∥)
+0
+!!
+Z S
+1
+1
+1
+|γP | ∥E ∥ + ∥[Ω, A]∥ + ∥[Ω, A]∥
+≤
+− cot ∥Ω∥ ds
+2
+2
+∥Ω∥
+0
+Z S
+
+(D.15)
+We now assume that
+|γP | =
+
+dτ
+= 1,
+ds
+
+(D.16)
+
+and
+s = |τ1 |,
+
+54
+
+(D.17)
+
+thus
+∥E(τ )∥ ≤
+
+Z |τ |
+
+1
+1
+1
+∥E ∥ + ∥[Ω, A]∥ + ∥[Ω, A]∥
+− cot ∥Ω∥
+2
+2
+∥Ω∥
+
+0
+
+!!
+
+ds.
+
+(D.18)
+
+We assume
+!
+
+1
+− cot ∥Ω∥ ≤ 1,
+∥Ω∥
+
+(D.19)
+
+∥E(τ )∥ ≤ 1.
+
+(D.20)
+
+which is fulfilled provided
+
+Now,
+∥E(τ )∥ ≤
+
+Z |τ |
+
+(∥E ∥ + ∥[Ω, A]∥) ds.
+
+(D.21)
+
+0
+
+Recalling that Ω(τ ) = E(τ ) + τ H,
+∥[Ω, A]∥ = ∥[E + τ H, E + H]∥ ≤ 2∥E∥ (∥E ∥ + ∥H∥) + 2|τ |∥H∥∥E ∥.
+
+(D.22)
+
+Plugging back into Equation (D.21) and using estimation lemma for ∥E∥ inside the
+integral we obtain:
+∥E(τ )∥ ≤
+
+Z |τ |
+
+(∥E ∥ + 2s∥H∥∥E ∥) ds + 2 max ∥E(τ̃ )∥
+|τ̃ |≤|τ |
+
+0
+
+Z |τ |
+
+(∥E ∥ + ∥H∥) ds.
+
+(D.23)
+
+0
+
+We now do the relabelling τ → τ2 and then take max|τ2 |≤|τ | of both sides
+max ∥E(τ2 )∥ ≤ max
+
+|τ2 |≤|τ |
+
+Z |τ2 |
+
+|τ2 |≤|τ | 0
+
+(∥E ∥ + 2s∥H∥∥E ∥) ds + 2 max ∥E(τ2 )∥ max
+|τ2 |≤|τ |
+
+Z |τ2 |
+
+|τ2 |≤|τ | 0
+
+(∥E ∥ + ∥H∥) ds,
+(D.24)
+
+which becomes
+max ∥E(τ2 )∥ ≤
+
+|τ2 |≤|τ |
+
+Z |τ |
+0
+
+(∥E ∥ + 2s∥H∥∥E ∥) ds + 2 max ∥E(τ2 )∥
+
+Z |τ |
+
+|τ2 |≤|τ |
+
+(∥E ∥ + ∥H∥) ds,
+
+0
+
+(D.25)
+Solving for max|τ2 |≤|τ | ∥E(τ2 )∥
+R |τ |
+
+max ∥E(τ2 )∥ ≤
+
+|τ2 |≤|τ |
+
+0
+
+(∥E ∥ + 2s∥H∥∥E ∥) ds
+R |τ |
+
+1 − 2|τ |∥H∥ − 2 0 ∥E ∥ds
+R |τ |
+
+≤
+
+(1 + 2|τ |∥H∥) 0 (∥E ∥) ds
+R |τ |
+
+1 − 2|τ |∥H∥ − 2 0 ∥E ∥ds
+55
+
+(D.26)
+We now assume
+Z |τ |
+
+∥E ∥ds ≤ 1/8
+
+(D.27)
+
+|τ | ≤ 1/8,
+
+(D.28)
+
+0
+
+and
+
+thus,
+∥E(τ )∥ ≤ max ∥E(τ2 )∥ ≤
+|τ2 |≤|τ |
+
+5 Z |τ |
+∥E (τ1 )∥ds.
+2 0
+
+(D.29)
+
+D.3 Proof of Lemma 14
+Our task here is to show that a bound of the form shown (3.17) actually exists, and
+for this we follow closely the work done in [18]. In order to make assertions over the
+general complex plane we will extend their results to complex time. The extension will
+be straightforward because
+eiτ A
+has no singularities except for non-removable singularities at Im(τ ) ∈ {−∞, ∞} for
+a Hermitian A and at Im(τ ) = −∞ when it is positive semi-definite. Thus, we can
+replace all the real-axis integrals
+Z
+t
+
+0
+
+f (t1 )dt1
+
+for the contour integrals
+Z
+C
+
+f (τ1 )dτ1 ,
+
+where P is any path from 0 to a generally complex τ as long as that path does not
+include Im(τ ) ∈ {−∞, ∞}. Our results are summarized by the following
+Proof. First, we define a general product formula the following way
+S (τ ) :=
+
+Υ
+Y
+
+m
+Y
+
+eiτ a(υ,m) Hπυ (m) ,
+
+(D.30)
+
+υ=1 m=1
+
+where the coefficients a(υ,m) are real numbers. The parameter Υ denotes the number
+of stages of the product formula. For example, for the ST formula S2k (t), we have
+Υ = 2 · 5k−1 . The permutation πυ controls the ordering of operator summands within
+
+56
+
+stage υ of the product formula. We then consider the error in the effective Hamiltonian
+with the help of the definition of the path-ordered exponential:
+S (τ ) = expP i
+
+Z
+
+
+
+
+
+!
+
+dτ H + E (τ )
+
+.
+
+(D.31)
+
+Using this definition and Lemma 13, we can write the operator error on the Hamiltonian
+the following way:
+!
+5 Z |τ |
+H̃z (t) − H ≤
+∥E (τ1 )∥ ds /|τ |.
+(D.32)
+2 0
+where s in this context is |τ1 |. Let ⪰ be a lexicographic, or dictionary, ordering on
+tuples (υ, m), i.e. (υ, m) ⪰ (υ ′ , m′ ) if υ > υ ′ , or if υ = υ ′ and m ≥ m′ . Let
+←−
+Y
+
+S (τ ) =
+
+eiτ a(υ,m) Hπυ (m) ,
+
+(D.33)
+
+(υ,m)
+
+the operations are applied from right
+be a product formula with ←−
+(υ,m) dictating that
+Q−→
+to left in ascending order according to ⪰. Let (υ,m) refer to descending order. After
+differentiating the evolution operator, and some algebra, one obtains that E (τ ) can be
+expressed as
+Q
+
+E (τ ) =
+
+X
+
+←−
+Y
+
+e
+
+iτ a(υ′ ,m′ ) Hπ ′ (m′ )
+υ
+
+
+
+a(υ,m) Hπυ (m)
+
+(υ,m) (υ ′ ,m′ )≻(υ,m)
+
+
+
+−→
+Y
+
+e
+
+−iτ a(υ′ ,m′ ) Hπ ′ (m′ )
+υ
+
+− H.
+
+(υ ′ ,m′ )≻(υ,m)
+
+(D.34)
+We can bound the norm of this term through the following Taylor expansion of the
+term
+eiτ As · · · eiτ A2 eiτ A1 Be−iτ A1 e−iτ A2 · · · e−iτ As
+= C0 + C1 τ + · · · + Cp−1 τ p−1
++ ip
+
+s
+X
+
+eiτ As · · · eiτ Ak+1
+
+X
+
+k=1 q1 +···+qk =p
+qk ̸=0
+
+·
+
+Z
+C
+
+dτ2 eiτ2 Ak adqAkk · · · adqA11 (B)e−iτ2 Ak ·
+
+−iτ Ak+1
+
+·e
+
+(τ − τ2 )qk −1 τ q1 +···+qk−1
+(qk − 1)!qk−1 ! · · · q1 !
+
+· · · e−iτ As ,
+
+(D.35)
+where adA (B) := [A, B]. We can bound the norm of that last term in Equation (D.35)
+through triangle inequality for contour integrals, and for sake of simplicity, we fix contour C going straight from 0 to τ . We also assume for the moment that matrices Aj
+are positive definite. Thus, the upper bound becomes:
+≤ e2|Im(τ )| ∥Aj ∥
+s
+X
+
+X
+
+s
+Y
+
+k=1 q1 +···+qk =p j=k+1
+qk ̸=0
+
+z
+
+}|
+
+{
+
+∥eiτ Aj ∥∥e−iτ Aj ∥
+
+|τ |q1 +···+qk−1
+adqAkk · · · adqA11 (B)
+(qk − 1)!qk−1 ! · · · q1 !
+57
+
+≤ e2|Im(τ2 )| ∥Ak ∥
+
+Z
+
+qk −1
+
+C
+
+≤
+
+s
+X
+
+dτ2 |τ − τ2 |
+
+z
+
+∥e
+
+iτ2 Ak
+
+}|
+
+−iτ2 Ak
+
+∥∥e
+
+{
+
+∥
+
+(D.36)
+
+Ps
+p
+|τ |p
+2|τ |
+∥Aj ∥
+q1
+qk
+j=k
+adAk · · · adA1 (B) e
+q1 · · · qk p!
+!
+
+X
+
+k=1 q1 +···+qk =p
+qk ̸=0
+
+(D.37)
+
+Ps
+p
+|τ |p
+2|τ |
+∥Aj ∥
+q1
+qs
+j=1
+adAs · · · adA1 (B) e
+q1 · · · qs p!
+!
+
+≤
+
+X
+q1 +···+qs =p
+
+
+
+= αcomm As , . . . , A1 , B
+
+ |τ |p
+
+p!
+
+e2|τ |
+
+Ps
+j=1
+
+∥Aj ∥
+
+(D.38)
+
+,
+
+(D.39)
+
+where
+
+
+
+
+αcomm As , . . . , A1 , B :=
+
+X
+q1 +···+qs =p
+
+p
+q1 · · · qs
+
+!
+
+adqAss · · · adqA11 (B) .
+
+(D.40)
+
+Thus, the upper bound on ∥E (τ )∥ is
+∥E (τ )∥ ≤
+
+X
+
+
+
+αcomm a(Υ,m) HπΥ (m) , . . . , a(υ,m+1) Hπυ (m+1) , a(υ,m) Hπυ (m)
+
+
+
+(υ,m)
+
+|τ |p 2|τ |
+·
+e
+p!
+
+P
+
+(υ ′ ,m′ )≻(υ,m)
+
+a(υ′ ,m′ ) Hπ ′ (m′ )
+υ
+
+,
+
+(D.41)
+
+where (υ, m + 1) = (υ + 1, 1). With this, the upper bound in ∥H̃z (t) − H∥
+H − H̃z ≤
+
+
+
+5 X
+αcomm a(Υ,m) HπΥ (m) , . . . , a(υ,m+1) Hπυ (m+1) , a(υ,m) Hπυ (m)
+2 (υ,m)
+
+|τ |p 2|τ |
+·
+e
+(p + 1)!
+≤
+
+P
+
+a(υ′ ,m′ ) Hπ ′ (m′ )
+
+(υ ′ ,m′ )≻(υ,m)
+
+υ
+
+
+
+5 X
+αcomm a(Υ,m) HπΥ (m) , . . . , a(υ,m+1) Hπυ (m+1) , a(υ,m) Hπυ (m)
+2 (υ,m)
+
+|τ |p 2|τ | Pm
+∥Hj ∥
+j
+e
+·
+(p + 1)!
+
+(D.42)
+
+D.4 Avoiding fractional queries
+For the Gaussian QPEA defined in Section 3.2.3, we must define the Ũsk operator. A
+first attempt looks the following way
+
+
+n
+
+Ũsk = (Sp (tsk ))ek = exp −itsk H̃sk
+
+58
+
+oek
+
+,
+
+(D.43)
+
+where sk are the Chebyshev nodes with a = 1, and
+s1
+,
+sk
+
+(D.44)
+
+T = s1 t,
+
+(D.45)
+
+ek =
+such that the total simulation times
+
+which is the same for each Ũsk .
+This, however, will require fractional powers of (that is, a non-integer number of
+queries of) Sp (tsk ). Although this can be efficiently achieved through quantum signal
+processing and one extra ancillary qubit, within this section we would like to stay as
+rudimentary as possible, minimizing quantum overhead. Hence, we will instead use the
+evolution operator
+′
+Ũs′ k = (Sp (tsk ))ek = exp
+
+(
+
+&
+
+−itsk sgnsk
+
+'
+
+)
+
+s1
+H̃sk .
+|sk |
+
+(D.46)
+
+Here,
+&
+
+e′k = sgn sk
+
+'
+
+s1
+,
+|sk |
+
+(D.47)
+
+is an integer by construction. For this new operator Ũs′ k , the Trotter step size remains
+dt = tsk ,
+
+(D.48)
+
+but the total time evolution changes to
+&
+
+Tk′ = e′k × dt = tsk sgnsk
+
+'
+
+s1
+= Θ(ts1 ).
+|sk |
+
+(D.49)
+
+We note that now the equivalent evolution time Tk′ varies for different k’s, but this has
+a negligible effect in state preparation (See Theorem 15) or in eigen energy estimation
+(See Theorem 17) with respect to the effective Hamiltonian H̃sk .
+When it comes to query cost, this has the effect of increasing the resolution and the
+cost of QPEA by a factor of
+|e′k |
+≤ 2.
+|ek |
+
+(D.50)
+
+As a last step before jumping into the proof of Theorem 15 we will first discuss
+some estimates for the coefficients of the terms in the extrapolation. The first such
+result is given in In the framework we propose here, most algorithms’ cost will scale
+proportionally to ∥e′ ∥1 ≤ 2∥e∥1 .
+59
+
+D.5 Proof of Theorem 15
+Proof of Theorem 15. In the framework we propose here, most algorithms’ cost will
+scale from Lemma 3
+∥e′ ∥1 ≤ 2∥e∥1 = 2s1
+
+n
+X
+
+1
+= O (n log n) .
+k=1 |sk |
+
+(D.51)
+
+For example, the ground state preparation methods detailed in [36] would scale proportionally to ∥e∥1 . More precisely, the cost of state preparation scales with the minimum
+eigenvalue gap as
+∥e′ ∥1
+,
+Cprep = O
+t mink (E1 (sk ) − E0 (sk ))
+!
+
+(D.52)
+
+where, from Lemma 11 and the fact that the spectral gap is bounded below by γ0 , we
+have that
+min (E1 (sk ) − E0 (sk )) ≥ γ0 − max ∥H − H̃s (t1 )∥
+t1 ≤t,s≤1
+
+k
+
+≥ γ0 − O (tp ) .
+
+(D.53)
+
+1/p
+
+Thus, for t = O(γ0 ),
+min (E1 (sk ) − E0 (sk )) = Ω(γ0 ).
+
+(D.54)
+
+k
+
+From Lemma 12, we also have that
+
+
+(p + 1)!
+r = Ω
+2p+1
+
+!1/p
+
+1/p
+
+
+
+γ0 
+t
+
+(D.55)
+
+Recalling Lemma 10 that the interpolation error
+ϵ=O
+
+1
+
+!
+
+(D.56)
+
+ρM +1
+
+Thus, solving for n we find:
+log 1/ϵ
+n=O
+log ρ
+
+!
+
+(D.57)
+
+We also have that the radius of the Bernstein elipse needed satisfies ρmax = Θ(rmax )
+from Lemma 12; hence,
+!
+
+p log(1/ϵ)
+n=O
+) .
+p
+log (γ0 /t ) + log((p + 1)!/2p+1
+60
+
+(D.58)
+
+It is clear that a constraint is
+
+
+1/p
+
+t = Ω γ0
+
+
+
+,
+
+(D.59)
+
+since we need the radius to be a quantity greater than 1 and there is no advantage in
+going to a much smaller t. Finally, the cost for state preparation is
+log(1/ϵ) log log(1/ϵ)
+
+Cprep = O
+
+!
+
+1+1/p
+
+γ0
+
+.
+
+(D.60)
+
+D.6 Proof of Theorem 17
+Proof of Theorem 17. Now, the cost of estimating the energy through GPE would,
+naively speaking, also scale like O (n log n). However, to get a tighter cost bound, we
+will allow the variances of observables to vary across nodes and then minimize the cost
+function:
+L0 =
+
+n/2
+X
+
+1
+2k−1
+k=1 σk cos 2n π
+
+(D.61)
+
+c2k σk2 − σP2 = 0.
+
+(D.62)
+
+with the constraint
+2
+
+n/2
+X
+k=1
+
+Thus, we the cost function with Lagrange multiplier is:
+
+
+L = L0 + λ 2
+
+n/2
+X
+
+
+
+c2k σk2 − σP2  .
+
+(D.63)
+
+k=1
+
+Note that the terms in the cost function L0 go like 1/σk due to Fourier duality and
+Theorem 16 and the other factor is from the cost of a single Uk implementation. After
+doing the minimization we are left with:
+3/2
+
+
+
+n/2
+21/2  X
+|ck |2/3
+
+
+L0 =
+σP k=1 cos2/3 2k−1 π
+2n
+σP
+σk =
+1/2 .
+
+ P
+n/2
+|ck |2/3
+2k−1
+1/2
+2/3
+1/3
+2 |ck | cos
+π
+k=1 cos2/3 ( 2k−1 π )
+2n
+2n
+
+(D.64)
+
+The optimal L0 goes as
+L0 ∈ O
+
+
+
+61
+
+n
+σP
+
+
+
+.
+
+(D.65)
+
+Now, the cost for estimating the interpolant with a variance of σP and a bias ϵ using
+Gaussian phase estimation is
+log 1/ϵ
+Cest ∈ O
+σP
+
+!
+
+(D.66)
+
+On the other hand, using Lemma 4, if one wishes to estimate the energy using a single
+ancillar qubit approach, the cost of estimating the energy is
+!
+
+log 1/ϵ log log 1/ϵ
+,
+Cest,1−qubit ∈ O
+ϵ
+
+(D.67)
+
+where ϵ is the semi-deterministic error coming from the Heisenberg-limited estimation
+algorithms like IQAE [43] or the one in Ref. [48], or non-Heisenberg-limited alternatives
+like the semi-classical QPE [49, 50], the single-qubit version of the textbook QPE [51].
+
+E Cost asymptotics for expectation values
+Here we provide proofs for Lemma 18 and Theorem 19 as stated in Section 4 of the
+main paper.
+Proof of Lemma 18. For scalar functions f (s), derivatives of exp(f (s)) can be expressed
+through the complete Bell polynomials via Faà di Bruno’s formula.
+∂sn ef (s) = Yn (f ′ (s), f ′′ (s), . . . , f (n) (s))ef (s)
+
+(E.1)
+
+For operator exponentials such as exp(−iH̃s t), derivatives can be expressed via repeated
+application of Duhamel’s formula. Yet these expressions are always upper bounded by
+the commuting (scalar) case [52], so that
+
+
+∂sn e−iH̃s t ≤ Yn t ∂s H̃s , t ∂s2 H̃s , . . . , t ∂sn H̃s
+
+
+
+.
+
+(E.2)
+
+Note that the exponential disappeared in the bound since it has norm one. Applying
+Lemma 1 and invoking the fact that Yn is monotonic in each argument, this is upper
+bounded by
+
+
+
+
+Yn (2j j (e2 c)j+1 )nj=1 .
+
+(E.3)
+
+An explicit formula for this is given by
+Yn
+
+
+
+j
+
+(2j (e c)j+1 )nj=1
+2
+
+
+
+n
+Y
+n!
+2j j (e2 c)j+1
+=
+j!
+D d1 ! . . . dn ! j=1
+
+X
+
+62
+
+!dj
+
+(E.4)
+
+where D is a sum over all indices (dj )nj=1 such that dj ≥ 0 and
+n
+X
+
+dj j = n.
+
+(E.5)
+
+j=1
+
+Using a Stirling-type bound
+e
+j
+
+1
+≤
+j!
+
+!j
+
+1
+√
+2π
+
+(E.6)
+
+allows us to write
+dj
+
+s
+
+
+
+Yn (2j j (e2 c)j+1 )nj=1
+
+
+
+n
+Y
+n!
+2 j 2 j+1 
+
+≤
+e (e c)
+π
+D d1 ! . . . dn ! j=1
+
+X
+
+dj
+
+s
+
+n
+Y
+2 2 
+n!
+
+= (e3 c)n
+ec
+π
+D d1 ! . . . dn ! j=1
+
+X
+
+q
+
+= (e3 c)n Yn ( 2/πe2 c,
+
+q
+
+(E.7)
+
+q
+
+2/πe2 c, . . . , 2/πe2 c)
+
+q
+
+= (e3 c)n Bn ( 2/πe2 c).
+In the second line we brought out n factors of ec using the condition on the indices D,
+and we identified Yn evaluated the same at every argument to be
+q the single-variable
+Bell (or Touchard) polynomial Bn . We can bound the size of Bn ( 2/πe2 c) [53] by
+
+
+Bn ( 2/πe2 c) ≤ 
+
+n
+
+n
+
+q
+
+log(1 +
+
+q
+
+π
+n/(e2 c))
+2
+
+(E.8)
+
+
+
+for all n > 0, with n = 0 defined by the limit (which is 1). With this,
+
+
+∂sn e−iH̃s t
+
+≤
+
+n
+
+e3 cn
+log(1 +
+
+q
+
+π
+n/(e2 c))
+2
+
+≤
+
+
+
+e3 cn
+2
+
+!n 
+1 +
+
+s
+
+n
+
+8 e2 c 
+π n
+
+(E.9)
+
+where we’ve used the bound 1/ log(1 + x) ≤ 1/2 + 1/x. Again, this inequality is valid
+for n = 0 via the limit, which is always one.
+With this bound on the ST formula derivatives, we now turn to bounding ∂sn Os (t).
+Applying the binomial theorem and triangle inequality to (2.13),
+n
+X n
+∥∂sn Os (t)∥
+≤
+∥O∥
+p=0 p
+
+≤
+
+e3 c
+2
+
+!
+
+∂sp eitH̃s
+
+!n n
+X
+p=0
+
+∂sn−p e−itH̃s
+
+
+!
+
+n p
+p (n − p)n−p 1 +
+p
+
+s
+
+p 
+
+8 e2 c  
+1+
+π p
+
+s
+
+n−p
+
+8 e2 c 
+πn−p
+
+.
+(E.10)
+
+63
+
+At this point, it will be fruitful to consider two regimes. Recall that c encodes information about the simulation time.
+In the case where c > n, we have
+∥∂sn Os ∥
+≤
+∥O∥
+≤
+
+e3 c
+2
+
+!n n
+X
+
+3
+
+!n
+
+ec
+2
+
+p=0
+
+c
+
+n
+
+
+
+1+
+
+q
+
+2
+
+8/πe
+
+n X
+n
+
+n
+p
+
+p=0
+
+r
+
+= c
+
+!
+
+q
+q
+n
+(c + 8/πe2 c)p (c + 8/πe2 c)n−p
+p
+
+e3 (1 +
+
+q
+
+!
+
+(E.11)
+
+!2n
+
+8/πe2 )
+
+.
+
+This implies a relative error in the polynomial fit bounded by
+c2 a
+|En−1 (0)| < 129
+n
+
+!n
+
+.
+
+(E.12)
+
+√
+8 c
+2
+< ece 8/π
+πp
+
+(E.13)
+
+In the case where c ≤ n, the approximation
+
+
+s
+
+1 + e2
+
+p
+
+holds and is not so crude. Applying this to (E.10),
+∥∂sn Os ∥
+≤
+∥O∥
+
+e3 c
+2
+
+!n
+
+n!
+
+n
+X
+pp (n − p)n−p
+p=0 p!
+
+(n − p)!
+
+e
+
+4ce2
+
+√
+2/π
+
+.
+
+(E.14)
+
+Regrouping and employing a Stirling bound where appropriate,
+∥∂sn Os ∥
+∥O∥
+
+√
+2
+
+3
+
+!n
+
+
+
+n
+
+n n−1
+X
+
+
+
+e
+1
+e
+
+q
+n! 2 √
++
+2πn 2π p=1 p(n − p)
+!n
+!
+√
+√
+4
+2
+n−1
+4ce2 2/π e c
+≤e
++
+n! √
+2
+2π
+2πn
+!n
+√
+√
+1 √
+e4 c
+2
+( 8π + n − 1)
+n!e4ce 2/π
+≤
+2π
+2
+s
+!n
+√
+2n e4 c
+2
+≤
+n!e4ce 2/π
+π
+2
+≤ e4ce
+
+2/π
+
+ec
+2
+
+(E.15)
+
+After another Stirling bound, this gives a corresponding interpolation error of
+√
+En−1 (0) < 2 2n (6ca)n e24c .
+(E.16)
+
+64
+
+Proof of Theorem 19. Let f (s) = ⟨Os (t)⟩/ ∥O∥ be the normalized expectation value
+under Trotter evolution. Our interpolation algorithm produces an estimate f¯ of f (0)
+which we require to be accurate within ϵ.
+f (0) − f¯ ≤ ϵ
+
+(E.17)
+
+There is the interpolation error from the polynomial Pn−1 f fitting f assuming perfect interpolation points (si , f (si )). But f (si ) can only be estimated; let’s call ỹi this
+estimate. The error in ỹi in our analysis comes from the statistical error inherent in
+the estimation protocol as well as the error in the fractional query procedure for a 1/s
+evolution. We can independently consider the interpolation error and the data error
+via the triangle inequality.
+f (0) − f¯ ≤ |f (0) − Pn−1 f (0)| + Pn−1 f (0) − P̃n−1 f (0)
+≤ ϵint + Ln ϵdata
+
+(E.18)
+
+Here Ln is the Lebesgue constant of the interpolation, essentially a condition number,
+and ϵdata is an upper bound on the error in the data. P̃n−1 f is the fit to the imperfect
+data and Pn−1 f the fit to the perfect data (si , f (si )). For generic interpolation nodes,
+Ln can grow rapidly; however, for the set of Chebyshev nodes we obtain a near-optimal
+value [54].
+Ln ≤
+
+2
+log(n + 1) + 1
+π
+
+(E.19)
+
+Since we want the total error to be within a threshold ϵ, we can require
+ϵdata ≤
+
+ϵ
+,
+2Ln
+
+ϵ
+ϵint ≤ .
+2
+
+(E.20)
+
+Given these error bounds, we can now turn to the cost of acquiring the data points.
+Because O/γ can be block encoded, the expectation value calculation can be encoded
+as an amplitude estimation problem. Specifically, a Hadamard test circuit gives the
+amplitude
+1 + ⟨Osi (t)⟩/γ
+.
+2
+
+(E.21)
+
+If we estimate this amplitude to within accuracy ϵdata ∥O∥ /2γ, we can estimate f (si )
+within ϵdata . Using Iterative Quantum Amplitude Estimation [43], we can obtain this
+estimate using a Grover iterate G constructed from two Hadamard test oracles. The
+number of Grover oracles NG required is given by
+200γLn
+2n
+γLn π
+NG ≤
+log
+log2
+∥O∥ ϵdata
+δ
+∥O∥ ϵdata
+
+65
+
+!!
+
+(E.22)
+
+to ensure probability 1−δ of all data being within ϵdata of the true value. Each G requires
+two Hadamard tests, and each Hadamard oracle calls a (controlled) ST evolution once.
+The number of controlled exponentials needed for a single data point at value si is in
+Nk
+log 1/ϵdata
+O
+|si |
+
+!
+
+(E.23)
+
+where Nk = 2m5k−1 , and where the logarithm comes from the need for fractional queries
+with QSVT. There is also a O(1) overhead associated with the fractional queries and
+IQAE. Altogether, the number of exponentials for a single data point is in
+!
+
+Nk
+O NG × 2 ×
+log 1/ϵdata .
+|si |
+
+(E.24)
+
+Therefore, the total number Nexp of generating all n/2 data points (we only need half
+due to symmetry) is in
+
+
+Nexp ∈ O NG Nk
+
+n/2
+X
+1
+i=1 si
+
+
+
+log(1/ϵdata ) .
+
+(E.25)
+
+Plugging in (E.22) for NG above and summing over 1/si using Lemma 3,
+2n
+γLn π
+γNk Ln n
+(log n) log
+log2
+Nexp ∈ O
+∥O∥ ϵa
+δ
+∥O∥ ϵ
+
+
+n
+⊂ Õ
+log 1/δ
+aϵ
+
+!!
+
+!
+
+log(1/ϵdata )
+(E.26)
+
+where Õ suppresses factors logarithmic in n and ϵ. We also employed our assumption
+that γ/ ∥O∥ ∈ O(1). The number of nodes n and the interpolation interval [−a, a]
+will be determined by ϵint , the interpolation error assuming perfect data. To apply our
+error bounds from the previous subsection, choose a to satisfy Lemma 1, i.e. ca < π/20,
+while also taking 1/a ∈ O(c).
+Choose n ≥ ⌈c⌉. Then the second bound of Lemma 18 holds. From the interpolation
+error, we must satisfy
+√
+(E.27)
+2 2n(6ca)n e24c < ϵ/2
+which in turn can be satisfied provided that
+n
+√ 
+4 2n 6e24 ca < ϵ
+
+(E.28)
+
+since n ≥ c. Choose a such that 6e24 ca = 1/2, which is consistent with our previous
+conditions on a. Then, to satisfy the error bound, n can satisfy
+√
+(E.29)
+4 2n2−n < ϵ.
+66
+
+This can be solved using the −1 branch of the LambertW function.
+
+√ 
+LambertW−1 −ϵ log 2/(4 2))
+n>−
+.
+log 2
+The appropriate asymptotics is n ∈ O(log(1/ϵ). By taking n = n∗ where
+√ ')
+(
+&
+LambertW−1 (−ϵ log 2/(4 2)
+n∗ = max ⌈c⌉, −
+log 2
+∈ O(max{c, log(1/ϵ)})
+
+(E.30)
+
+(E.31)
+(E.32)
+
+we satisfy all required constraints and arrive at our final asymptotic scaling.
+
+
+
+
+Nexp ∈ Õ max{c, log(1/ϵ)}cϵ−1 log(1/δ)
+
+(E.33)
+
+Remark. In the proof above, we set n > c from the beginning, in order to use the
+second of the two bounds from Lemma 18. Together with 1/a ∈ O(c) this condemns us
+to a suboptimal c2 scaling in the large c limit. However, using the first bound instead of
+the second would not help us, since the nc2 /a term in that bound must be order one.
+
+67
+
+

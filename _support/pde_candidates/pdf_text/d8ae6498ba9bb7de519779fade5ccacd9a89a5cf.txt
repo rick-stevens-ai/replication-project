@@ -1,0 +1,1912 @@
+                                                   lifex-cfd: an open-source computational fluid dynamics solver for cardiovascular
+                                                                                    applications
+
+                                                                                 Pasquale Claudio Africaa,b,∗, Ivan Fumagallib , Michele Bucellib ,
+                                                                               Alberto Zingaroc,b , Marco Fedeleb , Luca Dede’b , Alfio Quarteronib,d
+                                                       a
+                                                         SISSA, International School for Advanced Studies, Mathematics Area, mathLab, Via Bonomea 265, 34136, Trieste, Italy
+                                                   b
+                                                     MOX, Laboratory of Modeling and Scientific Computing, Dipartimento di Matematica, Politecnico di Milano, Piazza Leonardo
+                                                                                                   da Vinci 32, 20133, Milano, Italy
+                                                                        c
+                                                                          ELEM Biotech S.L., Pier01, Palau de Mar, Plaça Pau Vila, 1, 08003, Barcelona, Spain
+
+
+
+
+arXiv:2304.12032v5 [physics.flu-dyn] 20 Nov 2023
+                                                    d
+                                                      Institute of Mathematics, École Polytechnique Fédérale de Lausanne, Station 8, Av. Piccard, CH-1015 Lausanne, Switzerland
+                                                                                                         (Professor Emeritus)
+
+
+
+
+                                                   Abstract
+                                                   Computational fluid dynamics (CFD) is an important tool for the simulation of the cardiovascular function and
+                                                   dysfunction. Due to the complexity of the anatomy, the transitional regime of blood flow in the heart, and the
+                                                   strong mutual influence between the flow and the physical processes involved in the heart function, the develop-
+                                                   ment of accurate and efficient CFD solvers for cardiovascular flows is still a challenging task. In this paper we
+                                                   present lifex -cfd, an open-source CFD solver for cardiovascular simulations based on the lifex finite element
+                                                   library, written in modern C++ and exploiting distributed memory parallelism. We model blood flow in both
+                                                   physiological and pathological conditions via the incompressible Navier-Stokes equations, accounting for moving
+                                                   cardiac valves, moving domains, and transition-to-turbulence regimes. In this paper, we provide an overview
+                                                   of the underlying mathematical formulation, numerical discretization, implementation details and examples on
+                                                   how to use lifex -cfd. We verify the code through rigorous convergence analyses, and we show its almost ideal
+                                                   parallel speedup. We demonstrate the accuracy and reliability of the numerical methods implemented through
+                                                   a series of idealized and patient-specific vascular and cardiac simulations, in different physiological flow regimes.
+                                                   The lifex -cfd source code is available under the LGPLv3 license, to ensure its accessibility and transparency
+                                                   to the scientific community, and to facilitate collaboration and further developments.
+                                                   Keywords: computational fluid dynamics, blood flow, cardiovascular modeling, high performance computing,
+                                                   open-source software, finite element method, numerical simulations
+
+
+                                                           PROGRAM SUMMARY
+                                                   Program Title: lifex -cfd
+                                                   CPC Library link to program files: (to be added by Technical Editor)
+                                                   Developer’s repository link: https://gitlab.com/lifex/lifex-cfd
+                                                   Code Ocean capsule: (to be added by Technical Editor)
+                                                   Licensing provisions (please choose one): LGPLv3
+                                                   Programming language: C++ (standard ≥ 17)
+                                                   Supplementary material: https://doi.org/10.5281/zenodo.7852088 contains the application executable in binary form,
+                                                   compatible with any recent enough x86-64 Linux system, assuming that glibc version ≥ 2.28 is installed. Data and
+                                                   parameter files necessary to replicate the test cases described in this manuscript are also available.
+                                                   Nature of problem: the program allows to run computational fluid dynamics simulations of cardiovascular blood flows
+                                                   in physiological and pathological conditions, modeled through incompressible Navier-Stokes equations, including moving
+                                                   cardiac valves, moving domains (such as contracting cardiac chambers) in the arbitrary Lagrangian-Eulerian framework,
+                                                   and transition-to-turbulence flow. Given the scale of the typical applications, the program is designed for parallel execu-
+                                                   tion.
+                                                   Solution method: the equations are discretized using the Finite Element method, on either tetrahedral or hexahedral
+                                                   meshes. The software builds on top of deal.II, implementing the mathematical models and numerical methods specific
+                                                   for CFD cardiovascular simulations. Parallel execution exploits the MPI paradigm. The software supports both Trilinos
+                                                   and PETSc as linear algebra backends.
+
+
+                                                       ∗
+                                                           Corresponding author. E-mail: pafrica@sissa.it
+Additional comments including restrictions and unusual features: the program provides a general-purpose executable that
+can be used to run CFD simulations without having to access or modify the source code. The program allows to setup
+simulations through a user-friendly yet flexible interface, by means of readable and self-documenting parameter files. On
+top of that, more advanced users can modify the source code to implement more sophisticated test cases. lifex -cfd
+supports checkpointing, i.e. simulations can be stopped and restarted at a later time.
+
+
+
+1. Introduction
+
+    Computational Fluid Dynamics (CFD) simulations have emerged as a powerful tool for understanding the
+complex hemodynamics of the cardiovascular system and the mechanisms underlying pathological conditions
+[1–25]. Hemodynamics simulations can provide insights into complex flow patterns [12, 26–35], pressure distri-
+butions, and wall stresses [36, 37] that are difficult or impossible to measure in vivo. These insights can aid in
+the development of novel diagnostic tools and therapies [3, 38–42]. Indeed, cardiovascular diseases are a major
+global health concern, responsible for a significant number of deaths each year [43, 44].
+    However, despite the significant progress made in the computational modeling of the cardiovascular system,
+the development of accurate and efficient CFD solvers for cardiovascular applications remains a challenging
+task [45], due in part to the complex anatomy and physical processes involved, as well as to the need for high-
+performance computing resources required to capture the dynamics of thin structures (such as valves) [9, 46–49]
+and small turbulent scales [50, 51]. Indeed, most of the computational software libraries currently available on
+the market and open source only address some of these challenges, and there is room for enhancement in the
+development of a single comprehensive tool that provides, in a computationally efficient way, accurate results in
+terms of anatomical detail, flow kinematics, and stress reconstruction.
+    In this paper, we present lifex -cfd, an open-source CFD solver for cardiovascular applications in moving
+geometries with immersed structures. It is based on lifex [52], a flexible, high performance library for multi-
+physics, multiscale and multidomain finite element problems building on the deal.II [53] Finite Element (FE)
+core.
+    The scientific community has developed several open-source CFD software packages for cardiovascular sim-
+ulations. The availability of the code under open-source licenses ensures accessibility and transparency to the
+wider scientific community, facilitating collaboration and further developments. Every available software pack-
+age is characterized by the different needs it addresses and by its requirements, regarding the complexity of
+the simulation and the desired level of resolution, the size of the computational domain, and the availability
+of computational resources. Popular state-of-the-art methodologies for predictive simulation in cardiovascular
+health and disease are thoroughly reviewed in [9, 54]. FEBio provides rich capabilities for vascular flow simula-
+tions, differing from other CFD programs mainly by the use of fluid dilatation instead of pressure as a primary
+variable [55]. CHeart is a framework for multiphysics finite element simulations in biomedical research, including
+a CFD solver with advanced numerical features, an Arbitrary Lagrangian-Eulerian (ALE) formulation and the
+Streamline Upwind Petrov-Galerkin (SUPG) stabilization [56]. simVascular provides a complete computational
+framework, from the construction of an anatomic model to finite element simulation and postprocessing [45],
+with the possibility to solve the incompressible Navier-Stokes equations in an arbitrary domain and specifically
+designed for cardiovascular simulations. IBAMR is an adaptive and distributed-memory parallel implementation
+of the Immersed Boundary Method (IBM) has also been used in hemodynamics applications [57]. Oasis is a
+high-level/high-performance open source Navier–Stokes solver is written in Python using building blocks from
+the FEniCS project [58].
+    ExaDG is a high order Discontinuous Galerkin CFD solver based on deal.II, exploiting a matrix-free
+algorithm equipped with multigrid smoothers, with a focus on accuracy and extreme parallel performance
+[59]. Lethe allows to solve the incompressible Navier–Stokes equations using high-order continuous Galerkin
+formulations on quadrilateral and hexahedral adaptive meshes, leveraging the deal.II library [60]. General-
+purpose packages such as OpenFOAM [61–64] and FEniCS [65] have also been used for cardiovascular simulations.
+All the mentioned packages, except for CHeart, are readily available to the community under open-source
+licenses.
+
+
+
+
+                                                           2
+                                         x
+                                    life -cfd            FEBio [55]          CHeart [56]         simVascular [45]           IBAMR [57]               Oasis [58]
+             Stabilization        SUPG + PSPG               —                  SUPG               SUPG + PSPG                    —                      —
+               Turbulence           VMS-LES                 —                  SUPG                    —                         —                   LES, DNS
+      Domain displacement             ALE                ALE + FSI              ALE                 ALE + FSI            Immersed Boundary             None
+                                                                                                                         Immersed Boundary
+        Space discretization      Finite Elements      Finite Elements     Finite Elements        Finite Elements                                  Finite Elements
+                                                                                                                          on Cartesian grids
+                                                                           Tetrahedra (0-5)
+                                                        Hexahedra (1)                            Tetrahedra (1, 2)
+                               Hexahedra (arbitrary)                       Hexahedra (0-5)
+    Element types (degrees)                            Tetrahedra (1, 2)                       Hexagonal bricks (1, 2)           —             As supported by FEniCS
+                                 Tetrahedra (1, 2)                           Prisms (0-5)
+                                                        Pentahedra (1)                                Wedges
+                                                                            User-specified
+                                                        Generalized-α                              Generalized-α         Predictor-corrector
+             Time stepping     BDF of order 1, 2, 3                        Implicit/Explicit                                                       Fractional step
+                                                          method                                     method               Picard iteration
+3                                                         Pardiso
+                                                                                                                           Krylov solvers,
+              Linear solvers         GMRES               FGMRES                GMRES              Custom [66, 67]                                    BiCGStab
+                                                                                                                              PETSc
+                                                            CG
+                                  aSIMPLE with
+                                                                                BFBT                                            FAC
+                                       AMG
+            Preconditioners                             BoomerAMG          Additive Schwarz       Custom [66, 67]           Block Jacobi               Jacobi
+                                 Additive Schwarz
+                                                                            BoomerAMG                                    Block Gauss-Seidel
+                                   Block Jacobi
+                                 deal.II, Trilinos,        MKL,
+              Backends and
+                                  PETSc, Boost,           SuperLU,              Hypre                    —                     PETSc              FEniCS, PETSc
+              dependencies
+                                       VTK                 Hypre
+
+                                             Table 1: Comparison of popular CFD software for cardiovascular simulations.
+    A more detailed comparison about the modeling and numerical features of the previously mentioned solvers
+is presented in Table 1. Since ExaDG, Lethe, OpenFOAM, and FEniCS are designed as general-purpose and
+highly-customizable FEM libraries, they have not been included in the comparison table.
+    Compared to these alternatives, our lifex -cfd solver offers several distinctive advantages, mostly inherited
+from the lifex core structure [52]. It is designed to be user-friendly and easy to use, even for biomedical
+researchers without extensive experience in computational fluid dynamics, and comes with a clean and meticu-
+lously documented code base. The solver is implemented in C++ using modern programming paradigms and
+leverages MPI for distributed memory parallelism. Moreover, it supports arbitrary finite elements (among those
+available in deal.II), the possibility to import arbitrary meshes with either hexahedral or tetrahedral elements
+and several linear algebra backends (namely Trilinos [68], PETSc [69] and deal.II itself), ensuring a fine con-
+trol over the numerical setting. The solver is also designed to be scalable, allowing it to efficiently simulate
+large-scale scenarios. In addition to the numerical and programming features stemming from its foundation on
+lifex , lifex -cfd can easily and efficiently solve differential problems with moving geometries, accounting for
+both moving domain boundaries, such as vessel walls, and immersed surfaces like valves. This unique capability
+sets lifex -cfd apart from other CFD packages. Furthermore, it supports several types of boundary conditions,
+all of which can be easily accessed and configured through the external parameter files and used without the
+need to access and modify the source code. To the best of our knowledge, none of the packages mentioned above
+exhibits similar features all together.
+    Besides the aforementioned programming features and numerical methods implemented, a paramount value
+proposition of lifex -cfd is the seamless integration with several other solvers for the cardiac function based on
+lifex [70], such as electrophysiology [71], mechanics [72–74], electromechanics [75–78], CFD [33, 79–85], fluid-
+structure interaction [86], electro-mechano-fluid interaction [87, 88] and myocardial perfusion [89, 90], which
+have been exploited ranging from single-chamber to whole-heart simulations.
+    The paper is organized as follows. In Sec. 2, we describe the underlying mathematical formulation and
+the corresponding numerical algorithms used in our solver, including its ability to handle complex geometries,
+enforce several kinds of boundary conditions, and simulate both laminar and turbulent flows with efficient linear
+solvers and preconditioners. Implementation details and instructions on how to run lifex -cfd simulations are
+described in Sec. 3. We verify our implementation by running convergence analyses and by assessing its parallel
+performance on the Beltrami flow benchmark [91]; we also demonstrate the code accuracy and reliability in
+reproducing different physiological flow regimes through a series of tests inspired by patient-specific vascular and
+cardiac applications of increasing complexity. All the numerical results are reported in Sec. 4. Finally, some
+conclusive remarks and the impact of lifex -cfd are discussed in Sec. 5.
+
+2. Mathematical and numerical methods
+
+   In the following sections, we introduce the mathematical models and numerical methods characterizing the
+lifex -cfd solver.
+
+2.1. Mathematical models
+    In large vessels and heart chambers, blood can be regarded as a Newtonian incompressible fluid, in spite of the
+presence of small particles suspended and carried by the plasma. Therefore, we model it with the incompressible
+Navier-Stokes equations [92–95], using the ALE formulation [96–98] to account for the motion of vessels and
+heart chambers. Moving immersed valves are modeled by the Resistive Immersed Implicit Surface (RIIS) method
+[99, 100].
+
+2.1.1. Domain displacement
+    Let (0, T ) be the temporal domain, with T denoting the final time. Let Ωt ⊂ R3 be the spatial fluid domain
+at time t ∈ (0, T ), let Γt = ∂Ωt be its boundary, and let n be the outward-directed normal unit vector. To
+model the displacement of the domain over time, we introduce a fixed reference configuration Ω
+                                                                                             b ⊂ R3 , such that
+the domain in current configuration Ωt is defined at any t ∈ (0, T ) as
+
+                               Ωt = {x ∈ R3 : x = At (b
+                                                      x) = x
+                                                           b+ b        b∈b
+                                                                x, t), x
+                                                              d(b        Ω},
+
+where db : Ω
+           b × (0, T ) → R3 is the domain displacement. Throughout this paper, we assume that the displacement
+       b × (0, T ) → R3 is known on a Dirichlet boundary portion of ∂ b
+dbbD : Γ D
+                                                                      Ω, that we denote by Γ
+                                                                                           b D . We recover the
+ Γ
+
+
+                                                         4
+displacement in the bulk domain by solving the following lifting problem:
+                                                  
+                               
+                               
+                                −∇    ·   α σ L b
+                                                (d)   = 0 in Ωb × (0, T ),
+                                 db = dbbΓD               on bΓD × (0, T ),                                      (1)
+                               
+                                σ L (d)b
+                                      bn=0                on ∂ Ω   b D × (0, T ).
+                                                                b \Γ
+                               
+
+
+Concerning the choice of σ L (d),
+                              b lifex -cfd provides the following options:
+
+   • harmonic extension: σ L ( b
+                              d) = ∇d;
+                                    b
+
+   • linear elasticity:
+                                               E                Eν               
+                                   σL ( b
+                                       d) =       ∇S db +                   ∇ · db I ,
+                                              1+ν         (1 + ν)(1 − 2ν)
+      where E and ν are the Young and Poisson moduli of a fictitious linear elastic material, and ∇S denotes
+      the symmetric gradient, defined as
+                                                  1 b            
+                                          ∇S db =   ∇d + ∇dbT .
+                                                  2
+
+    The coefficient α : Ω
+                        b → R in (1) is introduced to locally increase the stiffness in critical areas of the domain,
+to preserve the quality of mesh elements. lifex -cfd offers three options:
+   • no stiffening, i.e. α = 1 in b
+                                  Ω;
+   • Jacobian-based stiffening [101]:                                   χ
+                                                                   J0
+                                                   α(b
+                                                     x) =                     ,
+                                                                  J(b
+                                                                    x)
+      where J0 and χ are positive user-defined parameters, and J(b x) is the Jacobian of the map from the unit
+      reference element to the one in b
+                                      Ω; with this approach, elements that are small are made stiffer;
+   • boundary-based stiffening [102]:
+                                                α(b          x), β)−γ ,
+                                                  x) = max(d(b
+      where d(bx) is the distance from the boundary (or a portion of the boundary), and β and γ are two user-
+      defined positive parameters; with this approach, the stiffness is increased in the elements that are close to
+      the moving boundary.
+   Finally, the ALE velocity is computed by taking the derivative of the displacement w.r.t. time:
+
+                                                  ∂ db
+                                        uALE =         ◦ A−1
+                                                          t  in Ωt × (0, T ).                                    (2)
+                                                  ∂t
+2.1.2. Incompressible Navier-Stokes equations
+    We model blood as a fluid of constant density ρ and constant dynamic viscosity µ. Let u : Ωt × (0, T ) → R3
+be the fluid’s velocity and p : Ω × (0, T ) → R be its pressure. Their evolution is prescribed by the incompressible
+Navier-Stokes equations in the ALE framework with RIIS modeling of immersed structures such as cardiac
+valves, that is:
+                               ˆ
+                          
+                              ∂u
+                            ρ     + ρ((u − uALE ) · ∇)u + ∇ · σ(u, p)
+                          
+                                                                            in Ωt × (0, T ),                   (3a)
+                          
+                               ˆ
+                          
+                               ∂t
+                          
+                          
+                                                       + R(u, uALE ) = f
+                          
+                          
+
+                            ∇·u=0                                                 in Ωt × (0, T ),              (3b)
+                          
+                          
+                          
+                          
+                          
+                          
+                                                                                  in Ω0 × {0}.                  (3c)
+                          
+                            u = u0
+
+             ∂ˆ
+In the above,   denotes the time derivative in the ALE framework [97], f : Ωt × (0, T ) → R3 is a forcing term,
+             ˆ
+             ∂t
+and u0 : Ω0 → R3 is a suitable initial condition. The latter can either be zero, or be imported from clinical data
+
+
+                                                          5
+or other simulation results. The tensor σ is the Cauchy stress tensor, defined for an incompressible, viscous and
+Newtonian fluid as
+                                            σ(u, p) = −pI + 2µ∇S u.
+The alternative definition σ(u, p) = −pI + µ∇u can also be considered: see (8) in Section 2.3. System (3) must
+be endowed with suitable boundary conditions, as described in Section 2.2.
+    The term R(u, uALE ) in (3a) is introduced to account for the presence of heart valves in the fluid in cardiac
+simulations by means of the Resistive Immersed Implicit Surface (RIIS) method [99, 100]. The valves are
+represented by a set Iv of immersed surfaces Σk , k ∈ Iv . Each of them is characterized by a resistance coefficient
+Rk and a parameter εk representing the half thickness of the valve leaflets. To each valve we associate a signed
+distance function φk : Ωt × (0, T ) → R. Then, R(u, uALE ) is defined as [79, 87, 99, 100]
+                                              X Rk
+                              R(u, uALE ) =               δΣk ,εk (φk ) u − uALE − uΣk .                        (4)
+                                                                                      
+                                                     εk
+                                              k∈Iv
+
+This term weakly imposes the no-slip condition on the valve surfaces, by penalizing the difference between the
+relative fluid velocity u − uALE and the relative velocity of the valves’ leaflets uΣk , which is prescribed. The
+term R has support over a narrow layer around Σk defined through the following smoothed Dirac delta function:
+
+                                                1 + cos(πφk (x)/εk )) if |φ (x)| ≤ ε ,
+                                               
+                                                                            k         k
+                            δΣk ,εk (φk (x)) =           2εk
+                                                 0                     if |φk (x)| > εk ,
+                                               
+
+for all k ∈ Iv .
+
+2.2. Boundary conditions
+    lifex -cfd supports different types of boundary conditions, and for each type several options are available.
+In the following sections, we briefly describe each of the implemented options. All the boundary condition types
+discussed below can be combined seamlessly, by decomposing the boundary in an arbitrary number of subsets
+and selecting one of the following options for each subset. All the coefficients and parameters for the options
+that follow are easily customizable by the user without modifying the source code.
+
+2.2.1. Dirichlet boundary conditions
+    Let ΓD
+         t ⊂ ∂Ωt denote a subset of the domain boundary.life -cfd supports no-slip boundary conditions, i.e.
+                                                            x
+
+
+                                          u = uALE          on ΓD
+                                                                t × (0, T ) ,
+
+or u = 0 if the domain is not moving (i.e. if the ALE formulation is not enabled). Alternatively, it is possible
+to prescribe Dirichlet conditions in the form
+
+                                u(x, t) = g(x, t) = θg(t)s(x)         on ΓD
+                                                                          t × (0, T ) ,
+
+where g : ΓD
+           t × (0, T ) → R is expressed by separation of variables, with g : (0, T ) → R and s : Γt → R . The
+                           3                                                                       D      3
+
+parameter θ > 0 is a repartition factor that can be used to split total flow rate over multiple boundaries.
+   lifex -cfd offers several options for the function g(t):
+    • A constant function:
+                                               g(t) = g, for all t ∈ (0, T ).
+
+    • A sinusoidal pulsatile function from gmin to gmax , with period T :
+                                                                                
+                                                                 1            2πt
+                                    g(t) = gmin + (gmax − gmin )    1 − cos          .
+                                                                 2             T
+
+    • A sinusoidal ramp from g0 to g1 , starting at t0 > 0 and lasting tL > 0:
+
+                                                                        if t < t0 ,
+                              
+                              
+                                g0
+                                        g1 − g0             π(t − t0 )
+                                                        
+                        g(t) = g0 +               1 − cos                  if t0 ≤ t < t0 + tL ,
+                              
+                                          2                   tL
+                                 g1                                        if t ≥ t0 + tL .
+                              
+
+
+                                                            6
+      • Interpolation in time of prescribed flow rate or velocity data: the function g(t) is obtained by interpolating
+                                           Ng
+        a given a set of pairs {(ti , gi )}i=0 . The interpolation can be a piecewise linear polynomial, a piecewise
+        cubic spline, or a Fourier series interpolation [103].
+
+
+      For the space-dependent function s(x), the options below are available.
+
+      • A parabolic profile for a circular boundary of radius R:
+                                                              e
+
+                                                                   e2 − r2 (x)
+                                                                   R
+                                                       s(x) = −2               n(x),
+                                                                       e4
+                                                                      πR
+        where r(x) is the distance of x from the barycenter of ΓD
+                                                                t . A parabolic profile can be used for instance to
+        prescribe a laminar inlet velocity profile [104].
+      • A uniform profile, i.e. a prescribed inflow velocity that is normal to the ΓD
+                                                                                    t and constant in space:
+
+                                                              s(x) = −n(x).
+
+        A uniform profile can be used, for instance, to prescribe a turbulent inlet velocity profile [104].
+
+      • A Womersley profile [105] for a circular boundary of radius eR, commonly used to describe a pulsatile flow
+        in the cardiovascular system [93, 105]. This profile is computed by solving the inverse problem1 described
+        in [106]. The Womersley profile is only compatible with g(t) defined by interpolating given data using a
+        Fourier series.
+
+Remark 1. Parabolic and Womersley profiles have unit flow rate, so that the function g(t) represents flow rate
+over time. Conversely, the uniform profile has unit velocity, and the function g(t) is a velocity over time.
+
+2.2.2. Periodic boundary conditions
+    Periodic boundary conditions are also available. Let ΓA ⊂ ∂Ω and ΓB ⊂ ∂Ω be two planar subsets of the
+boundary of the domain, mutually mapped through a translation ϕAB : R3 → R3 such that ΓB = ϕAB (ΓA ).
+Then, periodic conditions are expressed as
+
+                                          u(x, t) = u(ϕAB (x), t)         on ΓA × (0, T ) .
+
+   Periodic conditions are only supported for hexahedral meshes. Moreover, the discretizations of ΓA and ΓB
+are required to be conforming (i.e. there must be a one-to-one correspondence between mesh elements on the
+two surfaces).
+
+2.2.3. Neumann boundary conditions
+    lifex -cfd supports Neumann boundary conditions in the form
+
+                                            σ(u, p)n = −h(t)n           on ΓN
+                                                                            t × (0, T ) ,                         (5)
+
+where ΓN t ⊂ ∂Ωt , n is the outgoing normal to Γt (at a fixed time) and h(t) : (0, T ) → R is a time-dependent
+                                                  N
+
+function representing the space-averaged pressure on the Neumann boundary. The same options introduced for
+g(t) (Section 2.2.1) are available for h(t).
+    Optionally, backflow instabilities can be prevented on Neumann boundaries by enabling inertial backflow
+stabilization [107–109], i.e. by modifying (5) as
+                                                        ρ
+                                   σ(u, p)n = −h(t)n + β |u · n|− u              on ΓN
+                                                                                     t × (0, T ) ,
+                                                        2
+where |u · n|− = min{u · n, 0} and β > 0 is a user-defined stabilization parameter [107–109].
+
+
+  1
+      This inverse problem is solved once and for all at the beginning of the simulation.
+
+
+
+
+                                                                   7
+2.2.4. Resistance boundary conditions
+    Resistance boundary conditions [31, 110–112] are conditions of the form
+                                             Z                      !
+                    σ(u, p)n = − p0 (t) + CR           (u − uALE ) · n dγ    n      on ΓR
+                                                                                        t × (0, T ) ,
+                                                  ΓR
+                                                   t
+
+
+where γ ⊂ ∂Ω, p0 (t) is a baseline pressure, CR > 0 the resistance coefficient. The term p0 (t) can be defined
+using the same temporal functions introduced for g(t).
+
+2.2.5. Free-slip boundary conditions
+    Free-slip conditions, also known as symmetry conditions, are mixed Dirichlet-Neumann conditions of the
+form
+
+                                        u·n=0            on ΓD
+                                                             t × (0, T ) ,
+
+                               (σ(u, p)n) · ti = 0       on ΓD
+                                                             t × (0, T )      i ∈ {1, 2} ,
+
+where ti , for i ∈ {1, 2} are the tangent unit vectors to ΓD
+                                                           t .
+
+
+2.3. Numerical methods
+   We introduce the infinite-dimensional function spaces
+
+                           V tg := v ∈ [H 1 (Ωt )]3 : v = g on ΓD            Qt := L2 (Ωt ).
+                                  
+                                                                t ,
+
+   For the spatial discretization of (3), we introduce a mesh T h over Ωt , composed of either tetrahedra or
+hexahedra (lifex supports both types of meshes). We introduce the function space of Finite Elements (FE)
+with piecewise Lagrangian polynomials of degree r ≥ 1 over T h as
+
+                                Xrh = {vh ∈ C 0 (Ω) : vh |K ∈ Pr , for all K ∈ T h },
+
+wherein h is the diameter of the grid element K ∈ T h . We introduce the finite-dimensional spaces V tg,h =
+V tg ∩ [Xrh ]3 and Qth = Qt ∩ Xrh , and denote by uh ∈ V tg,h , ph ∈ Qth the FE approximations of u and p,
+respectively. lifex -cfd supports polynomials of order 1 and 2 on tetrahedral meshes, and polynomials of
+arbitrary degree on hexahedral meshes.
+     Temporal discretization is carried out through Backward Differentiation Formulas (BDF) [103, 113] of order
+σBDF = 1, 2, 3. We partition the time domain (0, T ) into Nt subintervals of equal size ∆t = T /Nt , and we
+denote with the superscript n quantities related to the time-step n, with n = 0, . . . , Nt . The approximation of
+the velocity time derivative reads [103, 114]:
+
+                         ∂uh        αBDF un+1  − uBDF
+                                  ≈       h       h
+                                                                for n = σBDF − 1, . . . , Nt − 1.               (6)
+                          ∂t tn+1           ∆t
+
+wherein αBDF is a coefficient depending on the order σBDF of the method and uBDF     h   is a linear combination of
+velocities at timesteps n, n − 1, . . . , n − σBDF + 1.
+    We also introduce an extrapolated velocity uEXT h    that approximates un+1
+                                                                              h  with accuracy order σBDF through
+a linear combination of velocities at timesteps n, n − 1, . . . , n − σBDF + 1. We refer to [114] for the definition
+of αBDF , uBDF
+            h    and uEXT
+                       h   .
+    The advection term in (3a) can be formulated in a fully-implicit or semi-implicit [114] way. For the sake of
+a compact notation, we denote the advection velocity by u∗h , defined as
+                                   (
+                              ∗         un+1
+                                          h   − uALE,n+1
+                                                 h          (implicit formulation),
+                             uh =                ALE,n+1
+                                        uhEXT
+                                              − uh          (semi-implicit formulation).
+
+                                             ∂ db
+The time-discrete mesh velocity uALE,n+1
+                                 h         ≈      is evaluated using the BDF method (6), of the same order used
+                                             ∂t
+to approximate the time derivative of uh .
+
+
+                                                            8
+   The fully-discrete formulation of (3) reads: given unh , . . . , un+1−σ
+                                                                     h
+                                                                           BDF
+                                                                               ,   for any n = 0, . . . , Nt − 1, find
+  n+1 n+1        t                                        h
+(uh , ph ) ∈ V g,h × Qh such that, for all (vh , qh ) ∈ V 0 × Qh ,
+                         t                                      t
+
+
+                     αBDF un+1
+                                   
+                           h
+                                           + ρ (u∗h · ∇) un+1 , vh Ωn+1 + D(un+1
+                                                                  
+                   ρ           , vh                        h                  h   , vh )
+                        ∆t            Ωn+1
+                                                                                              
+                    − pn+1                 + ∇ · un+1            + R(un+1   , uALE,n+1
+                                                          
+                        h  , ∇ · vh Ω              h   , qh Ω            h      h        ), vh
+                                       n+1                   n+1                                 Ωn+1
+                       X
+                             K    n+1    ∗  n+1 EXT
+                                                                                                                    (7)
+                    +      S (uh , uh , ph , ph , vh , qh )Ωn+1
+                       K∈Th
+                                                        BDF     
+                                                         u
+                    = f n+1 , vh + hn+1 , vh ΓN       + ρ h , vh
+                                           
+                                                                       .
+                                                  n+1     ∆t      Ωn+1
+
+In the above, (·, ·)X denotes the scalar product in L2 (X). D is the diffusion term, for which lifex -cfd offers
+the following formulations:
+                           
+                                    n+1
+                                                         (gradient - gradient)
+                                             
+                            µ∇uh , ∇vh Ωn+1
+                           
+                           
+                                    S n+1
+                n+1
+                                                         (symmetric gradient - gradient)                     (8)
+                                               
+            D(uh , vh ) =      2µ∇ uh , ∇vh Ωn+1
+                            2µ∇S un+1 , ∇S vh           (symmetric gradient - symmetric gradient)
+                           
+                                                
+                                        h            Ωn+1
+
+The formulation (7) includes terms S K that can be optionally enabled to stabilize the Galerkin formulation.
+lifex -cfd provides the Streamline Upwind Petrov Galerkin - Pressure Stabilizing Petrov Galerkin (SUPG-
+PSPG) [115] and the Variational Multiscale - Large Eddy Simulation (VMS-LES) [114, 116, 117] stabilization
+methods. Both methods stabilize the problem in terms of the inf-sup condition and stabilize possible advection-
+dominated regimes (typically occurring in cardiovascular hemodynamics) [118]. Furthermore, the VMS-LES acts
+also as a turbulence model, allowing to model the transition-to-turbulence regime characterizing the cardiovas-
+cular blood flow [12, 50, 51]. In a compact form, we define the stabilization terms as:
+
+                                                       SSUPG−PSPG (un+1     , u∗h , pn+1
+                                                      K
+                                                     
+                                                                     h               h     , vh , qh ) if SUPG-PSPG
+                                                     
+                                                     
+                                                     
+                                                                      n+1       ∗     n+1
+                                                      K
+          S K (un+1
+                h   , u∗h , pn+1
+                             h   , pEXT
+                                    h   , vh , qh ) = SSUPG−PSPG (uh , uh , ph , vh , qh )                           (9)
+                                                        + S K
+                                                                (u n+1
+                                                                       , u ∗
+                                                                             , pn+1
+                                                                                       , v   )          if VMS-LES
+                                                     
+                                                                                           h
+                                                     
+                                                     
+                                                          VMS     h       h h
+                                                     
+                                                                          ∗
+                                                            K
+                                                        + SLES (un+1 ,  u   , pn+1 EXT
+                                                                                     ,  p      , vh )
+                                                     
+                                                                  h       h h            h
+
+with the SUPG-PSPG and VMS terms defined, respectively, as
+          K
+                    (un+1 , u∗h , pn+1  , vh , qh ) = τM (u∗h )rM (un+1  , pn+1 ), ρu∗h · ∇vh + ∇qh K
+                                                                                                    
+         SSUPG−PSPG   h            h                                h       h
+                                                     + τC (u∗h )rC (un+1                                           (10)
+                                                                                    
+                                                                      h    ), ∇ · vh K ,
+                   K
+                       (un+1   , u∗h , pn+1 , vh ) = τM (u∗h )rM (un+1  , pn+1 ), ρu∗h · (∇vh )T K .               (11)
+                                                                                                
+                 SVMS    h              h                           h       h
+
+The LES term – modeling the Reynolds stresses – is defined according to the implicit or semi-implicit formulation,
+as [114, 116]:
+     K
+    SLES (un+1
+           h   , u∗h , pn+1
+                        h   , pEXT
+                               h   , vh ) =
+    (
+      −(τM (uh )rM (uh , ph ) ⊗ τM (u∗h )rM (un+1
+              ∗           n+1 n+1
+                                                  , pn+1 ), ρ∇vh )K         (implicit formulation),
+              ∗                             ∗
+                                              h      h
+                                               n+1 n+1                                                             (12)
+                          EXT EXT
+      −(τM (uh )rM (uh , ph ) ⊗ τM (uh )rM (uh , ph ), ρ∇vh )K              (semi-implicit formulation).
+
+In the above, rM and rC are the strong residuals of the momentum balance (3a) and continuity (3b) equations,
+defined on each mesh element K as
+                                      αBDF un+1  − uBDF
+                                                                     
+                     n+1 n+1                                ∗     n+1
+                 K
+                rM (uh , ph ) =ρ            h        h
+                                                         + uh · ∇uh     + ∇pn+1
+                                                                            h   − µ∆un+1h
+                                              ∆t
+                                     + R(un+1
+                                          h   , uALE,n+1
+                                                 h       ) − f n+1 ,
+                         K
+                        rC (un+1
+                             h   ) =∇ · un+1
+                                         h   .
+
+
+                                                            9
+The stabilization parameters are defined as [79, 114]
+                                                                                                !− 21
+                                     2
+                                    σBDF ρ2                                 X R2
+                     τM (u∗h ) =            + ρ2 u∗h · Gu∗h + Cr µ2 G : G +       k 2
+                                                                                   δ       (φk )      ,
+                                      ∆t2                                       ε2k Σk ,εk
+                                                                            k∈I v
+                                                  −1
+                     τC (u∗h ) = (τM (u∗h )g · g)      ,
+              −T   −1              −T
+where G = J J and g = J 1. are the metric tensor and the metric vector, respectively, depending on the
+Jacobian J of the map from the reference element to the current one [116]. We remark that the definition of
+the stabilization terms has been modified with respect to the original formulation of [116] by accounting for the
+presence of immersed surfaces [79].
+   An analogous FE approximation is introduced for the quasi-static lifting problem (1),
+through which both the discrete displacement dbh and the discrete ALE velocity uALEh    are defined.
+
+2.4. Linear algebra
+    Following space and time discretizations, the lifting problem (1) leads to a symmetric, positive definite
+linear system, which we solve using either the GMRES or the conjugate gradient (CG) method [103, 119]. The
+system can be preconditioned using algebraic multigrid (AMG) [120], additive Schwarz [121] or a block Jacobi
+preconditioner.
+    The discretization of Navier-Stokes equations (7) leads to a block algebraic system, which can be linear or
+non-linear depending on the implicit or semi-implicit treatment of the advection term. It is linearized through
+Newton’s method [118]2 , and the resulting block linear system is solved through the GMRES method [103, 119],
+using the aSIMPLE preconditioner [122]. For further details on the algebraic form of the problem and its block
+structure, see [122]. The approximation of the velocity and Schur complement blocks is obtained through AMG,
+additive Schwarz or block Jacobi [119].
+
+3. Implementation
+    lifex -cfd builds upon the core functionalities of lifex [52], which in turn relies on deal.II [53, 123] to
+provide general-purpose software facilities for finite elements. Specifically, lifex -cfd implements the mathe-
+matical models, numerical methods and utilities needed for CFD simulations in the cardiovascular setting. The
+linear algebra backend is offered either by Trilinos [68] or by PETSc [69, 124], as wrapped by deal.II. This
+includes the implementation of the linear solvers (CG and GMRES) and of the black-box preconditioners (AMG,
+additive Schwarz, block Jacobi) that lifex supports. Other dependencies include VTK [125], the Boost libraries
+[126] and general-purpose compilation tools such as CMake3 and GNU make. We provide a Docker4 image
+bundling all the dependencies, to facilitate the installation of lifex -cfd on new systems. We refer to the online
+documentation5 for further instructions on the download and installation procedures.
+    lifex can read and write hexahedral and tetrahedral meshes in the widely used msh format. This format
+is supported by many mesh generation software, such as Gmsh6 , Netgen7 , vmtk8 and meshtool9 . Other mesh
+formats can be converted to msh using, for instance, the open-source library meshio10 .
+    We exploit forward automatic differentiation [127] to assemble the linear system associated to (7). This is
+especially useful to deal with the large number of terms associated to the SUPG-PSPG and VMS-LES stabiliza-
+tions (9). In particular, this allows to easily implement the implicit VMS-LES formulation, in spite of the large
+number of non-linear terms it involves.
+    We refer the interested reader to [52] for further details on the core functionalities of lifex . Below, we
+provide a quick-start guide on how to run simulations within lifex -cfd. More information can be found in the
+online documentation.
+
+  2
+    In the linear case, only one Newton iteration is performed.
+  3
+    https://cmake.org/
+  4
+    https://www.docker.com/
+  5
+    https://lifex.gitlab.io/lifex-cfd/
+  6
+    http://gmsh.info
+  7
+    https://ngsolve.org/
+  8
+    http://www.vmtk.org
+  9
+    https://bitbucket.org/aneic/meshtool/src/master/
+ 10
+    https://github.com/nschloe/meshio
+
+
+                                                                  10
+3.1. Running simulations in lifex -cfd
+    A ready-to-run binary package is available for download at https://doi.org/10.5281/zenodo.7852088,
+compatible with any recent enough x86-64 Linux distribution, provided that glibc (https://www.gnu.org/
+software/libc/) version ≥ 2.28 is installed. The binary file is shipped in AppImage (https://appimage.org/)
+format and is named lifex-cfd-1.5.0-x86_64.AppImage. For more detailed instructions on how to run the
+lifex -cfd binary, we refer the reader to [70].
+    Experienced users and those aiming at maximum computational efficiency on High Performance Computing
+(HPC) facilities and cloud platforms are recommended to compile lifex -cfd and its dependencies from source.
+Instructions are available in the online documentation, together with a manual for running simulations. Below
+we report a quick-start guide to use the solver, and refer the interested reader to the documentation for further
+information. All the commands hold also for the binary version, by simply replacing lifex_fluid_dynamics
+with lifex-cfd-1.5.0-x86_64.AppImage.
+    After compiling lifex -cfd, the main executable can be found within the compilation folder at
+apps/fluid_dynamics/lifex_fluid_dynamics. A brief description of its command line options can be ob-
+tained through
+$ ./ l i f e x _ f l u i d _ d y n a m i c s -h
+
+    The executable allows to run test cases with an arbitrary number of boundaries. A labeled volumetric mesh
+of the domain Ω must be provided to define a specific partition of the boundary {Γi }N              Nb
+                                                                                     i=1 such that ∪i=1 Γi ⊆ ∂Ω.
+                                                                                       b
+
+
+Each Γi corresponds to a distinct section of the boundary and is identified through appropriate surface tags
+included in the input mesh.
+    The configuration of the simulation is supplied through a parameter file. The user can generate a template
+parameter file using the following command:
+$ ./ l i f e x _ f l u i d _ d y n a m i c s -g [ minimal | full ] \
+                                             [ - b < boundary labels >...]
+
+Here, <boundary labels> is a list of user-defined labels associated with specific boundary conditions to be
+imposed. The generated parameter file contains a section for each boundary label, each of which includes a Tags
+parameter. This parameter allows users to define the association of the boundary label to a list of boundary tags
+from the input mesh, identifying the Γi boundaries where that condition should be applied. In addition to the
+boundary condition specifications for each element of <boundary labels>, either no-slip or free-slip boundary
+conditions can be enforced on other boundaries: see Section 4.2 for a practical example.
+    The level of detail of the parameter files can be optionally reduced (by specifying the minimal option) or
+increased (by specifying the full option). The former is advised for an initial use of lifex -cfd, while the latter
+exposes advanced options such as parameter choices on the stabilization term and turbulence models, additional
+options for the ALE lifting and the RIIS method, the Jacobian-based or boundary-based stiffening of the lifting,
+detailed options on linear algebra and preconditioning, among others. If the user does not specify either option,
+an intermediate verbosity is selected by default. Parameters that are not present in the file retain their default
+value. We refer the reader to the documentation of the library for further information.
+    The parameters are written into a plain text file that provides a list of key-value pairs, grouped in subsec-
+tions, that describe the configuration for the simulation to be run. Each parameter is supplied with a brief
+documentation (included in the parameter file itself) that explains its meaning. Once the user has edited the
+parameter file, the simulation can be started with:
+$ ./ l i f e x _ f l u i d _ d y n a m i c s [ - b < boundary labels >...] \
+                                             [ - f p a r a m e t e r _ f i l e _ n a m e . prm ] \
+                                             [ - o output_folder ]
+
+The boundary labels provided when executing must be the same as those used for generating the parameter file.
+A parallel simulation is started prepending the command with the mpirun or mpiexec wrapper (which may vary
+depending on the MPI implementation available), e.g.:
+$ mpirun -n N ./ l i f e x _ f l u i d _ d y n a m i c s ...
+
+where N is the desired number of parallel processes. The binary version supports parallel execution via MPICH
+(https://www.mpich.org/) version ≥ 4.0, whereas there is in principle no restriction in the chosen MPI im-
+plementation when building lifex -cfd from source.
+   We point out that the parameter file also contains settings that allow to serialize the solution, so that the
+simulation can be stopped and restarted at a later time. Refer to the online documentation for additional details.
+
+                                                                                   11
+           Figure 1: Test I. Solution of the Beltrami flow test case at time t = 0. Left: velocity streamlines. Right: pressure.
+
+
+
+4. Results and discussion
+
+    In the following sections, we analyze the convergence and scalability properties of the solver, and propose
+some application examples to showcase the functionalities of lifex -cfd.
+    For the sake of reproducibility, all parameter files, meshes and auxiliary data associated with the test cases
+described below can be downloaded from https://doi.org/10.5281/zenodo.7852088. The following sections
+report partial listings of the parameter files used in the numerical examples, including only the most significant
+settings for each test case. We refer the reader to the full parameter files for more details.
+
+4.1. Software verification and parallel performance (Test I)
+   For the purpose of software verification, we consider a modified version of the Beltrami flow benchmark
+problem [91], which is a test case on a cubic domain for which an exact analytical solution exists The test case is
+modified with respect to [91] to include mesh motion. We refer to Fig. 1 for a plot of the exact solution, and to
+Appendix A for a detailed description of the benchmark. This test case is implemented in the lifex -cfd test
+fluid_dynamics_cube. The default parameter file lifex_test_fluid_dynamics_cube.prm for this test can be
+generated by
+$ ./ l i f e x _ t e s t _ f l u i d _ d y n a m i c s _ c u b e -g
+
+In all the tests in this section, we consider a hexahedral mesh and a second-order BDF scheme for temporal
+discretization. Moreover, we consider the gradient-gradient formulation of the diffusion term (see (8)). In order
+to perform a convergence test in space, we exploit the capability of lifex to refine the hexahedral meshes in a
+hierarchical way by splitting each hexahedron into eight hexahedra, halving the length of each edge.
+    These settings (as well as others specified below for each test) can be encoded by modifying the file
+lifex_test_fluid_dynamics_cube.prm accordingly. The simulations can be run by
+$ ./ l i f e x _ t e s t _ f l u i d _ d y n a m i c s _ c u b e -f l i f e x _ t e s t _ f l u i d _ d y n a m i c s _ c u b e . prm
+
+    We set T = 10−5 s, ∆t = 10−6 s, and perform a convergence test in space for h = 0.085, 0.17, 0.34, 0.68,
+1.36 m (corresponding to a number of mesh refinements equal to 7, 6, 5, 4, 3, respectively), with Q2 − Q1
+finite elements and without any stabilization. Moreover, we repeat the same test with Q1 − Q1 finite elements
+and enabling SUPG-PSPG stabilization. In both cases, the domain displacement is computed using Q1 finite
+elements.
+
+
+                                                                                      12
+                                                               eu
+                                                                L2               eu
+                                                                                  H1             epL2
+                                                             order 1           order 2         order 3
+
+
+             10−1                                                                                          10−1
+                                                                 2
+                                                            10
+                  −2
+             10
+                                                            101
+                                                                                                           10−2
+             10−3                                           100
+     error                                         error                                           error
+             10−4                                          10−1                                            10−3
+
+                                                           10−2
+             10−5
+                                                           10−3                                            10−4
+             10−6
+                 10−1                    100                     10−1                    100                 10−3.5    10−3    10−2.5
+                               h [m]                                          h [m]                                     ∆t [s]
+                                (a)                                            (b)                                       (c)
+
+Figure 2: Test I. (a) Error against the mesh size h with Q2 − Q1 elements and without stabilization. (b) Error against the mesh
+size h with Q1 − Q1 elements with SUPG-PSPG stabilization. (c) Error against the time step size ∆t with Q2 − Q1 elements and
+without stabilization. Dashed lines represent the theoretical convergence rates. Errors are measured at final time, according to (14).
+
+
+
+    For both tests, we compute the following relative errors at the final simulation time between the numerical
+solution and the exact solution:
+
+                               ∥uN
+                                 h − uex ∥L2 (Ω)
+                                   t
+                                                                     |uN
+                                                                       h − uex |H 1 (Ω)
+                                                                        t
+                                                                                                           ∥pN
+                                                                                                             h − pex ∥L2 (Ω)
+                                                                                                               t
+
+                       eu
+                        L2 =                               eu
+                                                            H1 =                                epL2 =                       ,          (14)
+                                  ∥uex ∥L2 (Ω)                          |uex |H 1 (Ω)                         ∥pex ∥L2 (Ω)
+
+wherein the subscript “ex” denotes the exact solution (reported in full in Appendix A) and ∥ · ∥L2 (Ω) and | · |H 1 (Ω)
+denote the L2 norm and H 1 seminorm, respectively.
+    The results are reported in Figures 2a and 2b, from which we can observe the expected convergence rates for
+the L2 norm and H 1 seminorm of the velocity error and for the L2 norm of the pressure error. Indeed, from the
+theory of the finite element method, we expect the following orders of convergence on the relative errors when
+using a stable space discretization with Qmu − Qmp finite elements and a second-order BDF time scheme [128]:
+eu
+ L2 ∼ C1 h
+           mu +1
+                 + C2 ∆t2 , eu
+                             H 1 ∼ C1 h
+                                       mu
+                                          + C2 ∆t2 , epL2 ∼ C1 hmp +1 + C2 ∆t2 .
+    We perform a convergence test in time, fixing the mesh size to h = 0.085 m (corresponding to 7 mesh
+refinements, 2 097 152 elements and 53 070 468 degrees of freedom) and progressively reducing the time step ∆t
+by a factor 0.5, from ∆t = 5 · 10−3 s to ∆t = 3.125 · 10−4 s. We set T = 10−2 s. The error, measured as in the
+previous test, tends to zero with the expected rate, as reported in Fig. 2c. A deflection in the trend of eu    H 1 is
+observed for the finest time step, associated to the saturation of the error in space.
+    Finally, we perform a strong scalability study for this test case, by measuring the computational times
+associated to the assembly of the linear system and its solution with a varying number of parallel cores. The
+simulation is run with mesh size h = 0.085 m, corresponding to 2 097 152 elements and 53 070 468 degrees of
+freedom (and a number of mesh refinements equal to 7). The test was run on the GALILEO100 supercomputer
+provided by the CINECA supercomputing center, Italy11 . The results, plotted in Fig. 3, show that the solver
+scales linearly up to 768 cores (corresponding to approximately 70 000 degrees of freedom per core), in agreement
+with [52, 122]. In particular, the assembly stage scales almost perfectly, whereas the performance of the linear
+solver deteriorates starting from 768 cores. This is consistent with the observations of [122] on the performance of
+the aSIMPLE preconditioner. The mesh update step exhibits relatively poor scalability properties with respect
+
+  11
+     528 computing nodes each 2 x CPU Intel CascadeLake 8260, with 24 cores each, 2.4 GHz, 384GB RAM. See https://wiki.
+u-gov.it/confluence/display/SCAIUS/UG3.3%3A+GALILEO100+UserGuide for technical specifications.
+
+
+                                                                         13
+                                                                   total                     assembly
+                                                               linear solver                mesh update
+                                                                   ideal
+
+                                                                                    1 730
+
+                           1 000
+                                                                                     768
+
+
+
+           wall time [s]                                                  speedup
+                            100
+                                                                                     384
+
+
+                             10
+                                                                                     192
+
+
+                              1                                                       96
+                               96   192    384    768            1 730                  96       192       384    768   1 730
+                                          # cores                                                         # cores
+
+          Figure 3: Test I. Strong scalability test. Wall times (left) and parallel speedup (right) varying the number of cores.
+
+
+to the other steps, due to the need to communicate the displacement of mesh nodes across processes. However,
+as shown in Figure 3a, this has a negligible impact on the overall scalability of the solver, since the mesh update
+step accounts for approximately 1 % of the total wall time.
+
+4.2. Fluid dynamics in a compliant cylinder with a moving obstacle (Test II)
+    We simulate the fluid dynamics in a compliant cylinder with a moving obstacle by using the lifex -cfd app
+introduced in Section 3.1. A template parameter file for this setting (see also Section 3.1) can be obtained by
+running:
+$ ./ l i f e x _ f l u i d _ d y n a m i c s -g -b " Inlet " " Outlet "
+
+On the lateral wall of the cylinder, we prescribe no-slip boundary conditions. Therefore, we do not need to include
+it in the boundary label list (see below). We consider a cylinder of length L = 0.1 m and radius R = 0.01 m and
+the hexahedral mesh provided by the deal.II mesh generator with 5 refinements (see Table 2 for the details on
+the mesh obtained). The following parameters are set in the parameter file12 :
+ subsection Mesh and space d iscret izatio n
+    set Mesh type              = Cylinder
+    set Element type           = Hex
+    set Number of refinements = 5
+
+        subsection Cylinder
+          set Radius = 0.01
+          set Length = 0.1
+        end
+end
+
+We set a no-slip boundary condition on the wall (tag 0), a Dirichlet condition on the inlet section (tag 1), and
+a homogeneous Neumann condition on the outlet section (tag 2). For the inlet section, we prescribe a parabolic
+profile, with a pulsatile temporal function with gmin = 0 m3/s, gmax = 2.5 · 10−4 m3/s and period Tinlet = 0.8 s
+(see Section 2.2.1). With this choice of the input parameters, the resulting Reynolds number computed at the
+inlet section is:
+                                                   2 ρ gmax
+                                              Re =          = 4812,                                          (15)
+                                                    µπR
+
+  12
+       Each parameter is documented in the parameter file. In the paper, we omit the documentation for the sake of conciseness.
+
+
+                                                                      14
+where we used, as characteristic velocity, the average velocity at the inlet section when the flowrate is maximum
+and the inlet section diameter as characteristic length. Furthermore, blood density and kinematic viscosity are
+set as 1.06 · 103 kg/m3 and 3.5 · 10−3 Pa · s, respectively.
+  subsection Boundary conditions
+    set No - slip tags = 0
+
+    subsection Inlet
+      set Tags                         = 1
+      set Type of boundary condition = Dirichlet
+      subsection Dirichlet
+        set Time evolution      = Pulsatile
+        set Space distribution = Parabolic
+        subsection Pulsatile
+          set Minimum value = 0.0
+          set Maximum value = 2.5 e -4
+          set Period         = 0.8
+        end
+      end
+    end
+
+    subsection Outlet
+      set Tags                        = 2
+      set Type of boundary condition = Neumann
+      subsection Neumann
+        set Time evolution = Constant
+        subsection Constant
+          set Value = 0.0
+        end
+      end
+    end
+  end
+
+The domain boundaries are moving according to a displacement read from a vtp file. This file contains the
+surface of the domain boundary and a sequence of 9 displacement fields, obtained as equispaced time samples
+(one every 0.1 s) of the following displacement field:
+
+                                                  z(L − z)
+                                                                      
+                                                                   2πt             T
+                                  db∂Ω (b
+                                        x, t) = C p          sin         (b
+                                                                          x, yb, 0) ,
+                                                    b2 + yb2
+                                                    x               T
+
+                               T
+with C = 0.015, x  b = (bx, yb, zb) and T = 0.8 s. These samples are interpolated in time by lifex -cfd with
+piecewise cubic splines.
+    Accordingly, the incompressible Navier-Stokes equations are solved in the ALE framework (3), in combination
+with a lifting problem (1) for the boundary displacement db∂Ω . We use the harmonic lifting, solved with the CG
+method with AMG preconditioning (see Section 2.1.1).
+  subsection Arbitrary Lagrangian Eulerian
+    set Active                        = true
+    set Import displacement from file = true
+
+    subsection Input file
+      set Boundary displacements filename              =    d i s p l a c e m e n t _ c y l i n d e r . vtp
+      set Boundary displacement field basename         =    d
+      set Time subintervals                            =    8
+      set Time subinterval duration                    =    0.1
+      set Interpolation mode                           =    Splines
+    end
+
+    subsection Lifting
+      set Lifting operator = Harmonic
+      set Tags Dirichlet   = 0, 1, 2
+    end
+  end
+
+   In the domain, a moving surface obstacle representing an idealized valve leaflet is immersed by the RIIS
+method. The closed configuration of the valve and its displacement field openingField are stored in a file
+
+
+                                                       15
+cylinder_plane_closed.vtp. The parameters chosen for the RIIS method are ε = 3 mm, R = 104 kg/(m · s).
+The valve starts in closed configuration, opens for t ∈ [0.15, 0.25]s, stays open for t ∈ [0.25, 0.55]s, then closes
+during the interval t ∈ [0.55, 0.65]s and stays closed from there on. The valve follows the displacement of the
+domain, whereas we use a quasi-static approach for its opening/closing, that is we set uΣ ≡ 0 in the RIIS term
+(4) [99, 100].
+  subsection Resistive Immersed Implicit Surface
+    set Active                      = true
+    set Use surface velocity        = false
+    set Surface labels              = surface
+    set Immersed surfaces basenames = c y l i n d e r _ p l a n e _ c l o s e d
+    set Move surfaces with ALE      = true
+    set Displacement names          = openingField
+    set Epsilons                    = 0.003
+    set Resistances                 = 10000
+
+     subsection Displacement law
+       set Displacement laws = Prescribed
+
+      subsection Prescribed
+        set First ramp : start time = 0.15
+        set First ramp : end time    = 0.25
+        set Second ramp : start time = 0.55
+        set Second ramp : end time   = 0.65
+      end
+    end
+  end
+
+    For the solution of the problem, we use a semi-implicit treatment of the advection term, thus the problem is
+linear. To prescribe a single Newton iteration in the solution, the following parameters are used:
+  subsection Time solver
+    set BDF order                         =   1
+    set Non - linearity treatment         =   Semi - implicit
+    set Initial time                      =   0
+    set Final time                        =   0.8
+    set Time step                         =   1e -4
+  end
+
+  subsection Non - linear solver
+    set Linearized = true
+  end
+
+Notice that the section Time solver also allows to setup the simulation to run from t = 0 s to T = 0.8 s, with
+∆t = 10−4 s, using a semi-implicit Euler time scheme (BDF1).
+    This test case, featuring an ALE approach with the introduction of an immersed valve, serves as a prototype
+for a cardiovascular CFD simulation on an idealized vessel. The results of the simulation at t = 0.26 s are
+displayed in Fig. 4. At this time, the valve is in its open position: in the figure, we report in grey the support
+of the Dirac delta of the RIIS term:
+                                              {x ∈ Ωt : |φ(x)| < ε}.
+As the flow is introduced from the left into the computational domain, the presence of the immersed valve
+exerts a noticeable influence, causing a deflection in the oncoming flow. This dynamic interaction leads to the
+generation of a majority of the coherent vorticity structures, as strikingly revealed by the Q-criterion contours.
+These vorticity structures are not only visually captivating but also testify the intricate interplay between the
+fluid flow and the valve. The pressure plot intentionally excludes the representation of the valve. This omission
+allows for a clear and unobstructed perspective on the development of a high pressure jump, which is prominent
+in the immediate vicinity of the valve. This region effectively transforms the valve into an immersed obstacle
+with a significant impact on the flow dynamics.
+
+4.3. Application to a vascular case (Test III)
+   We simulate the hemodynamics in a portion of aorta from a healthy 11-year-old male, also simulated in
+[129]. The mesh, shown in Fig. 5, and the associated inlet boundary data were obtained from the Vascular
+
+
+
+                                                              16
+Figure 4: Test II. Flow results at t = 0.26 s: velocity magnitude (top) and pressure (center) distributions on a median slice, and
+Q-criterion contours (bottom, Q = 1000/s2 ) colored by the vorticity magnitude. In grey, the region occupied by the valve.
+
+
+
+Model Repository [130]. The mesh was preprocessed with vmtk [131] to convert it to the msh format supported
+by lifex -cfd.
+    The domain features one inlet, corresponding to the aortic root section, and four outlets, corresponding to
+supra-aortic arteries and abdominal aorta. The domain does not move (i.e. we neglect the compliance of the
+walls) and no valves are present (i.e. ALE and RIIS are disabled). We impose Dirichlet boundary conditions on
+the inlet section Γin , with a parabolic velocity profile and a flow rate obtained by time interpolation of a given
+datum (see Section 2.2.1). The flow rate over time comes from experimental measurements, and is characterized
+by a strong ejection phase during ventricular systole, followed by a diastolic phase with nearly zero inlet flow. On
+the outlet sections Γout , we impose resistance boundary conditions (Section 2.2.4), setting CR = 109 kg/(s · m4 )
+on the supra-aortic outlets ΓoutSA and CR = 3.5 · 10 kg/(s · m ) on the abdominal outlet Γabd . Finally, on the
+                                                      7           4                            out
+
+external walls we impose no-slip boundary conditions.
+    With this choice of the input parameters, the resulting Reynolds number computed at the inlet section is
+Re = 5260, where we used as characteristic velocity the space-averaged velocity at the inlet section when the
+flowrate is maximum, and as characteristic length the inlet section diameter.
+    A template parameter file for this setting (see also Section 3.1) can be obtained by running:
+$ ./ l i f e x _ f l u i d _ d y n a m i c s -g \
+             -b " Aortic root " " Right subclavian " \
+                   " Right common carotid " " Left common carotid " \
+                   " Left subclavian " " Abdominal aorta "
+
+    We simulate three heartbeats of period thb = 0.95 s (T = 3thb = 3.8 s), with a time step ∆t = 0.001 s.
+We report in Table 2 details about the mesh used for this test case. We used P1 − P1 finite elements, with
+SUPG-PSPG stabilization, and the BDF1 time discretization method with the semi-implicit formulation for the
+advection term. The simulation was run on 92 parallel cores, endowed with Intel Xeon Platinum 8160 CPUs.
+The total wall time in this setting was 6.3 h. Figure 6 displays numerical results for this test case, which are
+in qualitative accordance with [129]. The solver can also be configured to compute post-processing quantities
+such as flow rate or average pressure on specific portions of the boundary. As an example, we report the average
+
+
+                                                               17
+            Figure 5: Test III. Computational domain and mesh, obtained from the Vascular Model Repository [130]
+
+
+  Test case                          Type     # elements        # vertices      hmin     havg    hmax    qmin    qavg    qmax
+                                                                                [mm]    [mm]     [mm]
+  I (Beltrami flow, Section 4.1)      Hex            -                  -         -        -       -      1       1         1
+  II (cylinder, Section 4.2)          Hex          81920             85345      1.64     1.75    1.91    3.11    4.02     5.38
+  III (aorta, Section 4.3)            Tet        2 915 690          543 089     0.08      0.8     2.9    1.04    2.96    16.83
+  IV (left atrium, Section 4.4)       Tet        2 438 278          389 484     0.28      0.8     1.3    1.00    1.54     3.08
+                                      Hex           323              35 937     0.34     0.34    0.34      1      1         1
+  V (Taylor-Green, Section 4.5)
+                                      Hex           643             274 625     0.17     0.17    0.17      1      1         1
+
+Table 2: Mesh type (Hex: hexaedral, Tet: tetrahedral), number of mesh elements, number of mesh vertices, minimum, average and
+maximum mesh size and minimum, average and maximum element edge ratio q for the test cases presented. The edge ratio q is the
+ratio between the longest and shortest edge of a mesh element. Details on Test I are given in Section 4.1 since a mesh refinement
+study is carried out.
+
+
+
+pressure and flow rate through Γout
+                                SA and Γabd in Fig. 6a.
+                                        out
+
+
+
+4.4. Application to a cardiac case (Test IV)
+    We simulate the hemodynamics in a patient-specific left atrium geometry. We consider the atrial geometry
+marked with ID 7 available in the public cohort [132, 133]. As we display in Figure 7a, the left atrium boundary
+is made of four pulmonary veins inlet sections (Γin ), an outlet section downstream of the mitral valve (Γout ),
+and the endocardial wall (Γwall
+                              t   ).
+    We generate the tetrahedral mesh of the left atrium in Figure 7b using vmtk [131] with the methods and
+tools discussed in [134]. The mesh is locally refined to capture the mitral valve leaflets as described by the
+RIIS method. Indeed, the application of the RIIS method requires the mesh to be sufficiently fine to accurately
+represent the smoothed Dirac delta function δΣ,ε of thickness 2ε. As a rule of thumb, this requirement is fulfilled
+if the local mesh size h satisfies ε ≥ 1.5h, as shown in [99]. Details on the mesh we used are provided in Table 2.
+    Since the patient-specific geometry of the mitral valve is not available, we generate an idealized valve geometry
+Σmv , and the corresponding displacement, displayed in Figures 7a, 7c and 7d. We open and close the valve
+according to pressure jump conditions. Specifically, we monitor the pressures in control volumes located upstream
+and downstream the valve, as shown in Fig. 7c. The mitral valve opens when the atrial pressure overcomes the
+ventricular one. Viceversa, the valve closes when the pressure drop inverts its sign. Furthermore, we do not
+open and close the valve instantaneously, but we consider times coming from medical literature: the valve opens
+
+                                                               18
+                                  Γout
+                                   abd        Γout
+                                               SA
+
+
+
+                 150
+
+
+
+      Q [mL/s]
+                 100
+
+                  50
+
+                   0
+                       0   0.2    0.4      0.6         0.8
+                                    t [ms]
+                 140
+
+                 120
+
+      p [mmHg]   100
+
+                  80
+
+                       0   0.2    0.4      0.6         0.8
+                                    t [ms]
+                                 (a)                                                              (b)
+
+Figure 6: Test III. (a) Flowrate and average pressure on the supra-aortic and abdominal outlets during the last heartbeat of the
+simulation. (b) Volume rendering of the blood velocity magnitude and pressure at time t = 0.15 s of the last simulated cycle.
+
+
+
+in 20 ms [135] and closes in 60 ms [136]. The opening and closing ramps follow the cosinusoidal-exponential law
+used in [87]. In Figures 8b and 8d, we report the pressure computed in the upstream and downstream control
+volumes and the opening coefficient of the mitral valve, respectively. Furthermore, we set a resistance coefficient
+RMV = 104 kg/(m · s), such that the valve is sufficiently impervious, and we set εMV = 0.7 mm by averaging the
+values of the mitral leaflet thicknesses reported in [137].
+    As boundary data, we prescribe Neumann boundary conditions on the inlet pulmonary veins sections and
+on the section downwind the mitral valve. We use the boundary data that we obtained in [33] by calibrating
+a 0D circulation model of the whole cardiovascular system [77]. On Γin , we prescribe the pulmonary venous
+pressure, whereas we set the left ventricular pressure on Γout . Inlet and outlet prescribed pressures are displayed
+in Figure 8c. On the endocardial wall, we set a no-slip condition by prescribing the displacement field that we
+computed in [33]. We refer the reader to [33] for additional details on the procedure we use to obtain boundary
+pressures and displacement.
+    We simulate 3 heartbeats of period thb = 1.0 s (T = 3thb = 3.0 s), with a time step size ∆t = 5 · 10−4 s.
+We use P1 -P1 FE spaces, BDF1 as time integration scheme, semi-implicit treatment of nonlinearities, and the
+VMS-LES methods. Numerical simulations are run in parallel on the GALILEO100 supercomputer, using 240
+cores. The wall time for this simulation was about 22 h.
+    The simulation is carried out via the lifex -cfd app. Since we are setting the same boundary condition on
+all the inlet sections, the parameter file for this setting (see also Section 3.1) can be obtained by running:
+$ ./ l i f e x _ f l u i d _ d y n a m i c s -g -b " Pulmonary veins " " Mitral valve "
+
+    The Reynolds number computed at the outlet section with the spatial-averaged velocity when the flowrate
+is maximum and the outlet section diameter as characteristic length is equal to 3792. In Fig. 8, we report some
+representative output of a lifex -cfd CFD cardiac simulation. We highlight that all the reported quantities are
+directly computed in lifex -cfd and exported to a CSV file.
+    We report solutions on the last simulated heartbeat and shifted in the time domain (0, thb ). For instance, we
+show the left atrial volume versus time in Fig. 8a. In Fig. 8e, we display the flow rates through each pulmonary
+
+
+                                                                19
+Figure 7: Test IV. (a): left atrium geometry, with boundary portions; (b) tethraedral mesh refined on the proximity of the mitral
+valve; (c) control volumes upstream the mitral valve; (d) mitral valve warped by its displacement (from open to closed configuration).
+
+
+vein and at the outlet section (i.e. downstream of the mitral valve), and Fig. 8f shows the kinetic energy against
+time.
+    Finally, in Fig. 9 we display some 3D representations of the CFD atrial simulation: we report the volume
+rendering of the velocity magnitude and the Q-criterion at the A-wave peak, when the incoming jets impact in
+the middle of the chamber, along with four ring vortices coming from the pulmonary veins.
+    We refer the interested reader to [79–82] for a more detailed assessment of the results provided by lifex -cfd
+in realistic and patient-specific settings.
+
+4.5. A turbulent benchmark: the Taylor Green Vortex benchmark (Test V)
+    We show the capability of the code to capture turbulent flows by simulating the 3D Taylor-Green Vortex
+benchmark problem [138]. We set the problem in a cubic domain Ω = [0, 2πL]3 with final time T = 10 s. We
+consider a non-null initial condition for the velocity
+                                              x      y       z 
+                                           sin      cos       cos
+                                                Lx      Ly      Lz 
+                                                                          in Ω × {0},
+                                        
+                               u0 = U0 − cos        sin       cos
+                                                  L         L         L
+                                                                         
+                                                         0
+
+and we set periodic boundary conditions on all the faces of the cube (see Section 2.2.2). L = 1 m and U0 = 1 m/s
+are the characteristic length and characteristic velocity, respectively. Following [138], we consider a Reynolds
+number equal to Re = 1600 by setting unity density and µ = 1/Re. We consider two mesh levels made of 323
+and 643 elements on structured grids, reproducible by setting the parameter |Mesh and space discretization /
+Number of refinements| equal to 5 and 6, respectively. Further details on these meshes are reported in Table 2.
+We use quadratic FEs for velocity and pressure (Q2 − Q2 ), time-step size equal to 2 · 10−3 s and the VMS-LES
+method [114, 116] both to stabilize the problem and to model turbulence (see Section 2.3).
+    Figure 10 shows a comparison between normalized kinetic energy e(t) and dissipation rate ϵ(t) for the two
+grid levels against DNS reference data provided in [138, 139]. These quantities are computed as
+                                           1      1                      de(t)
+                                               Z
+                                  e(t) =            ρu · u,     ϵ(t) = −       .
+                                         ρ|Ω| Ω 2                         dt
+
+                                                                 20
+                                                                                                              upstream             downstream
+                         70                                                                       150
+
+
+              VLA [mL]                                                          p [mmHg]
+                         60                                                                       100
+                         50                                                                          50
+                         40                                                                          0
+                               0   0.2    0.4           0.6     0.8    1                                  0   0.2   0.4           0.6   0.8     1
+                                                t [s]                                                                     t [s]
+                                                 (a)                                                                      (b)
+                                          Γin            Γout
+
+
+
+
+                                                                                  MV open coeff
+                         150                                                                         1
+
+
+           p [mmHg]
+                         100
+                                                                                                  0.5
+                         50
+                           0                                                                         0
+                               0   0.2    0.4           0.6     0.8    1                                  0   0.2   0.4           0.6   0.8     1
+                                                t [s]                                                                     t [s]
+                                                 (c)                                                                      (d)
+                         MV        LIPV     LSPV                RIPV       RSPV
+                         300
+
+
+           Q [mL/s]
+                         200
+                                                                                           Ek [mJ]
+                                                                                                     4
+                         100
+                                                                                                     2
+                           0
+                                                                                                     0
+                               0   0.2    0.4           0.6     0.8    1                                  0   0.2   0.4           0.6   0.8     1
+                                                t [s]                                                                     t [s]
+                                                 (e)                                                                       (f)
+
+Figure 8: Test IV. Plots of left atrial CFD simulation results. (a) Left atrial volume versus time; (b) pressure in upstream and
+downstream control volumes (the control volumes are reported in Figure 7c); (c) prescribed pressure at inlet and outlet sections;
+(d) mitral valve opening coefficient; (e) flowrates at inlets and outlet sections versus time; (f) kinetic energy versus time.
+
+
+
+Our results show that, as the grid is refined, the solution obtained in lifex -cfd gets closer to the reference
+solution, both in terms of kinetic energy and dissipation rate, showing how the solver is able to accurately
+capture turbulent flows.
+
+
+5. Conclusions
+
+    We presented the open-source lifex -cfd solver aimed at cardiovascular CFD simulations. The solver employs
+an ALE formulation to solve the incompressible Navier-Stokes equations for both laminar and turbulent regimes.
+It incorporates the SUPG-PSPG and VMS-LES stabilization methods, with the latter also serving as a turbulence
+model. This enables the solver to accurately model the transition-to-turbulence regime present in cardiovascular
+blood flow, as demonstrated by our results of the Taylor-Green Vortex benchmark problem. Cardiac valves
+can be included by means of the Resistive Immersed Implicit Surface method. Several types of flow and stress
+boundary conditions are also supported, and exposed to the user in a friendly and highly customizable way.
+    The numerical schemes incorporated into the code allow to discretize the equations in time using Backward
+Differentiation Formulas (BDF) of order σBDF = 1, 2, 3 and in space using Lagrangian Finite Elements (FE)
+of order 1 and 2 on tetrahedral meshes, and of arbitrary degree on hexahedral meshes. Fully implicit and
+semi-implicit formulations of the fluid dynamics problem are available. Thanks to automatic differentiation, the
+implementation of this complex and versatile formulation has become both effortless and efficient, making it an
+invaluable tool for new developers to further research. Furthermore, the user can also fine-tune parameters for
+the linear solvers and preconditioners.
+
+
+
+                                                                           21
+                          (a) velocity                                                     (b) Q criterion
+
+Figure 9: Test IV. 3D visualizations of left atrium simulation at the early-wave peak. (a) volume rendering of velocity magnitude;
+(b) volume rendering of Q criterion (Q = 50/s2 ) coloured according to vorticity magnitude.
+
+
+
+    We describe the lifex -cfd implementation details and provide a step-by-step guide for running simulations,
+showcasing the solver’s user-friendliness and versatility in simulating different cardiovascular applications. To
+demonstrate the capabilities of the solver, we present multiple representative examples, such as simulating
+vascular flow in an idealized cylinder, the hemodynamics in a patient-specific portion of the aorta, and the
+left atrial hemodynamics in a patient-specific geometry. The solver’s accuracy is verified through convergence
+analyses on the Beltrami flow benchmark problem. We also demonstrate its parallel performance, achieving a
+nearly-ideal speedup up to 768 processors. Overall, the tests and the results presented confirmed the effectiveness
+and efficiency of lifex -cfd for simulating complex cardiovascular flow problems.
+    Our CFD solver is designed to be user-friendly, efficient, and accurate, while also providing a flexible and
+extensible platform for future development and research in cardiovascular modeling and simulation. The open-
+source nature of lifex -cfd allows for collaboration and contributions from the broader scientific community,
+and we hope that it will serve as a valuable companion for researchers and practitioners working in the field of
+cardiovascular fluid dynamics, ultimately leading to improved diagnosis and treatment of cardiovascular diseases.
+    The impact and wide applicability of lifex -cfd are demonstrated by the high number of journal articles
+[33, 79, 81–90] and preprints [80, 140, 141] that have already used it in a diverse set of applications. In particular,
+lifex -cfd allows to perform segregated (or one-way coupled) fluid-structure interaction simulations, where the
+boundary displacement is imported from the output of independent (electro)mechanical simulations [79, 80, 90].
+    Considering that CFD cardiovascular simulations often require the coupling with lumped-parameter models
+describing the outer part of the domain of interest, we plan to release the coupling with both Windkessel models
+and 0D closed-loop circulation models, as we do for instance in [79, 80, 82, 87]. In addition, future developments
+pursued regarding lifex -cfd include the extension to more sophisticated models for valve displacement [140, 142]
+and methods allowing the simulation of isovolumetric phases of the cardiac cycle [85, 143]. Moreover, we plan
+on introducing more advanced methods for the domain displacement, including non-linear lifting operators
+[87, 144, 145] and remeshing techniques [40]. Finally, the inclusion of scalar transport models [9, 29, 33] and
+non-Newtonian rheologies for blood [46, 146] will allow to better replicate several scenarios of clinical interest.
+
+
+
+
+                                                               22
+                                                       reference data        lifex 32                                 lifex 64
+                                                                                                                  ·10−2
+
+
+                                 0.12
+
+
+
+
+                                                                               dissipation rate [1/s]
+                                                                                                         1
+
+
+
+        kinetic energy [-]
+                                  0.1
+
+                                                                                                        0.5
+                                      −2
+                             8 · 10
+
+
+                                                                                                         0
+                             6 · 10−2
+                                           0   2   4          6   8     10                                    0           2   4          6   8   10
+                                                       t[s]                                                                       t[s]
+
+Figure 10: Test V: Numerical results of the Taylor-Green Vortex problem. Comparison between results obtained with lifex -cfd on
+two different grid levels and the DNS (reference) data by [138, 139]. Left: kinetic energy; right: dissipation rate.
+
+
+
+Author contributions
+
+    Pasquale Claudio Africa: conceptualization, methodology, software (development and maintenance), for-
+mal analysis, project administration, writing (original draft). Ivan Fumagalli: conceptualization, methodology,
+software (development and simulation), formal analysis, writing (original draft). Michele Bucelli: conceptu-
+alization, methodology, software (development, simulation and maintenance), visualization, formal analysis,
+project administration, writing (original draft). Alberto Zingaro: conceptualization, methodology, software
+(development and simulation), visualization, formal analysis, writing (original draft). Marco Fedele: method-
+ology, software (development), writing (review and editing). Luca Dede’: methodology, project administration,
+writing (review and editing), supervision. Alfio Quarteroni: funding acquisition, project administration, writ-
+ing (review and editing), supervision.
+
+
+Acknowledgements
+
+   This project has received funding from the European Research Council (ERC) under the European Union’s
+Horizon 2020 research and innovation program (grant agreement No 740132, iHEART - An Integrated Heart
+Model for the simulation of the cardiac function, P.I. Prof. A. Quarteroni).
+
+
+
+
+   I.F. has also received support from ICSC–Centro Nazionale di Ricerca in High Performance Computing, Big
+Data, and Quantum Computing funded by the European Union’s NextGenerationEU program.
+   The review process was conducted while P.C.A. was affiliated with SISSA, within the research activities of the
+consortium iNEST (Interconnected North-East Innovation Ecosystem), Piano Nazionale di Ripresa e Resilienza
+(PNRR) – Missione 4 Componente 2, Investimento 1.5 – D.D. 1058 23/06/2022, ECS00000043, supported by
+the European Union’s NextGenerationEU program.
+   P.C.A. acknowledges the support from the Italian Ministry of University and Research (MUR), grant “Diparti-
+mento di Eccellenza 2023-2027”, Mathematics Area, SISSA. I.F., M.B., L.D., and A.Q. acknowledge the support
+
+
+
+                                                                        23
+from the Italian Ministry of University and Research (MUR), grant “Dipartimento di Eccellenza 2023-2027”,
+Department of Mathematics, Politecnico di Milano.
+   The authors acknowledge the CINECA award under the ISCRA B initiative for the availability of high
+performance computing resources and support (ISCRA grant IsB25_MathBeat, P.I. Alfio Quarteroni, 2022–
+2023).
+   All the authors are members of the INdAM group GNCS “Gruppo Nazionale per il Calcolo Scientifico”
+(National Group for Scientific Computing).
+
+
+Appendix A. Beltrami flow
+
+    For the sake of reproducibility, we report the details of the test case with analytical solution considered in
+Section 4.1 and taken from [91]. We consider Navier-Stokes equations with the gradient-gradient formulation
+of the diffusion term (see (8)). The domain is the cube Ω = (0, 2π)3 . The solution has the following analytical
+expression:
+                                                                                             
+                                 c(t)       πx        π(y + 2z)          πz        π(x + 2y)
+                   ux (x, t) = −       exp        sin               + exp        cos                ,
+                                  4           4             4                4             4
+                                                                                             
+                                 c(t)       πy        π(2x + z)          πx        π(y + 2z)
+                   uy (x, t) = −       exp        sin               + exp        cos                ,
+                                  4           4             4                4             4
+                                                                                               
+                                   c(t)       πz        π(x + 2y)          πy        π(2x + z)
+                   uz (x, t) = −         exp        sin               + exp        cos                ,
+                                    4           4             4                4             4
+
+
+                         ρπ 2       π 2 tµ
+                                               πx         πy         πz 
+             p(x, t) = −      exp −           exp       + exp        + exp
+                          32         2ρ             2            2            2
+                                                                                             
+                                                        π(x + y)         π(y + 2z)      π(2x + z)
+                                              + 2 exp              cos              sin
+                                                           4                 4              4
+                                                                                             
+                                                        π(x + z)         π(x + 2y)      π(y + 2z)
+                                              + 2 exp              cos              sin
+                                                           4                 4              4
+                                                                                             
+                                                        π(y + z)         π(2x + z)      π(x + 2y)
+                                              + 2 exp              cos              sin              ,
+                                                           4                 4              4
+
+wherein u = [ux , uy , uz ]T , x = [x, y, z]T and
+
+                                                                π 2 µt
+                                                                      
+                                                 c(t) = π exp −          .
+                                                                 4ρ
+
+   The above functions satisfy Navier-Stokes equations with null forcing term (f = 0) and no resistive surfaces.
+   We displace the domain by computing the harmonic extension of the following boundary displacement:
+
+                                              dbbΓD (b
+                                                     x, t) = 50 sin(t) sin(b
+                                                                           x) ,
+
+with Γ
+     bD = ∂ Ωb and sin(bx) = (sin(x), sin(y), sin(z))T . The boundary displacement is such that mesh nodes on
+boundary faces only displace tangentially to the boundary (i.e. the domain is the cube (0, 2π) at all times).
+Therefore, the exact solution described above satisfies Navier-Stokes equations in the moving reference as well.
+Furthermore, the dependency of dbΓbD on time is such that the maximum value of uALE is comparable in magnitude
+to the maximum value of u.
+    We obtain the initial conditions by setting t = 0 in the above, and we set Dirichlet conditions on all sides
+of the cube except for the side {x = 0, y ∈ (0, 2π), z ∈ (0, 2π)}, where we impose Neumann conditions. All
+boundary conditions are derived from the exact solution. We set density ρ = 1 kg/m3 and viscosity µ = 10 Pa · s.
+
+
+
+
+                                                             24
+References
+
+ [1] L. Formaggia, A. Quarteroni, A. Veneziani, Cardiovascular Mathematics: Modeling and simulation of the
+     circulatory system, Vol. 1, Springer Science & Business Media, 2010.
+ [2] C. Chnafa, S. Mendez, F. Nicoud, Image-based simulations show important flow fluctuations in a normal
+     left ventricle: what could be the implications?, Annals of Biomedical Engineering 44 (11) (2016) 3346–3358.
+
+ [3] D. Collia, L. Zovatto, G. Pedrizzetti, Analysis of mitral valve regurgitation by computational fluid dynam-
+     ics, APL Bioengineering 3 (3) (2019) 036105.
+ [4] G. Luraghi, W. Wu, H. De Castilla, J. F. Rodriguez Matas, G. Dubini, P. Dubuis, M. Grimmé, F. Migli-
+     avacca, Numerical approach to study the behavior of an artificial ventricle: fluid–structure interaction
+     followed by fluid dynamics with moving boundaries, Artificial Organs 42 (10) (2018) E315–E324.
+
+ [5] G. Luraghi, J. F. R. Matas, M. Beretta, N. Chiozzi, L. Iannetti, F. Migliavacca, The impact of calcifica-
+     tion patterns in transcatheter aortic valve performance: a fluid-structure interaction analysis, Computer
+     Methods in Biomechanics and Biomedical Engineering 24 (4) (2020) 375–383.
+ [6] L. Goubergrits, K. Vellguth, L. Obermeier, A. Schlief, L. Tautz, J. Bruening, H. Lamecker, A. Szengel,
+     O. Nemchyna, C. Knosalla, et al., CT-based analysis of left ventricular hemodynamics using statistical
+     shape modeling and computational fluid dynamics, Frontiers in Cardiovascular Medicine 9 (2022).
+ [7] E. Karabelas, S. Longobardi, J. Fuchsberger, O. Razeghi, C. Rodero, M. Strocchi, R. Rajani, G. Haase,
+     G. Plank, S. Niederer, Global sensitivity analysis of four chamber heart hemodynamics using surrogate
+     models, IEEE Transactions on Biomedical Engineering (2022).
+
+ [8] J. Kronborg, F. Svelander, S. Eriksson-Lidbrink, L. Lindström, C. Homs-Pons, D. Lucor, J. Hoffman,
+     Computational analysis of flow structures in turbulent ventricular blood flow associated with mitral valve
+     intervention, Frontiers in Physiology (2022) 752.
+ [9] R. Mittal, J. H. Seo, V. Vedula, Y. J. Choi, H. Liu, H. H. Huang, S. Jain, L. Younes, T. Abraham, R. T.
+     George, Computational modeling of cardiac hemodynamics: current status and future outlook, Journal of
+     Computational Physics 305 (2016) 1065–1082.
+[10] A. Quarteroni, L. Dede’, A. Manzoni, C. Vergara, Mathematical modelling of the human cardiovascular
+     system: data, numerical approximation, clinical applications, Vol. 33, Cambridge University Press, 2019.
+[11] A. This, H. G. Morales, O. Bonnefous, M. A. Fernández, J.-F. Gerbeau, A pipeline for image based
+     intracardiac CFD modeling and application to the evaluation of the PISA method, Computer Methods in
+     Applied Mechanics and Engineering 358 (2020) 112627.
+[12] A. Zingaro, L. Dede’, F. Menghini, A. Quarteroni, Hemodynamics of the heart’s left atrium based on a
+     Variational Multiscale-LES numerical method, European Journal of Mechanics-B/Fluids 89 (2021) 380–
+     400.
+
+[13] F. Viola, V. Meschini, R. Verzicco, Fluid–Structure-Electrophysiology interaction (FSEI) in the left-heart:
+     a multi-way coupled computational model, European Journal of Mechanics-B/Fluids 79 (2020) 212–232.
+[14] F. Viola, V. Spandan, V. Meschini, J. Romero, M. Fatica, M. D. de Tullio, R. Verzicco, FSEI-GPU: GPU
+     accelerated simulations of the fluid–structure–electrophysiology interaction in the left heart, Computer
+     physics communications 273 (2022) 108248.
+
+[15] A. Santiago, J. Aguado-Sierra, M. Zavala-Aké, R. Doste-Beltran, S. Gómez, R. Arís, J. C. Cajas, E. Ca-
+     soni, M. Vázquez, Fully coupled fluid-electro-mechanical model of the human heart for supercomputers,
+     International journal for numerical methods in biomedical engineering 34 (12) (2018) e3140.
+[16] F. Viscardi, C. Vergara, L. Antiga, S. Merelli, A. Veneziani, G. Puppini, G. Faggian, A. Mazzucco, G. B.
+     Luciani, Comparative finite element model analysis of ascending aortic flow in bicuspid and tricuspid aortic
+     valve, Artificial organs 34 (12) (2010) 1114–1120.
+
+
+
+                                                      25
+[17] E. Faggiano, L. Antiga, G. Puppini, A. Quarteroni, G. B. Luciani, C. Vergara, Helical flows and asym-
+     metry of blood jet in dilated ascending aorta with normally functioning bicuspid valve, Biomechanics and
+     modeling in mechanobiology 12 (2013) 801–813.
+[18] A. Tagliabue, L. Dede, A. Quarteroni, Fluid dynamics of an idealized left ventricle: the extended nitsche’s
+     method for the treatment of heart valves as mixed time varying boundary conditions, International Journal
+     for Numerical Methods in Fluids 85 (3) (2017) 135–164.
+[19] P. Tricerri, L. Dedè, S. Deparis, A. Quarteroni, A. M. Robertson, A. Sequeira, Fluid-structure interaction
+     simulations of cerebral arteries modeled by isotropic and anisotropic constitutive laws, Computational
+     Mechanics 55 (2015) 479–498.
+[20] I. Fumagalli, R. Polidori, F. Renzi, L. Fusini, A. Quarteroni, G. Pontone, C. Vergara, Fluid-structure in-
+     teraction analysis of transcatheter aortic valve implantation, International Journal for Numerical Methods
+     in Biomedical Engineering (2023) e3704.
+[21] N. Paliwal, R. L. Ali, M. Salvador, R. O’Hara, R. Yu, U. A. Daimee, T. Akhtar, P. Pandey, D. D. Spragg,
+     H. Calkins, et al., Presence of left atrial fibrosis may contribute to aberrant hemodynamics and increased
+     risk of stroke in atrial fibrillation patients, Frontiers in Physiology (2021) 684.
+[22] J. Mill, V. Agudelo, A. L. Olivares, M. I. Pons, E. Silva, M. Nuñez-Garcia, X. Morales, D. Arzamendi,
+     X. Freixa, J. Noailly, et al., Sensitivity analysis of in silico fluid simulations to predict thrombus formation
+     after left atrial appendage occlusion, Mathematics 9 (18) (2021) 2304.
+[23] X. Morales Ferez, J. Mill, K. A. Juhl, C. Acebes, X. Iriart, B. Legghe, H. Cochet, O. De Backer, R. R.
+     Paulsen, O. Camara, Deep learning framework for real-time estimation of in-silico thrombotic risk indices
+     in the left atrial appendage, Frontiers in Physiology 12 (2021) 694945.
+[24] D. Oks, C. Samaniego, G. Houzeaux, C. Butakoff, M. Vázquez, Fluid–structure interaction analysis of
+     eccentricity and leaflet rigidity on thrombosis biomarkers in bioprosthetic aortic valve replacements, In-
+     ternational Journal for Numerical Methods in Biomedical Engineering 38 (12) (2022) e3649.
+[25] A. Santiago, C. Butakoff, B. Eguzkitza, R. A. Gray, K. May-Newman, P. Pathmanathan, V. Vu,
+     M. Vázquez, Design and execution of a verification, validation, and uncertainty quantification plan for
+     a numerical model of left ventricular flow after LVAD implantation, PLoS computational biology 18 (6)
+     (2022) e1010141.
+[26] F. Domenichini, G. Pedrizzetti, B. Baccani, Three-dimensional filling flow into a model left ventricle,
+     Journal of fluid mechanics 539 (2005) 179–198.
+[27] F. Domenichini, G. Querzoli, A. Cenedese, G. Pedrizzetti, Combined experimental and numerical analysis
+     of the flow structure into the left ventricle, Journal of biomechanics 40 (9) (2007) 1988–1994.
+[28] J. H. Seo, R. Mittal, Effect of diastolic flow patterns on the function of the left ventricle, Physics of Fluids
+     25 (11) (2013) 110801.
+[29] J. H. Seo, V. Vedula, T. Abraham, A. C. Lardo, F. Dawoud, H. Luo, R. Mittal, Effect of the mitral valve
+     on diastolic flow patterns, Physics of fluids 26 (12) (2014) 121901.
+[30] A. Tagliabue, L. Dede’, A. Quarteroni, Complex blood flow patterns in an idealized left ventricle: A
+     numerical study, Chaos 27 (9) (2017) 093939.
+[31] L. Dede’, F. Menghini, A. Quarteroni, Computational fluid dynamics of blood flow in an idealized left
+     human heart, International Journal for Numerical Methods in Biomedical Engineering 37 (11) (2021)
+     e3287.
+[32] A. Masci, M. Alessandrini, D. Forti, F. Menghini, L. Dede’, C. Tomasi, A. Quarteroni, C. Corsi, A proof of
+     concept for computational fluid dynamic analysis of the left atrium in atrial fibrillation on a patient-specific
+     basis, Journal of Biomechanical Engineering 142 (1) (2020).
+[33] M. Corti, A. Zingaro, L. Dede’, A. Quarteroni, Impact of atrial fibrillation on left atrium haemodynamics:
+     A computational fluid dynamics study, Computers in Biology and Medicine (2022) 106143.
+
+
+                                                        26
+[34] S. Di Gregorio, M. Fedele, G. Pontone, A. F. Corno, P. Zunino, C. Vergara, A. Quarteroni, A computational
+     model applied to myocardial perfusion in the human heart: from large coronaries to microvasculature,
+     Journal of Computational Physics 424 (2021) 109836.
+[35] N. A. Barnafi Wittwer, S. D. Gregorio, L. Dede’, P. Zunino, C. Vergara, A. Quarteroni, A multiscale
+     poromechanics model integrating myocardial perfusion and the epicardial coronary vessels, SIAM Journal
+     on Applied Mathematics 82 (4) (2022) 1167–1193.
+[36] F. Sacco, B. Paun, O. Lehmkuhl, T. L. Iles, P. A. Iaizzo, G. Houzeaux, M. Vázquez, C. Butakoff, J. Aguado-
+     Sierra, Left ventricular trabeculations decrease the wall shear stress and increase the intra-ventricular
+     pressure drop in CFD simulations, Frontiers in Physiology 9 (2018) 458.
+[37] V. Vedula, J.-H. Seo, A. C. Lardo, R. Mittal, Effect of trabeculae and papillary muscles on the hemody-
+     namics of the left ventricle, Theoretical and Computational Fluid Dynamics 30 (1) (2016) 3–21.
+
+[38] J. A. Brown, J. H. Lee, M. A. Smith, D. R. Wells, A. Barrett, C. Puelz, J. P. Vavalle, B. E. Griffith,
+     Patient–specific immersed finite element–difference model of transcatheter aortic valve replacement, Annals
+     of biomedical engineering 51 (1) (2023) 103–116.
+[39] E. Kung, C. Baker, C. Corsini, A. Baretta, G. Biglino, G. Arbia, S. Pant, A. Marsden, A. Taylor, M. Quail,
+     I. Vignon-Clementel, G. Pennati, F. Migliavacca, S. Schievano, A. Hlavacek, A. Dorfman, T.-Y. Hsia,
+     R. Figliola, Hemodynamics after Fontan procedure are determined by patient characteristics and anasto-
+     mosis placement not graft selection: a patient-specific multiscale computational study, medRxiv (2021).
+[40] J. Lantz, S. Bäck, C.-J. Carlhäll, A. Bolger, A. Persson, M. Karlsson, T. Ebbers, Impact of prosthetic
+     mitral valve orientation on the ventricular flow field: Comparison using patient-specific computational
+     fluid dynamics, Journal of Biomechanics 116 (2021) 110209.
+
+[41] G. Rigatelli, C. Chiastra, G. Pennati, G. Dubini, F. Migliavacca, M. Zuin, Applications of computational
+     fluid dynamics to congenital heart diseases: a practical review for cardiovascular professionals, Expert
+     Review of Cardiovascular Therapy 19 (10) (2021) 907–916.
+[42] D. Oks, G. Houzeaux, M. Vázquez, M. Neidlin, C. Samaniego, Effect of TAVR commissural alignment
+     on coronary flow: a fluid-structure interaction analysis, Computer Methods and Programs in Biomedicine
+     (2023) 107818.
+[43] A. Timmis, N. Townsend, C. P. Gale, A. Torbica, M. Lettino, S. E. Petersen, E. A. Mossialos, A. P.
+     Maggioni, D. Kazakiewicz, H. T. May, et al., European Society of Cardiology: cardiovascular disease
+     statistics 2019, European Heart Journal 41 (1) (2020) 12–85.
+[44] S. S. Virani, A. Alonso, E. J. Benjamin, M. S. Bittencourt, C. W. Callaway, A. P. Carson, A. M. Cham-
+     berlain, A. R. Chang, S. Cheng, F. N. Delling, et al., Heart disease and stroke statistics—2020 update: a
+     report from the American Heart Association, Circulation 141 (9) (2020) e139–e596.
+[45] A. Updegrove, N. M. Wilson, J. Merkow, H. Lan, A. L. Marsden, S. C. Shadden, SimVascular: an open
+     source pipeline for cardiovascular simulation, Annals of Biomedical Engineering 45 (2017) 525–541.
+
+[46] F. De Vita, M. De Tullio, R. Verzicco, Numerical simulation of the non-Newtonian blood flow through a
+     mechanical aortic valve, Theoretical and Computational Fluid Dynamics 30 (1) (2016) 129–138.
+[47] G. Marom, Numerical methods for fluid–structure interaction models of aortic valves, Archives of Compu-
+     tational Methods in Engineering 22 (2015) 595–620.
+[48] J. H. Spühler, J. Jansson, N. Jansson, J. Hoffman, A high performance computing framework for finite
+     element simulation of blood flow in the left ventricle of the human heart, in: H. Van Brummelen, A. Corsini,
+     S. Perotto, G. Rozza (Eds.), Numerical Methods for Flows, Springer, 2020, pp. 155–164.
+[49] E. Votta, T. B. Le, M. Stevanella, L. Fusini, E. G. Caiani, A. Redaelli, F. Sotiropoulos, Toward patient-
+     specific simulations of cardiac valves: state-of-the-art and future directions, Journal of Biomechanics 46 (2)
+     (2013) 217–228.
+
+
+                                                       27
+[50] C. Chnafa, S. Mendez, F. Nicoud, Image-based large-eddy simulation in a realistic left heart, Computers
+     & Fluids 94 (2014) 173–187.
+
+[51] F. Nicoud, C. Chnafa, J. Siguenza, V. Zmijanovic, S. Mendez, Large-eddy simulation of turbulence in
+     cardiovascular flows, in: Biomedical Technology, Springer, 2018, pp. 147–167.
+[52] P. C. Africa, lifex: A flexible, high performance library for the numerical solution of complex finite element
+     problems, SoftwareX 20 (2022) 101252.
+
+[53] D. Arndt, W. Bangerth, B. Blais, M. Fehling, R. Gassmöller, T. Heister, L. Heltai, U. Köcher, M. Kro-
+     nbichler, M. Maier, P. Munch, J.-P. Pelteret, S. Proell, K. Simon, B. Turcksin, D. Wells, J. Zhang, The
+     deal.II library, version 9.3, Journal of Numerical Mathematics 29 (3) (2021) 171–186.
+[54] E. L. Schwarz, L. Pegolotti, M. R. Pfaller, A. L. Marsden, Beyond CFD: Emerging methodologies for
+     predictive simulation in cardiovascular health and disease, Biophysics Reviews 4 (1) (2023) 011301.
+
+[55] S. A. Maas, B. J. Ellis, G. A. Ateshian, J. A. Weiss, FEBio: finite elements for biomechanics, Journal of
+     biomechanical engineering 134 (1) (2012).
+[56] J. Lee, A. Cookson, I. Roy, E. Kerfoot, L. Asner, G. Vigueras, T. Sochi, S. Deparis, C. Michler, N. P.
+     Smith, D. A. Nordsletten, Multiphysics computational modeling in cheart, SIAM Journal on Scientific
+     Computing 38 (3) (2016) C150–C178.
+
+[57] B. Griffith, A. Bhalla, IBAMR: An adaptive and distributed-memory parallel implementation of the im-
+     mersed boundary method, https://ibamr.github.io/ (2013).
+[58] M. Mortensen, K. Valen-Sendstad, Oasis: a high-level/high-performance open source Navier–Stokes solver,
+     Computer physics communications 188 (2015) 177–188.
+
+[59] D. Arndt, N. Fehn, G. Kanschat, K. Kormann, M. Kronbichler, P. Munch, W. A. Wall, J. Witte, ExaDG:
+     High-order discontinuous Galerkin for the Exa-Scale, in: H.-J. Bungartz, S. Reiz, B. Uekermann, P. Neu-
+     mann, W. E. Nagel (Eds.), Software for Exascale Computing - SPPEXA 2016-2019, Springer International
+     Publishing, Cham, 2020, pp. 189–224.
+[60] B. Blais, L. Barbeau, V. Bibeau, S. Gauvin, T. El Geitani, S. Golshan, R. Kamble, G. Mirakhori,
+     J. Chaouki, Lethe: An open-source parallel high-order adaptative CFD solver for incompressible flows,
+     SoftwareX 12 (2020) 100579.
+[61] G. Chen, Q. Xiong, P. J. Morris, E. G. Paterson, A. Sergeev, Y. Wang, Openfoam for computational fluid
+     dynamics, Notices of the AMS 61 (4) (2014) 354–363.
+[62] J. Brenneisen, A. Daub, T. Gerach, E. Kovacheva, L. Huetter, B. Frohnapfel, O. Dössel, A. Loewe,
+     Sequential coupling shows minor effects of fluid dynamics on myocardial deformation in a realistic whole-
+     heart model, Frontiers in Cardiovascular Medicine 8 (2021) 1967.
+[63] K. G. Lyras, J. Lee, Comparison of numerical implementations for modelling flow through arterial stenoses,
+     International Journal of Mechanical Sciences 211 (2021) 106780.
+
+[64] A. Chen, A. Azriff Basri, N. B. Ismail, K. Arifin Ahmad, Hemodynamic effects of subaortic stenosis on
+     blood flow characteristics of a mechanical heart valve based on openfoam simulation, Bioengineering 10 (3)
+     (2023) 312.
+[65] M. W. Scroggs, J. S. Dokken, C. N. Richardson, G. N. Wells, Construction of arbitrary order finite element
+     degree-of-freedom maps on polygonal and polyhedral cell meshes, ACM Trans. Math. Softw. 48 (2) (may
+     2022).
+[66] M. Esmaily-Moghadam, Y. Bazilevs, A. L. Marsden, A new preconditioning technique for implicitly coupled
+     multidomain simulations with applications to hemodynamics, Computational Mechanics 52 (2013) 1141–
+     1152.
+
+
+
+
+                                                       28
+[67] M. Esmaily-Moghadam, Y. Bazilevs, A. L. Marsden, A bi-partitioned iterative algorithm for solving lin-
+     ear systems arising from incompressible flow problems, Computer Methods in Applied Mechanics and
+     Engineering 286 (2015) 40–62.
+[68] Trilinos Project Website, https://trilinos.github.io (2023).
+[69] S. Balay, S. Abhyankar, M. F. Adams, S. Benson, J. Brown, P. Brune, K. Buschelman, E. Constanti-
+     nescu, L. Dalcin, A. Dener, V. Eijkhout, J. Faibussowitsch, W. D. Gropp, V. Hapla, T. Isaac, P. Jolivet,
+     D. Karpeev, D. Kaushik, M. G. Knepley, F. Kong, S. Kruger, D. A. May, L. C. McInnes, R. T. Mills,
+     L. Mitchell, T. Munson, J. E. Roman, K. Rupp, P. Sanan, J. Sarich, B. F. Smith, S. Zampini, H. Zhang,
+     H. Zhang, J. Zhang, PETSc/TAO users manual, Tech. Rep. ANL-21/39 - Revision 3.18, Argonne National
+     Laboratory (2022).
+[70] P. C. Africa, R. Piersanti, M. Fedele, L. Dede’, A. Quarteroni, lifex-fiber: an open tool for myofibers
+     generation in cardiac computational models, BMC Bioinformatics 24 (2023) 143.
+
+[71] P. C. Africa, M. Salvador, P. Gervasio, L. Dede’, A. Quarteroni, A matrix–free high–order solver for the
+     numerical solution of cardiac electrophysiology, Journal of Computational Physics 478 (2023) 111984.
+[72] L. Cicci, S. Fresca, A. Manzoni, Deep-hyromnet: A deep learning-based operator approximation for hyper-
+     reduction of nonlinear parametrized pdes, Journal of Scientific Computing 93 (2) (2022) 57.
+
+[73] L. Cicci, S. Fresca, A. Manzoni, A. Quarteroni, Efficient approximation of cardiac mechanics through
+     reduced order modeling with deep learning-based operator approximation, arXiv preprint arXiv:2202.03904
+     (2022).
+[74] L. Cicci, S. Fresca, S. Pagani, A. Manzoni, A. Quarteroni, et al., Projection-based reduced order mod-
+     els for parameterized nonlinear time-dependent problems arising in cardiac mechanics, Mathematics in
+     Engineering 5 (2) (2022) 1–38.
+[75] M. Fedele, R. Piersanti, F. Regazzoni, M. Salvador, P. C. Africa, M. Bucelli, A. Zingaro, A. Quarteroni,
+     et al., A comprehensive and biophysically detailed computational model of the whole human heart elec-
+     tromechanics, Computer Methods in Applied Mechanics and Engineering 410 (2023) 115983.
+[76] R. Piersanti, F. Regazzoni, M. Salvador, A. F. Corno, C. Vergara, A. Quarteroni, et al., 3D–0D closed-
+     loop model for the simulation of cardiac biventricular electromechanics, Computer Methods in Applied
+     Mechanics and Engineering 391 (2022) 114607.
+[77] F. Regazzoni, M. Salvador, P. Africa, M. Fedele, L. Dede’, A. Quarteroni, A cardiac electromechanical
+     model coupled with a lumped-parameter model for closed-loop blood circulation, Journal of Computational
+     Physics 457 (2022) 111083.
+
+[78] M. Salvador, M. Fedele, P. C. Africa, E. Sung, A. Prakosa, J. Chrispin, N. Trayanova, A. Quarteroni, et al.,
+     Electromechanical modeling of human ventricles with ischemic cardiomyopathy: numerical simulations in
+     sinus rhythm and under arrhythmia, Computers in Biology and Medicine 136 (2021) 104674.
+[79] A. Zingaro, I. Fumagalli, L. Dede’, M. Fedele, P. C. Africa, A. F. Corno, A. M. Quarteroni, A geometric
+     multiscale model for the numerical simulation of blood flow in the human left heart, Discrete and Continous
+     Dynamical System - S 15 (8) (2022) 2391–2427.
+[80] A. Zingaro, M. Bucelli, R. Piersanti, F. Regazzoni, L. Dede’, A. Quarteroni, An electromechanics-driven
+     fluid dynamics model for the simulation of the whole human heart, arXiv preprint arXiv:2301.02148 (2023).
+[81] I. Fumagalli, P. Vitullo, C. Vergara, M. Fedele, A. F. Corno, S. Ippolito, R. Scrofani, A. Quarteroni,
+     Image-based computational hemodynamics analysis of systolic obstruction in hypertrophic cardiomyopa-
+     thy, Frontiers in Physiology (2022) 2437.
+[82] F. Marcinnò, A. Zingaro, I. Fumagalli, L. Dede’, C. Vergara, A computational study of blood flow dynamics
+     in the pulmonary arteries, Vietnam Journal of Mathematics (2022) 1–23.
+
+
+
+
+                                                      29
+[83] L. Bennati, C. Vergara, V. Giambruno, I. Fumagalli, A. F. Corno, A. Quarteroni, G. Puppini, G. B. Lu-
+     ciani, An image-based computational fluid dynamics study of mitral regurgitation in presence of prolapse,
+     Cardiovascular Engineering and Technology (2023) 1–19.
+[84] L. Bennati, V. Giambruno, F. Renzi, V. Di Nicola, C. Maffeis, G. Puppini, G. B. Luciani, C. Vergara,
+     Turbulent blood dynamics in the left heart in the presence of mitral regurgitation: a computational study
+     based on multi-series cine-MRI, Biomechanics and Modeling in Mechanobiology 22 (2023) 1829–1846.
+[85] A. Zingaro, M. Bucelli, I. Fumagalli, L. Dede’, A. Quarteroni, Modeling isovolumetric phases in cardiac
+     flows by an augmented resistive immersed implicit surface method, International Journal for Numerical
+     Methods in Biomedical Engineering (2023) e3767.
+[86] M. Bucelli, L. Dede’, A. Quarteroni, C. Vergara, Partitioned and monolithic algorithms for the numerical
+     solution of cardiac fluid-structure interaction, Communications in Computational Physics 32 (5) (2022)
+     1217–1256.
+
+[87] M. Bucelli, A. Zingaro, P. C. Africa, I. Fumagalli, L. Dede’, A. M. Quarteroni, A mathematical model that
+     integrates cardiac electrophysiology, mechanics and fluid dynamics: application to the human left heart,
+     International Journal for Numerical Methods in Biomedical Engineering 39 (3) (2023) e3678.
+[88] M. Bucelli, M. G. Gabriel, A. Quarteroni, G. Gigante, C. Vergara, A stable loosely-coupled scheme for
+     cardiac electro-fluid-structure interaction, Journal of Computational Physics 490 (2023) 112326.
+
+[89] S. Di Gregorio, C. Vergara, G. M. Pelagi, A. Baggiano, P. Zunino, M. Guglielmo, L. Fusini, G. Muscogiuri,
+     A. Rossi, M. G. Rabbat, et al., Prediction of myocardial blood flow under stress conditions by means of a
+     computational model, European Journal of Nuclear Medicine and Molecular Imaging (2022) 1–12.
+[90] A. Zingaro, C. Vergara, L. Dede, F. Regazzoni, A. Quarteroni, A comprehensive mathematical model for
+     cardiac perfusion, Scientific Reports 13 (1) (2023) 14220.
+[91] C. R. Ethier, D. Steinman, Exact fully 3D Navier–Stokes solutions for benchmarking, International Journal
+     for Numerical Methods in Fluids 19 (5) (1994) 369–375.
+[92] K. Perktold, E. Thurner, T. Kenner, Flow and stress characteristics in rigid walled and compliant carotid
+     artery bifurcation models, Medical & biological engineering & computing 32 (1) (1994) 19–26.
+
+[93] A. Quarteroni, A. Manzoni, C. Vergara, The cardiovascular system: Mathematical modelling, numerical
+     algorithms and clinical applications, Vol. 26, Cambridge University Press, 2017.
+[94] C. A. Taylor, T. J. Hughes, C. K. Zarins, Finite element analysis of pulsatile flow in the abdominal
+     aorta under resting and exercise conditions, in: ASME International Mechanical Engineering Congress
+     and Exposition, Vol. 15403, American Society of Mechanical Engineers, 1996, pp. 81–82.
+[95] C. A. Taylor, T. J. Hughes, C. K. Zarins, Finite element modeling of blood flow in arteries, Computer
+     methods in applied mechanics and engineering 158 (1-2) (1998) 155–196.
+[96] J. Donea, S. Giuliani, J.-P. Halleux, An arbitrary Lagrangian-Eulerian finite element method for transient
+     dynamic fluid-structure interactions, Computer methods in applied mechanics and engineering 33 (1-3)
+     (1982) 689–723.
+[97] J. Donea, A. Huerta, J.-P. Ponthot, A. Rodriguez-Ferran, Arbitrary Lagrangian–Eulerian Methods, in:
+     R. d. B. Erwin Stein, T. J. Hughes. (Eds.), Encyclopedia of Computational Mechanics, Vol. 1: Fundamen-
+     tals, John Wiley & Sons, 2004, Ch. 14, pp. 413–437.
+
+[98] T. J. R. Hughes, W. K. Liu, T. K. Zimmermann, Lagrangian-Eulerian finite element formulation for
+     incompressible viscous flows, Computer Methods in Applied Mechanics and Engineering 29 (3) (1981)
+     329–349.
+[99] M. Fedele, E. Faggiano, L. Dede’, A. Quarteroni, A patient-specific aortic valve model based on moving
+     resistive immersed implicit surfaces, Biomechanics and Modeling in Mechanobiology 16 (5) (2017) 1779–
+     1803.
+
+
+                                                     30
+

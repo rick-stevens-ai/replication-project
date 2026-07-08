@@ -1,0 +1,1827 @@
+                                                                       D EEP R EINFORCEMENT L EARNING
+                                                                       FOR A DAPTIVE M ESH R EFINEMENT
+
+                                                                                                 A P REPRINT
+
+
+                                                                   Corbin Foucart∗,1,2 , Aaron Charous 1,2 , Pierre F.J. Lermusiaux†,1
+                                                       1
+                                                           Department of Mechanical Engineering, 2 Center for Computational Science and Engineering
+
+
+
+
+arXiv:2209.12351v1 [cs.CE] 25 Sep 2022
+                                                                                    Massachusetts Institute of Technology
+                                                                                          Cambridge, MA 02139
+
+
+                                                                                              September 27, 2022
+
+                                                                                                 A BSTRACT
+                                                     Finite element discretizations of problems in computational physics often rely on adaptive mesh
+                                                     refinement (AMR) to preferentially resolve regions containing important features during simulation.
+                                                     However, these spatial refinement strategies are often heuristic and rely on domain-specific knowledge
+                                                     or trial-and-error. We treat the process of adaptive mesh refinement as a local, sequential decision-
+                                                     making problem under incomplete information, formulating AMR as a partially observable Markov
+                                                     decision process. Using a deep reinforcement learning approach, we train policy networks for AMR
+                                                     strategy directly from numerical simulation. The training process does not require an exact solution
+                                                     or a high-fidelity ground truth to the partial differential equation at hand, nor does it require a pre-
+                                                     computed training dataset. The local nature of our reinforcement learning formulation allows the
+                                                     policy network to be trained inexpensively on much smaller problems than those on which they are
+                                                     deployed. The methodology is not specific to any particular partial differential equation, problem
+                                                     dimension, or numerical discretization, and can flexibly incorporate diverse problem physics. To that
+                                                     end, we apply the approach to a diverse set of partial differential equations, using a variety of high-
+                                                     order discontinuous Galerkin and hybridizable discontinuous Galerkin finite element discretizations.
+                                                     We show that the resultant deep reinforcement learning policies are competitive with common AMR
+                                                     heuristics, generalize well across problem classes, and strike a favorable balance between accuracy
+                                                     and cost such that they often lead to a higher accuracy per problem degree of freedom.
+
+                                         Keywords Reinforcement learning, adaptive mesh refinement, finite element methods, computational fluid dynamics.
+
+                                         1       Introduction
+                                         In recent decades, the finite element community has developed principled, efficient techniques for solving partial
+                                         differential equations (PDEs). Not only are these techniques extremely general methods that may be applied to almost
+                                         any PDE, they also provide guarantees such as stability, consistency, and convergence [13, 31]. On the other hand, the
+                                         machine learning community has developed a broad set of methods to learn latent patterns from large datasets in the
+                                         absence of a model [9, 36, 44]. However, for problems in computational physics, it is often the case that the PDE is
+                                         an excellent model of the underlying physical phenomena, often down to the molecular level, where the continuum
+                                         assumption begins to lose validity. Attempts to use machine learning to learn solutions to PDEs directly have shown
+                                         promise for relatively trivial problems, but are as of yet subject to several failure modes in terms of generalization to
+                                         even moderately more complicated problems [40]. Rather than ignoring the extensive body of work in either field, we
+                                         propose combining techniques from numerical mathematics and machine learning in order to preserve mathematically
+                                         hard-earned guarantees while improving accuracy and efficiency by applying machine learning to the peripheral aspects
+                                         of numerical methods which lack a model and rely purely on heuristics. Adaptive mesh refinement is one such aspect.
+                                             ∗
+                                                 foucartc@mit.edu
+                                             †
+                                                 Corresponding author: pierrel@mit.edu
+                             Deep Reinforcement Learning for Adaptive Mesh Refinement                          A P REPRINT
+
+
+
+Uniform meshes are often computationally inefficient for finite element simulations in that the mesh density required
+to resolve complex physical features such as steep gradients or small-scale processes is used everywhere over the
+computational domain, even in regions where the numerical solution is smooth and much coarser resolution could be
+used. In many problems, such features are dynamic: eddies, meandering jets, or nonlinearly evolving cracks constitute
+some examples. To optimize efficiency, adaptive mesh refinement (AMR) techniques are a class of methods that
+dynamically modify the computational mesh during simulation in an attempt to increase resolution specifically where it
+is needed [56].
+Most AMR techniques follow an iterative procedure of numerically solving the PDE, estimating the error on
+each element, marking a subset of the mesh elements for refinement or de-refinement (coarsening), and ex-
+ecuting the alterations to the mesh [12, 17]; this well-established paradigm is commonly referred to as the
+SOLVE→ESTIMATE→MARK→REFINE loop, terminology we will use in the present work. Following each
+numerical solve, the ESTIMATE process involves estimating the discretization error on each cell in the mesh. In this
+paper, we draw the distinction between an error estimator, which provides objective measures of error in a specific norm,
+and an error indicator, which offers an empirical indication as to the local magnitude of numerical error but provides
+no theoretical guarantees. The MARK process selects cells for coarsening and refinement based on the estimates of the
+error. Two common approaches are bulk refinement and fixed-number refinement [7, 8, 12, 18, 32, 33, 52]. The former
+marks all the cells responsible for a specified percentage of the (estimated) total error for refinement and similarly for
+coarsening. The latter refines and coarsens a fixed percentage of the total number of cells.
+While AMR methodologies have allowed computational scientists to solve problems which are completely intractable on
+a uniform mesh [38], the application of AMR strategies remains largely heuristic, and best practices are not universally
+agreed upon [56]. The process of estimating the error on each cell is often complex, dependent on both the PDE and the
+numerical method used to solve it, and constitutes an active subject of research [1, 6, 19]. In general, for nonlinear
+partial differential equations, it is often difficult, and in some cases, impossible to provide an upper bound on the error.
+Even in the situations where rigorous error estimation is possible, the bounds on the error may not be tight, or may apply
+to a limited subset of problems, rendering the estimator ineffectual. As a consequence, in practice, these estimators tend
+to be optimistically applied as ad hoc error indicators. A relevant example is the well-known Kelly error “estimator”
+[37], which is derived from analysis specifically for the Poisson equation, but is widely employed in AMR strategies for
+the spatial discretizations of many other PDEs [2, 11, 35, 66, 70] despite its lack of theoretical applicability. Equally
+important, but often overlooked in the literature, the MARK process is also fraught with challenges. In attempting to
+refine only the cells which constitute a certain percentage of the error, bulk refinement strategies can be expensive in
+cases with very few cells at singularities, miss important features of the solution, and present difficulties controlling the
+number of cells in the mesh [18, 52]. With fixed-number refinement, the number of cells in the mesh can be readily
+controlled, but the approach can wastefully refine too many cells [18]. Furthermore, the parameters in either of these
+methods (i.e., the algorithmic realization of a refinement strategy with regard to the percentages of the estimated error
+to refine and coarsen in the case of bulk refinement or exactly how many cells to refine and coarsen in the case of fixed
+number refinement) are choices typically made a priori before a numerical simulation begins. In doing so, the balance
+between coarsening and refinement is implicitly assumed to be static in time, rather than dynamically driven by the
+behavior of the underlying solution and available computational resources.
+As a result, even after decades of research, in practice, AMR strategies remain largely unprincipled and often require
+domain-specific knowledge, trial and error, or manual intervention. Selecting and combining an efficient set of AMR
+heuristics for a new problem is a challenging endeavor and open research problem in general [18]—there exists a clear
+need for an automated, flexible, and principled approach to AMR, motivating the present research.
+We propose the treatment of AMR as a partially observable Markov decision process (POMDP) that can be interpreted
+as a local Markov decision process (MDP) on each element and apply a deep reinforcement learning (RL) approach
+[4] in which we train an agent to increase or decrease mesh resolution, balancing improved accuracy against the
+computational cost associated with each mesh modification decision. Deep reinforcement learning replaces the expected
+reward function from the well-known classical Q-learning algorithm with a neural network as a function approximator
+[62], allowing for the discovery of arbitrarily sophisticated decision-making policies based on unstructured input data
+[34, 60] and obviating the need to manually engineer aspects of the strategy. In doing so, we replace the ESTIMATE
+and MARK processes in AMR with a trained RL policy learned from numerical simulation.
+In the present work, we focus primarily on high-order discontinuous Galerkin finite element methods (DG-FEM), in
+part due to their incredible success in modeling a wide range of phenomena in computational physics (see [31, 43]
+and references therein) and due to their discontinuous representation of the numerical solution. It is this discontinuous
+representation that reliably links the smoothness of the local solution as measured by the interface jumps to local error
+[16] in a way that can be well-leveraged by a decision-making agent, as we develop in §2.2.2. The same property gives
+rise to the simple and effective non-conformity error estimator and its variants examined in the DG-FEM literature
+
+
+
+                                                             2
+                            Deep Reinforcement Learning for Adaptive Mesh Refinement                         A P REPRINT
+
+
+
+[26, 19, 41, 42, 53]. As demonstrated in what follows, the DG-FEM discretization plays an important role in the
+construction of the observation spaces for the reinforcement learning problem. However, in principle, our methodology
+could be applied with minor modifications to classical continuous Galerkin finite element methods or even other
+numerical methods such as finite difference or finite volume methods.
+
+1.1   Related work and novel contributions
+
+Optimal mesh refinement strategies have been shown to be theoretically learnable in a recurrent neural network setting
+[10]. The application of deep RL specifically to problems in computational physics is in its infancy, and recent work at
+the intersection between the disciplines can be found in [20, 67, 68]. A deep RL approach for the related problem of
+mesh generation is explored in [55]. The work in [69] constitutes the first attempt to formulate AMR as an RL problem
+and demonstrates the feasibility of the approach. The present work was developed concurrently and independently,
+and we formulate the deep RL problem differently. To avoid growing and shrinking action and observation spaces, our
+decision-making problem is inherently local rather than defined over the entire mesh; to that end, our observation space
+includes measures of local non-conformity of the solution. We elect not to impose a max refinement depth or provide
+a hard limit on the refinement budget in the action space; rather, we impose these restrictions implicitly through our
+reward function. Accordingly, we do not aim to maximize total error reduction; our reward function seeks to strike a
+tunable balance between the accuracy of the numerical solution and available computational resources.
+In this work, we present novel theory and schemes that use a POMDP representation to formulate AMR as a deep RL
+problem under incomplete information and obtain a trained RL policy that can be thought of as a custom error indicator
+discovered through trial and error. To the best of our knowledge, this is the first work that includes both refinement and
+de-refinement actions as part of the resultant policy. We provide a very general framework for choosing an observation
+space that can incorporate physically relevant features of the PDE to be solved. The methodology is non-reliant on an
+exact solution or ground truth during model training or deployment. The agent learns a cost-effective refinement and
+coarsening strategy that balances improved solution accuracy with computational cost, as opposed to a hard threshold.
+DG-FEM methods have been shown to be competitive in the under-resolved regimes of fluid flow simulation, both in
+the sense of stability and robustness of the schemes [21], and in their ability to transport high-frequency features over
+long time-integration horizons without altering the shape of the features or losing amplitude (dispersion and dissipation)
+[64, 22]. Therefore, practically, the ability of DG-FEM schemes to capture and preserve physical features is more an
+important criterion of merit than the norm-measured errors often presented in academic convergence studies, (see [43],
+pp.35-48). This is crucial, as it suggests that any performant AMR technique should be measured against its ability to
+resolve dynamical features while making efficient use of problem degrees of freedom. This motivates the specific form
+of our reward function, as well as informs our primary objective of this work; to obtain an AMR policy that accurately
+resolves features of the numerical solution and efficiently uses computational resources.
+The paper is organized as follows. In §2, we introduce our RL formulation of the adaptive mesh refinement problem.
+The partially observable Markov decision process is described in §2.2, with the action and observation spaces detailed
+in §2.2.1-§2.2.2. The design and implementation of a new reward function that allows for model training without the
+need for exact or ground-truth solutions to the underlying problem are provided in §2.3. Procedures for training and
+deployment are given in §2.4, and a brief discussion of the deep learning policy architectures employed therein is
+specified in §2.5. The discontinuous Galerkin spatial discretizations for the numerical forward models are provided in
+§3 for different PDEs. In §4, we demonstrate the efficacy of the methodology on a set of numerical test cases spanning
+a variety of PDEs and numerical methods. We show that the resultant RL policies can outperform widely-used AMR
+heuristics in terms of accuracy per degree of freedom and that the policy corresponding to a single trained model
+generalizes well to different boundary conditions, forcing functions, and problem sizes. We offer concluding remarks in
+§5.
+
+
+2     Deep reinforcement learning framework
+
+Deep reinforcement learning combines reinforcement learning with deep learning using a neural network to represent
+the value function, policy, or model considered in a classical RL setting [47]. Similar to other deep learning approaches,
+the network is typically trained by optimization of a loss function over many episodes in which a strategy that maximizes
+the expected reward (2.1) is determined through trial and error. This approach is attractive, as it does not require
+domain-specific knowledge, nor does it require a large training data set; training data is generated experientially by
+“self-play” as the agent interacts with its environment.
+Formulating an RL approach (§2.1) to a problem involves describing the underlying decision process and representation
+of the agent and the state (§2.2). We must specify a reward function (§2.3) which encodes desirable behaviors of the
+
+
+                                                            3
+                                Deep Reinforcement Learning for Adaptive Mesh Refinement                           A P REPRINT
+
+
+
+resultant learned policy. Lastly, we must specify the neural network architectures which are to represent the different
+parts of the RL problem (§2.5). The subsections that follow present our novel formulation of adaptive mesh refinement
+as a deep RL problem.
+
+2.1   Notation
+
+Reinforcement learning is characterized by a decision-making agent that interacts with an environment described by a
+state S. We consider the discrete-time case: at time step t ∈ {0, 1, 2, . . .}, the observable state of the environment is St
+and the action selected by the agent is At , the latter of which gives rise to the reward Rt+1 and modified state St+1 .
+A partially observable Markov decision process (POMDP) is a formalism for describing a sequential decision-making
+process under incomplete information [5]. A POMDP is characterized by (S, A, R, T, O, O, γ), where the sets S, A,
+and R are the sets of possible states, actions, and rewards, respectively. The state transition function T : S × A × S →
+[0, 1] encodes the distribution of transition probabilities from a state St = s to St+1 = s0 given the action a; that is,
+T (s, a, s0 ) returns the probability of transitioning to state St+1 = s0 under the action At = a executed in state St = s.
+The set O is the set of possible observations, and the probability distribution O(o|s, a) describes the probabilities over
+the set of possible new observations Ot+1 = o ∈ O upon taking action At = a in state St = s. The scalar γ ∈ [0, 1] is
+a time discount factor—a lower discount factor motivates the agent to favor taking actions early. A POMDP differs
+from a standard Markov decision process (MDP) in that the agent does not have access to the complete state St , but
+rather, indirect observations of it.
+The goal of RL is to find a stochastic policy function π : O → A that maps the observation space, that we take as a
+subset of the entire space O ⊆ S, to the set of actions that maximizes the expected reward
+                                                  "∞                               #
+                                                    X
+                                                          k
+                                 Qt (s, a) = Eπ         γ Rt+k+1 | St = s, At = a
+                                                         k=0
+
+over an infinite time horizon [59].
+
+2.2   Elemental refinement as a local Markov decision process
+
+As per the approach described in [3, 7] and references therein, the computational mesh is composed of linear, quadrilat-
+eral, or hexahedral elements, and represented by a tree data structure. Upon refinement of an element, 2d child elements
+are generated by bisection and marked as active, while the parent element is marked as inactive. The active cells of the
+computational mesh at any given time are the leaves of the tree. This process is schematically illustrated in Figure 1. In
+this paper, we refer to elements (active or inactive) which share the same parent element as “sibling” elements.
+
+                                     (a)                         (b)
+
+
+
+
+Figure 1: (a) Adaptively refined elements in a computational mesh Th generated from a single element. (b) Underlying data
+structure representation as a tree, with inactive parent elements and active elements as the leaves of the tree.
+
+
+The state St is described by the current computational mesh Th , its numerical solution, uh , and any data known to the
+PDE (boundary conditions, forcing functions, etc.), which we refer to as D. Formally, the POMDP is well-defined, as
+we can define the global state space as the set of all possible mesh configurations and numerical solutions. However,
+the consideration of the global state and action spaces is computationally intractable, as the agent would encounter a
+combinatorially growing space of actions to explore.
+In light of this fact, we consider a local description of the state as the observation space in the POMDP in order to train
+the agent. During training, the agent observes a single cell locally, takes action on the current cell alone, and receives a
+reward which is the effect of its local action on the entire computational domain. The agent is subsequently moved to
+another cell in the mesh randomly, according to a distribution Bt (Ot , St+1 ) which encodes the POMDP belief in the
+state of the environment and which cell should be visited next. In this work, for simplicity, we take the distribution
+
+
+                                                                   4
+                              Deep Reinforcement Learning for Adaptive Mesh Refinement                           A P REPRINT
+
+
+
+to be uniform over all cells in the mesh. However, a Bayesian treatment of the belief state is possible within our RL
+formulation.
+Although it may seem counter-intuitive to train the agent on small subsets of the entire state space, formulating the
+learning problem locally in this way has several advantages. Considering the entire state of the mesh as an MDP
+leads to a growing and shrinking action space as the mesh changes, with a combinatorially growing number of action
+possibilities; this can be addressed [69]—however, the complicated action space may present training and generalization
+difficulties. Second, many problems in computational physics are governed by PDEs with strong spatial locality, which
+is why the linear systems arising from the discretization of PDEs are typically sparse. Therefore it makes sense to view
+the RL problem on a single element rather than on the entire mesh, as the numerical solution is typically more sensitive
+to local phenomena. This is not always the case; e.g., in elliptic PDEs, it is well-known that errors are propagated
+globally [61]; to address this, we specifically include elliptic PDE test cases in our numerical experiments in §4. Lastly,
+the resultant trained neural network constituting the RL policy has the intuitive interpretation of a custom cell-wise error
+indicator learned during training. With this interpretation, it can be seen that the same trained model can be deployed
+repeatedly over the entire mesh, in parallel if desired.
+
+2.2.1   Action space
+The action space of the agent is the discrete set A = {coarsen, do nothing, refine}, with respect to the current
+cell. The goal of the RL problem can be stated succinctly as: train the agent such that it refines in areas that are locally
+under-resolved, coarsens in areas that are locally over-resolved, and takes no action otherwise. Furthermore, the agent
+should take these actions flexibly and efficiently with respect to the available computational resources.
+While it is always possible to refine, the mesh may be in a state such that it is not topologically possible to coarsen the
+current cell. This is because the current cell could be at the coarsest possible level of the mesh, e.g., a computational
+mesh comprised of a single cell, or because the siblings of the current element could have arbitrarily many children, and
+coarsening is only possible when all the sibling cells are at the highest possible refinement level (i.e., leaves on the
+tree). For example, in the mesh depicted in Figure 1, all of the elements marked as blue can be coarsened, whereas
+those marked as gray can not. Our implementation is such that if coarsening is not possible, the agent defaults to doing
+nothing. Under this set of actions, the transition function between states is technically deterministic. On the other hand,
+conceptually, it is useful to think of the transition as probabilistic, i.e., an attempt to coarsen succeeds with a probability
+that is a function of the present state of the mesh.
+
+2.2.2   Observation space
+The observation space O is the observable portion of the total state S. The observation space on an element K ∈ Th of
+the computational mesh consists of:
+                                                                                                         R
+     A. The jumps in the numerical solution integrated over the boundary of the cell, denoted ΞK = ∂K Juh K d∂K,
+         as well as ΞK 0 for the cell neighbors K 0
+                                                                 P
+      B. The average integrated jump across all mesh elements K ΞK /NK
+      C. The current usage of available computational resources p
+     D. Any physically relevant features of the numerical solution or data φ(uh , D) local to the cell, where φ(·) refers
+         to a feature and D refers to available data
+
+The rationale for the inclusion of item (A.) is that discontinuities present at the element interfaces measure the non-
+conformity of the numerical solution. This is due to the assumption that, in the absence of a physical discontinuity, the
+exact solution is continuous across element interfaces. This observation is borne out by straightforward analysis, which
+shows a strong relationship between the residuals of the numerical solution uh over the element interior and the jumps
+across the inter-element boundaries [16], leading to the development of so-called “non-conformity” error estimators
+[53] specific to discontinuous Galerkin finite element methods.
+Although formulating the observation space of the POMDP as a completely local problem is computationally attractive,
+it is clear that in the absence of global information, the agent should always perform the refine action. Items (B.) and
+(C.) both serve the purpose of communicating global information regarding the relative utility of local refinement to the
+local decision process.
+The inclusion of the average integrated jump over all mesh elements provides information about the relative estimate of
+the error on the current cell as compared to other cells in the mesh. During training, this element of the observation
+space allows the agent to decide when to forgo the opportunity to refine the current cell in order to spend computational
+resources elsewhere in the mesh, where the numerical errors may be greater than those observed locally.
+
+
+                                                              5
+                             Deep Reinforcement Learning for Adaptive Mesh Refinement                         A P REPRINT
+
+
+
+The scalar p ∈ [0, 1] indicates the current usage of available computational resources. In this work, we take p to be the
+fraction of active mesh elements out of a user-specified maximum number of elements. However, p need not have this
+representation: in the case of an HPC application, the value of p could be measured directly by monitoring CPU or
+memory usage in real time. Alternatively, p could be defined with respect to a maximum allowable wall-clock time
+per solution time step or could be computed from some other a priori allocation of computational resources such as
+RAM or arithmetic throughput. Regardless of how the computational usage p is defined, its inclusion in the observation
+space serves to indicate to the agent the availability of computational resources; the reward function §2.3 specifies the
+cost-benefit relationship of making use of them.
+Due to item (D.), this observation space is very flexible and general. This is by design, as it allows the user to include
+physically or computationally relevant information which may help the agent learn a more effective strategy. As an
+example, the advection problem as described in §3.2 may include the local convective velocity in the observation space,
+as it determines the flow of information.
+Remark. In this paper, we emphasize discontinuous Galerkin methods due to the simplicity and effectiveness of the
+non-conformity of the local solution as a proxy for the local error. In the case of classical continuous Galerkin finite
+element schemes, the jump of the solution along the element boundary is identically zero, due to the continuous nature
+of the approximation spaces in which the numerical solution is sought [13]. However, item (A.) can be readily replaced
+with other indicators of non-conformity in order to generalize the methodology to other finite element discretizations.
+For example, the jump of the solution gradient along the element boundary can be applied as a simple surrogate in the
+continuous Galerkin case—the core principle is to select a numerical quantity that vanishes as the numerical solution
+approaches the exact solution of the PDE. However, more sophisticated indicators of non-conformity exist [6].
+
+2.3   Designing the reward function
+
+The reward function is an environment-provided reinforcement signal that determines the immediate reward or penalty
+due to each decision on the part of the agent [62]. In that sense, the reward function is central to the ultimate behavior
+of the agent after training and should encode all the information pertaining to what we wish our agent to accomplish.
+For AMR, the reward function used to train the agent should strike a balance between improvements in accuracy and
+incurring additional computational costs. With these conditions, our proposed reward function takes the general form of
+
+                                                    [accuracy] − γc [cost]B(p).                                        (1)
+
+The coefficient γc is a scaling factor expressing the relative importance of the accuracy of the solution versus increasing
+computational cost in the RL agent’s policy; it can either be tuned as a hyperparameter or empirically computed for
+different computational regimes. The function B(p) : [0, 1) → [0, ∞) acts as an asymptotic barrier discouraging the
+agent from exceeding the limit of its computational resources. Two choices are shown in in Figure 2. The barrier
+function can be modified to encourage the agent to use a certain percentage of resources, for example, to incentivize
+aggressive refinement in the under-resolved case, which we refer√to as a barrier function “with hortation”. In this paper,
+unless otherwise specified, we use the barrier function B(p) = p/(1 − p).
+It remains to define a metric for improvement in solution and change in computational cost for each of the terms in
+equation (1).
+
+                                                       polynomial barrier functions
+                                                5
+                                                          barrier
+                                                         barrier with hortation
+
+
+
+
+                                         B(p)   0
+
+
+
+
+                                                5
+                                                 0.0                    0.5           1.0
+                                                                         p
+                                                                                                                  √
+Figure 2: Example of polynomial barrier function B(p) = p/(1−p) and hortative barrier function B(p) = p/(1−p)−[1/ p−1].
+
+
+                                                                    6
+                              Deep Reinforcement Learning for Adaptive Mesh Refinement                                A P REPRINT
+
+
+
+Accuracy. The optimality properties of the numerical solution arising from continuous and discontinuous Galerkin
+finite element discretizations ensure that the error of the solution (measured in an appropriate norm) decreases or
+remains the same upon any refinement of the computational mesh [13, 16, 31]. These properties are crucial, as they
+guarantee that any change in the error of the numerical solution, e(uh ) = kuh − uexact kL2 (Ω) , that arise as a result
+of refinement will be monotonically non-increasing. Therefore the fundamental idea is to reward any change in the
+numerical solution upon refinement, and to penalize any change to the numerical solution upon coarsening. We define
+the quantity
+                                                   X Z
+                                          ∆uh =              |ut+1
+                                                               h   − uth | dK                                        (2)
+                                                      K∈Th    K
+
+to represent the change in the solution, upon the action At , as is schematically illustrated in Figure 3. The integers t and
+t + 1 refer to a time step with respect to the POMDP, not a time integration step in the case of a time-dependent PDE.
+We always perform the computation of ∆uh by first interpolating the coarser of the two solutions onto the finer of the
+two grids, then performing the integration. This way, the change in solution ∆uh upon refining and coarsening the
+same element are identical in magnitude, but with opposite signs.
+Naively applying the reward +∆uh upon refinement and −∆uh upon coarsening is logical; however, this choice often
+results in an inconsistent reward signal due to scaling. One of the attractive features of high-order finite element methods
+is that the error in the numerical solution decreases quickly with respect to the mesh element size for problems with
+smooth solutions, typically as 1/hporder where h is a representative size of a mesh element, and porder is the polynomial
+order of the scheme [13, 31]. As a result, the error in numerical solutions often spans many orders of magnitude over a
+small number of mesh refinement cycles. To account for these large differences in the scale of the error, and to prevent
+the initial refinements from dominating the total achievable reward during training, we scale the rewards logarithmically,
+awarding the agent
+                                      R∆u = ± [log(∆uh + machine ) − log machine ] ,
+
+where the positive and negative signs apply to the cases of refinement and coarsening, respectively. Here, machine is a
+representation of machine precision, which we take to be 10−16 , and is included for the edge cases in which refinement
+or coarsening does not change the numerical solution. Of course, it can also be a desired accuracy for the numerical
+solution. Lastly, the additive factor is chosen to center the positive and negative rewards around zero, rather than
+log(machine ) for interpretability, and follows from our specific choice of machine precision.
+
+                             St, At = refine                                            St + 1
+                                                                                                 numerical solution
+                                                                                                 exact solution
+                                                                                                 mesh
+                                                                                                  uh
+
+
+
+
+                  RL agent                                           refined element                 RL agent
+
+Figure 3: Schematic of ∆uh upon refinement. The RL agent’s new location is sampled from the belief distribution Bt (Ot , St+1 ).
+
+Cost. We can specify the reward due to the change in computational cost upon action at as the quantity
+                                          R∆C = B pt+1 − B pt .
+                                                                   
+                                                                                                                              (3)
+The sign of R∆C is not explicitly dependent on the action at , as it purely relates to the increase or decrease in
+computational cost as measured by p before and after the action occurs.
+The reward function. Combining the constituent components, the final explicit form of the new reward function that
+we employ is
+                       
+                       + [log(∆uh + machine ) − log(machine )] − γc R∆C ,     if at = refine
+          R(st , at ) = − [log(∆uh + machine ) − log(machine )] − γc R∆C ,     if at = coarsen               (4)
+                       
+                        0,                                                       if at = do nothing
+
+                                                               7
+                             Deep Reinforcement Learning for Adaptive Mesh Refinement                           A P REPRINT
+
+
+
+2.4   Training and model deployment
+
+To train the model on a static problem, we begin each episode with a very coarse mesh. The agent is placed randomly
+on a cell in the mesh; after collecting the reward for each action, the agent is moved to a different element randomly
+as described in §2.2. After a large given number of actions have occurred, the episode ends, with early termination
+possible in the case of repeated do nothing actions. If at any point the agent exceeds the allotted computational
+budget, it receives a large negative reward and the episode terminates (see Appendix C). For time-dependent problems,
+the training is similar, although at random intervals, the numerical solution is stepped forward by one time step.
+For model deployment, the trained model considers every cell in the mesh sequentially, in the order specified by
+the non-conformity estimator, and makes a decision based on the local observation on that particular element. The
+percentage of available resources p is updated in between elements so that the model may update its recommendation.
+This constitutes the marking process—once every element has been visited, the recommendations of the RL policy can
+be executed. This constitutes a single AMR “cycle” for the RL model.
+
+
+
+2.5   Policy and deep learning architectures
+
+We now describe the particular architectures we used for our AMR agent. Our deep Q-network [51] is the simplest
+policy. It consists of an input layer, the size of which corresponds to the size of the observation space, two hidden-layers,
+each with 64 neurons, and an output layer with one neuron for each possible action. Rectified linear units (ReLUs) are
+chosen as our activation functions. Taking the argmax of the output yields the action we take (assuming we are using
+the optimal policy deterministically).
+The Advantage Actor-Critic (A2C) policy [50] uses the same network architecture as the deep Q-network, but it trains
+two networks, one to estimate the value function (the critic) and one to determine the optimal policy (the actor). At
+each step, the actor chooses an action that the critic evaluates to estimate the state-value and improve the policy of the
+actor. Finally, the Proximal Policy Optimization (PPO) policy [58] uses the same network architecture as A2C; the
+main difference is that PPO uses clipping in the objective function so that policy updates remain relatively small. We
+compare the performance of these algorithms in §4.1.1.
+
+
+
+2.6   Summary: reinforcement learning framework
+
+The design of the reward function is pivotal in RL. The idea behind the reward signal (4) is illustrated in Figure 3.
+When the agent uses resources to refine the solution, it accumulates a reward corresponding to how much the numerical
+solution changes as a result of the refinement (R∆u ), and is penalized according to the increased usage of its resource
+budget (R∆C ). In the limiting case, in which the solution is perfectly resolved, the agent accrues only penalization
+for additional refinement. Conversely, when the agent elects to coarsen the resolution, it is rewarded according to
+the resources it saves, but pays for any change in the numerical solution. In the limiting case where the solution is
+perfectly resolved with more elements than necessary, the agent receives only reward for decreasing the number of
+elements, as the numerical solution does not change upon coarsening. In essence, the reward function provides a signal
+which communicates the trade-off between accuracy and computational cost. To preserve the reward signal, the reward
+function logarithmically scales and machine-precision-normalizes the quantities R∆u and R∆C , which can span many
+orders of magnitude. The hyperparameter γc is a tunable setting that reflects the degree of displeasure incurred upon
+using additional resources, effectively weighting the user priority of accuracy versus cost.
+By formulating the sequential decision process locally as a POMDP, the observation space provides the link between
+the local solution data and its conformity to the cost-benefit trade-off of refinement in that region. Informally speaking,
+the observation Ot provides a signal relating local solution conformity to that of the global solution as well as the
+remaining computational resources and other potentially relevant data.
+We summarize the algorithm for a training time step and model deployment in Figure 4. The notation uth = M(St )
+describes running the forward model on the mesh state St to compute the corresponding solution uth by numerically
+solving the PDE. The trained policy network is denoted πh (§2.2), and we use the Boolean done as a sentinel for
+episode termination. Lastly, we refer to the belief distribution over the mesh cells K ∈ Th at state St as Bt (Ot , St ).
+For the architectures we employ (§2.5), we refer to [57] for the complete specification as to how the weights of the
+policy network are updated as a result of the training steps taken.
+
+
+                                                             8
+                                Deep Reinforcement Learning for Adaptive Mesh Refinement                                 A P REPRINT
+
+
+
+    training_step(At , Ot ):                                           model_deployment(S0 , πh ):
+    Kt ← cell corresponding to Ot                                      S 0 ← S0                         R
+    if At = refine                                                     {T } ←sort K ∈ Th by ΞK = ∂K Juh Kd ∂K
+                                                                             0
+       St+1 ← refine Kt                                                For K ∈ {T }
+    if At = coarsen                                                        OK 0 ← compute observation space for K 0
+       St+1 ← coarsen Kt                                                   AK 0 ← πh (OK 0 ) query policy network
+    update ut+1h  = M(St+1 ), pt+1                                         execute action AK 0 , update S 0 , p
+    compute ∆uh (on finer mesh) via (2), R∆C via (3)                   compute new solution u0h ← M(S 0 )
+    compute Rt+1 via (4)                                               return u0h , S 0
+    sample cell Kt+1 ← Bt (Ot , St+1 )
+    Ot+1 ← compute observation space for Kt+1
+    if pt+1 > 1
+       Rt+1 ← large, negative reward
+       done ← true
+    if iteration ≥ episode iterations
+       done ← true
+    return Rt+1 , done, Ot+1
+    Figure 4: Deep RL-AMR. Algorithms for a single RL training time step (left) and for the deployment of the trained policy over
+    a single refinement cycle (right). The training step takes as input an action At and an observation Ot , and returns the reward
+    Rt+1 , the Boolean episode termination condition done (default false), and the new observation Ot+1 . The model deployment
+    procedure takes as input a trained policy network πh and starting state S0 ; it returns the proposed next mesh state S 0 and the
+    updated numerical solution u0h .
+
+
+
+
+3     Finite element spatial discretization and problem physics
+
+3.1    Notation and approximation spaces
+
+In order to state the weak forms of the subsequent problems that follow, we introduce some requisite notation. We let
+Th = ∪i Ki be a finite collection of non-overlapping elements Ki that discretizes the entire problem domain Ω ⊂ Rd .
+We refer to the boundary of the problem domain as Γ. The set ∂Th = {∂K : K ∈ Th } refers to all boundary edges and
+interfaces of the elements, where ∂K is the boundary of element K. For two elements K + and K − sharing an edge,
+we define e = ∂K + ∩ ∂K − as the edge between elements K + and K − . Each edge can be classified as belonging to
+either ε◦ or ε∂ , the set of interior and boundary edges, respectively, with ε = ε◦ ∪ ε∂ .
+The elements K + and K − have outward pointing unit normals n+ and n− , respectively. The quantities a± denote the
+traces of a on the edge e from the interior of K ± . When relevant for element-wise operations, we take as convention
+that the element K − refers to the local element, and K + to the neighboring element. The jump J·K operator for scalar
+quantities are then defined as JaK = a− − a+ on the interior faces e ∈ ε◦ . On the set of boundary faces e ∈ ε∂ , we can
+unambiguously refer to a single-valued trace and outward facing normal n on Γ. Lastly, we define the inner products
+over a set D ⊂ Rd and its boundary ∂D ⊂ Rd−1 using typical discontinuous Galerkin finite element notation as
+                                                  Z                                 Z
+                                      (c, d)D =         cd dD,         hc, di∂D =        cd d∂D.
+                                                    D                               ∂D
+
+
+
+Let P porder (D) denote the set of polynomials of degree porder on a domain D. We consider the discontinuous finite
+element spaces
+
+                                  Whporder = w ∈ L2 (Ω) : w K ∈ W porder (K) ∀K ∈ Th ,
+                                            
+                                            n            d                              o
+                                  Vhporder = v ∈ L2 (Ω) : v K ∈ V porder (K) ∀K ∈ Th ,
+                                                 
+
+                                  Mhporder = µ ∈ L2 (εh ) : µ e ∈ P porder (e) ∀e ∈ εh ,
+                                            
+
+
+where L2 (Ω) is the space of square-integrable functions on the domain Ω. Informally, Whporder represents the space of
+piecewise discontinuous polynomials of degree at most porder on every element in the mesh.
+
+
+                                                                   9
+                              Deep Reinforcement Learning for Adaptive Mesh Refinement                             A P REPRINT
+
+
+
+3.2   Linear advection equation
+
+We will consider the linear advection equation
+                                            ∂u
+                                               + ∇ · (cu) = f                 in Ω,
+                                            ∂t                                                                              (5)
+                                                        u = gD              on Γin ,
+on the domain Ω with boundary Γ separated into inflow and outflow regions Γ = Γin ∪ Γout , that are defined according
+to the continuous, divergence-free advection velocity field c and outward normal n,
+                                                 Γin = {x ∈ Γ : c · n ≤ 0} ,
+                                                Γout = {x ∈ Γ : c · n > 0} .
+The linear advection problem defined in equation (5) admits the following semi-discrete discontinuous Galerkin
+discretization [16, 43]: we seek uh ∈ Whporder such that
+              
+          ∂uh
+       w,           − (∇w, cuh )Th + hJwK, u∗ (c · n)iε◦ + hw, uh (c · n)iΓout = (w, f )Th − hw, gD (c · n)iΓin ,
+            ∂t Th
+
+for all w ∈ Whporder . There are many choices for the single-valued, inter-element numerical flux u∗ . To mimic the
+physics of the problem, we use the common upwinded flux
+                                                     +
+                                               ∗      uh , c · n < 0
+                                              u =
+                                                      u−h , c · n ≥ 0.
+
+In the steady case, the time derivative term is set to zero. In the unsteady case, a standard explicit time-integration
+scheme can be used for temporal discretization using a method of lines approach [31]; we use LSERK-45 [15].
+
+3.3   Advection-diffusion equation
+
+To demonstrate that the methodology generalizes well across different problem physics as well as across different finite
+element discretizations, we will consider the advection-diffusion equation, which includes as a subset second-order
+Poisson-like problems. Namely, we consider the set of problems described by the PDE
+                                     ∂u
+                                        + ∇ · (cu) − ∇ · (κ∇u) = f,              in Ω
+                                     ∂t
+                                              (−κ∇u + cu) · n = gN ,              on ΓN ,                                   (6)
+                                                             u = gD ,             on ΓD ,
+where ΓD and ΓN denote the Dirichlet and Neumann segments of the boundary, respectively. The problem in equation
+(6) admits a hybridizable discontinuous Galerkin (HDG) formulation, developed in [54]: we seek (qh , uh , ûh ) ∈
+Vhporder × Whporder × Mhporder such that
+
+                                                 v, κ−1 qh T − (∇ · v, uh )Th + hv · n, ûh i∂Th = 0
+                                                          
+                                                             h
+             
+          ∂uh
+      w,             − (∇w, cuh )Th + (w, ∇ · qh )Th + (w, (c · n)ûh )∂Th + hw, τ (uh − ûh )i∂Th = (w, f )Th (7)
+           ∂t Th
+                                                           hµ, qh · n + (c · n)ûh + τ (uh − ûh )i∂Th = hµ, gN i∂Th
+
+for all (v, w, µ) ∈ Vhporder × Whporder × Mhporder . We take the diffusion coefficient κ = 1, choose the stabilization parameter
+τ = κ/` + |c · n|, where we use as a diffusion length scale ` = 1/5. In order to solve Poisson-like problems, we set the
+convective velocity field c to zero. In the unsteady case, an implicit time-integration scheme can be applied for the
+temporal discretization; we use the third-order backward difference formulae (BDF3). We refer the reader to [54] for a
+thorough discussion of these choices.
+
+3.4   Error indicators and AMR heuristics
+
+For the test cases in §4, we benchmark the RL policy against two common AMR heuristics, the Kelly Error indicator
+and a gradient indicator. The indicators are shown in Table 1.
+
+
+                                                              10
+                               Deep Reinforcement Learning for Adaptive Mesh Refinement                        A P REPRINT
+
+
+
+                  Error indicator               faces F = K ∩ K 0                    boundary face ΓN
+                                                     Z s        {2
+                                            X               ∂uh                                      2
+                                                                                   nF F gN − a ∂u
+                                                                                     R
+                       Kelly                      cF      a         dF                           ∂n
+                                                                                                   h
+                                                                                                       dF
+                                                        F   ∂n
+                                           F ∈∂K
+                                            X yK 0 uh (xK 0 ) − uh (xK )
+                  Gradient-based       Y −1                                                       -
+                                              0
+                                                 kyK 0 k      kyK 0 k
+                                             K
+
+                                    Table 1: Cell-wise error indicators, contributions by face.
+
+
+The Kelly indicator uses parameters cF = nF = hK /24 for element width hK . The approximate gradient is formed
+                            0
+using the distance vectors yK = x0K − xK between the cell centers of element K and its neighbors K 0 , as well as the
+matrix
+                                               X  yK 0 y T 0 
+                                                                K
+                                          Y =                          .
+                                                 0
+                                                     ky K 0 k kyK 0 k
+                                                        K
+
+We scale the approximate gradient ∇u ˜ h in Table 1 by a power of the mesh width, using h1+d/2 ∇u     ˜ h . To execute
+                                                                                             K
+an AMR strategy based on either of these estimators, we use either a bulk or fixed fraction rule. As described in §1,
+a bulk strategy refines and coarsens the cells in which the top and bottom percentages of the estimated error occurs;
+therefore the actual number of cells coarsened or refined is entirely dependent on the estimate. On the other hand,
+a fixed-fraction refinement strategy sorts the cells according to their error estimates and refines and coarsens a top
+and bottom percentage of the total number of cells. We denote these strategies as bulk(refine percentage, coarsen
+percentage) and, similarly fixed(·, ·); e.g., fixed(0.4, 0.6) refers to an AMR strategy where the top 40 percent of cells
+in terms of their estimated error are refined and the bottom 60 percent are coarsened. For additional details on both
+these indicators and refinement strategies, see [2].
+
+3.5   Numerical implementation
+
+The finite element forward models were implemented in C++ and make use of the finite element library deal.ii [2].
+The POMDP characterizing the RL environment was implemented using the OpenAI Gym framework [14], and the
+custom deep RL architectures were implemented in the open-source RL framework Stable-Baselines 3 [57].
+Unless otherwise specified, the policy architecture used is A2C, and the hyperparameter γc = 25 (see §2.3, §4.1),
+which we empirically found to give good performance over a wide range of test cases. Additional values of training
+parameters are given in Appendix C. As is typical in deep RL, the particular number of training time steps used is not
+particularly meaningful as compared to the order of magnitude of the total number of steps (see discussion in §4.1.1),
+as long as the policy network is given sufficient time to increase its mean episodic reward significantly from its starting
+performance. For all experiments, we used on the order of 105 RL training time steps, consisting of 100-200 time step
+episodes, and training took on the order of 1-3 hours on a desktop computer without GPU acceleration. More detailed
+benchmarking would be extraneous, as performance in terms of training time is dominated by the cost of running the
+numerical solver rather than updating the policy network, for all but trivial problems.
+All linear systems arising from the finite element discretizations are solved using direct solvers (UMFPACK) to avoid
+the complicating factors of iterative solver tolerances and stopping criteria. All surface and volume integral operators are
+discretized with Gaussian quadrature using porder + 1 one-dimensional (1D) quadrature points in each spatial direction,
+where porder is the polynomial order of the finite element space Whporder .
+L2 -errors, when shown, are computed as a post-processing step using a known exact solution and numerically integrated
+using porder + 3 Gaussian quadrature points in each spatial direction to ensure that the calculation of errors is not
+adversely affected by integration error. We re-emphasize that no exact solutions are used at any point during training or
+deployment of the RL model itself.
+
+4     Numerical experiments
+The numerical experiments in this section are designed to demonstrate the features and performance of the deep RL
+AMR (DRL-AMR) approach. We start with a 1D, steady linear advection problem in §4.1 as an illustrative example to
+exhibit the feasibility of the approach and to demonstratively explore the characteristics of the RL policy. We provide a
+discussion of details related to training and model evaluation, as well as performance comparisons between different RL
+algorithms, to which the simplicity and interpretability of the test case lend itself well.
+
+
+                                                                11
+                             Deep Reinforcement Learning for Adaptive Mesh Refinement                            A P REPRINT
+
+
+
+Subsequent sections focus on the performance and generalizability of the approach. We use the same trained RL model
+in §4.1, but apply it to a different linear advection problem in §4.2 to demonstrate generalization of the policy to
+different boundary conditions and forcing functions. To show the generalization of the method to unsteady dynamics,
+we train a model on a 1D time-dependent advection problem in §4.3. Lastly, to support the claim that the approach is
+not specific to a particular PDE or finite element scheme, we apply the DRL-AMR framework to the Poisson equation
+discretized with an HDG scheme (§3.3). As the Poisson equation is a second-order, elliptic PDE, its solutions are
+characterized by different physics than the hyperbolic, first-order advection problems solved in §(4.1-4.3). Similarly, as
+HDG schemes are mixed methods, their formulation (7) involves vector-valued finite element spaces and use of a traced
+finite element space [54] on the mesh skeleton; that is, the underlying numerical method is significantly different than
+those used for the solution of the advection equation (cf. (3.2)).
+To show that the methods are not relegated to small or one-dimensional problems and that the RL approach generalizes
+to higher spatial dimensions and larger, more complex problems, we examine the performance of deep RL policies
+trained on 2D problems in §(4.5-4.6). The steady advection problem in §4.5 allows evaluation of the methodology in the
+context of the two-dimensional generalization of the problem in §4.1. The steady advection-diffusion problem in §4.6
+examines the effectiveness of the deep RL policy when both advection and diffusion processes occur, and highlights
+its ability to detect and resolve non-trivial features in an automated way by using solution smoothness. The unsteady
+advection problem in §4.7 shows the ability of the method to preserve salient physical features of a numerical solution
+over long-time integration horizons. Throughout the entire set of numerical experiments, we focus on the goal stated in
+the introduction of providing a solution that captures all physically relevant features of a numerical solution efficiently
+in terms of problem degrees of freedom, avoiding spurious diffusion and dispersion effects due to under-resolution.
+
+4.1   Steady 1D linear advection
+
+For proof-of-concept, we consider the linear advection equation described in §3.2 on the 1D spatial domain Ω = [0, 1].
+We choose the boundary conditions gD at the inlet and forcing function f such that the exact solution takes the form
+                                          u(x) = 1 − tanh [α(1 − 4(x − 1/4))] ,
+where the steepness parameter α = 10. As the exact solution has the form of a smooth step function, the resultant
+meshes and numerical solutions are easily interpretable—resolution should be concentrated in the steep gradient region
+around the “step”. In light of this, we will use this illustrative example to demonstrate the features of the trained deep
+RL policy, as well as the details of training and model deployment. Subsequent sections will focus on generalizability.
+Using a numerical solution of polynomial order porder = 3, we train the RL-agent for 20·103 episodes on a computational
+“budget” of 25 cells (§3.5). However, at the time of model deployment, we are free to give the trained RL policy
+whatever budget we wish; we emphasize that this is because in general, we would like to train our model on much
+cheaper problems than those we intend to solve.
+During deployment, starting with a very coarse mesh consisting of 4 elements, we perform 6 AMR cycles comparing
+the DRL-AMR model to an AMR heuristic that attempts to refine the elements responsible for the top 50 percent of the
+total error and attempts to coarsen the elements responsible for the bottom 50 percent of total error as measured by the
+approximate gradient error indicator (Table 1). That is, a bulk(0.5, 0.5) strategy (see §3.4). We expect this heuristic
+indicator to perform well, as this test case has only one feature, the steep gradient in the center of the domain.
+
+                          40 cells used                                     15/25 cells used
+          2                                                  2
+
+          1                                                  1
+
+          0                                                  0
+
+              0.0               0.5               1.0             0.0              0.5               1.0
+                         (a) AMR heuristic                                       (b) RL Agent
+Figure 5: Steady 1D linear advection (§4.1). Numerical solution with the mesh resulting from 6 cycles of refinement, using the
+approximate gradient error indicator as an AMR heuristic and the deep RL policy resulting from training. The exact solution is
+overlaid in both cases for comparison.
+
+
+                                                             12
+                                    Deep Reinforcement Learning for Adaptive Mesh Refinement                                         A P REPRINT
+
+
+
+Figure 5 shows the numerical solution and meshes proposed by the two approaches. We see that the deep RL agent
+deployed with a 25-cell budget is able to find a high-quality solution with fewer elements than that of the AMR
+heuristic recommendation. This is corroborated by the more precise comparison in Figure 6, which shows that at model
+deployments with budgets of 25 and 500 cells, the RL agent outperforms the AMR heuristic over six refinement cycles
+in terms of L2 accuracy per degree of freedom. That is, the RL policy provides a numerical solution of approximately
+the same accuracy as that of the AMR heuristic, but does so with fewer degrees of freedom after the refinement cycles,
+both on the problem size it was trained on, as well as at a much larger problem size.
+
+                     100                          RL agent                        100                               RL agent
+                                                  AMR heuristic                                                     AMR heuristic
+                                                                                 10 1
+                    10 1
+                                                                                 10 2
+
+        L 2-Error   10 2                                             L 2-Error
+                                                                                 10 3
+
+                    10 3                                                         10 4
+
+                                                                                 10 5
+                    10 4
+                           20     40      60         80       100                       0   50     100   150    200      250   300
+                                  Degrees of freedom                                                Degrees of freedom
+                                (a) 25 cell budget                                               (b) 500 cell budget
+                                                          2
+Figure 6: Steady 1D linear advection (§4.1). L -error plotted against problem degrees of freedom over 6 cycles of refinement, using
+the gradient-based error indicator as an AMR heuristic and the deep RL policy: (6a) deployed with a computational budget of 25
+elements; (6b) with a computational budget of 500 elements.
+
+Although for 1D problems, differences in problem degrees of freedom are small, this example illustrates the central
+difference between the learned policy and the classical AMR approaches. AMR algorithms mark cells for refinement
+either in terms of the estimated volume fraction of total error in the case of bulk refinement or by a certain number
+of cells in the case of fixed-number refinement. In either case, the AMR algorithms rely on estimators purely to
+decide which cells to refine, but the actual refinement behavior is in some sense, specified a priori. Similarly, the
+commonly-used way to prevent AMR heuristics from continuing to refine beyond a computational limit is to manually
+specify a max refinement depth, again an a priori choice uninformed by the particulars of the solver or PDE, and
+specified everywhere. The DRL-AMR approach, in contrast, not only estimates which cells are likely responsible for a
+disproportionately large or small share of the total error but also estimates a stopping point, beyond which the solution
+smoothness indicates that additional decreases in error are likely to be marginal from the perspective of adding new
+unresolved features to the solution. This is because, during training, the RL agent is given global information related
+to available computational resources, which it balances against the expectation of change in the solution upon local
+refinement, with respect to computational cost.
+Where the stopping point occurs, in terms of the solution error, is controllable through the hyperparameter γc . A larger
+value of γc means a cheaper numerical solution with a greater aversion to incurring a cost. On the other hand, a small
+value of γc will result in a numerical solution with a lower error and less tolerance for interface jumps. Informally,
+γc is a user-specified setting indicating the trade-off between cost and accuracy, and is a way to inform the agent
+“how good” versus “how cheap” to make the solution. In appendix A, we provide an approach to remove γc as a
+training hyperparameter entirely, and instead make it a user-chosen value during deployment by modifying the policy
+architecture; however, this discussion is beyond the scope of the main contributions of this paper, and we train using a
+single value of γc for all of the numerical experiments in this section. Next, we explore the training and deployment
+behavior of the RL policy for this simple case to better understand the model.
+
+4.1.1         Training and deployment considerations
+Initialization. At the start of each training episode, we can either allow the RL agent to begin on the coarsest possible
+mesh (coarse initialization) or initialize the mesh to a random state by performing a random number of refinements.
+Random initialization and coarse initialization perform similarly for the small problem sizes on which they are trained;
+however, per unit training time, we find that random initialization often yields better policies when deployed on
+
+
+                                                                    13
+                                                 Deep Reinforcement Learning for Adaptive Mesh Refinement                                       A P REPRINT
+
+
+
+                            300                                                                         100                         random initialization
+                                                                                                                                    coarse initialization
+                            200                                                                         10 1
+
+
+
+
+      Mean episode reward
+                            100
+                                                                                                        10 2
+                             0                                                              L 2-Error   10 3
+                            100
+                                                                                  DQN                   10 4
+                            200                                                   A2C
+                                                                                  PPO                   10 5
+                            300
+                                          5000      10000 15000 20000               25000                      0         100      200        300        400
+                                                     Training timestep                                                     Degrees of freedom
+                                  (a) DRL-AMR algorithm performance over training                                  (b) Mesh initialization
+Figure 7: For the steady linear advection test in §4.1: (a) Performance achieved during training for different deep RL training
+algorithms, as measured by average episode reward (solid lines). Shaded bands indicate the sample variance of the reward over the
+episode. (b) Performance of DRL-AMR models trained using random state initialization and coarse initialization, as measured by
+L2 -Error per degree of freedom over 6 refinement cycles (on a 25-cell budget example and deployed with a 500-cell budget).
+
+
+
+substantially larger problems. Figure 7b compares the performance of two DRL-AMR models trained for 105 training
+time steps, one with the mesh in a coarse state at the beginning of each episode, and the other with a mesh in a random
+state at the beginning of each episode. Both models were trained on the linear advection problem in §4.1 with a
+maximum budget of 25 cells but were deployed with a budget of 500 cells over six refinement cycles. Comparing the
+accuracy with the problem degrees of freedom, it is clear that the model trained with random initialization significantly
+outperforms the model with coarse initialization. Both models begin the refinement cycle on the same coarse mesh
+during deployment. The model trained with random initialization finds a solution of the same accuracy but uses only
+half the elements as the model trained with coarse initialization. We obtained similar results for other test cases we ran.
+We hypothesize that random initialization during training leads to a more aggressive exploration of the action space
+and produces better results because initializing the mesh to a random state produces regions that are over-refined
+and under-refined. On the other hand, initialization on a coarse mesh tends to produce an under-resolved solution
+everywhere, leading the agent to become biased towards refinement during deployment. As might be expected, in the
+limit of long training times, performance becomes comparable between the two initialization strategies.
+In light of these performance advantages, all results shown correspond to models trained using random initialization.
+Learning algorithms. The performance—as measured by mean episodic reward—for the three RL policy architectures
+(DQN, A2C, and PPO, see §2.5) are shown in Figure 7a. The sample variance bands are found to tighten non-
+monotonically over the training duration, indicating more consistent performance. All three algorithms achieve similar
+mean reward and variance after roughly 25,000 training time steps, successfully solving the problem. However, as
+is common in RL problems, the model performance during training is non-monotonic, and it is advantageous to
+periodically save the most performant model state for deployment, rather than deploying the policy occurring at the end
+of the training window. In general, we have not found any particular architecture to be consistently better in terms of
+performance over the set of test cases considered in this paper. We note however that we have not yet attempted to
+accelerate the training process through optimization of training parameters such as batch size and episode length.
+Model deployment. Unlike the AMR heuristic, the deployed DRL-AMR model finds solutions by apportioning
+computational resources over the mesh in a way that handles the smoothness/efficiency trade-off, then changes the mesh
+topology over the subsequent refinement cycles in order to increase accuracy. This is the sense in which the algorithm
+considers a richer set of strategies than a purely greedy strategy.
+Figure 8 shows the mesh and resultant numerical solution over a set of six refinement cycles. Although cycles 2-6 all
+contain the order of 10 elements, the topology of their allocation over the domain changes to concentrate around the
+steep gradient region. This showcases a particular strength of the method: namely, that the decision of the number of
+elements to use during the exploratory cycles while preserving solution smoothness is delegated to the machine learning
+model, rather than manually needing to be specified. This allows the number of elements to increase and decrease
+exploratively, as opposed to AMR heuristics, which must increase or decrease the number of elements according to the
+error estimator or by a fixed number.
+
+
+                                                                             14
+                                                  Deep Reinforcement Learning for Adaptive Mesh Refinement                                             A P REPRINT
+
+
+
+                                                             numerical solution                 mesh            exact solution
+                     Cycle 1: 6/25 cells used                                  Cycle 2: 10/25 cells used                        Cycle 3: 11/25 cells used
+       2                                                             2                                               2
+       1                                                             1                                               1
+       0                                                             0                                               0
+
+           0.0              0.5             1.0                          0.0             0.5             1.0              0.0             0.5             1.0
+                  Cycle 4: 11/25 cells used                                    Cycle 5: 13/25 cells used                        Cycle 6: 11/25 cells used
+       2                                                             2                                               2
+       1                                                             1                                               1
+       0                                                             0                                               0
+
+           0.0                              0.5             1.0          0.0                0.5               1.0         0.0              0.5              1.0
+Figure 8: Steady 1D linear advection (§4.1). State of the numerical solution and mesh during the deployment of the deep RL agent
+AMR policy, over six refinement cycles.
+
+
+In practice, the cost of each cycle depends on the problem size but we find that the trained RL policies reach a converged
+mesh state in a few cycles, typically around 5-10, independent of problem size. This is in part because the number of
+cells can potentially double or halve every cycle, so locally under-resolved regions either become resolved very quickly,
+or the computational budget is approached and refinement recommendations become more conservative.
+Introspection of the neural network model. As an RL policy is ultimately a trained neural network, we can query the
+neural network in order to introspect the policy suggestions. In practice, this space is high-dimensional—the input to the
+network is a vector of dimension equal to that of the observation space. However, insight can be gained by considering
+a model trained on a reduced observation space.
+
+                                               p = 0.3 budget used                      p = 0.5 budget used                     p = 0.7 budget used
+
+
+
+             mean log boundary jump
+                                      4                                        4                                      4
+
+
+
+
+               (over entire mesh)
+                                      8                                        8                                      8
+
+                                      12                                       12                                    12
+
+                                      16                                       16                                    16
+                                           16      12     8       4                 16      12     8       4              16      12     8       4
+                                             local log boundary jump                  local log boundary jump               local log boundary jump
+Figure 9: Policy network recommendation as a function of a simplified observation space. Decision boundaries are shown between
+network recommendations to coarsen (blue), do nothing (grey), and refine (salmon). The dashed line indicates where the local
+boundary jump is the same as the mean cell-wise boundary jump over the entire mesh.
+
+Figure 9 shows the recommendation of a model trained on the problem in §4.1 using a value γ = 25 and a simplified
+observation space consisting only of the cell boundary jump, the mean boundary jump over all cells, and the current
+use of computational resources p. We consider a range of [-16, -1] in log space, as these are the range of jump
+values encountered by the network for this test case; recommendations outside of this region are uninformed by
+data encountered during training. Each subfigure shows the decision boundary regions corresponding to the action
+recommended by the policy. Although the observation space has been simplified, the overall model is qualitatively
+discernible and interpretable. At low use of computational resources (p = 0.3), the model suggests mostly refinement,
+even in regions where the observed boundary jump is significantly lower than the average over the entire mesh. We
+hypothesize that this corresponds to exploratory refinement in some sense. At moderate use of computational resources
+(p = 0.5), the model provides more conservative recommendations, suggesting refinement where the local boundary
+jump exceeds the mesh mean and is not less than 10−8 in terms of magnitude. When computational resources become
+
+
+                                                                                           15
+                                  Deep Reinforcement Learning for Adaptive Mesh Refinement                                           A P REPRINT
+
+
+
+scarce (p = 0.7), the model suggests coarsening except in regions where the local log boundary jump is much
+greater than the mean. The decision boundaries are highly nonlinear, even for this simplified observation space. This
+demonstrates the potential power and flexibility of the DRL-AMR approach, as it learns complex relationships between
+any physical relevant information included in the observation space and the utility of coarsening or refining.
+
+4.2      Generalization to different boundary conditions and forcing functions
+
+We deploy the same trained DRL-AMR model in §4.1 to the same PDE, but on a different domain Ω = (−4, 4), with
+a different set of boundary conditions and forcing. We choose the boundary conditions gD at the inlet and forcing
+function f such that the exact solution takes the form
+                                                                    
+                                                                 1 2
+                                            u(x) = sin(nx) exp − x .
+                                                                 2
+
+At the time of model deployment, we give the trained RL policy a budget of 100 elements. We evaluate the model
+over 6 AMR cycles this time using an AMR heuristic which makes use of the Kelly error indicator (Table 1, [37]) and
+implements a fixed(0.5, 0.1) strategy, as described in §3.4.
+
+                              38/100 cells used                                                            11/100 cells used
+   1.5                                                                           1.5
+                                                       exact solution                                                              exact solution
+   1.0                                                 numerical solution        1.0                                               numerical solution
+   0.5                                                 mesh                      0.5                                               mesh
+
+   0.0                                                                           0.0
+   0.5                                                                           0.5
+   1.0                                                                           1.0
+   1.5                                                                           1.5
+           4    3     2       1      0        1    2        3         4                   4       3   2     1     0        1   2        3         4
+
+                          (a) AMR heuristic                                                               (b) RL Agent
+Figure 10: DRL-AMR model trained on the test case in §4.1 but deployed on the problem in equation (4.2). Numerical solution
+with the mesh resulting from 6 cycles of refinement, using the Kelly error indicator as an AMR heuristic and the RL policy resulting
+from training. The exact solution is overlaid in both cases for comparison.
+
+
+The final mesh and numerical solution for both is shown in Figure 10. Our findings are similar to the test case in the
+previous section. Both methods find a mesh and corresponding numerical solution that very closely matches the exact
+solution, however, the RL policy finds a coarse mesh on which the solution is well represented and stops refinement
+past the fourth refinement cycle. Similar to Figure 6, after the six refinement cycles, the RL policy returns a mesh that
+provides strictly better accuracy per problem degree of freedom (not shown).
+This highlights the generality of the method; the RL policy did not suggest refining close to the center of the domain as
+it did for the example in §4.1. This is to be expected, as the RL agent is never given global location information during
+training, only local cell information along with the surrounding interface jumps; therefore it’s impossible to over-fit the
+RL agent to a specific training example during training. However, we remark that if the agent were trained against a
+pathological example such as the Weierstrass function, where the correct action could always be to refine, this will be
+reflected in the trained model, although this can hardly be considered overfitting. Because the agent learns to relate
+features of the PDE and local jumps to the local smoothness of the solution, we find that the agent generalizes well
+across different test cases from the same PDE. This is an important characteristic of the approach, as we wish to deploy
+the trained model on problems of interest other than the subset on which the model was trained.
+
+4.3      Unsteady 1D linear advection
+
+As an extension to the steady experiments, we consider the time-dependent Sommerfeld wave equation
+                                                  ∂u ∂u
+                                                     +    =0                     in Ω × [0, T ],
+                                                  ∂t   ∂x
+                                                        u = gD                         on Γin ,
+                                                                                               
+                                                                                  1           2
+                                                           u0 = exp                   (x − µ)     ,
+                                                                                 2σ 2
+
+                                                                            16
+                             Deep Reinforcement Learning for Adaptive Mesh Refinement                           A P REPRINT
+
+
+
+on the computational domain Ω = (−4, 4). The Dirichlet boundary condition gD (t) at the inlet is chosen according
+to the exact solution to the time-dependent wave equation uexact = u0 (x − t). The scalar constants are µ = −4 and
+σ 2 = 0.25. The outlet boundary of the domain is taken to be an outflow condition. We consider numerical solutions at
+a polynomial order porder = 3.
+
+
+
+
+                         (a) AMR heuristic                                           (b) RL policy
+Figure 11: Unsteady 1D linear advection. Numerical solution with time-dependent AMR policies using a gradient-based heuristic,
+and the trained RL policy. Results shown at times T = 1.6 (top), T = 4.2 (middle), and T = 6.9 (bottom).
+
+
+
+We train the DRL-AMR model for 50 · 103 RL time steps using the time-dependent solver and training procedure
+as detailed in §2.4 with a computational budget of 25 elements and using a scaling factor value γc = 100 to render
+a relatively coarse numerical solution (1), as the computational cost is more heavily penalized. All other training
+parameters assume the default values (§3.5). For the AMR heuristic, we employ a gradient indicator (Table 1), that
+uses an approximation to the gradient of the numerical solution to estimate the error. Given the fast-decaying tails of
+the Gaussian pulse being advected, the gradient-based refinement indicator can be expected to accurately recommend
+coarsening outside of the pulse.
+During deployment, we allow the AMR heuristic and the RL policy to perform one cycle of refinement/coarsening at
+every time step before advancing the numerical solution in time. We consider an increased budget of 100 elements for
+both, although we don’t explicitly enforce this requirement for the AMR heuristic; rather, we perform a bulk-refinement
+approach where we refine the cells responsible for the top 50 percent of the numerical error as measured by the gradient
+indicator, and coarsen the bottom 50 percent of the numerical error as measured by the same, i.e., a bulk(0.5, 0.5)
+strategy. Using a time step ∆t = 0.01, we simulate to a final time of T = 7.
+The results are shown in Figure 11. Similar to the other experiments, we find that both algorithms are able to capture
+the advection of the initial condition; the RL policy does so using a computational mesh with far fewer elements than
+the AMR heuristic.
+Namely, the DRL-AMR model is able to preserve the features of the solution while using fewer than 25 percent of the
+computational cost incurred by the AMR heuristic. Due to the increased value of γc as compared to the other numerical
+experiments considered thus far, the RL agent is more tolerant of a lack of smoothness in the solution. This is reflected
+in the small discontinuities of the numerical solution at the location x = 0 at t = 1.6 and at x = 2 at t = 6.9.
+
+
+                                                             17
+                                Deep Reinforcement Learning for Adaptive Mesh Refinement                                            A P REPRINT
+
+
+
+4.4   Generalization to different PDEs
+
+To demonstrate that the DRL-AMR approach is not specific to the advection equation considered above, we apply it to
+the second-order Poisson equation, a subset of advection-diffusion PDEs (§3.3).
+                                                     ∂2u
+                                                 −       =f         in Ω = (−1, 1),                                                            (8)
+                                                     ∂x2
+with mixed boundary conditions consisting of a Dirichlet condition u = gD on boundary ΓD = {−1} and Neumann
+condition ∇u · n = gN on boundary ΓN = {1}. The boundary conditions and forcing function are deduced from the
+exact solution, chosen to be a superposition of Gaussian functions
+                                                3
+                                                                 (x − ri )2
+                                                                           
+                                              X     1
+                                         u=        √ exp −                                                (9)
+                                              i=1
+                                                  σ 2π              σ2
+
+with parameters r1 = −1/3, r2 = 0, r3 = 1/3 and σ = 1/10. We discretize the problem using HDG finite elements
+as described in §3.3, with polynomial order porder = 3. We set the diffusivity coefficient κ = 1 and the convective
+velocity c = 0.
+
+                                                                                             10 1
+                                                                                                                               RL agent
+                                                                                                                               AMR heuristic
+                                    28/36 cells used
+       4                                                                                     10 2
+
+
+       2                                                                         L 2-Error
+                                                                                             10 3
+
+
+       0
+                                                                                             10 4
+             1                              0                              1                        50   100   150    200     250    300
+                                                                                                               Degrees of freedom
+
+
+Figure 12: Steady 1D Poisson problem (8). (Left) Mesh distribution and corresponding numerical solution resulting from 6 cycles of
+refinement using the trained RL policy with a budget of 36 cells; the exact solution (9) (black, dashed line) is overlaid for comparison.
+(Right) L2 -Error of the numerical solution vs problem degrees of freedom over 6 mesh refinement cycles for the RL agent and the
+Kelly error estimator as AMR heuristic.
+
+Results of the trained RL policy are shown in Figure 12. Here we train for 2 · 105 training time steps, and all non-
+specified training parameters assume the default values (§3.5). We see that the features of the solution are well resolved,
+and match the exact solution.
+Furthermore, the trained policy identifies regions on the outer edges of the Gaussian mixture as in need of refinement;
+we hypothesize that this region is specifically sensitive to Gibbs phenomena caused by the change from a near-zero
+solution to a non-trivial one. The more precise comparison between L2 -error and problem degrees of freedom in Figure
+12 shows that the DRL-AMR model outperforms the AMR heuristic. As the Kelly error indicator was specifically
+designed for this type of Poisson problem and can be referred to as an error estimator in this context, the fact that the
+RL policy is competitive is an encouraging result.
+Lastly, the PDE in (8) is elliptic. Errors in the solution are therefore well-known to be globally propagated over the
+domain, in contrast to the advection equation, where errors are advected along with the solution [46, 61]. The fact that
+the RL methodology was nonetheless able to satisfactorily solve the problem lends credence to the POMDP formulation
+and use of a local observation space during training.
+
+4.5   Steady 2D linear advection
+
+To examine the generalizability and performance in the context of larger, higher-dimensional problems, we solve the
+steady version of the linear advection equation (§3.2) on the two-dimensional (2D) spatial domain Ω = (0, 1)2 with
+
+
+                                                                  18
+                             Deep Reinforcement Learning for Adaptive Mesh Refinement                                            A P REPRINT
+
+
+
+a circular, counter-clockwise convective velocity field c(x) = 1/ kxk2 (−x2 , x1 ). On the inflow boundary Γin , we
+specify the boundary condition gD according to the chosen solution,
+
+                                            u(r) = 1 − tanh (α(1 − 4(r − x0 ))) ,                                                       (10)
+
+where r denotes the radius in cylindrical coordinates. We use the parameters α = 10, x0 = 1/4 and forcing function
+f = 0. The exact solution is a two-dimensional, cylindrical coordinate generalization of the test case considered in
+§4.1; that is, the solution contains a smooth, steep gradient. However, unlike the test case in §4.1, due to the higher
+problem dimensionality, the steep gradient is present both in the domain interior as well as at the domain boundary.
+
+             1.0                                                         1.0
+                                                              1.1                                                         1.1
+
+             0.8                                                         0.8
+
+
+             0.6                                                         0.6
+                                                              0.5                                                         0.5
+             0.4                                                         0.4
+
+
+             0.2                                                         0.2
+
+                                                              -0.1                                                        -0.1
+             0.0                                                         0.0
+                0.0    0.2     0.4    0.6      0.8      1.0                 0.0       0.2     0.4    0.6     0.8    1.0
+
+                        (a) AMR gradient heuristic                                            (b) RL Agent
+             0.6                                                         0.6
+                                                              1.1                                                         1.1
+
+
+
+
+                                                              0.5                                                         0.5
+
+
+
+
+                                                              -0.1                                                        -0.1
+             0.4                                                         0.4
+                0.0                                     0.2                 0.0                                     0.2
+
+            (c) AMR gradient heuristic (zoom, outflow boundary)                   (d) RL Agent (zoom, outflow boundary)
+Figure 13: Steady 2D linear advection. Numerical solution overlaid with the mesh refined using a gradient-based error indicator
+and the RL policy (1000 cell budget). (Top row) Entire problem domain. (Bottom row) Zoomed-in portion of the domain where the
+steep gradient meets the left outflow boundary.
+
+
+To train the network, we solve the linear advection problem
+
+                                                     ∇ · (cu) = 0,                in Ω,
+                                                         u = u(r),                in Γin
+
+using the DG discretization given in §3.2 with elements of polynomial order porder = 2, and deploy the model on the
+same problem. However, we train the RL policy network with a resource budget of only 110 cells, limiting the learning
+process to a relatively small number of elements compared to the deployment budgets; all other training parameters are
+the default values (§3.5). After 2 · 105 training, time steps, we deploy the trained RL policy over a series of 6 refinement
+cycles, starting with a coarse mesh of 25 elements with 5 elements in each direction.
+
+
+                                                                    19
+                               Deep Reinforcement Learning for Adaptive Mesh Refinement                       A P REPRINT
+
+
+
+                                                10 1                     RL agent, 200 cells
+                                                                         RL agent, 1500 cells
+                                                                         RL agent, 5000 cells
+                                                                         AMR heuristic
+                                                10 2
+
+
+                                    L 2-Error   10 3
+
+
+                                                10 4
+
+
+                                                10 5
+                                                       0   10000     20000   30000    40000
+                                                               Degrees of freedom
+Figure 14: Steady 2D linear advection. L2 error as a function of the number of degrees of freedom for the refinement cycles
+resulting from a gradient-based error indicator and the RL policy.
+
+
+We compare the performance of the RL agent to the gradient-based error indicator (Table 1) that uses a bulk(0.5, 0.5)
+refinement strategy. Similar to the test case considered in §4.1, this AMR heuristic can be expected to perform well,
+given the steep gradient as the dominant feature of the exact solution.
+We compare the overall L2 error of the resulting solution with the number of degrees of freedom resulting from the
+numerical discretization at each level of the refinement cycle in Figure 14, showing results for the RL policy deployed at
+different cell budgets. We consider deployment budgets of 200, 1500, and 5000 elements. By the final refinement cycle,
+the RL policy finds a solution of comparable or better accuracy than the AMR heuristic for the same number of degrees
+of freedom. In particular, with a budget of 5000 cells, the RL agent substantially outperforms the AMR heuristic.
+To shed light on why the RL policy is able to outperform the heuristic, numerical solutions with the overlaid meshes
+proposed by the two approaches are shown in Figure 13. In this figure, the RL policy has been deployed with a budget
+of 1000 cells; it makes use of roughly 2/3 of its budget allocation by the final refinement cycle. Qualitatively, both
+approaches are able to resolve the steep gradient; however, compared to the AMR heuristic, the RL agent has much
+more conservatively refined the mesh around the slope. Instead, the RL agent refines preferentially in the region where
+the steep gradient encounters the outflow boundary (cf. Figure 13c and Figure 13d). That is, in training, the RL agent
+learned that the numerical solution is sensitive to the discontinuities arising where the gradient meets the outflow
+boundary. Although the agent has no information on where cells are located, the cells in this problem region exhibited
+behaviors in their observation space that indicated the numerical solution would improve by refining them. That is
+to say, the RL policy learned a non-trivial, spatially-heterogeneous strategy for regional refinement. In contrast, the
+gradient-based indicator detected the steep discontinuity but was not able to exploit the sensitivity of the error to the
+resolution close to the outflow boundary.
+
+4.6   Steady 2D advection-diffusion equation
+
+Section §4.5 involves a relatively simple numerical solution, in the sense that the only interesting solution feature is
+the steep gradient region. It is natural to ask whether the methodology can capture solutions with more complicated
+features. In this section, we turn our attention to the advection-diffusion problem (6) with mixed boundary conditions,
+and the less straightforward hybridizable finite element discretization (7) of the same.
+We choose a circular velocity field c = (x2 , −x1 ), and take the top and bottom boundaries of the domain Ω = (−1, 1)2
+as a Dirichlet boundary ΓD , whereas the left and right boundaries of Ω constitute a Neumann boundary ΓN . The
+boundary values and forcing function are deduced from the exact solution, a superposition of Gaussian functions chosen
+to create non-trivial features. The details of the exact solution are given in Appendix B. The problem is discretized
+at polynomial order porder = 4 and makes use of element-local post processing, resulting in an observed optimal
+convergence order of porder + 2 upon uniform mesh refinement (see [54]).
+We train the RL policy for 3 · 105 training time steps, using a budget of 200 cells; all other training parameters are the
+default values (§3.5). As in the other numerical experiments, the training budget was chosen to be significantly cheaper
+
+
+                                                                   20
+                               Deep Reinforcement Learning for Adaptive Mesh Refinement                                       A P REPRINT
+
+
+
+              1                                                          1
+                                                             23.0                                                      23.0
+
+
+
+
+              0                                              11.4        0                                             11.4
+
+
+
+
+                                                             -0.2                                                      -0.2
+              1                                                          1
+                  1                  0                   1                   1                0                    1
+
+                      (a) Numerical solution, coarse mesh                          (b) AMR gradient heuristic
+              1                                                          1
+                                                             23.0                                                      23.0
+
+
+
+
+              0                                              11.4        0                                             11.4
+
+
+
+
+                                                             -0.2                                                      -0.2
+              1                                                          1
+                  1                  0                   1                   1                0                    1
+
+                       (c) RL Agent (1500 cell budget)                           (d) RL Agent (5000 cell budget)
+        Figure 15: Steady 2D advection diffusion. Numerical solution with overlaid mesh for the this problem in §4.6.
+
+
+
+than the deployment budget. For comparison, we consider an AMR heuristic that makes use of the Kelly error indicator
+with a bulk(50, 50) refinement strategy, refining and coarsening cells responsible for the top 50 percent and bottom 50
+percent of the total estimated error, respectively. Both strategies are employed over 5 refinement cycles, beginning from
+the coarse mesh shown in Fig. 15a.
+The results of the comparison between the two algorithms are given in Figure 15. Examination of the L2 -error per
+degree of freedom (not shown) again demonstrates that the RL agent is competitive with any of the AMR heuristics
+considered in this paper. However, in this experiment, we focus on the relative ability of the heuristic and RL AMR
+strategies to resolve relevant features of the solution, pursuant to the discussion in §1.1. We see from Figure 15a that on
+the coarse starting mesh, the numerical solution is acutely under-resolved. Both the AMR heuristic (Figure 15b) and the
+trained RL agent (Figures 15c, 15d) are able to satisfactorily resolve the features of the numerical solution, but the RL
+agent does so with a more parsimonious allocation of elements over the mesh. Even when the computational budget is
+increased from 1500 cells to 5000 cells, the RL agent makes only minor adjustments to the mesh.
+The explanation for this is that the trained DRL-AMR model makes decisions based on the learned relationship
+between the features of the observation space local to each element, and the change in the numerical solution upon
+refinement. The HDG finite element schemes (7) enjoy a faster convergence rate and, typically, better overall accuracy
+than the advection DG scheme (3.2) due to its dual formulation and element-wise post-processing, as discussed above.
+Additionally, we use a relatively high-order (sixth-order effective convergence rate) finite element scheme as compared
+to the smooth step example in §4.5, which exhibited second-order convergence. The RL policy is able to detect the fast
+convergence to the exact solution (according to the local numerical solution as well as the jump discontinuities over the
+boundary of each element) and elects to use only a small portion of its computational budget in order to resolve the
+
+
+                                                                    21
+                                          Deep Reinforcement Learning for Adaptive Mesh Refinement                                                                          A P REPRINT
+
+
+
+solution, approximately 8 percent and 2 percent for budgets of 1500 cells and 5000 cells, respectively. We hypothesize
+that the inclusion of additional HDG-specific features into the observation space, such as the numerical gradient qh or
+the approximate numerical flux on the mesh skeleton ûh (7) could additionally improve performance.
+In summary, the RL policy is able to judiciously allocate resources in order to capture non-trivial features of a numerical
+solution. Furthermore, the generality of the RL methodology extends to more complicated finite element schemes and
+is able to take advantage of their properties—in this case, high-order convergence due to a post-processed solution.
+
+4.7        Unsteady 2D linear advection
+
+Inspired by the novel advection-diffusion test cases in [45], we consider the two-dimensional, unsteady linear advection
+problem described in §3.2 with the velocity field given by a reversible swirl flow
+                                                                                             
+                                       3                             3
+                        c(x, y, t) =     a(t) sin2 (πx) sin(2πy), − a(t) sin2 (πy) sin(2πx)                         (11)
+                                       2                             2
+over the square domain Ω = (0, 1)2 . Here 0 ≤ t ≤ 1 and a(t) = 1 if t < 0.5 and a(t) = −1 if t ≥ 0.5, which reverses
+the direction of the flow field at time t = 0.5. At the time T = 1, the analytical initial tracer distribution returns
+to its initial location due to the flow symmetry and can be compared to the initial condition to measure the error in
+the numerical solution. The boundary conditions and forcing function are taken to be zero over the duration of the
+simulation.
+The initial condition is given by
+                                                                                          2 
+                                                            1 p         2           2
+                                                 u0 = exp − 2   (x − x0 ) + (y − y0 ) − r0      ,                                                                                        (12)
+                                                           2σ
+specifying a ring with inner radius r0 and approximate thickness 3σ centered at the point (x0 , y0 ). For this test case,
+we choose the parameters r0 = 0.2, (x0 , y0 ) = (0.25, 0.25), and 3σ = 0.05, describing a thin ring centered in the
+bottom right-hand corner of the domain, depicted in Figure 16a. The presence of steep gradients in the solution along
+the inner and outer circumferences of the ring during both the forward and backward swirl advection process makes
+this problem challenging, as well as a suitable test case to assess the ability of a numerical scheme to avoid spurious
+diffusion and dispersion, and to preserve features of the analytical solution [45]. All numerical simulations are run at
+polynomial order porder = 3 and make use of a small time step ∆t = 10−3 over the LSERK45 time integration so that
+the overall error is determined by the error due to the spatial discretization.
+  1.0                                            1.0                                             1.0                                           1.0
+                                          1.1                                             1.1                                           1.1                                              0.1
+
+  0.8                                            0.8                                             0.8                                           0.8
+
+
+  0.6                                            0.6                                             0.6                                           0.6
+                                          0.5                                             0.5                                           0.5                                              0.0
+  0.4                                            0.4                                             0.4                                           0.4
+
+
+  0.2                                            0.2                                             0.2                                           0.2
+
+                                          -0.1                                            -0.1                                          -0.1                                             -0.1
+  0.0                                            0.0                                             0.0                                           0.0
+     0.0    0.2   0.4   0.6   0.8   1.0             0.0   0.2    0.4   0.6    0.8   1.0             0.0   0.2   0.4   0.6   0.8   1.0             0.0     0.2   0.4   0.6    0.8   1.0
+
+
+                  (a) t = 0                                     (b) t = 0.5                                     (c) t = 1                               (d) uh − uexact , t = 1
+                                                                                                                                    2
+                              Figure 16: Unsteady 2D Ring advection. Numerical solution on a 64 uniform grid.
+
+We train the reinforcement learning agent for 3 · 105 training time steps on a budget of 200 cells; all other training
+parameters are the default values (§3.5). During deployment, we compare the trained DRL-AMR model to an AMR
+heuristic which uses the Kelly error indicator with a conservative bulk(60, 40) refinement strategy. Both strategies
+start on a coarse mesh of 4x4 elements and are allowed 6 refinement cycles during initialization, after which, they are
+allowed one refinement cycle per time step for the duration of the simulation. In order to prevent the number of degrees
+of freedom from growing unbounded over time integration for the AMR heuristic, we specify a maximum refinement
+depth of 4, corresponding to the finest possible grid of 64x64 cells. To provide a fair comparison, the RL policy is
+deployed with an equal maximum cell budget of 642 = 4096 elements.
+The numerical solution which results from running the simulation on a uniform grid of 64x64 elements, corresponding
+to the resolution limit for the AMR heuristic, is shown for comparison in Figure 16. The uniform grid simulation is
+qualitatively able to well-preserve the features of the ring over the forward and reverse advection, at the final integration
+time t = 1 (Figure 16c). This result serves as a baseline comparison for the AMR heuristic and the RL policy.
+
+
+                                                                                             22
+                                Deep Reinforcement Learning for Adaptive Mesh Refinement                                             A P REPRINT
+
+
+  1.0                                             1.0                                             1.0
+                                           1.1                                             1.1                                                0.1
+
+  0.8                                             0.8                                             0.8
+
+
+  0.6                                             0.6                                             0.6
+                                           0.5                                             0.5                                                0.0
+  0.4                                             0.4                                             0.4
+
+
+  0.2                                             0.2                                             0.2
+
+                                           -0.1                                            -0.1                                               -0.1
+  0.0                                             0.0                                             0.0
+     0.0   0.2   0.4     0.6   0.8   1.0             0.0   0.2   0.4    0.6    0.8   1.0             0.0   0.2   0.4    0.6    0.8      1.0
+
+                 (a) t = 0.1                                     (b) t = 0.5                                (c) uh − uexact , t = 1
+  1.0                                             1.0                                             1.0
+                                           1.1                                             1.1                                                0.1
+
+  0.8                                             0.8                                             0.8
+
+
+  0.6                                             0.6                                             0.6
+                                           0.5                                             0.5                                                0.0
+  0.4                                             0.4                                             0.4
+
+
+  0.2                                             0.2                                             0.2
+
+                                           -0.1                                            -0.1                                               -0.1
+  0.0                                             0.0                                             0.0
+     0.0   0.2   0.4     0.6   0.8   1.0             0.0   0.2   0.4    0.6    0.8   1.0             0.0   0.2   0.4    0.6    0.8      1.0
+
+                 (d) t = 0.1                                     (e) t = 0.5                                (f) uh − uexact , t = 1
+                       Figure 17: Unsteady 2D Ring advection. AMR heuristic (top row) vs RL (bottom row).
+
+
+
+The proposed meshes and resultant numerical solutions are shown for the AMR heuristic and the RL policy in Figure
+17. As can be seen in panels 17a, 17b, 17d, and 17e, the qualitative features of the numerical solution resulting from
+both approaches are very similar to that of the uniform grid simulation; that is, both approaches are able to successfully
+resolve the features of the solution. Similar to the other experiments, the RL agent is able to achieve comparable
+accuracy to the AMR heuristic, but with a comparatively coarser mesh, as is corroborated in Figures 17c and 17f; the
+numerical errors for each approach are comparable and within 10 percent of the numerical error resulting from the
+uniform mesh. However, in this particular test case, at each time step, the AMR heuristic used roughly a factor of 10
+more elements than the RL policy.
+
+
+4.8     Discussion of numerical experiments
+
+The numerical experiments in §4.1-§4.2 demonstrated a proof of concept for the DRL-AMR approach; we were able to
+train a model on a small budget, and apply it effectively to larger, different problems governed by the same PDE. Our
+experiments indicated that random initialization led to a better exploration of the decision space and that all learning
+algorithms considered were able to solve the problem. We saw that for a simplified observation space, the neural
+network representing the trained RL policy was interpretable in terms of local solution conformity. The numerical
+experiments in §4.3-§4.4 showed that the method generalizes to time-dependent problems, as well as to different PDEs
+with mixed boundary conditions and significantly more complicated numerical schemes.
+The test case in §4.5 demonstrated that the RL agent was able to learn a spatially heterogeneous, non-trivial strategy to
+increase accuracy per cost by preferentially refining around a problem region on the boundary, a strategy on which
+the AMR heuristic was not able to capitalize. The advection-diffusion problem in §4.6 extended the findings in
+§4.4 to higher dimensions and exhibited the ability of the RL policy to take advantage of the fast convergence of a
+post-processed solution as well as to resolve non-trivial features of a numerical solution cheaply. Lastly, the unsteady
+2D advection problem in §4.7 displayed the ability of the trained RL policy to preserve similar non-trivial features over
+the course of time integration in problems with dynamic, sharp gradients.
+
+
+                                                                       23
+                              Deep Reinforcement Learning for Adaptive Mesh Refinement                               A P REPRINT
+
+
+
+Overall, our DRL-AMR methodology is flexible and effective at delivering efficient, high-quality solutions for both
+static and time-dependent problems over a wide range of different PDEs, boundary conditions, dimensions, and problem
+sizes.
+
+5   Conclusions and future work
+We introduced a novel deep reinforcement learning formulation for adaptive mesh refinement based on a partially
+observable Markov decision process designed to balance numerical accuracy with computational cost, with the goal
+of providing a learned, high-quality strategy for resolving solution features efficiently. The underlying idea is that
+rather than hand-designing a heuristic error indicator a priori, the reinforcement learning agent will instead learn one
+through trial and error during training by solving many inexpensive problems. This is advantageous because the learned
+policy network can be arbitrarily complex and make use of any feature included in the observation space, including
+information about computational cost. Furthermore, training the RL policy requires no domain-specific knowledge, as
+the relevant information is encoded in the numerical solver, and, more abstractly, in the underlying PDE. Conversely,
+specific features of a numerical scheme such as polynomial order and problem dimension are implicitly considered in
+training through use of the numerical solver, as opposed to having to be analyzed and explicitly specified in the case of
+a manually-defined error indicator.
+Our implementation shows that the resultant trained policies are able to execute adaptive refinement strategies which
+are competitive with, and in many cases, better than common AMR heuristics in terms of accuracy of the final solution
+per problem degree of freedom. Our methodology is not specific to any particular PDE, spatial dimension, or numerical
+scheme, and can flexibly incorporate physical or temporal history data into the observation space. The local nature of
+the RL problems allows for training the RL agent on small problems and deploying the policy on much larger problems,
+ensuring scalability. Lastly, at no point during training nor model deployment do we ever make use of an exact solution
+or a “ground truth.”
+Future work could incorporate p-refinement into the learning process to allow the RL agent access to a richer set of finite
+element representations of the numerical solution, incorporate a more sophisticated belief distribution as to the regions
+of under- or over-resolution in the numerical solution, or integrate transfer learning using existing error estimators
+to accelerate training. Finally, the application of the new DRL-AMR schemes to the Navier–Stokes and geophysical
+equations such as those used in storm surge [49, 63], ocean [29, 28, 65, 23, 24], and atmospheric [39] applications, as
+well as studies of related numerical topics such as slope-limiting, preconditioning, and adaptive time integration, are the
+subject of ongoing research.
+
+Acknowledgements
+We thank the members of the MSEAS group, especially Dr. C. Mirabito for review of the manuscript. We are grateful
+to the Office of Naval Research (ONR) for partial research support under grants N00014-18-1-2781 (DRI-CALYPSO)
+and N00014-20-1-2023 (MURI ML-SCOPE) to the Massachusetts Institute of Technology. We also thank the Spring
+2022 course staff of 2.C51 for helpful discussions related to machine learning for physical systems. C. Foucart would
+additionally like to thank the active deal.ii software development community for helpful discussion related to
+cross-language software development.
+
+References
+ [1] M. Ainsworth and J. T. Oden. A posteriori error estimation in finite element analysis. Computer methods in applied mechanics
+     and engineering, 142(1-2):1–88, 1997.
+ [2] D. Arndt, W. Bangerth, B. Blais, M. Fehling, R. Gassmöller, T. Heister, L. Heltai, U. Köcher, M. Kronbichler, M. Maier, et al.
+     The deal. ii library, version 9.3. Journal of Numerical Mathematics, 29(3):171–186, 2021.
+ [3] D. Arndt, W. Bangerth, D. Davydov, T. Heister, L. Heltai, M. Kronbichler, M. Maier, J.-P. Pelteret, B. Turcksin, and D. Wells.
+     The deal. ii finite element library: Design, features, and insights. Computers & Mathematics with Applications, 81:407–422,
+     2021.
+ [4] K. Arulkumaran, M. P. Deisenroth, M. Brundage, and A. A. Bharath. Deep reinforcement learning: A brief survey. IEEE
+     Signal Processing Magazine, 34(6):26–38, 2017.
+ [5] K. J. Åström. Optimal control of Markov processes with incomplete state information. Journal of mathematical analysis and
+     applications, 10(1):174–205, 1965.
+ [6] I. Babuska, J. Whiteman, and T. Strouboulis. Finite elements: an introduction to the method and error estimation. Oxford
+     University Press, 2010.
+
+
+                                                               24
+                               Deep Reinforcement Learning for Adaptive Mesh Refinement                                A P REPRINT
+
+
+
+ [7] W. Bangerth, C. Burstedde, T. Heister, and M. Kronbichler. Algorithms and data structures for massively parallel generic
+     adaptive finite element codes. ACM Transactions on Mathematical Software (TOMS), 38(2):1–28, 2012.
+ [8] P. Binev, W. Dahmen, and R. DeVore. Adaptive finite element methods with convergence rates. Numerische Mathematik,
+     97(2):219–268, 2004.
+ [9] C. M. Bishop and N. M. Nasrabadi. Pattern recognition and machine learning, volume 4. Springer, 2006.
+[10] J. Bohn and M. Feischl. Recurrent neural networks as optimal mesh refinement strategies. Computers & Mathematics with
+     Applications, 97:61–76, 2021.
+[11] J. Bonilla and S. Badia. Monotonicity-preserving finite element schemes with adaptive mesh refinement for hyperbolic
+     problems. Journal of Computational Physics, 416:109522, 2020.
+[12] D. Braess, C. Carstensen, and R. H. Hoppe. Convergence analysis of a conforming adaptive finite element method for an
+     obstacle problem. Numerische Mathematik, 107(3):455–471, 2007.
+[13] S. C. Brenner, L. R. Scott, and L. R. Scott. The mathematical theory of finite element methods, volume 3. Springer, 2008.
+[14] G. Brockman, V. Cheung, L. Pettersson, J. Schneider, J. Schulman, J. Tang, and W. Zaremba. OpenAI Gym. arXiv preprint
+     arXiv:1606.01540, 2016.
+[15] M. H. Carpenter and C. A. Kennedy. Fourth-order 2N-storage Runge-Kutta schemes. Technical report, NASA, 1994.
+[16] B. Cockburn. Discontinuous Galerkin methods. ZAMM-Journal of Applied Mathematics and Mechanics/Zeitschrift für
+     Angewandte Mathematik und Mechanik: Applied Mathematics and Mechanics, 83(11):731–754, 2003.
+[17] P. Daniel, A. Ern, I. Smears, and M. Vohralík. An adaptive hp-refinement strategy with computable guaranteed bound on the
+     error reduction factor. Computers & Mathematics with Applications, 76(5):967–983, 2018.
+[18] H. De Sterck, T. Manteuffel, S. McCormick, J. Nolting, J. Ruge, and L. Tang. Efficiency-based h-and hp-refinement strategies
+     for finite element methods. Numerical Linear Algebra with Applications, 15(2-3):89–114, 2008.
+[19] A. Ern, A. F. Stephansen, and M. Vohralík. Guaranteed and robust discontinuous Galerkin a posteriori error estimates for
+     convection–diffusion–reaction problems. Journal of computational and applied mathematics, 234(1):114–130, 2010.
+[20] A.-m. Farahmand, S. Nabi, and D. N. Nikovski. Deep reinforcement learning for partial differential equation control. In 2017
+     American Control Conference (ACC), pages 3120–3127. IEEE, 2017.
+[21] N. Fehn, W. A. Wall, and M. Kronbichler. On the stability of projection methods for the incompressible navier–stokes equations
+     based on high-order discontinuous galerkin discretizations. Journal of Computational Physics, 351:392–421, 2017.
+[22] N. Fehn, W. A. Wall, and M. Kronbichler. Robust and efficient discontinuous galerkin methods for under-resolved turbulent
+     incompressible flows. Journal of Computational Physics, 372:667–693, 2018.
+[23] C. Foucart, C. Mirabito, P. J. Haley, Jr., and P. F. J. Lermusiaux. Distributed implementation and verification of hybridizable
+     discontinuous Galerkin methods for nonhydrostatic ocean processes. In OCEANS Conference 2018, Charleston, SC, Oct. 2018.
+     IEEE.
+[24] C. Foucart, C. Mirabito, P. J. Haley, Jr., and P. F. J. Lermusiaux. High-order discontinuous Galerkin methods for nonhydrostatic
+     ocean processes with a free surface. In OCEANS 2021 IEEE/MTS, pages 1–9. IEEE, Sept. 2021.
+[25] S. Fujimoto, H. van Hoof, and D. Meger. Addressing function approximation error in actor-critic methods. In J. Dy and
+     A. Krause, editors, Proceedings of the 35th International Conference on Machine Learning, volume 80 of Proceedings of
+     Machine Learning Research, pages 1587–1596. PMLR, 10–15 Jul 2018.
+[26] G. Gassner, C. Altmann, F. Hindenlang, M. Staudenmeier, and C. Munz. Explicit discontinuous Galerkin schemes with
+     adaptation in space and time. 36th CFD/ADIGMA course on hp-adaptive and hp-multigrid methods, VKI LS, 2009.
+[27] T. Haarnoja, A. Zhou, P. Abbeel, and S. Levine. Soft actor-critic: Off-policy maximum entropy deep reinforcement learning
+     with a stochastic actor. CoRR, abs/1801.01290, 2018.
+[28] P. J. Haley, Jr., A. Agarwal, and P. F. J. Lermusiaux. Optimizing velocities and transports for complex coastal regions and
+     archipelagos. Ocean Modeling, 89:1–28, 2015.
+[29] P. J. Haley, Jr. and P. F. J. Lermusiaux. Multiscale two-way embedding schemes for free-surface primitive equations in the
+     “Multidisciplinary Simulation, Estimation and Assimilation System”. Ocean Dynamics, 60(6):1497–1537, Dec. 2010.
+[30] C. F. Hayes, R. Rădulescu, E. Bargiacchi, J. Källström, M. Macfarlane, M. Reymond, T. Verstraeten, L. M. Zintgraf, R. Dazeley,
+     F. Heintz, et al. A practical guide to multi-objective reinforcement learning and planning. Autonomous Agents and Multi-Agent
+     Systems, 36(1):1–59, 2022.
+[31] J. S. Hesthaven and T. Warburton. Nodal discontinuous Galerkin methods: algorithms, analysis, and applications. Springer
+     Science & Business Media, 2007.
+[32] R. H. Hoppe, Y. Iliash, C. Iyyunni, and N. H. Sweilam. A posteriori error estimates for adaptive finite element discretizations
+     of boundary control problems. -, 2006.
+[33] R. H. Hoppe, G. Kanschat, and T. Warburton. Convergence analysis of an adaptive interior penalty discontinuous galerkin
+     method. SIAM journal on numerical analysis, 47(1):534–550, 2009.
+
+
+                                                                 25
+                               Deep Reinforcement Learning for Adaptive Mesh Refinement                                A P REPRINT
+
+
+
+[34] K. Hornik, M. Stinchcombe, and H. White. Multilayer feedforward networks are universal approximators. Neural networks,
+     2(5):359–366, 1989.
+[35] A. Joshi, A. B. Thompson, E. M. Sevick-Muraca, and W. Bangerth. Adaptive finite element methods for forward modeling in
+     fluorescence enhanced frequency domain optical tomography. In Biomedical Topical Meeting, page WB7. Optical Society of
+     America, 2004.
+[36] E. Kaiser, J. N. Kutz, and S. L. Brunton. Sparse identification of nonlinear dynamics for model predictive control in the
+     low-data limit. Proceedings of the Royal Society A, 474(2219):20180335, 2018.
+[37] D. W. Kelly, J. De SR Gago, O. C. Zienkiewicz, and I. Babuska. A posteriori error analysis and adaptive processes in the finite
+     element method: Part i—error analysis. International journal for numerical methods in engineering, 19(11):1593–1619, 1983.
+[38] R. I. Klein. Star formation with 3-d adaptive mesh refinement: the collapse and fragmentation of molecular clouds. Journal of
+     Computational and Applied Mathematics, 109(1-2):123–152, 1999.
+[39] M. A. Kopera and F. X. Giraldo. Analysis of adaptive mesh refinement for imex discontinuous galerkin solutions of the
+     compressible euler equations with application to atmospheric simulations. Journal of Computational Physics, 275:92–117,
+     2014.
+[40] A. Krishnapriyan, A. Gholami, S. Zhe, R. Kirby, and M. W. Mahoney. Characterizing possible failure modes in physics-informed
+     neural networks. Advances in Neural Information Processing Systems, 34, 2021.
+[41] L. Krivodonova and J. E. Flaherty. Error estimation for discontinuous galerkin solutions of two-dimensional hyperbolic
+     problems. Advances in Computational Mathematics, 19(1):57–71, 2003.
+[42] L. Krivodonova, J. Xin, J.-F. Remacle, N. Chevaugeon, and J. E. Flaherty. Shock detection and limiting with discontinuous
+     galerkin methods for hyperbolic conservation laws. Applied Numerical Mathematics, 48(3-4):323–338, 2004.
+[43] M. Kronbichler. The Discontinuous Galerkin Method: Derivation and Properties. In M. Kronbichler and P.-O. Persson, editors,
+     Efficient High-Order Discretizations for Computational Fluid Dynamics, pages 1–55. Springer International Publishing, 2021.
+[44] C. S. Kulkarni, A. Gupta, and P. F. J. Lermusiaux. Sparse regression and adaptive feature generation for the discovery of
+     dynamical systems. In F. Darema, E. Blasch, S. Ravela, and A. Aved, editors, Dynamic Data Driven Application Systems.
+     DDDAS 2020., volume 12312 of Lecture Notes in Computer Science, pages 208–216. Springer, Cham, Nov. 2020.
+[45] C. S. Kulkarni and P. F. J. Lermusiaux. Advection without compounding errors through flow map composition. Journal of
+     Computational Physics, 398:108859, Dec. 2019.
+[46] P. F. J. Lermusiaux. Numerical fluid mechanics. MIT OpenCourseWare, May 2015.
+[47] Y. Li. Deep reinforcement learning: An overview. arXiv preprint arXiv:1701.07274, 2017.
+[48] T. P. Lillicrap, J. J. Hunt, A. Pritzel, N. Heess, T. Erez, Y. Tassa, D. Silver, and D. Wierstra. Continuous control with deep
+     reinforcement learning, 2015.
+[49] K. T. Mandli and C. N. Dawson. Adaptive mesh refinement for storm surge. Ocean Modelling, 75:36–50, 2014.
+[50] V. Mnih, A. P. Badia, M. Mirza, A. Graves, T. P. Lillicrap, T. Harley, D. Silver, and K. Kavukcuoglu. Asynchronous methods
+     for deep reinforcement learning. arXiv, 2016.
+[51] V. Mnih, K. Kavukcuoglu, D. Silver, A. Graves, I. Antonoglou, D. Wierstra, and M. Riedmiller. Playing atari with deep
+     reinforcement learning, 2013.
+[52] P. Morin, R. H. Nochetto, and K. G. Siebert. Data oscillation and convergence of adaptive fem. SIAM Journal on Numerical
+     Analysis, 38(2):466–488, 2000.
+[53] F. Naddei, M. de la Llave Plata, V. Couaillier, and F. Coquel. A comparison of refinement indicators for p-adaptive simulations
+     of steady and unsteady flows using discontinuous galerkin methods. Journal of Computational Physics, 376:508–533, 2019.
+[54] N. C. Nguyen, J. Peraire, and B. Cockburn. An implicit high-order hybridizable discontinuous galerkin method for linear
+     convection–diffusion equations. Journal of Computational Physics, 228(9):3232–3254, 2009.
+[55] J. Pan, J. Huang, G. Cheng, and Y. Zeng. Reinforcement learning for automatic quadrilateral mesh generation: a soft actor-critic
+     approach. arXiv preprint arXiv:2203.11203, 2022.
+[56] T. Plewa, T. Linde, V. G. Weirs, et al. Adaptive mesh refinement-theory and applications. Springer, 2005.
+[57] A. Raffin, A. Hill, M. Ernestus, A. Gleave, A. Kanervisto, and N. Dormann. Stable Baselines3, 2019.
+[58] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov. Proximal policy optimization algorithms, 2017.
+[59] D. Silver. Lectures on reinforcement learning. URL : https://www.davidsilver.uk/teaching/, 2015.
+[60] S. Sonoda and N. Murata. Neural network with unbounded activation functions is universal approximator. Applied and
+     Computational Harmonic Analysis, 43(2):233–268, 2017.
+[61] W. A. Strauss. Partial differential equations: An introduction. John Wiley & Sons, 2007.
+[62] R. S. Sutton and A. G. Barto. Reinforcement learning: An introduction. MIT press, 2018.
+[63] A. Thomas, J. Dietrich, M. Loveland, A. Samii, and C. Dawson. Improving coastal flooding predictions by switching meshes
+     during a simulation. Ocean Modelling, 164:101820, 2021.
+
+
+                                                                 26
+                               Deep Reinforcement Learning for Adaptive Mesh Refinement                                 A P REPRINT
+
+
+
+[64] M. P. Ueckermann and P. F. J. Lermusiaux. High order schemes for 2D unsteady biogeochemical ocean models. Ocean
+     Dynamics, 60(6):1415–1445, Dec. 2010.
+[65] M. P. Ueckermann and P. F. J. Lermusiaux. Hybridizable discontinuous Galerkin projection methods for Navier–Stokes and
+     Boussinesq equations. Journal of Computational Physics, 306:390–421, 2016.
+[66] A. Vidal-Ferràndiz, A. Carreño, D. Ginestar Peiro, and G. J. Verdú Martín. hp-finite element method for the simplified pn
+     equations. In Congreso de Métodos Numéricos en Ingeniería (CMN 2017). Actas, pages 208–220. International Center for
+     Numerical Methods in Engineering (CIMNE), 2017.
+[67] Y. Wang, Z. Shen, Z. Long, and B. Dong. Learning to discretize: solving 1d scalar conservation laws via deep reinforcement
+     learning. arXiv preprint arXiv:1905.11079, 2019.
+[68] S. Wei, X. Jin, and H. Li. General solutions for nonlinear differential equations: a rule-based self-learning approach using deep
+     reinforcement learning. Computational Mechanics, 64(5):1361–1374, 2019.
+[69] J. Yang, T. Dzanic, B. Petersen, J. Kudo, K. Mittal, V. Tomov, J.-S. Camier, T. Zhao, H. Zha, T. Kolev, et al. Reinforcement
+     learning for adaptive mesh refinement. arXiv preprint arXiv:2103.01342, 2021.
+[70] T. D. Young and R. Armiento. Strategies for h-adaptive refinement for a finite element treatment of harmonic oscillator
+     schrödinger eigenproblem. Communications in Theoretical Physics, 53(6):1017, 2010.
+
+
+Appendix A. Tunable policies
+
+Computational resources are user- and time-dependent. For different applications, or even in the middle of a simulation,
+we may seek to adjust how aggressive our reinforcement learning agent is in refining or coarsening our mesh. We
+directly encode the trade-off between accuracy and computational cost in hyperparameter γc , which the user may tune
+freely. However, naively changing γc would require re-training our reinforcement learning agent. Next, we show how
+we can avoid re-training while simultaneously allowing for policy tuning.
+The more general setting to this problem is multi-objective reinforcement learning (MORL). We seek an agent that
+is optimized over a continuum of objective functions depending upon γc . The value function Vtπ (st ) is the expected
+reward following policy π given state st . Traditionally, Vtπ : S → R maps an observation to a scalar, but in MORL, the
+value function Vtπ : S → Rd maps an observation to a d-dimensional vector indexed by the different objective functions.
+In our case, the value function Vtπ (st ; γc ) : S → Cb (R) maps an observation to a bounded continuous function. Most
+approaches in the MORL literature attempt to find either a single policy by scalarizing the vector-valued Vtπ or multiple
+policies by repeatedly training over different objective functions (see [30] for a literature review). However, due to
+a particular feature of our expected reward function Qt , we are able to simply learn over a continuum of objective
+functions.
+Consider an expected reward function Qt : O × A → R that can be split into two parts: a function that can be explicitly
+computed given the observation, i.e. the “known” function Q(k) , and a function that needs to be learned, Q(l) .
+                                                              (k)                (l)
+                                           Qt (s, a; γc ) = Qt (s, a; γc ) + Qt (s, a)                                           (13)
+
+There is no reason to learn Q(k) if it can be explicitly computed; instead, we should just represent Q(l) with a deep
+neural network as in deep Q-learning. Then, the outputs of the two Q functions can be combined at the end, and the
+argmax of the resulting sum will be the action that we take. Importantly, the hyperparameter γc is only an argument of
+the known function that we can explicitly compute. This allows us to learn one function Ql but then change our policy
+adaptively as a function γc . Computationally, we really learn the function Q̂t : S → R|A| that maps an observation to
+the expected reward for every action in the action space, and we denote this modified and approximate expected reward
+function with a hat. In figure 18, we delineate a traditional deep Q-learning policy π from a tunable policy π̃.
+In our particular case, the reward function (1) is naturally decomposed into a part that needs to be learned and one
+that can be explicitly computed: the accuracy needs to be learned but the computational cost and barrier function are
+explicitly known. Call these partial rewards R(l) and R(k) , respectively. We can write our Q function as follows.
+                                         " ∞                  ∞
+                                                                                           #
+                                                i (k)             i (l)
+                                           X                 X
+                           Qt (s, a) = E      γk Rt+i+1 +        γ Rt+i+1 St = s, At = a                           (14)
+                                                i=0                 i=0
+
+
+Above, we have used different discount factors γk and γ for R(k) and R(l) , respectively. We consider the case where
+γk = 0. In our example, setting the discount factor on the computational cost to zero is justified in that we are usually
+only concerned with the computational cost at a given instant. Furthermore, the computational load on a machine is
+
+
+                                                                 27
+                               Deep Reinforcement Learning for Adaptive Mesh Refinement                                  A P REPRINT
+
+
+
+
+                                                   argmax                                                       argmax
+
+
+
+
+Figure 18: We depict a vanilla policy based on Deep Q-Learning and a tunable policy. The tunable policy splits the Q̂ function into
+known and learned functions. The learned function is represented by a neural network, while the known policy can be evaluated
+explicitly given the observations. In the tunable policy, the hyperparameter γc is an input to the known Q̂(k) function which does not
+have to be re-learned.
+
+
+often highly unpredictable; for example, other users may submit jobs in the middle of our simulation. As such, a greedy
+approach to discounting the computational penalty is desirable, and we may rewrite our expected reward as follows.
+                                                                " ∞                               #
+                                   h                      i
+                                     (k)                                i (l)
+                                                                  X
+                    Qt (s, a) = E Rt+1 St = s, At = a + E             γ Rt+i+1 St = s, At = a                      (15)
+                                 |           {z           }       i=0
+                                              (k)            |                 {z                 }
+                                                 Qt                                        (l)
+                                                                                         Qt
+
+
+With that, we have defined our known and learned Q functions, and to train we simply omit R(k) from our reward
+entirely by setting γc = 0. Once trained, we append Q(k) to the end of our Q(k) network in order to make predictions,
+and γc may be set arbitrarily without retraining. We note that separable rewards are not limited to this case where we
+balance computational cost and simulation accuracy, and we posit that there are many other areas where this framework
+may be beneficial.
+While we have described how to perform MORL in instances where Q is separable and the action space is discrete, this
+framework should be extendable to the continuous case. In actor-critic policies where the critic learns the Q function
+(e.g. deep deterministic policy gradient (DDPG) [48], twin delayed DDPG (TD3) [25], and soft actor critic (SAC) [27]
+methods), one should be able to apply a similar methodology: after learning Q(l) , one should be able to append Q(k) .
+In the continuous case, however, the actor must be re-trained since we cannot just take the argmax of a continuous
+action space. Fortunately, re-training the actor should be computationally inexpensive since the policy networks tend
+to be small, and we can just randomly sample from the action space. That is, we do not need to re-sample from our
+environment; instead, because we already know our Q function, we simply need to re-train the actor to maximize the
+estimated reward given an action from our action space. This procedure is the subject of ongoing research.
+
+Appendix B. Exact solution, §4.6
+The exact solution is given by
+                                                      25                      
+                                                      X1         1           2
+                                          u(x) =           exp − 2 kx − xi k
+                                                 i=1
+                                                     2πσ 2      σ
+with parameter σ = 1/10 and source centers xi described in Table 2.
+
+       i   xi = (x1 , x2 /α)
+       1    (-0.75, -0.25)       6     (-0.25, -0.25)       11   (0.125, -0.75)   16   (-0.75, -0.625)   21   (-0.25, -0.375)
+       2    (-0.75, -0.75)       7     (-0.25, -0.50)       12    (0.5, -0.75)    17   (-0.50, -0.625)   22   (0.125, -0.625)
+       3    (-0.75, -0.50)       8     (-0.25, -0.75)       13     (0.5, -0.5 )   18   (-0.25, -0.625)   23    (0.5 , -0.625)
+       4    (-0.50, -0.25)       9     (0.125, -0.25)       14    (0.5 , -0.25)   19   (-0.75, -0.375)   24    (0.625 ,-0.25)
+       5    (-0.50, -0.50)       10    (0.125, -0.50)       15   (0.75 , -0.25)   20   (-0.50, -0.375)   25   (0.125, -0.375)
+
+                                      Table 2: Description of source centers, where α = 1.1.
+
+
+
+                                                                   28
+                             Deep Reinforcement Learning for Adaptive Mesh Refinement                          A P REPRINT
+
+
+
+Appendix C. Additional training parameters
+For all numerical experiments, we used a time discount factor γ = 0.99, which is the default for the Stable-Baselines-3
+library. The large negative reward accrued by the agent upon running out of computational resources was taken to be
+Rexceed = −1 · 103 ; this was important as a learning signal in the cases where the RL agent was trained on a small
+computational budget, as the barrier function B(p) in (1) is undefined outside p = 1. Training episodes were terminated
+after finite number of iterations, we used 200; this choice is arbitrary, as long as the number of iterations is large enough
+that it is possible for the agent to approach its computational budget and receive the large negative reward for doing so.
+At the time of this writing, the authors have made no attempt to accelerate the training process through optimization of
+training parameters such as batch size and episode length, but point out that doing so constitutes the subject of ongoing
+research.
+
+
+
+
+                                                            29
+

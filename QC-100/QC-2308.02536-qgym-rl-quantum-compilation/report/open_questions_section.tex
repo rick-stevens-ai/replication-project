@@ -1,0 +1,78 @@
+\section{Open Questions}
+
+The replication reproduces the paper's stated PoC. The following five
+questions are genuinely open --- they are neither answered by the paper
+nor by this replication --- and each is scoped so a follow-up study
+could actually attempt it.
+
+\begin{enumerate}
+\item \textbf{Noise-aware reward.}
+Does adding a noise-aware reward term (e.g.\ minimize expected error under a
+realistic depolarizing / $T_1$-$T_2$ noise model) change which schedule the
+PPO agent converges to, and does it beat noise-oblivious ALAP on fidelity
+rather than cycle count?
+\emph{Basis:} qgym's PoC optimizes cycle count only; real compilation trades
+depth for fidelity. \texttt{qgym.Rewarder} is pluggable but noise-awareness
+is not exercised in the paper.
+\emph{Next steps:} subclass \texttt{BasicRewarder} to add a per-gate fidelity
+penalty from a Qiskit \texttt{NoiseModel} ($T_1$/$T_2$ + depolarizing);
+retrain PPO $10^5$ steps at seed 20260703; evaluate PPO vs ALAP under the
+same noise model on mean process fidelity and cycle count. Success $=$ PPO
+strictly beats ALAP on fidelity even if it ties/loses on cycles.
+
+\item \textbf{Modern RL algorithms.}
+Do off-policy or model-based RL algorithms (SAC-Discrete, DreamerV3,
+MuZero-style) reach ALAP parity in materially fewer environment steps than
+vanilla PPO on the qgym Scheduling PoC, and do they scale where PPO stalls?
+\emph{Basis:} the paper uses vanilla PPO only. Our replication showed PPO's
+convergence is hyperparameter-sensitive. Off-policy replay + world-model
+methods are typically far more sample-efficient on discrete combinatorial
+tasks.
+\emph{Next steps:} adapt qgym Scheduling to Gymnasium+cleanrl; train
+SAC-Discrete and small DreamerV3 with matched seed on 3-qubit,
+\texttt{max\_gates=5}. Compare (i) steps to first ALAP-parity, (ii) final
+mean cycles on 50-circuit held-out set (seeds 20261703..20261752).
+
+\item \textbf{Real hardware topologies.}
+How does a qgym-trained Scheduling agent perform on real hardware coupling
+maps (IBM Heron/Eagle heavy-hex, IonQ linear, Rigetti Aspen) as opposed to
+the synthetic 3-qubit \texttt{MachineProperties} in the paper, and does the
+trained policy transfer or require per-topology retraining?
+\emph{Basis:} the PoC uses an abstract 3-qubit machine with no coupling
+constraints. Whether the qgym RL approach generalizes to production hardware
+is untested.
+\emph{Next steps:} instantiate three qgym \texttt{MachineProperties} matching
+(i) IBM Eagle 27q heavy-hex sub-lattice, (ii) IonQ 11q linear, (iii) Rigetti
+Aspen-M fragment. Train PPO per topology on random 10-gate circuits, then
+cross-evaluate. Metric: zero-shot mean-cycle delta vs each topology's ALAP.
+Success $=$ within 10\% of ALAP zero-shot on unseen topologies.
+
+\item \textbf{Transfer learning across topologies.}
+Can a policy pre-trained on topology $A$ be fine-tuned to topology $B$ in
+far fewer steps than training from scratch, and does a graph-neural-network
+state encoder over the coupling graph beat qgym's default MLP for transfer?
+\emph{Basis:} transfer across coupling maps is the practically useful version
+of question~3. qgym's default \texttt{MultiInputPolicy} uses a flat MLP over
+dict observations; GNNs are the standard architectural choice for graph-RL.
+\emph{Next steps:} implement a GNN feature extractor (nodes $=$ qubits,
+edges $=$ coupling). Pre-train PPO on topology $A$ for $10^5$ steps; continue
+on $B$ for $\{10^4, 5{\times}10^3, 2.5{\times}10^3\}$ steps. Compare to
+training from scratch on $B$ at same budgets. Metric: cycles-to-parity vs
+cumulative environment steps.
+
+\item \textbf{ML-in-the-loop with a classical compiler.}
+In a hybrid setup, can a qgym-trained agent be inserted as a heuristic inside
+Qiskit's \texttt{PassManager} (or a \texttt{t|ket>} pass) to strictly improve
+on the classical compiler's schedule depth on realistic (20--50 qubit)
+benchmark circuits, or does the classical compiler dominate at that scale?
+\emph{Basis:} the most useful home for a qgym agent is not to \emph{replace}
+a classical compiler but to be a callable subroutine inside one. The paper
+never tests such an integration.
+\emph{Next steps:} write a Qiskit \texttt{TransformationPass} that calls a
+trained qgym Scheduling agent to schedule each basic block, keeping Qiskit's
+routing/synthesis passes unchanged. Run hybrid vs stock
+\texttt{transpile(optimization\_level=3)} on QASMBench medium (20q) and
+QASMBench large (40--50q). Compare depth, two-qubit gate count, transpile
+wall time. Success $=$ hybrid strictly beats stock Qiskit on depth without
+regressing gate count.
+\end{enumerate}

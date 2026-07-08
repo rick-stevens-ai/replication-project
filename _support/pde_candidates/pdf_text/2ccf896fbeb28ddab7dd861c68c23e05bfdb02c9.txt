@@ -1,0 +1,1817 @@
+                                                                A LOW-RANK PROJECTOR-SPLITTING INTEGRATOR
+                                                                     FOR THE VLASOV–POISSON EQUATION
+                                                                             LUKAS EINKEMMER∗‡ AND CHRISTIAN LUBICH∗
+
+                                              Abstract. Many problems encountered in plasma physics require a description by kinetic equations, which are posed in
+                                          an up to six-dimensional phase space. A direct discretization of this phase space, often called the Eulerian approach, has many
+                                          advantages but is extremely expensive from a computational point of view. In the present paper we propose a dynamical low-
+                                          rank approximation to the Vlasov–Poisson equation, with time integration by a particular splitting method. This approximation
+                                          is derived by constraining the dynamics to a manifold of low-rank functions via a tangent space projection and by splitting
+                                          this projection into the subprojections from which it is built. This reduces a time step for the six- (or four-) dimensional
+                                          Vlasov–Poisson equation to solving two systems of three- (or two-) dimensional advection equations over the time step, once in
+
+
+
+
+arXiv:1801.01103v2 [math.NA] 9 Jun 2018
+                                          the position variables and once in the velocity variables, where the size of each system of advection equations is equal to the
+                                          chosen rank. By a hierarchical dynamical low-rank approximation, a time step for the Vlasov–Poisson equation can be further
+                                          reduced to a set of six (or four) systems of one-dimensional advection equations, where the size of each system of advection
+                                          equations is still equal to the rank. The resulting systems of advection equations can then be solved by standard techniques
+                                          such as semi-Lagrangian or spectral methods. Numerical simulations in two and four dimensions for linear Landau damping,
+                                          for a two-stream instability and for a plasma echo problem highlight the favorable behavior of this numerical method and show
+                                          that the proposed algorithm is able to drastically reduce the required computational effort.
+
+                                             Key words. Dynamical low-rank approximation, projector-splitting integrator, Vlasov–Poisson equation.
+
+
+                                              1. Introduction. Many physical phenomena in both space and laboratory plasmas require a kinetic
+                                          description. The typical example of such a kinetic model is the Vlasov–Poisson equation
+
+                                                                      ∂t f (t, x, v) + v · ∇x f (t, x, v) − E(f )(x) · ∇v f (t, x, v) = 0
+                                                                                                                                                                   (1.1)
+                                                                                           Z
+                                                                      ∇ · E(f )(x) = − f (t, x, v) dv + 1,              ∇ × E(f )(x) = 0,
+
+                                          which models the time evolution of electrons in a collisionless plasma in the electrostatic regime (assuming
+                                          a constant background ion density). Equation (1.1) has to be supplemented with appropriate boundary and
+                                          initial conditions. The particle-density function f (t, x, v), where x ∈ Ωx ⊂ Rd and v ∈ Ωv ⊂ Rd (with spatial
+                                          dimension d ≤ 3), is the quantity to be computed.
+                                               In most applications, the primary computational challenge stems from the fact that the equation is
+                                          posed as an evolution equation in an up to six-dimensional phase space. Thus, direct discretization of
+                                          the Vlasov–Poisson equation on a grid requires the storage of O(n2d ) floating point numbers, where n is
+                                          the number of grid points per direction. This has been, and in many cases still is, prohibitive from a
+                                          computational point of view.
+                                               Consequently, particle methods are widely used in many application areas that require the numerical
+                                          solution of kinetic models. Particle methods, such as the particle-in-cell approach, only discretize the physi-
+                                          cal space x (but not the velocity space v). The v-dependence is approximated by initializing a large number
+                                          of particles that follow the characteristic curves of equation (1.1). This can significantly reduce the compu-
+                                          tational cost and has the added benefit that particles congregate in high-density regions of the phase space.
+                                          However, particle methods suffer from numerical noise that only decreases as the square root in the number
+                                          of particles. This is, in particular, an issue for problems where the tail of the distribution function has to be
+                                          resolved accurately. For a detailed discussion the reader is referred to the review article [54].
+                                               As an alternative, the entire 2d-dimensional phase space can be discretized. This Eulerian approach has
+                                          received significant attention in recent years. Due to the substantial increase in computational power, four-
+                                          dimensional simulation can now be performed routinely on high performance computing (HPC) systems. In
+                                          addition, some five and six-dimensional simulations (usually where in one direction a small number of grid
+                                          points is sufficient) have been carried out. Nevertheless, these simulations are still extremely costly from a
+                                          computational point of view. Consequently a significant research effort has been dedicated to improving both
+
+                                             ∗ Mathematisches Institut, Universität Tübingen, Auf der Morgenstelle 10, D–72076 Tübingen, Germany.                 Email:
+                                          {einkemmer,lubich}@na.uni-tuebingen.de
+                                             ‡ Department of Mathematics, University of Innsbruck, Austria
+
+                                                                                                        1
+the numerical algorithms used (see, for example, [9, 15, 13, 19, 23, 30, 46, 49, 50, 53, 3, 7, 52, 5, 6]) as well as
+the corresponding parallelization to state of the art HPC systems (see, for example, [51, 12, 2, 35, 42, 11, 8]).
+     The seminal paper [3] introduced a time-splitting approach. This approach has the advantage that the
+nonlinear Vlasov–Poisson equation can be reduced to a sequence of one-dimensional advection equations (see,
+for example, [18, 20, 14]). Splitting schemes that have similar properties have been proposed for a range of
+more complicated models (including the relativistic Vlasov–Maxwell equations [52, 5], drift-kinetic models
+[23, 7], and gyrokinetic models [22]). This is then usually combined with a semi-Lagrangian discretization
+of the resulting advection equations. A semi-Lagrangian approach has the advantage that the resulting
+numerical method is completely free from a Courant–Friedrichs–Lewy (CFL) condition.
+     Nevertheless, all these methods still incur a computational and storage cost that scales as O(n2d ). Thus,
+it seems natural to ask whether any of the dimension reduction techniques developed for high-dimensional
+problems are able to help alleviate the computational burden of the Eulerian approach. To understand
+why it is not entirely clear if such an approach could succeed, we will consider the following equation (with
+x, v ∈ R)
+
+                                         ∂t f (t, x, v) + v ∂x f (t, x, v) = 0.
+
+This is just the one-dimensional Vlasov–Poisson equation (1.1) without the nonlinear term. If the initial
+                            2
+value f0 (x, v) = cos(kx)e−v /2 with k ∈ R is imposed, then the exact solution can be easily written down as
+                                                                            2
+                                        f (t, x, v) = cos(k(x − vt)) e−v /2 .                                 (1.2)
+
+From this expression we see that, as the system evolves in time, the wave number in the v-direction is given
+by kt. In particular, we have k∂vm f (t, ·, ·))k ∝ (kt)m which implies that, even though the solution is infinitely
+often differentiable, smaller and smaller scales appear in phase space. This phenomenon is referred to as
+filamentation and in many problems a reasonable resolution of these small scale structures is important to
+obtain physically meaningful results.
+     A specific problem for sparse-grid approximations is that mixed derivatives (between x and v, but
+perhaps even more problematic between different v-directions in a multidimensional setting) can be huge.
+Nevertheless, sparse-grid techniques have been considered for the Vlasov–Poisson equation [34, 10, 24]. A
+further challenge for these methods is that evaluating the particle-density function (which is required for
+semi-Lagrangian methods) can be expensive.
+     Despite these drawbacks, sparse grids can be advantageous in some situations. For example, in [34] first
+a tensor product decomposition in the x- and v-directions is applied. The remaining d-dimensional problems
+are then approximated using a sparse grid. For Landau damping in four dimensions this scheme was able to
+reduce the required memory by approximately a factor of 10 and the run time by a factor of 2. On the other
+hand, it is somewhat worrying that, as was shown in the cited work, instabilities can develop if not enough
+degrees of freedom are used. Furthermore, it is well known that sparse grids do not resolve Gaussians very
+well. This is a problem for kinetic simulations as the steady state is usually a linear combination of Gaussians.
+In the previously mentioned work, this deficiency is remedied by explicitly incorporating a Gaussian into the
+numerical method (a so-called δf scheme). However, this approach does not work very well in cases where
+the particle density significantly deviates from this form.
+     We now turn to the alternative approach taken in this paper, which appears to be novel for kinetic
+equations. Computing numerical solutions of high-dimensional evolutionary partial differential equations by
+dynamical low-rank approximation has, however, been investigated extensively in quantum dynamics; see,
+in particular, [45, 44] for the MCTDH approach to molecular quantum dynamics in the chemical physics
+literature and [36, 37, 4] for a mathematical point of view to this approach. Some uses of dynamical low-rank
+approximation in areas outside quantum mechanics are described in [48, 28, 43, 47]. In a general mathematical
+setting, dynamical low-rank approximation has been studied in [31, 32, 40, 1]. A major algorithmic advance
+for the time integration was achieved with the projector-splitting methods first proposed in [39] for matrix
+differential equations and then developed further for various tensor formats in [37, 38, 25, 29, 41]. In the
+present paper we will adapt such methods to the Vlasov–Poisson equation.
+     For the Vlasov–Poisson equation, low-rank approximation to the solution is an interesting option for a
+                                                           2
+number of reasons. First, the solution of our toy problem, given in equation (1.2), can be readily written as
+                                                                                        2
+                          f (t, x, v) = (cos(kx) cos(kvt) + sin(kx) sin(kvt)) e−v /2 .
+
+Thus, the linear part of the equation can be represented exactly with rank two. While this property is lost
+once we consider the full Vlasov–Poisson equation, it still gives some indication that at least certain types
+of filamentation can be handled efficiently by the numerical method based on a low-rank approximation.
+Second, the typical kinetic equilibria formed by linear combination of Gaussians can be very efficiently
+represented by a low-rank structure. This is in stark contrast to the sparse-grid approach (as has been
+discussed above).
+     Recently, in [33] a low-rank numerical algorithm for the Vlasov–Poisson equation has been suggested
+that first discretizes the problem in time and space. This is done using the common technique of splitting in
+time and then applying a spline based semi-Lagrangian scheme to the resulting advection equations. Each
+step of such an algorithm can then be written as a linear combination of low-rank approximations. To avoid
+that the rank grows during the numerical simulation a singular value decomposition (SVD) is then applied
+to truncate the low-rank approximation (i.e., approximate it by a different low-rank representation with a
+fixed rank).
+     In the present work we consider a different approach to approximating the solution of the Vlasov–Poisson
+equation by a low-rank representation. We constrain the dynamics of the Vlasov–Poisson equation to a
+manifold of low-rank functions by a tangent space projection which is then split into its summands over a
+time step, adapting the projector-splitting approach to time integration of [39]. This yields a sequence of
+advection equations in a lower-dimensional space. Then an appropriate semi-Lagrangian scheme or even
+Fourier-based techniques can be applied easily to obtain a numerical solution. This approach is first used
+to obtain equations separately in x and in v, which reduces a 2d-dimensional problem to a sequence of
+d-dimensional problems (this is the content of Section 2). If r denotes the chosen rank, then over a time step
+one solves, one after the other,
+       • a system of r advection equations in x (and computing 2dr2 + r integrals over Ωv ),
+       • a system of r2 ordinary differential equations (and computing 2dr2 integrals over Ωx ),
+       • a system of r advection equations in v.
+This first-order scheme can be symmetrized to yield a second-order time-stepping scheme. If n degrees of
+freedom are used in each coordinate direction in the full discretization, then the storage cost is reduced to
+O(rnd ) from O(n2d ), and similarly for the number of arithmetic operations.
+     If appropriate, the procedure can then be repeated in a hierarchical manner in order to reduce the
+computations further to one-dimensional advection equations and one-dimensional integrals (this is the
+content of Section 3). We have chosen a hierarchical Tucker format since the dimensionality at this point
+in the algorithm is only d and this allows us to treat all coordinate directions in x and in v equally. The
+algorithm adapts the projector-splitting integrator for low-rank Tucker tensors from [41].
+     A noteworthy feature of the proposed numerical scheme is that it works entirely within the low-rank
+manifold. No high-rank tensor needs to be formed and subsequently truncated. This helps to reduce storage
+and computational cost. In addition, depending on the problem either the physical space or the velocity
+space or both can be solved directly, while still maintaining the hierarchical low-rank approximation in the
+other parts of the algorithm.
+     Numerical simulations for linear Landau damping, a two-stream instability and a plasma echo problem
+are presented in Section 4. There we show that it is possible to use a small rank to capture the physics of
+these problems. The proposed numerical method thus substantially reduces the computational cost required
+to perform the simulation.
+    2. Description of the numerical algorithm. The goal of this section is to derive an algorithm that
+approximates the solution of the Vlasov–Poisson equation (1.1) by a low-rank representation. To that end,
+the approximation to the particle-density function f (t, x, v) is constrained to the following form:
+                                                   r
+                                                   X
+                                   f (t, x, v) ≈           Xi (t, x)Sij (t)Vj (t, v),                    (2.1)
+                                                   i,j=1
+                                                             3
+where Sij (t) ∈ R and we call r the rank of the representation. Note that the dependence of f on the phase
+space (x, v) ∈ Ω ⊂ R2d is now approximated by the functions {Xi : i = 1, . . . , r} and {Vj : j = 1, . . . , r} which
+depend only on x ∈ Ωx ⊂ Rd and v ∈ Ωv ⊂ Rd , respectively, and on the time t. In the following discussion
+we always assume that summation indices run from 1 to r and we thus do not specify these bounds.
+    Now, we seek an approximation to the particle-density function that for all t lies in the set
+                                     X                                                                 
+                      2                                                           2             2
+         M = f ∈ L (Ω) : f (x, v) =       Xi (x)Sij Vj (v) with Sij ∈ R, Xi ∈ L (Ωx ), Vj ∈ L (Ωv ) .
+                                          i,j
+
+It is clear that this representation is not unique. In particular, we can make the assumption that hXi , Xk ix =
+δik and hVj , Vl iv = δjl , where h·, ·ix and h·, ·iv are the inner products on L2 (Ωx ) and L2 (Ωv ), respectively.
+We consider a path f (t) on M. The corresponding time derivative is denoted by f˙ and is of the form
+                                           X                                       
+                                      f˙ =      Xi Ṡij Vj + Ẋi Sij Vj + Xi Sij V̇j .                         (2.2)
+                                          i,j
+
+
+If we impose the gauge conditions hXi , Ẋj ix = 0 and hVi , V̇j iv = 0, then Ṡij is uniquely determined by f˙.
+This follows easily from the fact that
+
+                                                       Ṡij = hXi Vj , f˙ix,v .                                    (2.3)
+
+We then project both sides of equation (2.2) onto Xi and Vj , respectively, and obtain
+                                     X                          X
+                                         Sij V̇j = hXi , f˙ix −   Ṡij Vj ,                                        (2.4)
+                                           j                                 j
+                                         X                                 X
+                                                 Sij Ẋi = hVj , f˙iv −           Xi Ṡij .                        (2.5)
+                                           i                                i
+
+From these relations it follows that the Xi and Vj are uniquely defined if the matrix S = (Sij ) is invertible.
+Thus, we seek an approximation that for each time t lies in the manifold
+                                          X
+             M = f ∈ L2 (Ω) : f (x, v) =      Xi (x)Sij Vj (v) with invertible S = (Sij ) ∈ Rr×r ,
+                                                     i,j
+                                                                                                    
+                           Xi ∈ L (Ωx ), Vj ∈ L2 (Ωv ) with hXi , Xk ix = δik , hVj , Vl iv = δjl
+                                   2
+
+
+
+with the corresponding tangent space
+                                      X                                                          
+       Tf M = f˙ ∈ L2 (Ω) : f˙(x, v) =    Xi (x)Ṡij Vj (v) + Ẋi (x)Sij Vj (v) + Xi (x)Sij V̇j (v) ,
+                                               i,j
+                                                                                                              
+                       with Ṡ ∈ Rr×r , Ẋi ∈ L2 (Ωx ), V̇j ∈ L2 (Ωv ), and hXi , Ẋj ix = 0, hVi , V˙j iv = 0 ,
+
+where f is given by equation (2.1). Now, we consider the reduced dynamics of the Vlasov–Poisson equation
+on the manifold M. That is, we consider for the approximate particle density (again denoted by f for ease
+of notation)
+
+                                       ∂t f = −P (f ) (v · ∇x f − E(f ) · ∇v f ) ,                                 (2.6)
+
+where P (f ) is the orthogonal projector onto the tangent space Tf M, as defined above.
+   We will consider the projection P (f )g for a moment. From equations (2.2)-(2.5) we obtain
+                                  X                X                        X
+                        P (f )g =   hVj , giv Vj −   Xi hXi Vj , gix,v Vj +   Xi hXi , gix .
+                                   j                       i,j                                i
+                                                                  4
+Let us introduce the two vector spaces X = span {Xi : i = 1, . . . , r} and V = span {Vj : j = 1, . . . r}. Then
+we can write the projector as follows
+
+
+                                            P (f )g = PV g − PV PX g + PX g,                                           (2.7)
+
+where PX is the orthogonal projector onto the vector space X, which acts only on the x-variable of g = g(x, v),
+and PV is the orthogonal projector onto the vector space V , which acts only on the v-variable of g(x, v). The
+decomposition of the projector into these three terms forms the basis of our splitting procedure (for matrix
+differential equations this has been first proposed in [39]).
+     We proceed by substituting g = v · ∇x f − E(f ) · ∇v f into equation (2.7). This immediately leads to a
+three-term splitting for equation (2.6). More precisely, for the first-order Lie–Trotter splitting we solve the
+equations
+
+                                         ∂t f = −PV (v · ∇x f − E(f ) · ∇v f ) ,                                       (2.8)
+                                         ∂t f = PV PX (v · ∇x f − E(f ) · ∇v f )                                       (2.9)
+                                         ∂t f = −PX (v · ∇x f − E(f ) · ∇v f )                                        (2.10)
+
+one after the other. In the following discussion we consider just the first-order Lie–Trotter splitting algorithm
+with step size τ . The extension to second order (Strang splitting) is nearly straightforward and is presented
+in Section 2.3.
+    We assume that the initial value for the algorithm is given in the form
+                                                      X
+                                        f (0, x, v) =   Xi0 (x)Sij
+                                                                0
+                                                                   Vj0 (v).
+                                                               i,j
+
+
+First, let us consider equation (2.8). Since the set {Vj : j = 1, . . . , r} forms an orthonormal basis of V (for
+each t), we have for the approximate particle density (again denoted by f )
+                                  X                                            X
+                    f (t, x, v) =   Kj (t, x)Vj (t, v), with Kj (t, x) =          Xi (t, x)Sij (t),        (2.11)
+                                j                                                                    i
+
+
+where Kj (t, x) is the coefficient of Vj in the corresponding basis expansion. We duly note that Kj is a
+function of x, but not of v. We then rewrite equation (2.8) as follows
+             X                           X
+                 ∂t Kj (t, x)Vj (t, v) +   Kj (t, x)∂t Vj (t, v)
+              j                             j
+                                X                                                                                     (2.12)
+                           =−           Vj (t, ·), v 7→ v · ∇x f (t, x, v) − E(f )(x) · ∇v f (t, x, v) v Vj (t, v).
+                                 j
+
+
+Note that the electric field is self-consistently determined according to equation (1.1). In practice this is done
+by solving the Poisson problem −∆φ = ρ(f ) + 1 for the potential φ. The electric      R field is then determined
+according to E = −∇φ. We discuss how the (electron) charge density ρ(f ) = − f (t, x, v) dv is computed
+in terms of the low-rank approximation after stating the corresponding evolution equations (for each step in
+the splitting algorithm).
+     The solution of equation (2.12) is given by Vj (t, v) = Vj (0, v) = Vj0 (v) and
+                                            X                                 X
+                       ∂t Kj (t, x) = −             c1jl · ∇x Kl (t, x) +              c2jl · E(K)(t, x)Kl (t, x)     (2.13)
+                                                l                                 l
+
+with
+                                        Z                                         Z
+                               c1jl =           vVj0 Vl0 dv,             c2jl =            Vj0 (∇v Vl0 ) dv.
+                                         Ωv                                           Ωv
+                                                                     5
+The latter is obtained by equating coefficients in the basis expansion. A very useful property of this splitting
+step is that we have to update only the Kj , but not the Vj . We further note that c1jl and c2jl are vectors in
+                                                                                         k;xm
+Rd , since v and ∇v Vl0 are vector quantities. We denote the mth component of ckjl by cjl     .
+     In the equation derived above we have written E(K) to denote that the electric field only depends on K
+during the current step of the algorithm. We will now consider this point in more detail. The electric field
+is calculated from the electric charge density
+                                                        Z
+                                        ρ(f )(t, x) = −     f (t, x, v) dv
+                                                                    Ωv
+
+as described above. Once the charge ρ is specified, the electric field is uniquely determined. For the purpose
+of solving equation (2.13) we have the charge
+                                                X             Z
+                                    ρ(t, x) = −     Kj (t, x)     Vj0 (v) dv
+                                                         j                    Ωv
+                                                        X
+                                                 =−          Kj (t, x)ρ(Vj0 ).
+                                                         j
+
+
+Thus, the electric field only depends on K = (K1 , . . . , Kr ), which explains our notation E(K).
+    Both solving equation (2.13) and determining the electric field are problems posed in a d-dimensional
+(as opposed to 2d-dimensional) space. Thus, we proceed by integrating equation (2.13) with initial value
+                                                        X
+                                          Kj (0, x) =       Xi0 (x)Sij
+                                                                     0
+
+                                                                    i
+
+until time τ to obtain Kj1 (x) = Kj (τ, x). However, this is not sufficient as the Kj1 are not necessarily
+orthogonal (a requirement of our low-rank representation). Fortunately, this is easily remedied by performing
+a QR decomposition
+                                                     X
+                                           Kj1 (x) =    Xi1 (x)Sbij
+                                                                 1
+
+                                                                i
+
+
+to obtain orthonormal Xi1 and the matrix Sbij1
+                                               . Once a space discretization has been introduced, this QR
+decomposition can be simply computed by using an appropriate function from a software package such as
+LAPACK. However, from a mathematical point of view, the continuous dependence on x causes no issues.
+For example, the modified Gram-Schmidt process works just as well in the continuous formulation considered
+here.
+    Second, we proceed in a similar way for equation (2.9). In this case both Vj0 and Xi1 are unchanged and
+only Sij is updated. The corresponding evolution equation (which runs backward in time) is given by
+                                                                                        X
+                ∂t Sij (t) = Xi1 (x)Vj0 (v), (v · ∇x − E(S)(t, x) · ∇v )                          Xk1 (x)Skl (t)Vl0 (v) x,v
+                                                                                            k,l
+                             X
+                                   c1jl · d2ik − c2jl · d1ik [E(S(t))]
+                                                                         
+                         =                                                   Skl (t)                                          (2.14)
+                             k,l
+
+with
+                                       Z                                           Z
+                          d1ik [E] =         Xi1 EXk1 dx,                d2ik =             Xi1 (∇x Xk1 ) dx,
+                                        Ωx                                             Ωx
+
+and E(S(t)) denotes the electric field corresponding to the charge density
+                                                  X
+                                      ρ(t, x) = −   Xi1 (x)Sij (t)ρ(Vj0 ).
+                                                          i,j
+                                                                6
+Note that in this case the evolution equation depends neither on x nor on v. Since E and ∇x Xk1 are vector
+quantities, we have coefficient vectors d1ik and d2ik in Rd . We now integrate equation (2.14) with initial value
+            1                         0
+Sij (0) = Sbij until time τ obtain Seij = Sij (τ ). This completes the second step of the algorithm.
+     Finally, we consider equation (2.10). Similar to the first step we have
+                                    X                                       X
+                      f (t, x, v) ≈   Xi (t, x)Li (t, v),  with Li (t, v) =     Sij (t)Vj (t, v).
+                                 i                                                        j
+
+As before, it is easy to show that this time the Xi remain constant during that step. Thus, the Lj satisfy
+the following evolution equation
+                                       D                                  X              E
+                       ∂t Li (t, v) = − Xj1 , (v · ∇x − E(L)(x, t) · ∇v )   Xk1 Lk (t, v)
+                                                                                              x
+                                                                                      k
+                                     X                                      X
+                                 =       d1ik [E(L(t, ·))] · ∇v Lk (t, v) −  (d2ik · v)Lk (t, v),         (2.15)
+                                     k                                                k
+
+where E(L(t, ·)) denotes the electric field that corresponds to the charge density
+                                                    X
+                                        ρ(t, x) = −    Xi1 (x)ρ(Li (t, ·)).
+                                                         i
+
+We then integrate equation (2.15) with initial value
+                                                               X
+                                                                         0
+                                              Li (0, v) =              Seij Vj0 (v)
+                                                                   j
+
+
+up to time τ to obtain L1i (v) = Li (τ, v). Since, in general, the L1i are not orthogonal we have to perform a
+QR decomposition
+                                                        X
+                                              L1i (v) =     1
+                                                          Sij Vj1 (v)
+                                                               j
+
+
+to obtain orthonormal functions Vj1 and the matrix Sij
+                                                    1
+                                                       . Finally, the output of our Lie splitting algorithm is
+                                                         X
+                                         f (τ, x, v) ≈         Xi1 (x)Sij
+                                                                       1
+                                                                          Vj1 (v).
+                                                         i,j
+
+     To render this algorithm into a numerical scheme that can be implemented on a computer, we have to
+discretize in space. In principle, it is then possible to integrate equations (2.13), (2.14), and (2.15) using
+an arbitrary time stepping method. However, equations (2.13) and (2.15) share many common features
+with the original Vlasov system. Therefore, employing a numerical method tailored to the present situation
+can result in significant performance improvements. More precisely, we will consider fast Fourier based
+techniques (Section 2.1) and a semi-Lagrangian approach (Section 2.2). Both of these schemes remove the
+CFL condition from equations (2.13) and (2.15). Similar methods have been extensively used for direct
+Eulerian simulation of the Vlasov equation (which is the primary motivation to extend them to the low-rank
+algorithm proposed in this work).
+     Before proceeding, however, let us briefly discuss the complexity of our algorithm. For that purpose we
+choose to discretize both x and v using n grid points in every coordinate direction. The storage cost of our
+numerical method is then O(nd r), compared to O(n2d ) for the Eulerian approach. Now, let us assume that
+the cost of solving the evolution equations is proportional to the degrees of freedom (which is usually true
+for semi-Lagrangian schemes and true up to a logarithm for spectral methods). In this case our low-rank
+algorithm requires O(nd r) arithmetic operations for the evolution equations and O(nd r2 ) operations for
+computing the integrals, compared to O(n2d ) for a direct simulation.
+
+                                                               7
+    2.1. Spectral method. In the framework of the classic splitting algorithm for the Vlasov–Poisson
+equation (which goes back to [3]), spectral methods have long been considered a viable approach. This is
+mainly due to the fact that once the splitting has been performed, the remaining advection equations can
+be solved efficiently by employing fast Fourier transforms. Equations (2.13) and (2.15) are somewhat more
+complicated, compared to the advection equations resulting from a direct splitting of the Vlasov–Poisson
+equation, in that a nonlinear term is added. In addition, for equation (2.15) even the speed of the advection
+depends on the electric field. However, since the advection coefficients are scalar quantities it is still possible
+to apply Fourier techniques, as we will show below.
+    We first consider equation (2.13). Performing a Fourier transform (denoted by F) in x yields
+                                        X                        X
+                                          c1jl · ik K̂l (t, k) +   c2jl · F (E(K)(·)Kl (t, ·)) .
+                                                   
+                      ∂t K̂j (t, k) = −
+                                        β                              l
+
+
+Forming the vectors K̂ = (K̂1 , . . . , K̂r ) and K = (K1 , . . . , Kr ) and defining F appropriately, we can write
+this in matrix notation
+                                      ˙
+                                     K̂(t, k) = A(k)K̂(t, k) + F (K̂(t, ·))(k).                             (2.16)
+
+The linear part is the only source of stiffness. For each k we have A(k) ∈ Rr×r which is a small enough
+matrix to be handled by direct methods. Thus, an exponential integrator is easily able to integrate the linear
+part exactly (which removes the CFL condition). For a first order scheme the exponential Euler method is
+sufficient
+
+                             K̂(τ, k) ≈ eτ A(k) K̂(0, k) + τ ϕ1 (τ A(k))F (K̂(0, ·))(k),
+
+where ϕ1 (z) = (ez − 1)/z is an entire function. It should be noted that higher order methods have been
+derived as well (see, for example, the review article [26]).
+    Now, let us turn our attention to equation (2.15). Before this equation can be made amenable to Fourier
+techniques, a further approximation has to be performed. Specifically, we freeze the electric field at the
+beginning of the time step. That is, instead of equation (2.15) we solve the approximation
+                                            X                       X
+                             ∂t Li (t, v) =   d1ik · ∇v Lk (t, v) −  (d2ik · v)Lk (t, v)
+                                                k                           k
+
+with d1ik = d1ik (E(L(0, ·))). This still yields a first order approximation. We will show in Section 2.3 how
+this technique can be improved to second order. Now, the advection speed is independent of L and we are
+able to apply a Fourier transform in v which yields
+                                            X                        X
+                                              d1ik · ik L̂k (t, k) −   d2ik · F (vLk (t, ·)) .
+                                                       
+                            ∂t L̂i (t, k) =
+                                            k                               k
+
+This is in the form of equation (2.16) and can thus be handled by an exponential integrator in the same way
+as is explained above.
+    2.2. Semi-Lagrangian method. Semi-Lagrangian methods are widely employed to solve the Vlasov
+equation. To a large part this is due to the fact that by performing a splitting in the different spatial and
+velocity directions, only one-dimensional advection equations have to be solved. The projection operation
+necessary for these class of methods can then be implemented easily and efficiently. In the present section
+our goal is to show that an efficient semi-Lagrangian scheme can be derived for equations (2.13) and (2.15).
+    We start with equation (2.13) and use the vector notation K = (K1 , . . . , Kr ). Then,
+
+     ∂t K(t, x) = −c1;x1 ∂x1 K(t, x) − c1;x2 ∂x2 K(t, x) − c1;x3 ∂x3 K(t, x) + c2 · E(K)(t, x) K(t, x).
+                                                                                              
+                                                                                                        (2.17)
+
+Applying a first order Lie splitting to equation (2.17), with initial value K(0, x) = K 0 (x), gives
+                                     1;x1
+                                            ∂x1 −τ c1;x2 ∂x2 −τ c1;x3 ∂x3
+                      K(τ, ·) ≈ e−τ c           e           e               (K 0 + τ (c2 · E(K 0 ))K 0 ).
+                                                                8
+This can be extended trivially to second or higher order. The crucial part is the computation of
+                                                            1;x1
+                                           M (t, x) = e−tc         ∂x1
+                                                                         M (0, x)
+which is equivalent to the partial differential equation
+                                          ∂t M (t, x) = −c1;x1 ∂x1 M (t, x).
+Since c1;x1 is symmetric, there exists an orthogonal matrix T such that T c1;x1 T T = D, where D is a diagonal
+matrix. All these computations can be done efficiently as c1;x1 ∈ Rr×r (i.e. we are dealing with small
+matrices). We now change variables to M = T M and obtain
+                                          ∂t M j (t, x) = −Djj ∂x1 M (t, x).
+This is a one-dimensional advection equation with constants coefficients and can thus be treated with an
+arbitrary semi-Lagrangian method. Once M (τ, x) is obtained the coordinate transformation is undone such
+that we get Mj (τ, x) = T T M j (τ, x). Exactly the same procedure is then applied to the advection in the x2
+and x3 direction.
+     For equation (2.15) we proceed in a similar way. The main difference here is that we first freeze d1ik =
+  1
+dik (E(L(0, ·)) at the beginning of the step (as is explained in more detail in the previous section). This
+leaves us with
+                                           X                       X
+                            ∂t Li (t, v) =   d1ik · ∇v Lk (t, v) −  (d2ik · v)Lk (t, v).
+                                            k                              k
+
+Since this equation is (almost) identical to equation (2.17) and d1;x1 , d1;x2 , and d1;x3 are symmetric, we can
+apply the same algorithm.
+     2.3. Second-order integrator. So far we have only considered the first order Lie splitting. However,
+in principle it is simple to employ the second order Strang splitting. The main obstacle in this case is that
+for both the Fourier approach (introduced in section 2.1) and the semi-Lagrangian approach (introduced
+in section 2.2) it is essential that a further approximation is made when solving equation (2.15). More
+specifically, the electric field E is assumed fixed during that step. Thus, a naive application of Strang
+splitting would still only result in a first order method. However, in [17, 16] a technique has been developed
+that can overcome this difficulty for methods of arbitrary order.
+     A detailed account of the second order accurate scheme is given in Algorithm 1. From there it should
+also be clear that no additional ingredients, compared to the first order scheme described in section 2, are
+needed. The main point is that we use an embedded Lie scheme of step size τ /2 in order to determine an
+electric field E 1/2 such that E 1/2 (x) ≈ E(f ( τ2 , ·))(x). Using E 1/2 in the middle step of the Strang splitting,
+which approximates equation (2.15), yields a numerical method that is almost symmetric. Then composing
+two Lie steps in opposite order yields a second order method.
+     3. A hierarchical low-rank algorithm. The algorithm proposed in the previous section reduces a
+2d-dimensional problem to a number of d-dimensional problems. However, if the solution under consideration
+also admits a low-rank structure in Xi (t, x) and Vj (t, v), it is possible to further reduce the dimensionality
+of the equations that need to be solved. To derive such an algorithm is the content of the present section.
+We will first consider the four-dimensional case (d = 2). This is sufficient to elucidate the important aspects
+of the algorithm. The algorithm for the six-dimensional (d = 3) case is stated in Section 3.2.
+    3.1. The hierarchical low-rank algorithm in four dimensions. Once again we start from the
+low-rank approximation
+                                             X
+                               f (t, x, v) ≈   Xi (t, x)Sij (t)Vj (t, v),                (3.1)
+                                                      i,j
+
+where x = (x1 , x2 ) ∈ Ωx ⊂ R , v = (v1 , v2 ) ∈ Ωv ⊂ R2 , and S ∈ Rr×r . In addition, we will now restrict Xi
+                               2
+
+and Vj to the low-rank representations
+                                               X
+                                 Xi (t, x) =      X1α (t, x1 )Ciαβ (t)X2β (t, x2 )                        (3.2)
+                                                α,β
+                                                            9
+Algorithm 1 A second-order accurate low-rank algorithm for the Vlasov–Poisson equation.
+Input: Xi0 , Sij
+              0
+                 , Vj0 (such that f (0, x, v) ≈ i,j Xi0 (x)Sij0
+                                                                Vj0 (v))
+                                                P
+            2     5    1                                  2     5
+                                                                  Vj1 (v))
+                                                  P
+Output: Xi , Sij , Vj (such that f (τ, x, v) ≈ i,j Xi (x)Sij
+                                                                                         1
+                                                P 0 0
+ 1: Solve equation (2.13) with initial value      i Xi Sij up to time τ /2 to obtain Kj .
+                                                                   1
+ 2: Perform a QR decomposition of Kj1 to obtain Xi1 and Sij          .
+                                                 1                                2
+ 3: Solve equation (2.14) with initial value Sij up to time τ /2 to obtain Sij      .
+                                              1  2          0
+ 4: Compute the electric field E using Xi , Sij , and Vj .
+ 5: Compute d1ij using E.
+                                                                                                      1/2
+ 6: Solve equation (2.15) with fixed d1ij and initial value
+                                                               P 2 0
+                                                                  j Sij Vj up to time τ /2 to obtain Li .
+                                                  1/2
+ 7: Compute the electric field E 1/2 using Li           and Xi1 .
+ 8: Compute d1ij using E 1/2 .
+ 9: Solve equation (2.15) with the fixed d1ij and initial value                2    0                        1
+                                                                        P
+                                                                            j Sij Vj up to time τ to obtain Li .
+                                                         3
+10: Perform a QR decomposition of L1i to obtain Vj1 and Sij .
+                                              3                             4
+11: Solve equation (2.14) with initial value Sij up to time τ /2 to obtain Sij .
+                                               1 4                             2
+                                                  P
+                                           i Xi Sij up to time τ /2 to obtain Kj .
+12: Solve equation (2.13) with initial value
+13: Perform a QR decomposition of Kj2 to obtain Xi2 and Sij
+                                                          5
+                                                            .
+
+
+and
+                                                  X
+                                   Vj (t, v) =          V1α (t, v1 )Djαβ (t)V2β (t, v2 ),                          (3.3)
+                                                  α,β
+
+where C ∈ Rr×rx ×rx , D ∈ Rr×rv ×rv and rx and rv is the rank in the x- and v-direction, respectively. It is,
+however, entirely reasonable for the Vlasov equation that, for example, a further low-rank structure is present
+in velocity space but the same is not true in physical space. As an example, consider a plasma system, where
+only weak kinetic effects are present. Traditionally, fluid models (such as magnetohydrodynamics and its
+extensions) have been used to model such systems. However, this approach neglects kinetic effects altogether.
+As an alternative the low-rank approach in this paper could be employed. Since the system is still close to
+thermodynamic equilibrium, a further low-rank approximation can be employed in v. On the other hand, the
+dynamics in x might not be accessible to such an approximation. In this case only the hierarchical low-rank
+representation given in (3.3) would be used. This would leave equation (2.13) precisely as stated in Section
+2, while equation (2.15) is replaced by the algorithm developed in this section.
+    Fortunately, equations (2.13) and (2.15) are sufficiently similar that we only have to derive (and perhaps
+more importantly, implement) the algorithm once. Thus, we will consider the following equation
+                                         X                        X
+                        ∂t Kj (t, x) = −    c1jl · ∇x Kl (t, x) −   c2jl · F (K)(x)Kl (t, x).
+                                          l                             l
+
+For solving equation (2.13) we simply set F (K) = −E(K). If we replace c1 and c2 by d1 and d2 , respectively,
+replace the variable x by v, reverse the sign of the equation, and set F (K)(v) = v, then we obtain precisely
+equation (2.15).
+     In the following we transfer the algorithm proposed for time integration of Tucker tensors in [41] to the
+current setting. The reader is encouraged to first look up [41] before entering into the thicket of formulas
+presented in the following. Compared to the generic case in [41], there are important simplifications for the
+problem under consideration, which even influence the representation of our low-rank approximation. In
+fact, a Tucker representation for the order-three tensor Xj (t, x1 , x2 ) (for fixed t) would be given by
+                                           X
+                               Xj (t, x) =    Rlαβ (t)Alj (t)X1α (t, x1 )X2β (t, x2 )
+                                              l,α,β
+
+and not by equation (3.2). The algorithm would then proceed by updating A, X1 , X2 , and finally the core
+tensor R. However, in the present setting A is artificial in the sense that we can always go back to the
+                                                              10
+representation in equation (3.2) by setting
+                                                          X
+                                           Cjαβ (t) =                 Rlαβ (t)Alj (t).
+                                                           l
+
+If we want to express this in the Tucker format, we can insert an identity matrix
+                                              X
+                                  Xj (t, x) =    Clαβ (t)δlj Xα1 (x1 )Xβ2 (x2 ).
+                                                 l,α,β
+
+It is straightforward to show that if we apply the projection splitting algorithm in [41] to a Tucker tensor in
+this form, the first step leaves both C and A (in this case the identity) unchanged. Thus, we can proceed
+with the algorithm and work directly in the representation given by (3.2). In the following we will consider
+the first-order Lie–Trotter splitting. We assume that the initial value is given in the form
+                                                      X
+                                        f (0, x, v) =   Xi0 (x)Sij
+                                                                0
+                                                                   Vj0 (v)                                (3.4)
+                                                          i,j
+
+with
+                                                   X
+                                       Xi0 (x) =          0
+                                                         X1α (x1 )G0iαβ X2β
+                                                                         0
+                                                                            (x2 ).                                (3.5)
+                                                   α,β
+                                                     P
+Since the evolution equation is formulated for Kj = i Xi Sij , we then compute
+                                              X
+                                    Kj0 (x) =      0
+                                                 X1α       0
+                                                     (x1 )Cjαβ  0
+                                                               X2β (x2 ),
+                                                   α,β
+
+where
+                                                           X
+                                                  0
+                                                 Cjαβ =                   G0iαβ Sij
+                                                                                 0
+                                                                                    .
+                                                                  i
+
+    Step 1: The first step of the algorithm updates X1 and C. First, we perform a QR decomposition
+                                                 X
+                                            0              0
+                                          Cjαβ =     Qjξβ Rαξ
+                                                               ξ
+
+and set
+                                                          X
+                                                                            0
+                                           Wjξ (x2 ) =                Qjξβ X2β (x2 ).                             (3.6)
+                                                              β
+
+
+In an actual implementation, the QR decomposition can be computed by defining A ∈ R(r·rx )×rx such that
+              0
+A(j+βr)α = Cjαβ  and then computing the QR decomposition of A. Now, let us define
+                                                         X
+                                        Mα (t, x1 ) =             X1ξ (t, x1 )Rξα (t),
+                                                          ξ
+
+for which we give an evolution equation. These Mα in fact play the same role as the Kj did in the algorithm
+of Section 2. The equation derived is as follows:
+                                 XD      X                                     X                E
+              ∂t Mα (t, x1 ) = −   Wiα ,      c1ik · ∇x + c2ik · F (M )(x1 , ·)   Mξ (t, x1 )Wkξ
+                                                                                                             x2
+                                 i           k                                                  ξ
+                                X                                 X
+                                     a1αξ ∂x1 Mξ (t, x1 ) −                 a2αξ + a3αξ (x1 ) Mξ (t, x1 ),
+                                                                                             
+                           =−                                                                                     (3.7)
+                                 ξ                                    ξ
+
+                                                               11
+where
+                               X 1;x                                                        X 1;x
+                      a1αξ =    cik 1 hWiα , Wkξ ix2 ,                             a2αξ =    cik 2 hWiα , ∂x2 Wkξ ix2 ,
+                                i,k                                                          i,k
+
+and
+                                                       X
+                                        a3αξ (x1 ) =             c2ik · hWiα , F (M )(x1 , ·)Wkξ ix2 .
+                                                           i,k
+
+
+Note that a1 , a2 , and a3 can be easily expressed in terms of Q and inner products over functions involving
+X2β . For a1αβ the orthonormality relation of the X2β can be used to obtain a simpler formula that can be
+computed without performing any integrals:
+                                                  X 1;x
+                                           a1αξ =     cik Qiαβ Qkξβ .
+                                                                   i,k,β
+
+
+For a2 we have
+                                           XX 1;x       X                          
+                               a2αξ =         cik 2 Qiαβ            0
+                                                             Qkξη hX2β        0
+                                                                       , ∂x2 X2η i x2
+                                           k,β     i                               η
+
+
+which requires O(nR2 ), with R = max (r, rx , rv ), arithmetic operations to compute the integrals and then
+O(R4 ) operations to obtain the entries a2αξ . A similar formula can be given for a3 but we postpone this
+discussion until later (where we will also discuss the low-rank representation of the electric field in more
+detail).
+    Now, we solve equation (3.7) with initial value
+                                                      X
+                                                           0       0
+                                        Mα (0, x1 ) =    X1ξ (x1 )Rξα
+                                                                               ξ
+
+
+until time τ and obtain Mα1 (x1 ) = Mα (τ, x1 ). Then a QR factorization
+                                                     X
+                                         Mα1 (x1 ) =      1
+                                                        X1ξ       1
+                                                            (x1 )Rξα
+                                                                           ξ
+
+                                                 1
+is performed to obtain orthonormal functions X1ξ    and the matrix R1 .
+    Now, an evolution equation for R is derived to become
+                            XD           X                          X 1                    E
+                                1
+                 Ṙξα (t) =    X1ξ Wiα ,    c1ik · ∇x + c2ik · F (R)    X1ξ0 Rξ0 α0 (t)Wkα0
+                                                                                                                                     x
+                                i                      k                                           ξ 0 ,α0
+                              X                                      X                               X
+                          =             b1ξξ0 Rξ0 α0 (t)a1αα0 +            Rξα0 (t)a2αα0 +                     Bξαξ0 α0 Rξ0 α0 (t)       (3.8)
+                              ξ 0 ,α0                                 α0                             ξ 0 ,α0
+
+with
+                                                                                   X
+                 b1ξξ0 = hX1ξ
+                           1         1
+                              , ∂x1 X1ξ 0 ix1 ,                  Bξαξ0 α0 =               c2ik · hX1ξ
+                                                                                                   1              1
+                                                                                                      Wiα , F (R)X1ξ 0 Wkα0 ix .
+
+                                                                                    i,k
+
+Let us note that Bξαξ0 α0 is defined by a two-dimensional integral. However, it is, of course, possible to also
+obtain a low-rank approximation for F (R). Only two cases are relevant here. First, F (x) = x which trivially
+is a low-rank approximation of rank 1. Second, F (R) = −E(R). Then, the electric field E is approximated
+by
+                                                    X
+                                      E(x1 , x2 ) =   E1µ (x1 ) ◦ E2µ (x2 ),
+                                                                     µ
+                                                                           12
+where the component-wise product is written as ◦ and µ = 1, . . . , rE ; here rE is the rank used to represent
+the electric field. Then
+                                      X
+                         Bξαξ0 α0 = −   c2ik hX1ξ
+                                               1         1
+                                                  , E1µ X1ξ 0 ix1 ◦ hWiα , E2µ Wkα0 ix2 ,                (3.9)
+                                            i,k,µ
+
+
+which only requires the evaluation of one-dimensional integrals. Nevertheless, evaluating equation (3.9)
+naively requires O(R7 ) arithmetic operations (with R = max (r, rx , rE )), in addition to evaluating the
+integrals. However, we can write
+                                     X                        X
+                        Bξαξ0 α0 = −      1
+                                       hX1ξ        1
+                                            , E1µ X1ξ 0 ix1 ·   c2ik hWiα , E2µ Wkα0 ix2
+                                            µ                                  i,k
+
+
+and evaluate the sums from right to left, which only requires O(R5 ) arithmetic operations.
+                                                                   1                          2
+    Now, we integrate equation (3.8) with initial value Rξα (0) = Rξα until time τ to obtain Rξα = Rξα (τ ).
+From this we update C as
+                                                   X
+                                             1                2
+                                           Cjαβ  =     Qjξβ Rαξ ,
+                                                                  ξ
+
+which completes the first step of the algorithm.
+    Step 2: The second step proceeds in a similar manner, but updates X2 and C. First, we perform a
+QR decomposition
+                                                    X
+                                              1             0
+                                             Ciαβ =   Qiαη Rβη .
+                                                                  η
+
+
+The tensor Q and the matrix R0 obtained here are different from those in the first step, but for ease of
+notation we do not use different symbols or extra superscripts. We define
+                                                   X
+                                     Nβ (t, x2 ) =   X2η (t, x2 )Rηβ (t)
+                                                              η
+
+for which we determine an evolution equation. These Nβ play the same role as the Lj did in the algorithm
+of Section 2. The equation derived is as follows:
+                                X     D       X                             X 1                   E
+                                         1
+             ∂t Nβ (t, x2 ) = −   Qiαβ X1α  ,     c1ik · ∇x + c2ik · F (N )   X1ξ Qkξη Nη (t, x2 )
+                                                                                                                  x1
+                              i,α                       k                                        ξ,η
+                             X                                X
+                                     h1βη ∂x2 Nη (t, x2 ) −                h2βη + h3βη (x2 ) Nη (t, x2 ),
+                                                                                            
+                        =−                                                                                             (3.10)
+                                 η                                η
+
+where
+                                 X                                                   X
+                        h1βη =           c1;x 2
+                                          ik Qiαβ Qkαη ,                  h2βη =             Qiαβ Qkξη c1;x 1 1
+                                                                                                        ik bαξ
+                                 i,k,α                                             i,k,α,ξ
+
+and
+                                            X
+                          h3βη (x2 ) =               Qiαβ Qkξη c2ik · X1α
+                                                                       1                   1
+                                                                          , F (N )(·, x2 )X1ξ x1
+                                                                                                 .
+                                           i,k,α,ξ
+
+
+Equation (3.10) is integrated with initial value
+                                                                  X
+                                                                            0        0
+                                                Nβ (0, x2 ) =              X2η (x2 )Rηβ
+                                                                      η
+                                                                  13
+until time τ . We then set Nβ1 (x2 ) = Nβ (τ, x2 ) and perform a QR decomposition
+                                                                              X
+                                                                    Nβ1 =            1
+                                                                                    X2η  1
+                                                                                        Rηβ
+                                                                              η
+
+                                 1
+to obtain orthonormal functions X2η   and the matrix R1 . Next, an evolution equation for R is obtained as
+follows:
+                    X     D           X                             X                               E
+                              1  1                                      1
+         Ṙηβ (t) =   Qiαβ X1α  X2η ,      c1ik · ∇x + c2ik · F (R)    X1α                      1
+                                                                           0 Qkα0 β 0 Rη 0 β 0 X2η 0
+                                                                                                                                  x1 ,x2
+                       i,α                               k                                           α0 ,η 0 ,β 0
+                       X                                      X                           X
+                   =              d1ηη0 Rη0 β 0 (t)h1ββ 0 +          Rηβ 0 (t)h2ββ 0 +               Gηβη0 β 0 Rη0 β 0 (t)                    (3.11)
+                       η 0 ,β 0                                β0                         η 0 ,β 0
+
+with
+                                                                        X
+        d1ηη0 = hX2η
+                  1         1
+                     , ∂x2 X2η 0 ix2 ,             Gηβη0 β 0 =                    Qiαβ Qkα0 β 0 c2ik · hX1α
+                                                                                                         1   1
+                                                                                                            X2η         1
+                                                                                                                , F (R)X1α   1
+                                                                                                                          0 X2η 0 ix1 ,x2 .
+
+                                                                      i,k,α,α0
+
+We then integrate equation (3.11) with initial value R1 up to time τ and set Rηβ
+                                                                              2
+                                                                                 = Rηβ (τ ). We then update
+the core tensor C as
+                                                    X
+                                              2               2
+                                            Ciαβ  =     Qiαη Rβη .
+                                                                              η
+
+This completes the second step of the algorithm.
+    Step 3: In the last step we update C and the matrix S. The tensor C is first updated by the following
+evolution equation:
+                           D          X                          X 1              E
+                             1   1
+              Ċiαβ (t) = − X1α X2β ,    c1ik · ∇x + c2ik · F (C)               1
+                                                                   X1ξ Ckξη (t)X2η
+                                                                                                                             x
+                                                     k                                          ξ,η
+                               X 1;x                  X 1;x                  X
+                            =−  cik 1 b1αξ Ckξβ (t) −  cik 2 d1βη Ckαη (t) −   (c2ik · eαβξη )Ckξη (t),                                       (3.12)
+                                      k,ξ                               k,η                                    k,ξ,η
+
+where
+
+                                                   eαβξη = hX1α X2β , F (C)X1ξ X2η ix .
+
+We integrate equation (3.12) with initial value C 2 until time τ and set Ciαβ 3
+                                                                                = Ciαβ (τ ). Now, we have
+obtained the following representation
+                                                     X
+                               Kj (τ, x) ≈ Kj1 (x) =    1
+                                                       X1α       3
+                                                           (x1 )Cjαβ  1
+                                                                     X2β (x2 ).
+                                                                              α,β
+
+This, however, is not yet sufficient, since in order to obtain an approximation in the form given by equation
+(3.1), we have to perform a QR decomposition. If this is done naively, the complexity would scale as nd , with
+n the number of grid points per direction, which is precisely what we want to avoid in the present setting.
+However, since the X11 and X21 are already orthogonalized, we can compute a QR decomposition without
+modifying X11 or X21 and without evaluating any integrals. This is accomplished, for example, by carrying
+out the modified Gram-Schmidt process. To perform the Gram-Schmidt process, inner products and linear
+combinations of the different Kj1 are required. However, since by orthogonality
+                                                             X
+                                       hKj1 , Kk1 ix =               3
+                                                                    Cjαβ  3
+                                                                         Ckξη   1
+                                                                              hX1α    1
+                                                                                   , X1ξ       1
+                                                                                         ix1 hX2β    1
+                                                                                                  , X2η ix2
+                                                             αβξη
+                                                             X
+                                                                    3    3
+                                                     =             Cjαβ Ckαβ                                                                  (3.13)
+                                                             α,β
+
+                                                                               14
+and since
+                                  X
+                                                  +                              +
+                   Kj1 + cKk1 =          1
+                                        X1α (x1 )Cαβ  1
+                                                     X2β (x2 )         with     Cαβ    3
+                                                                                    = Cjαβ     3
+                                                                                           + cCkαβ ,    (3.14)
+                                  α,β
+
+
+this can be done efficiently, as only operations on C have to be performed. The corresponding procedure is
+shown in Algorithm 2 and requires R4 arithmetic operations. It is applied to the input Cjαβ
+                                                                                         3
+                                                                                            and results in
+             4          1
+the output Cjαβ and Sij (in an actual implementation this can be done in place, as is demonstrated by 2).
+Thus, we finally obtain the low-rank representation
+                                                           X
+                                          f (0, x, v) =          Xi1 (x)Sij
+                                                                         1
+                                                                            Vj1 (v)
+                                                           i,j
+
+
+with
+                                                    X
+                                        Xi1 (x) =          1
+                                                          X1α       4
+                                                              (x1 )Ciαβ  1
+                                                                        X2β (x2 ).
+                                                    α,β
+
+
+This is precisely the same form in which the initial value is provided, see equations (3.4) and (3.5). We then
+can proceed to apply the corresponding procedure to update the quantities depending on velocity space.
+                                                                                                      P
+AlgorithmP2 The goal of the algorithm is to obtain Xi and SijPsuch that hXi , Xk ix = δik and Kj = i Xi Sij
+                        1           1                                    1        1
+with Xi = α,β X1α           Ciαβ X2β  . The input is such that Kj = α,β X1α Cjαβ X2β and consequently only C is
+modified by the algorithm. This is accomplished using the modified Gram-Schmidt procedure and equations
+(3.13) and (3.14).
+Input: Cjαβ
+Output: Sij , Cjαβ
+ 1: S = 0
+ 2: for j = 1, . . . , r do
+ 3:     for k = 1,P   . . . , j − 1 do
+ 4:        Skj = αβ Ckαβ Cjαβ
+ 5:        for α, β do
+ 6:            Cjαβ = Cjαβ − Skj Ckαβ
+ 7:        end for
+ 8:     end for
+              qP
+                                2
+ 9:     Sjj =          α,β Cjαβ
+10:     for α, β do
+11:        Cjαβ = Cjαβ /Sjj
+12:     end for
+13: end for
+
+
+     We have not yet discussed how to solve the evolution equations derived in this section. Equations (3.7)
+and (3.10) (which correspond to an advection in x1 and x2 , respectively) can be treated using the approach
+outlined in sections 2.1 and 2.2. That is, we can employ a spectral method or a semi-Lagrangian scheme. In
+fact, the present situation is simpler since the evolution equations only depend on a single variable. In fact,
+the further splitting into the different coordinate axis, as described in section 2.2 for the semi-Lagrangian
+approach, is not required in the present setting.
+     Before proceeding let us discuss the complexity of the proposed hierarchical low-rank splitting scheme.
+Solving the evolution equations (3.7) and (3.10) requires O(nR2 ) arithmetic operations and O(nR) storage,
+where n is the number of grid points (per direction) and R = max(r, rx , rv , rE ). In addition, we have
+to compute the coefficients which requires O(nR2 + R4 ) arithmetic operations. The storage cost of the
+coefficients is O(nR2 + R4 ) and is dominated by a3 and h3 .
+                                                             15
+     3.2. The hierarchical low-rank algorithm in six dimensions. In this section we extend the hier-
+archical low-rank approximation to the six-dimensional (d = 3) case. Since the derivation is very similar we
+will only state the relevant evolution equations here. We start with the low-rank representation
+                                                   X
+                                     f (t, x, v) ≈   Xi (t, x)Sij (t)Vj (t, v),                       (3.15)
+                                                                  i,j
+
+
+where x = (x1 , x2 , x3 ) ∈ Ωx ⊂ R3 , v = (v1 , v2 , v3 ) ∈ Ωv ⊂ R3 , and S ∈ Rr×r . We now restrict to the
+low-rank representation
+                                        X
+                            Xi (t, x) =   Ciαβγ (t)X1α (t, x1 )X2β (t, x2 )X3γ (t, x3 )              (3.16)
+                                                α,β,γ
+
+and
+                                                 X
+                                  Vj (t, v) =             Djαβγ (t)V1α (t, v1 )V2β (t, v2 )V3γ (t, v3 ),                       (3.17)
+                                                α,β,γ
+
+
+where C ∈ Rr×rx ×rx ×rx , D ∈ Rr×rv ×rv ×rv and rx and rv is the rank in the x- and v-direction, respectively.
+We then consider the evolution equation
+                                        X                        X
+                       ∂t Kj (t, x) = −    c1jl · ∇x Kl (t, x) −   c2jl · F (K)(x)Kl (t, x),
+                                                    l                                   l
+
+which, depending on the choice of F , models either the update for Xi or Vj . Like in the previous section,
+we start with the initial value
+                                          X
+                                Kj0 (x) =     0
+                                            Cjαβγ   0
+                                                  X1α       0
+                                                      (x1 )X2β       0
+                                                               (x2 )X3γ (x3 ).
+                                                        α,β,γ
+
+In the following we will divide the algorithm into four parts which correspond to the update of X1 and C,
+the update of X2 and C, the update of X3 and C, and finally an update of C.
+    Step 1: We perform a QR decomposition
+                                                    X
+                                             0                 0
+                                            Cjαβγ =     Qjξβγ Rαξ
+                                                                         ξ
+
+and set
+                                                                 X
+                                                                               0        0
+                                          Wjα (x2 , x3 ) =              Qjαβγ X2β (x2 )X3γ (x3 ).
+                                                                  β,γ
+
+Then we define
+                                      X                                                                 X
+                                                                                                             0        0
+                      Mα (t, x1 ) =       X1ξ (t, x1 )Rξα (t),               with       Mα (0, x1 ) =       X1ξ (x1 )Rξα ,
+                                      ξ                                                                 ξ
+
+for which we obtain the one-dimensional evolution equation
+                                      X                        X
+                                        a1αξ ∂x1 Mξ (t, x1 ) −   a2αξ + a3αξ (x1 ) Mξ (t, x1 )
+                                                                                  
+                   ∂t Mα (t, x1 ) = −                                                                                          (3.18)
+                                                ξ                                   ξ
+
+with
+                X 1;x                                            X  1;x                            1;x3
+                                                                                                                                
+       a1αξ =    cik 1 hWiα , Wkξ ix2 ,x3 ,             a2αξ =      cik 2 hWiα , ∂x2 Wkξ ix2 ,x3 + cik   hWiα , ∂x3 Wkξ ix2 ,x3
+                i,k                                              i,k
+                                                                         16
+and
+                                                       X
+                                    a3αξ (x1 ) =             c2ik · hWiα , F (M )(x1 , ·, ·)Wkξ ix2 ,x3 .
+                                                       i,k
+
+This is solved up to time τ . For the resulting functions Mα (τ, x1 ) a QR decomposition is performed to obtain
+                          1                      1
+orthonormal functions X1α     and the matrix Rξα   :
+                                                                          X
+                                                                                    1        1
+                                                     Mα (τ, x1 ) =                 X1ξ (x1 )Rξα .
+                                                                              ξ
+
+Then we consider the matrix evolution equation for R,
+                             X                         X                 X
+                  Ṙξα (t) =   b1ξξ0 Rξ0 α0 (t)a1αα0 +   Rξα0 (t)a2αα0 +   Bξαξ0 α0 Rξ0 α0 (t)                                            (3.19)
+                                   ξ 0 ,α0                                α0                        ξ 0 ,α0
+
+with
+                                                                                  X
+                     b1ξξ0 = X1ξ
+                              1         1
+                                 , ∂x1 X1ξ 0
+                                             x1
+                                                ,             Bξαξ0 α0 =                 c2ik · X1ξ
+                                                                                                 1              1
+                                                                                                    Wiα , F (R)X1ξ 0 Wkα0
+                                                                                                                          x
+                                                                                                                            .
+                                                                                   i,k
+
+With a low-rank representation of F (R), the three-dimensional integrals in the definition of Bξαξ0 α0 can
+again be broken up into linear combinations of products of one-dimensional integrals. Equation (3.19) with
+initial value R1 is then integrated up to time τ to obtain R2 = R(τ ). Finally we obtain
+                                                     X
+                                             1                 2
+                                            Cjαβγ =     Qjξβγ Rαξ .
+                                                                          ξ
+
+      Step 2: We perform a QR decomposition
+                                                                      X
+                                                          1                              0
+                                                         Cjαβγ =                  Qjαηγ Rβη ,
+                                                                          η
+
+where Q and R are different from those before, but nevertheless we use the same symbols for ease of notation.
+We set
+                                                   X
+                                                               0
+                                      Wjαβ (x3 ) =     Qjαβγ X3γ (x3 ).
+                                                                          γ
+
+Then we define
+                                                                    X
+                                                 Nβ (t, x2 ) =                X2η (t, x2 )Rηβ (t)
+                                                                      η
+
+for which we obtain the one-dimensional evolution equation
+                                       X                        X
+                    ∂t Nβ (t, x2 ) = −   h1βη ∂x2 Nη (t, x2 ) −  (h2βη + h3βη (x2 ))Nη (t, x2 )                                           (3.20)
+                                                 η                                        η
+
+with
+           X                                                    X                                             X
+  h1βη =           c1;x
+                    ik hWiαβ , Wkαη ix3 ,
+                        2
+                                                     h2βη =               1;x1 1
+                                                                         cik  bαξ hWiαβ , Wkξη ix3 +                  c1;x
+                                                                                                                       ik hWiαβ , ∂x3 Wkαη ix3
+                                                                                                                           3
+
+
+           i,k,α                                               i,k,α,ξ                                        i,k,α
+
+and
+                                              X
+                             h3βη (x2 ) =              c2ik · hX1α
+                                                                1                           1
+                                                                   Wiαβ , F (N )(·, x2 , ·)X1ξ Wkξη ix1 ,x3 .
+                                             i,k,α,ξ
+                                                                          17
+Equation (3.20) is then solved with initial value
+                                                                             X
+                                                                                       0        0
+                                                            Nβ (0, x2 ) =             X2η (x2 )Rηβ
+                                                                                 η
+
+                                                                                                     1      1
+up to time τ . For the resulting Nβ (τ, x2 ) a QR decomposition is performed to obtain X2η             and Rηβ .
+    Then we consider the matrix evolution equation for R,
+                              X                            X                   X
+                   Ṙηβ (t) =    b2ηη0 Rη0 β 0 (t)h1ββ 0 +   Rηβ 0 (t)h2ββ 0 +   Hηβη0 β 0 Rη0 β 0 (t)           (3.21)
+                                         η 0 ,β 0                            β0                       η 0 ,β 0
+
+with
+                                                                        X
+            b2ηη0 = hX2η
+                      1         1
+                         , ∂x2 X2η 0 ix2 ,              Hηβη0 β 0 =                  c2ik · hX1ξ
+                                                                                              1   1
+                                                                                                 X2η              1
+                                                                                                     Wiξβ , F (R)X1ξ    1
+                                                                                                                     0 X2η 0 Wkξ 0 β 0 ix .
+
+                                                                       i,k,ξ,ξ 0
+
+
+Equation (3.21) with initial value R1 is integrated up to time τ to obtain R2 . Finally, we obtain
+                                                                          X
+                                                               2                            2
+                                                              Cjαβγ =                Qjαηγ Rβη .
+                                                                             η
+
+
+      Step 3: We perform a QR decomposition
+                                                                          X
+                                                               2                            0
+                                                              Cjαβγ =                Qjαβζ Rγζ .
+                                                                             ζ
+
+Then we define
+                                                                       X
+                                                       Oγ (t, x3 ) =             X3ζ (t, x3 )Rζγ (t)
+                                                                         ζ
+
+for which we obtain the evolution equation
+                                        X                        X
+                     ∂t Oγ (t, x3 ) = −   e1γζ ∂x3 Oζ (t, x3 ) −  (e2γζ + e3γζ (x3 ))Oζ (t, x3 )                                               (3.22)
+                                                        ζ                                  ζ
+
+with
+                 X                                                  X                                              X
+       e1γζ =             c1;x3
+                           ik Qiαβγ Qkαβζ ,              e2γζ =                1;x1 1
+                                                                              cik  bαξ Qiαβγ Qkξβζ +                         c1;x 2 2
+                                                                                                                              ik bβη Qiαβγ Qkαηζ
+                i,k,α,β                                           i,k,α,ξ,β                                      i,k,α,β,η
+
+and
+                                              X
+                          e3γζ (x3 ) =                 c2ik · hX1α X2β , F (O)(·, ·, x3 )X1ξ X2η ix1 ,x2 Qiαβγ Qkξηζ .
+                                         i,k,α,ξ,β,η
+
+
+Equation (3.22) is then solved with initial value
+                                                                             X
+                                                                                       0        0
+                                                            Oγ (0, x3 ) =             X3ζ (x3 )Rζγ
+                                                                                 ζ
+
+                                                                                                            1      1
+up to time τ . For the resulting Oγ (τ, x2 ) a QR decomposition is performed to obtain X3ζ                    and Rζγ .
+    Then we consider the evolution equation for R,
+                               X                              X                   X
+                    Ṙζγ (t) =    b3ζζ 0 Rζ 0 γ 0 (t)e1γγ 0 +   Rζγ 0 (t)e2γγ 0 +   Gζγζ 0 γ 0 Rζ 0 γ 0 (t)             (3.23)
+                                          ζ 0 ,γ 0                           γ0                       ζ 0 ,γ 0
+                                                                              18
+with
+                                                       X
+                                                                                                     1     1
+  b3γζ 0 = (X3γ , ∂x3 X3ζ 0 ),     Gζγζ 0 γ 0 =                     c2ik · X1α
+                                                                            1   1
+                                                                               X2β  1
+                                                                                   X3ζ         1
+                                                                                       , F (R)X1α 0 X2β 0 X3ζ 0  Q    Q 0 0 0.
+                                                                                                                x iαβγ kα β γ
+                                                  i,k,α,β,α0 ,β 0
+
+
+Equation (3.23) with initial value R1 is integrated up to time τ to obtain R2 . Finally we obtain
+                                                    X
+                                             3                 2
+                                           Cjαβγ  =     Qjαβζ Rγζ .
+                                                                      γ
+
+    Step 4: The final step directly updates C. The corresponding evolution equation is
+             X 1;x                   X 1;x                   X 1;x                   X
+Ċiαβγ (t) =  cik 1 b1αξ Ckξβγ (t) +  cik 2 b2βη Ckαηγ (t) +  cik 3 b3γζ Ckαβζ (t) +   (c2ik · eαβγξηζ )Ckξηζ (t)
+              k,ξ                        k,η                               k,ζ                     k,ξ,η,ζ
+                                                                                                                          (3.24)
+with
+                                                1   1   1          1   1   1
+                                     eαβγξηζ = X1α X2β X3γ , F (R)X1ξ X2η X3ζ x
+                                                                                .
+
+Equation (3.24) with initial value C 3 is then solved up to time τ to obtain C 4 . This completes a full time
+step of algorithm. The output is
+                                                X
+                         Kj (τ, x) ≈ Kj1 (x) =        4
+                                                    Cjαβγ   1
+                                                          X1α       1
+                                                              (x1 )X2β       1
+                                                                       (x2 )X3γ (x3 ).
+                                                           α,β,γ
+
+At the end, a factorization into an orthogonalized tensor C and a matrix S is obtained as in Algorithm 2,
+simply by adding a subscript γ to every appearance of α, β in that algorithm.
+    4. Numerical results. In this section we show numerical results for the low-rank and the hierarchical
+low-rank splitting algorithm. In both cases the spectral method described in section 2.1 is used. Numerical
+results for linear Landau damping, for a two-stream instability and a plasma echo will be presented.
+   4.1. Linear Landau damping. First, let us consider the classic two-dimensional Landau damping.
+We set Ω = Ωx × Ωv = (0, 4π) × (−6, 6) and impose the initial value
+                                                       1   2
+                                          f0 (x, v) = √ e−v /2 (1 + α cos(kx)),
+                                                       2π
+
+where we have chosen α = 10−2 and k = 21 . In both the x- and v-direction periodic boundary conditions
+are imposed. It can be shown by a linear analysis that the decay rate of the electric energy is given by
+γ ≈ −0.153. The so obtained decay rate has been verified by a host of numerical simulations presented in
+the literature. The numerical results obtained using the low-rank/FFT algorithm proposed in Section 2.1
+are shown in Figure 4.1.
+    We observe that choosing the rank r = 5 is sufficient to obtain a numerical solution which very closely
+matches the analytic result. Although we see that the numerical method does not conserve energy up to
+machine precision, the error is very small (on the order of 10−8 ). In addition, the errors in mass and in the
+L2 norm are indistinguishable from machine precision.
+    Next, we turn our attention to a four-dimensional problem. That is, we set Ω = (0, 4π)2 × (−6, 6)2 and
+impose the initial value
+
+                                                   1 −(v2 +w2 )/2
+                             f0 (x, y, v, w) =       e            (1 + α cos(k1 x) + α cos(k2 y)),
+                                                  2π
+where we have chosen α = 10−2 and k1 = k2 = 21 . As before, periodic boundary conditions are chosen
+for all directions. Although the problem is now set in four dimensions, the behavior of the electric energy
+is almost identical to the two-dimensional problem. The numerical results obtained using the hierarchical
+                                                                      19
+  10 2
+                            electric energy                                                                             error mass
+                                                    r=5                                               r=5
+                                                    r=10                                              r=10
+  10 4                                              analytic rate (0.153)                             r=20
+
+  10 6                                                                                    10 13
+
+  10 8
+
+  10 10                                                                                   10 14
+
+  10 12
+
+  10 14
+                                                                                          10 15
+  10 16
+          0     20         40                  60   80                         100                0          20   40                   60   80                       100
+
+                                error energy                                                                           error l2 norm
+                                                                      r=5                 10 12       r=5
+  10 8
+                                                                      r=10                            r=10
+                                                                      r=20                            r=20
+  10 9
+                                                                                          10 13
+  10 10
+
+  10 11                                                                                   10 14
+
+  10 12
+
+  10 13                                                                                   10 15
+
+  10 14
+          0     20         40                  60   80                         100                0          20   40                   60   80                       100
+
+
+     Figure 4.1. Numerical simulations of linear Landau damping with the low-rank/FFT algorithm and various ranks are
+shown (note that the plots for r = 10 and r = 20 in the top left figure are indistinguishable). The Strang splitting algorithm
+with a time step size τ = 0.025 is employed. In the x-direction 64 grid points are used, while in the v-direction 256 grid points
+are used.
+
+
+                            electric energy                                                                             error mass
+                                                                                          10 5
+                                                    r, rx, rv = 5, 5, 5
+  10 2                                              r, rx, rv = 10, 10, 10
+                                                    r, rx, rv = 15, 15, 15                10 6
+                                                    analytic rate (0.153)
+
+  10 4                                                                                    10 7
+
+                                                                                          10 8
+  10 6
+                                                                                          10 9
+
+  10 8
+                                                                                          10 10                                             r, rx, rv = 5, 5, 5
+                                                                                                                                            r, rx, rv = 10, 10, 10
+                                                                                                                                            r, rx, rv = 15, 15, 15
+  10 10                                                                                   10 11
+          0     20         40                  60   80                         100                0          20   40                   60   80                       100
+
+  10 5
+                                error energy                                                                           error l2 norm
+                                                                                          10 5
+                                                                                                                                            r, rx, rv = 5, 5, 5
+                                                                                                                                            r, rx, rv = 10, 10, 10
+  10 6                                                                                                                                      r, rx, rv = 15, 15, 15
+
+                                                                                          10 6
+  10 7
+
+  10 8
+                                                                                          10 7
+
+  10 9
+
+                                                      r, rx, rv = 5, 5, 5                 10 8
+  10 10                                               r, rx, rv = 10, 10, 10
+                                                      r, rx, rv = 15, 15, 15
+          0     20         40                  60   80                         100                0          20   40                   60   80                       100
+
+
+     Figure 4.2. Numerical simulations of four-dimensional linear Landau damping with the hierarchical low-rank/FFT
+algorithm and various ranks are shown (note that the error in mass and energy is almost identical for all three configurations).
+The Lie–Trotter splitting algorithm with a time step size τ = 0.00625 is employed. In the x-direction 64 grid points are used,
+while in the v-direction 256 grid points are used. The L2 norm is only computed for every 40th time step.
+
+                                                                                     20
+                           electric energy                                                                      error mass
+                                                                                         10 5
+  10 2                                                r, rx, rv = 5, 5, 5
+                                                      r, rx, rv = 10, 10, 10
+  10 3                                                r, rx, rv = 15, 15, 15
+                                                      r, rx, rv = 5, 15, 15              10 6
+
+  10 4
+                                                                                         10 7
+  10 5
+
+  10 6                                                                                   10 8
+
+  10 7
+                                                                                         10 9
+                                                                                                                                    r, rx, rv = 5, 5, 5
+  10 8                                                                                                                              r, rx, rv = 10, 10, 10
+                                                                                                                                    r, rx, rv = 15, 15, 15
+                                                                                         10 10                                      r, rx, rv = 5, 15, 15
+  10 9
+          0    10         20                  30   40                          50                0   10   20                   30   40                       50
+
+                               error energy                                                                    error l2 norm
+  10 5
+                                                                                         10 5
+  10 6
+                                                                                         10 6
+  10 7
+                                                                                         10 7
+  10 8
+                                                                                         10 8
+  10 9
+                                                      r, rx, rv = 5, 5, 5                                                           r, rx, rv = 5, 5, 5
+                                                      r, rx, rv = 10, 10, 10             10 9                                       r, rx, rv = 10, 10, 10
+                                                      r, rx, rv = 15, 15, 15                                                        r, rx, rv = 15, 15, 15
+  10 10                                               r, rx, rv = 5, 15, 15                                                         r, rx, rv = 5, 15, 15
+          0    10         20                  30   40                          50                0   10   20                   30   40                       50
+
+
+     Figure 4.3. Numerical simulations of the four-dimensional non-aligned linear Landau damping with the hierarchical
+low-rank/FFT algorithm and various ranks are shown (note that the error in mass and energy is almost identical for all three
+configurations). The Lie–Trotter splitting algorithm with a time step size τ = 0.00625 is employed. In the x-direction 64 grid
+points are used, while in the v-direction 256 grid points are used. The L2 norm is only computed for every 100th time step.
+
+
+
+low-rank algorithm proposed in section 3 are shown in Figure 4.2. We observe that the simulation with
+rank (r, rx , rv ) = (5, 5, 5) is already able to correctly predict the decay rate. Considering the simulation
+with (r, rx , rv ) = 10 shows a reduction in the electric energy to 10−8 which is approximately two orders of
+magnitude better compared to the configuration with rank (r, rx , rv ) = (5, 5, 5). In all configurations mass,
+energy, and the L2 norm are conserved up to an error less than 10−6 .
+    To conclude the discussion on Landau damping, we consider a setting in which the perturbation is not
+aligned to the coordinate axis. More specifically, we consider Ω = (0, 5π)2 × (−6, 6)2 and impose the initial
+value
+
+                                                        1 −(v2 +w2 )/2
+                                  f0 (x, y, v, w) =       e            (1 + α cos(k1 x) cos(k2 y)),
+                                                       2π
+
+where we have chosen α = 10−2 and k1 = k2 = 0.4. As before, periodic boundary conditions are chosen
+for all directions. The numerical results obtained using the hierarchical low-rank algorithm proposed in
+section 3 are shown in Figure 4.3. We observe that the simulation with rank (r, rx , rv ) = (10, 10, 10) and
+(r, rx , rv ) = (15, 15, 15) show a reduction of the electric energy to 5 · 10−6 and 5 · 10−7 , respectively. We also
+note that r can be chosen significantly smaller than rx and rv , while still obtaining good results. For all
+configurations the error in mass, energy, and L2 norm is below 10−5 .
+
+    4.2. Two-stream instability. Our second numerical example is the so-called two-stream instability.
+Here we have two beams propagating in opposite directions. This setup is an unstable equilibrium and
+small perturbations in the initial particle-density function eventually force the electric energy to increase
+exponentially. This is called the linear regime. At some later time saturation sets in (the nonlinear regime).
+This phase is characterized by nearly constant electric energy and significant filamentation of the phase
+space.
+    First we consider the two-dimensional case. We thus set Ω = (0, 10π) × (−9, 9) and impose the initial
+                                                                                    21
+                                electric energy                                                            error mass
+   101        r=5                                                       10 1        r=5
+              r=10                                                                  r=10
+              r=20                                                      10 3        r=20
+  10 1        full grid                                                             full grid
+                                                                        10 5
+  10 3
+                                                                        10 7
+  10 5                                                                  10 9
+
+  10 7                                                                  10 11
+
+                                                                        10 13
+  10 9
+                                                                        10 15
+
+          0               20   40                  60   80   100                0               20   40                   60   80           100
+
+   100
+                                    error energy                                                          error l2 norm
+              r=5
+              r=10
+  10 2        r=20                                                      10 13
+              full grid
+  10 4
+
+  10 6                                                                  10 14
+
+  10 8
+
+  10 10                                                                 10 15
+                                                                                                                                    r=5
+                                                                                                                                    r=10
+  10 12                                                                                                                             r=20
+                                                                                                                                    full grid
+          0               20   40                  60   80   100                0               20   40                   60   80           100
+
+
+     Figure 4.4. Numerical simulations of the two-dimensional two-stream instability with the low-rank/FFT algorithm and
+various ranks are shown. The Strang splitting algorithm with a time step size τ = 0.025 is employed. In both the x and
+v-directions 128 grid points are used. As comparison a direct Eulerian simulation with a splitting/discontinuous Galerkin
+semi-Lagrangian scheme is also shown.
+
+
+condition
+                                             1  −(v−v0 )2 /2            2
+                                                                            
+                                f0 (x, v) = √   e             + e−(v+v0 ) /2 (1 + α cos(kx)),
+                                           2 2π
+where α = 10−3 , k = 15 , and v0 = 2.4. As before, periodic boundary conditions are used. The corresponding
+numerical simulations obtained using the low-rank/FFT algorithm proposed in Section 2.1 are shown in
+Figure 4.4. In the linear regime excellent agreement between the direct Eulerian simulation and the solution
+with rank r = 5 is observed. As we enter the nonlinear regime all the solutions become somewhat distinct.
+However, due to the chaotic nature of this regime this is not surprising. The figure of merit we are looking at
+in the nonlinear regime is if the numerical scheme is able to keep the electric energy approximately constant.
+All configurations starting from rank r = 10 do this very well.
+     To further evaluate the quality of the numerical solution, let us consider the physical invariants. By
+looking at Figure 4.4, it becomes clear that from this standpoint the two-stream instability is a significantly
+more challenging problem than the linear Landau damping considered in the previous section. However, it
+should be noted that most of the error in mass and energy is accrued during the exponential growth of the
+electric energy but remains essentially unchanged in the nonlinear phase. In particular, there is no observable
+long-term drift in the error of any of the invariants. With respect to energy, the low-rank approximation
+with r = 10 is worse by approximately two orders of magnitude compared to the direct Eulerian simulation
+(which has been conducted using a FFT based implementation). The L2 norm is conserved up to machine
+precision.
+     Second, we turn our attention to the four-dimensional case. We set Ω = (0, 10π)2 × (−9, 9)2 and impose
+the initial condition
+                    1  −(v−v0 )2 /2            2
+                                                           2              2
+                                                                               
+ f0 (x, y, v, w) =     e             + e−(v+v0 ) /2 e−(v−w0 ) /2 + e−(v+w0 ) /2 (1 + α1 cos(k1 x) + α2 cos(k2 y))
+                   8π
+with α1 = α2 = 10−3 , k1 = k2 = 15 , v0 = w0 = 2.4. As before, periodic boundary conditions are employed
+in all directions. We note that this configuration corresponds to four propagating beams. The numerical
+                                                                   22
+                           electric energy                                                                         error mass
+   103                                                                                       100
+
+
+   101                                                                                      10 2
+
+
+  10 1                                                                                      10 4
+
+
+  10 3                                                                                      10 6
+
+
+  10 5                                                                                      10 8
+                                                        r, rx, rv = 5, 5, 5                                                            r, rx, rv = 5, 5, 5
+                                                        r, rx, rv = 10, 10, 10                                                         r, rx, rv = 10, 10, 10
+  10 7                                                  r, rx, rv = 10, 15, 15              10 10                                      r, rx, rv = 10, 15, 15
+                                                        r, rx, rv = 15, 15, 15                                                         r, rx, rv = 15, 15, 15
+          0    20        40                  60        80                        100                0   20   40                   60   80                       100
+
+                              error energy                                                                        error l2 norm
+   100                                                                                       100
+
+  10 2                                                                                      10 2
+
+
+  10 4                                                                                      10 4
+
+  10 6                                                                                      10 6
+
+  10 8                                                                                      10 8
+                                                        r, rx, rv = 5, 5, 5                                                            r, rx, rv = 5, 5, 5
+                                                        r, rx, rv = 10, 10, 10                                                         r, rx, rv = 10, 10, 10
+  10 10                                                 r, rx, rv = 10, 15, 15              10 10                                      r, rx, rv = 10, 15, 15
+                                                        r, rx, rv = 15, 15, 15                                                         r, rx, rv = 15, 15, 15
+          0    20        40                  60        80                        100                0   20   40                   60   80                       100
+
+
+     Figure 4.5. Numerical simulations of the four-dimensional two-stream instability with the hierarchical low-rank/FFT
+algorithm and various ranks are shown. The Lie–Trotter projector-splitting algorithm with a time step size τ = 0.00625 is
+employed. In both the x- and v-directions 128 grid points are used. The L2 norm is only computed for every 100th time step.
+
+
+results obtained using the hierarchical low-rank algorithm proposed in section 3 are shown in Figure 4.5.
+The obtained results are similar to the two-dimensional case. In particular, in the linear regime we observe
+excellent agreement even for (r, rx , rv ) = (5, 5, 5). The errors in mass, energy, and L2 norm are approximately
+one order of magnitude better for the configuration with (r, rx , rv ) = (10, 10, 10) compared to (r, rx , rv ) =
+(5, 5, 5).
+     4.3. Plasma echo. There are problems that need to resolve Landau damping for relatively long times.
+It is well known that due to the recurrence effect the number of grid points nv in each coordinate direction
+of v has to scale as nv ∝ T , where T is the final time of the simulation (although this can be somewhat
+alleviated by using filamentation filtration techniques; see, for example, [30, 15]). Due to the high number
+of grid points required to conduct such simulation the proposed algorithm can be extremely efficient in this
+context. We will now consider such an example, the plasma echo phenomenon (see, for example, [21, 27, 15]).
+     We consider the domain (0, 100) × (−8, 8) and impose the initial condition
+
+                                                                      1 −v2 /2
+                                                  f0 (x, v) =           e      (1 + α cos(k1 x)),
+                                                                     2π
+where α = 10−3 and k1 = 12π/100. As before, periodic boundary conditions are used. The initial pertur-
+bation in the electric field is damped away by Landau damping. Then at time t2 = 200 we add another
+perturbation of the form
+                                                                 α −v2 /2
+                                                                    e     cos(k2 x),
+                                                                 2π
+where k2 = 24π/100. The corresponding perturbation in the electric field is, again, damped away. However,
+the particle-density function retains all the information regarding the two perturbations. As a consequence,
+at later times an echo (a peak in the amplitude of the electric field) occurs. The time of the echo depends
+on the wave numbers of the two perturbations. In the present case we expect a primary echo at t = 400 and
+a secondary echo at t = 800. This setup has been considered in [27] and [15].
+                                                                                       23
+                            electric energy                                                   electric energy
+  10 5                                                      r=5           10 5                                                r=10
+
+  10 7                                                                    10 7
+
+  10 9                                                                    10 9
+
+  10 11                                                                   10 11
+
+  10 13                                                                   10 13
+
+  10 15                                                                   10 15
+
+  10 17                                                                   10 17
+
+  10 19                                                                   10 19
+          0    200        400                  600   800      1000                0   200   400                   600   800      1000
+
+                            electric energy                                                        error mass
+  10 5                                                     r=15           10 12
+
+  10 7
+                                                                          10 13
+  10 9
+
+  10 11
+                                                                          10 14
+  10 13
+
+  10 15                                                                   10 15
+                                                                                                                              r=5
+  10 17                                                                                                                       r=10
+                                                                                                                              r=15
+  10 19                                                                   10 16
+          0    200        400                  600   800      1000                0   200   400                   600   800      1000
+
+                                error energy                                                      error l2 norm
+                                                           r=5
+  10 10                                                    r=10           10 12
+                                                           r=15
+
+  10 11
+                                                                          10 13
+  10 12
+
+                                                                          10 14
+  10 13
+
+  10 14                                                                   10 15                                               r=5
+                                                                                                                              r=10
+  10 15                                                                                                                       r=15
+          0    200        400                  600   800      1000                0   200   400                   600   800      1000
+
+
+     Figure 4.6. Numerical simulations of the two-dimensional plasma echo with the low-rank/FFT algorithm and various
+ranks are shown. The Strang projector-splitting algorithm with a time step size τ = 0.025 is employed. In the x- and v-direction
+512 and 4096 grid points are used, respectively. Note that due to the second perturbation, we restart the computation of the
+errors in mass, energy, and L2 norm at t = 200.
+
+
+
+    The corresponding numerical simulations are shown in Figure 4.6. Even for r = 5 both the primary and
+the secondary echo are clearly resolved. This holds true even though the electric energy is only resolved up
+to an amplitude of approximately 10−11 and the magnitude of the secondary echo is only slightly above that
+threshold. Increasing the rank (to r = 10) then allows us to resolve the growth and decay of the electric
+energy associated with the secondary echo as well. Since this problem requires only a small rank but a large
+number of grid points (4096 grid points are used in the velocity direction and 512 grid points are used in
+the space direction), the computational effort required is reduced by a significant margin. Let us also note
+that, for all configurations considered here, the conservation of mass, energy, and L2 norm is excellent (below
+10−10 ).
+    Overall, the results presented here for Landau damping, the two-stream instability, and the plasma echo,
+show that significant reduction in computational effort can be obtained compared with performing a direct
+simulation. In fact, all simulations have been performed on a somewhat outdated workstation and no effort
+has been made to parallelize the code.
+
+
+
+
+                                                                     24
+                                                      REFERENCES
+
+
+ [1] A. Arnold and T. Jahnke. On the approximation of high-dimensional differential equations in the hierarchical Tucker
+         format. BIT Numerical Mathematics, 54(2):305–341, 2014.
+ [2] J. Bigot, V. Grandgirard, G. Latu, C. Passeron, F. Rozar, and O. Thomine. Scaling GYSELA code beyond 32K-cores on
+         Blue Gene/Q. In ESAIM: Proceedings, volume 43, pages 117–135, 2013.
+ [3] C. Cheng and G. Knorr. The integration of the Vlasov equation in configuration space. J. Comput. Phys., 22(3):330–351,
+         1976.
+ [4] D. Conte and C. Lubich. An error analysis of the multi-configuration time-dependent Hartree method of quantum
+         dynamics. ESAIM Math. Model. Numer. Anal., 44(4):759–780, 2010.
+ [5] N. Crouseilles, L. Einkemmer, and E. Faou. Hamiltonian splitting for the Vlasov–Maxwell equations. J. Comput. Phys.,
+         283:224–240, 2015.
+ [6] N. Crouseilles, L. Einkemmer, and E. Faou. An asymptotic preserving scheme for the relativistic Vlasov–Maxwell equations
+         in the classical limit. Comput. Phys. Commun., 209:13–26, 2016.
+ [7] N. Crouseilles, L. Einkemmer, and M. Prugger. An exponential integrator for the drift-kinetic model. arXiv:1705.09923,
+         2017.
+ [8] N. Crouseilles, G. Latu, and E. Sonnendrücker. A parallel Vlasov solver based on local cubic spline interpolation on
+         patches. J. Comput. Phys., 228(5):1429–1446, 2009.
+ [9] N. Crouseilles, M. Mehrenberger, and F. Vecil. Discontinuous Galerkin semi-Lagrangian method for Vlasov-Poisson. In
+         ESAIM: Proceedings, volume 32, pages 211–230, 2011.
+[10] E. Deriaz and S. Peirani. Six-dimensional adaptive simulation of the Vlasov equations using a hierarchical basis. hal-
+         01419750, 2016.
+[11] L. Einkemmer. A mixed precision semi-Lagrangian algorithm and its performance on accelerators. In High Performance
+         Computing & Simulation (HPCS), 2016 International Conference on, pages 74–80, 2016.
+[12] L. Einkemmer. High performance computing aspects of a dimension independent semi-Lagrangian discontinuous Galerkin
+         code. Comput. Phys. Commun., 202:326–336, 2016.
+[13] L. Einkemmer. A study on conserving invariants of the Vlasov equation in semi-Lagrangian computer simulations. J.
+         Plasma Phys., 83(2), 2017.
+[14] L. Einkemmer. A comparison of semi-Lagrangian discontinuous Galerkin and spline based Vlasov solvers in four dimen-
+         sions. arXiv preprint, arXiv:1803.02143, 2018.
+[15] L. Einkemmer and A. Ostermann. A strategy to suppress recurrence in grid-based Vlasov solvers. Eur. Phys. J. D,
+         68(7):197, 2014.
+[16] L. Einkemmer and A. Ostermann. An almost symmetric Strang splitting scheme for nonlinear evolution equations.
+         Comput. Math. Appl., 67(12):2144–2157, 2014.
+[17] L. Einkemmer and A. Ostermann. An almost symmetric Strang splitting scheme for the construction of high order
+         composition methods. Comput. Appl. Math., 271:307–318, 2014.
+[18] E. Fijalkow. A numerical solution to the Vlasov equation. Comput. Phys. Commun., 116(2-3):319–328, 1999.
+[19] F. Filbet and E. Sonnendrücker. Comparison of Eulerian Vlasov solvers. Comput. Phys. Commun., 150(3):247–266, 2003.
+[20] F. Filbet, E. Sonnendrücker, and P. Bertrand. Conservative numerical schemes for the Vlasov equation. J. Comput. Phys.,
+         172(1):166–187, 2001.
+[21] R.W. Gould, T.M. O’Neil, and J.H. Malmberg. Plasma wave echo. Phys. Rev. Lett., 19(5):219–222, 1967.
+[22] V. Grandgirard, J. Abiteboul, J. Bigot, T. Cartier-Michaud, N. Crouseilles, G. Dif-Pradalier, Ch. Ehrlacher, D. Esteve,
+         X. Garbet, Ph. Ghendrih, G. Latu, M. Mehrenberger, C. Norscini, C. Passeron, F. Rozar, Y. Sarazin, E. Sonnen-
+         drÃŒcker, A. Strugarek, and D. Zarzoso. A 5D gyrokinetic full-f global semi-Lagrangian code for flux-driven ion
+         turbulence simulations. Comput. Phys. Commun., 207:35–68, 2016.
+[23] V. Grandgirard, M. Brunetti, P. Bertrand, N. Besse, X. Garbet, P. Ghendrih, G. Manfredi, Y. Sarazin, O. Sauter,
+         E. Sonnendrücker, J. Vaclavik, and L. Villard. A drift-kinetic Semi-Lagrangian 4D code for ion turbulence simulation.
+         J. Comput. Phys., 217(2):395–423, 2006.
+[24] We. Guo and Y. Cheng. A sparse grid discontinuous Galerkin method for high-dimensional transport equations and its
+         application to kinetic simulation. SIAM J. Sci. Comput., 38(6):3381–3409, 2016.
+[25] J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, and F. Verstraete. Unifying time evolution and optimization with
+         matrix product states. Physical Review B, 94(16):165116, 2016.
+[26] M. Hochbruck and A. Ostermann. Exponential integrators. Acta Numer., 19:209–286, 2010.
+[27] Y.W. Hou, Z.W. Ma, and M.Y. Yu. The plasma wave echo revisited. Phys. Plasmas, 18(1):012108, 2011.
+[28] T. Jahnke and W. Huisinga. A dynamical low-rank approach to the chemical master equation. Bulletin of mathematical
+         biology, 70(8):2283–2302, 2008.
+[29] E. Kieri, C. Lubich, and H. Walach. Discretized dynamical low-rank approximation in the presence of small singular
+         values. SIAM J. Numer. Anal., 54(2):1020–1038, 2016.
+[30] A.J. Klimas and W.M. Farrell. A splitting algorithm for Vlasov simulation with filamentation filtration. J. Comput.
+         Phys., 110(1):150–163, 1994.
+[31] O. Koch and C. Lubich. Dynamical low-rank approximation. SIAM J. Matrix Anal. Appl., 29(2):434–454, 2007.
+[32] O. Koch and C. Lubich. Dynamical tensor approximation. SIAM J. Matrix Anal. Appl., 31(5):2360–2375, 2010.
+[33] K. Kormann. A semi-Lagrangian Vlasov solver in tensor train format. SIAM J. Sci. Comput., 37(4):613–632, 2015.
+[34] K. Kormann and E. Sonnendrücker. Sparse grids for the Vlasov–Poisson equation. Sparse Grids Appl., pages 163–190,
+         2014.
+[35] G. Latu, N. Crouseilles, V. Grandgirard, and E. Sonnendrücker. Gyrokinetic semi-lagrangian parallel simulation using a
+                                                             25
+          hybrid OpenMP/MPI programming. In 14th European PVM/MPI Userś Group Meeting, pages 356–364, 2007.
+[36] C. Lubich. From quantum to classical molecular dynamics: reduced models and numerical analysis. European Mathe-
+          matical Society, 2008.
+[37] C. Lubich. Time integration in the multiconfiguration time-dependent Hartree method of molecular quantum dynamics.
+          Applied Mathematics Research eXpress, 2015(2):311–328, 2015.
+[38] C. Lubich, I. V. Oseledets, and B. Vandereycken. Time integration of tensor trains. SIAM J. Numer. Anal., 53(2):917–941,
+          2015.
+[39] C. Lubich and I.V. Oseledets. A projector-splitting integrator for dynamical low-rank approximation. BIT Numer. Math.,
+          54(1):171–188, 2014.
+[40] C. Lubich, T. Rohwedder, R. Schneider, and B. Vandereycken. Dynamical approximation by hierarchical Tucker and
+          tensor-train tensors. SIAM J. Matrix Anal. Appl., 34(2):470–494, 2013.
+[41] C. Lubich, B. Vandereycken, and H. Walach. Time integration of rank-constrained Tucker tensors. Preprint,
+          arXiv:1709.02594, 2017.
+[42] M. Mehrenberger, C. Steiner, L. Marradi, N. Crouseilles, E. Sonnendrucker, and B. Afeyan. Vlasov on GPU (VOG
+          project). arXiv:1301.5892, 2013.
+[43] H. Mena, A. Ostermann, L. Pfurtscheller, and C. Piazzola. Numerical low-rank approximation of matrix differential
+          equations. arXiv:1705.10175, 2017.
+[44] H.-D. Meyer, F. Gatti, and G. A. Worth. Multidimensional quantum dynamics. John Wiley & Sons, 2009.
+[45] H.-D. Meyer, U. Manthe, and L. S. Cederbaum. The multi-configurational time-dependent Hartree approach. Chem.
+          Phys. Letters, 165(1):73–78, 1990.
+[46] P. J. Morrison. Structure and structure-preserving algorithms for plasma physics. Cit. Phys. Plasmas, 24(055502), 2017.
+[47] E. Musharbash and F. Nobile. Dual dynamically orthogonal approximation of incompressible navier stokes equations with
+          random boundary conditions. J. Comp. Phys., 354:135–162, 2018.
+[48] A. Nonnenmacher and C. Lubich. Dynamical low-rank approximation: applications and numerical experiments. Mathe-
+          matics and Computers in Simulation, 79(4):1346–1357, 2008.
+[49] J.M. Qiu and C.W. Shu. Positivity preserving semi-Lagrangian discontinuous Galerkin formulation: theoretical analysis
+          and application to the Vlasov–Poisson system. J. Comput. Phys., 230(23):8386–8409, 2011.
+[50] J.A. Rossmanith and D.C. Seal. A positivity-preserving high-order semi-Lagrangian discontinuous Galerkin scheme for
+          the Vlasov–Poisson equations. J. Comput. Phys., 230(16):6203–6232, 2011.
+[51] F. Rozar, G. Latu, and J. Roman. Achieving memory scalability in the GYSELA code to fit exascale constraints. In
+          Parallel Processing and Applied Mathematics, pages 185–195. 2013.
+[52] N. J. Sircombe and T. D. Arber. VALIS: A split-conservative scheme for the relativistic 2D Vlasov–Maxwell system. J.
+          Comput. Phys., 228(13):4773–4788, 2009.
+[53] E. Sonnendrücker, J. Roche, P. Bertrand, and A. Ghizzo. The semi-Lagrangian method for the numerical resolution of
+          the Vlasov equation. J. Comput. Phys., 149(2):201–220, 1999.
+[54] J. P. Verboncoeur. Particle simulation of plasmas: review and advances. Plasma Physics and Controlled Fusion,
+          47(5A):A231, 2005.
+
+
+
+
+                                                             26
+

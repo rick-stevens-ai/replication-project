@@ -56,9 +56,13 @@ newer QC sets use container directories.
 | **OSTI-100** | Mixed DOE/OSTI computational science | 111 | `OSTI-*` (top level) |
 | **PDE-100** | PDE solvers, numerical methods, SciML | ~131 | `PDE-*` + `PDE-replications/` |
 | **BVBRC-100** | Bacterial genomics / AMR | 127 | `BVBRC-*` (top level) |
-| **QC-100** | Quantum computing / quantum chemistry | ~141 | `QC-100/` |
+| **QC-100** | Quantum computing / quantum chemistry | ~146 | `QC-100/` |
 | **QC-200** | Quantum computing (second wave) | 105 | `QC-200/` |
-| *(legacy)* | Original numeric-ID entries | 42 | `NNNNNNN-*` (top level) |
+| **OTHER-100** | Legacy / cross-domain entries (numeric-ID + slug-named) | ~61 | `OTHER-100/` |
+
+Every paper lives inside a set container — there are **no loose numeric-ID or unsorted paper
+directories at the top level**. Project infrastructure (candidate lists, scoring assets,
+drafts, corpora) lives under `_support/`.
 
 **Reconciliation status** (from `RECONCILED_MASTER_2026-06-24.csv`, 729 rows):
 **275 REPLICATED · 371 PARTIAL · 48 spot-check** (plus a handful NO-GO / blocked / contradicted).

@@ -1,0 +1,345 @@
+                                                  qgym: A Gym for Training and Benchmarking
+                                                        RL-Based Quantum Compilation
+                                                 Stan van der Linde, Willem de Kok                           Tariq Bontekoe*                         Sebastian Feld
+                                             Applied Cryptography & Quantum Algorithms           Bernoulli Institute      Quantum & Computer Engineering
+                                                   The Netherlands Organisation for    Faculty of Science and Engineering              QuTech
+                                                  Applied Scientific Research (TNO)         University of Groningen        Delft University of Technology
+                                                     The Hague, The Netherlands           Groningen, The Netherlands           Delft, The Netherlands
+                                                       stan.vanderlinde@tno.nl                 t.h.bontekoe@rug.nl                s.feld@tudelft.nl
+                                                         willem.dekok@tno.nl
+
+
+
+
+arXiv:2308.02536v1 [quant-ph] 1 Aug 2023
+                                              Abstract—Compiling a quantum circuit for specific quantum           the same time (see Fig. 1c, in which the Z-gate has been
+                                           hardware is a challenging task. Moreover, current quantum              moved “under” the Y90 gate, indicating a parallel execution).
+                                           computers have severe hardware limitations. To make the most           Finally, the qubits of the circuit need to be mapped to the
+                                           use of the limited resources, the compilation process should
+                                           be optimized. To improve currents methods, Reinforcement               physical qubits of the actual hardware (see right-hand side
+                                           Learning (RL), a technique in which an agent interacts with an         of Fig. 1c, in which the hardware topology consists of three
+                                           environment to learn complex policies to attain a specific goal, can   qubits in a row, and the logical qubits {1, 2, 3} have been
+                                           be used. In this work, we present qgym, a software framework           mapped to the physical qubits {A, B, C}, respectively). If it
+                                           derived from the OpenAI gym, together with environments that           turns out that the circuit cannot be executed completely in this
+                                           are specifically tailored towards quantum compilation. The goal
+                                           of qgym is to connect the research fields of Artificial Intelligence   configuration, a process called routing needs to take place,
+                                           (AI) with quantum compilation by abstracting parts of the              in which the logical qubits need to be moved (see Fig. 1d,
+                                           process that are irrelevant to either domain. It can be used           in which a SWAP operation has been inserted, changing the
+                                           to train and benchmark RL agents and algorithms in highly              mapping for the last CNOT and thus enabling its execution).
+                                           customizable environments.                                                What the different quantum programming frameworks have
+                                                                  I. I NTRODUCTION                                in common is that they also provide means for compilation,
+                                                                                                                  i.e., the process of getting a quantum circuit together with a
+                                              In the gate-based quantum computing paradigm, qubits are
+                                                                                                                  target platform as input, performing certain transformations,
+                                           controlled by applying gates to them [1]. The order and
+                                                                                                                  and outputting platform specific micro-code that is equivalent
+                                           specification of these gates are often presented in a quantum
+                                                                                                                  to the input circuit. The steps explained above are examples
+                                           circuit (see Fig. 1a together with its corresponding QASM
+                                                                                                                  for such transformations. The program that translates the input
+                                           code). Quantum circuits offer a hardware agnostic way of
+                                                                                                                  circuit to micro-code for the specified hardware is called a
+                                           thinking about gate-based quantum algorithms and there exist
+                                                                                                                  quantum compiler. As we are in the Noisy Intermediate-Scale
+                                           several frameworks that enable users to write quantum algo-
+                                                                                                                  Quantum (NISQ) era [7], in which hardware limitations are
+                                           rithms in high-level languages like C++ or Python (e.g., Qiskit
+                                                                                                                  severe, this process should be as effective as possible, making
+                                           [2], cirq [3], OpenQL [4], and many more [5]). While the
+                                                                                                                  the best use of the scarce resource [8], [9]. Additionally,
+                                           quantum circuit model is a powerful hardware agnostic tool
+                                                                                                                  compilation itself should be efficient, as the different steps
+                                           for developing quantum algorithms [6], it is not at all a trivial
+                                                                                                                  taken are complex by themselves and scale poorly [10].
+                                           task to execute arbitrary quantum circuits on real hardware
+                                                                                                                     Reinforcement Learning (RL) is a popular concept in
+                                           [4]. For example, a circuit might require a specific type of
+                                                                                                                  Artificial Intelligence (AI), in which an agent acts inside
+                                           gate that is not implemented in the hardware, which then has
+                                                                                                                  an environment by performing actions, and the environment
+                                           to be solved by choosing a correct and efficient decomposition
+                                                                                                                  responds to the agent with changes and giving rewards [11].
+                                           in available gates (see Fig. 1b, in which the Hadamard gate
+                                                                                                                  The agents tries to maximize the reward and by doing so, it
+                                           has been decomposed into a Y90- and an X180-rotation). This
+                                                                                                                  learns (potentially complex) policies that would be hard to
+                                           opens up the possibility for circuit optimizations, in which
+                                                                                                                  explicitly state otherwise. RL agents are commonly trained
+                                           commutation rules can be used to change the order of gates,
+                                                                                                                  and benchmarked in a tool called gym [12], in which different
+                                           followed by canceling out suitable gate pairs (see Fig. 1b, in
+                                                                                                                  environments are provided to challenge them.
+                                           which the first CNOT changed position with the X180 gate
+                                                                                                                     The goal of this paper is to present our gym, called qgym,
+                                           leading to the possibility of canceling out the two consecutive
+                                                                                                                  together with some environments that are specifically tailored
+                                           X180 gates). Depending on the possibilities of the quantum
+                                                                                                                  to quantum compilation. Such a gym will allow and assist
+                                           hardware, certain gates can be scheduled to be performed at
+                                                                                                                  RL-based research on compilation-related topics such as
+                                             *Work has been performed while being at TNO.                            • Qubit mapping: Learning placements of qubits that lead
+                                                                                      guideline for future users of the framework.
+                                                        Z q[2]
+          1          H               X180
+                                                        H q[1]
+ a)       2    Z
+                                                        CX q[2,1]                                  II. F RAMEWORK D ESIGN
+                                                        CX q[2,3]
+                                                        X180 q[1]                   The main goal of this framework is to have a gym in which
+          3
+                                                        CX q[1,3]
+                                                                                 RL agents can be trained and compared. The advantage of
+                                                                                 developing such a gym separately from a quantum compiler is
+          1          Y90      X180          X180                                 twofold: 1) From the compiler point of view there is only one
+ b)       2    Z                                                                 standardized gym API which the compiler needs to communi-
+                                                                                 cate with, and 2) From the point of view of the development
+          3
+                                                                                 of RL tools, the potentially irrelevant implementation details
+                                                                                 of specific quantum compilers can be abstracted away.
+          1   Y90
+                                                   A          B         C
+ c)       2    Z                                                                 A. Architecture and Functionality
+                                                    1          2         3
+          3                                                                         The framework contains a set of environments and generic
+                                                                                 building blocks, which were used to build the environments.
+          1   Y90
+                                                                                 As there is currently no consensus on the requirements for
+                                                   A          B         C        a “good” circuit and what the optimal way of compiling
+ d)       2    Z                                                                 should look like, we put the focus of qgym on customizability.
+                                                    1          3         2
+          3                                                                      That means that each environment has a state description,
+                                                                                 visualization tools, and a set of reward functions, all of which
+                                                                                 are customizable. We believe that the provided set of reward
+Fig. 1. A quantum compiler has to perform several tasks. a) An exemplary
+quantum algorithm given in circuit form (left-hand) and as QASM code (right-     functions is a good basis for a user to start with, and the
+hand); b) The Hadamard gate gets decomposed into Y- and X-rotation, also         framework is designed in such a way that these can easily
+the ordering of the first CNOT and the X180 gate get changed; c) The two         be replaced with custom reward functions. By doing so, we
+X180 gates cancel out, the two remaining single-qubit gates are scheduled to
+be executed in parallel, and the logical qubits are mapped to physical qubits;   ensure that the framework provides a generic way for solv-
+d) A SWAP gate is inserted to make the last CNOT gate executable.                ing the problems encountered during quantum compilation,
+                                                                                 independently from a specific implementation. Furthermore,
+                                                                                 qgym contains generic building blocks that were used to
+      to a positive overall execution of an algorithm                            create the given environments. This allows to better extend
+      Routing: Learning strategies of moving quantum infor-
+      •                                                                          the framework while keeping a uniform interface throughout
+      mation based on a certain mapping while anticipating the                   all environments. The uniformity increases the viability to
+      future behavior of an algorithm                                            benchmark between environment and/or agents.
+   • Scheduling: Learning policies that execute algorithms
+      while considering effects such as cross talk or memory                     B. Supported Environments
+      effect
+                                                                                    1) Initial mapping: In the initial mapping problem the
+   • Circuit optimization: learning transformation rules that
+                                                                                 logical qubits of the circuit are mapped to physical qubits of
+      might minimize the number of gates or circuit depth, or
+                                                                                 the hardware such that the largest number of interactions gates
+      maximize fidelity
+                                                                                 in the circuit can be performed with minimal routing [17], [18].
+Initial work on the topics mentioned above can be seen in                        More formally, we define a coupling graph GC = (V, EC ),
+literature, for example [13], [14], [15], [16].                                  where the vertices v ∈ V represent the physical qubits of the
+   The main advantage of this framework is to bridge the gap                     hardware and the edges {v, u} ∈ EC represent the connections
+between the communities of artificial intelligence and quantum                   between the qubits. Next, we define an interaction graph GI =
+computer engineering and to lower the entry barrier by hiding                    (V, EI ), where the vertices v ∈ V represent logical qubits of
+and abstracting parts that are irrelevant for either domain.                     the circuit and the edges {v, u} ∈ EI represent the interactions
+   The contributions of this paper are as follows:                               in the circuit. For example, the interaction graph of the circuit
+   • We introduce the overall framework of qgym, which is                        given in Fig. 1 would be a triangle and the connection graph
+      based on professional software engineering principles, in-                 are the graphs shown in Fig. 1 c) and d). In the initial mapping
+      cluding thorough testing, comprehensive documentation,                     problem, the objective is to find a bijection f : V → V , which
+      and diligent code commenting.                                              maps every logical qubit to a physical qubit in such a way that
+   • We provide a set of customizable environments each with                     some cost function
+                                                                                                      on the mapped edges EM is minimized,
+      states, action spaces, observation spaces, rewards and                     where EM = {f (v), f (u)} : {v, u} ∈ EI . In some cases,
+      visualizations. These could be a starting point for RL                     a perfect mapping might exist where EM ⊂ EC , if this is
+      researchers, and the environments can easily be extended.                  not possible then the objective should be some cost function
+   • We report on a proof of concept that shows that the tool                    of EM \ EC , i.e., a cost function of connections that exist in
+      indeed works as intended. This can also be used as a                       the mapped interaction graph, but not in the connection graph.
+This is a generalization of the subgraph isomorphism problem,           the assigned cycles, the output is conformable to the circuit
+which is a well known NP-complete problem [19].                         description. The goal is to create the shortest schedule. Since
+   The initial mapping problem was translated to an RL envi-            the decoherence time of current qubit realizations is short,
+ronment in the following way: The environment is initialized            constructing a short schedule is of huge importance for the
+by a given coupling graph which remains unchanged through-              performance of a quantum algorithm.
+out all episodes. In each episode a new interaction graph is               The general task of scheduling is well-known, not only in
+generated, which is observed by the agent. Furthermore, a               quantum compilation. Scheduling as-late-as-possible (ALAP)
+(initially empty) mapping is observed by the agent, which               would often give an optimal schedule. However, when taking
+describes the bijection f in the problem definition given above.        commutation rules of quantum gates into account, the task
+At each step, the agent can map one logical qubit to one                of scheduling becomes much more challenging. Furthermore,
+physical qubit, until the mapping is complete. In this way, an          there are certain hardware limitations that must be taken into
+agent can be trained that can handle any kind of interaction            account during scheduling, for example that on many systems
+graph for a predefined hardware topology.                               there are certain gates that cannot be executed within the
+   2) Qubit routing: Qubit routing takes place after the initial        same cycle, even if they act on different qubits [25]. This
+mapping [20]. For many useful quantum algorithms a perfect              form of scheduling, in which the objective is to find the
+initial mapping cannot be found, i.e., after the initial mapping        shortest schedule that takes commutation rules and hardware
+there are still interactions in the circuit between qubits that         limitations into account, is closely related to the job-shop
+have no connection in the connection graph. This is due to              scheduling problem, which is known to be NP-hard [25].
+the discrepancy between the connectivity of interaction graph              Our RL environment representing the quantum operation
+and coupling graph, i.e., the quantum hardware’s actual topol-          scheduling problem was created as follows: The environment
+ogy. Fortunately, it is still possible to execute an equivalent         is initialized with a variety of commutation rules machine
+quantum circuit by adding swap gates to the circuit [21].               properties, including the execution times of different gates
+Graphically speaking, a swap gate exchanges two qubit lines             and platform specific hardware limitations. Both, the machine
+in the circuit, circumventing the connectivity problem in the           properties and commutation roles, do not change between
+hardware topology. However, adding swaps adds gates to the              episodes. The agent starts at the end of the circuit and
+circuit and thus increases the circuit depth. Since qubits have         schedules from back to front. At each step the agent observes
+a short decoherence time and every gate operation introduces            the circuit and a list of gates that it currently can schedule.
+noise, having a short circuit depth is of huge importance for           Furthermore, a list of dependencies is observed for each gates,
+the quality of the algorithm [22]. Finding the minimal amount           and the agent can use this list to predict which gates should
+of swap gates to execute the circuit is called the qubit routing        have priority. The actions the agent can take in each step is
+problem and is known to be NP-hard [23].                                either: 1) schedule a certain gate at the current cycle; or 2)
+   To create an RL environment which captures the qubit                 move to the next cycle. The agent is done when all gates
+routing problem, we start by constructing what we call the              have been scheduled. Using this environment, an agent can
+interaction circuit. The interaction circuit is a list of all two-      be trained to schedule any circuit with pre-defined machine
+qubit interactions ordered in the same way as the original              properties and commutation rules.
+circuit. Similarly to the initial mapping environment, the
+routing environment is initialized using a given coupling graph         C. Implementation details
+which remains unchanged throughout all episodes. The agent                Qgym is implemented as a package in the Python program-
+observes this topology together with (part of) the interaction          ming language. Currently, Python version 3.7 or higher are
+circuit and optionally some additional information about the            supported. All environments use OpenAI gym [12] package
+circuit. The environment assigns a position to the agent repre-         and are compliant with the stable-baselines3 [26] environment
+senting the position in the interaction circuit. This position is       guidelines. All code inside the package is tested, documented
+initialized at the start of the interaction circuit. At each step the   and adheres to modern coding standards. The code can be
+agent can add a swap gate at the current position in the circuit,       found under: https://github.com/QuTech-Delft/qgym
+or move to the next position in the circuit if the coupling
+graph allows it. In this manner the agent “walks” over the                                   III. U SING QGYM
+interaction circuit, adding swaps where needed. The agent’s                Qgym was developed as a Python package that makes the
+task is finished when it reaches the end of the interaction             environments easy-to-use. This section contains an example
+circuit. In this way, an agent can be trained that can handle           in which we show how to use an environment step-by-step,
+any kind of interaction circuit for a predefined coupling graph.        followed by a small exemplary result aiming to show possible
+   3) Scheduling: The scheduling problem consist of order-              gains of using RL methods over current methods.
+ing in time the operations described by a (mapped, routed
+and decomposed) quantum circuit [24]. More precisely, each              A. Example Usage
+gate in the circuit should be assigned an execution cycle                 As an example, we show how to create an initial mapping
+(the quantum hardware runs operations in cycles which are               environment with a custom coupling graph and use this
+ordered time frames), such that, if the gates are executed at           environment to train an agent. Listing 1 shows how to create
+                                                                                              Fig. 3. (A) Two-qubit quantum circuit with an X gate, CNOT and measure-
+                                                                                              ment. (B) ALAP schedule without commutation rules. (C) Optimal schedule
+                                                                                              found by a PPO agent taking into account commutation rules.
+
+
+
+
+    Fig. 2. Screenshot of the render of the initial mapping visualization.
+
+
+
+an initial mapping environment for a coupling graph with 4
+qubits and 3 connections.                                                                     Fig. 4. A vanilla PPO agent has been trained in the scheduling environment.
+i m p o r t n e t w o r k x a s nx                                                            (A) The mean episode length decreases over time. (B) The mean reward per
+from qgym . e n v s i m p o r t I n i t i a l M a p p i n g                                   episode increases over time.
+c o n n e c t i o n g r a p h = nx . Graph ( )
+connection graph . add edges from (
+       [ ( 0 , 1) , (0 , 2) , (0 , 3) ]                                                       an ALAP method as seen is Fig. 3(B). Taking into account
+)
+env = I n i t i a l M a p p i n g (
+                                                                                              that the (Pauli-)X gate and CNOT in the circuit commute, the
+       0.5 , connection graph=connection graph                                                schedule shown in Fig. 3(C) would be a better schedule, since
+)                                                                                             it represents the same quantum circuit and is shorter in time.
+      Listing 1. Initialization of a custom InitialMapping environment                           The proof of concept involves showing that a PPO agent
+                                                                                              trained in our scheduling environment can produce the sched-
+A custom agent can then be used to learn to navigate this                                     ule shown in Fig. 3(C). To accomplish this, we need to define
+environment. One could develop a custom agent, or use                                         a reward function which should guide the agent to minimize
+one that is compatible with the OpenAI gym framework. In                                      the length of the schedule while avoiding illegal actions (like
+this example an agent from the stable-baselines3 package is                                   scheduling a operation multiple times). We have formulated
+used. Listing 2 shows how to train a vanilla Proximal Policy                                  this as a reward function by giving a reward of −5 for
+Optimization (PPO) agent on the environment [27].                                             an illegal action and a reward of −1 every time the agent
+from s t a b l e b a s e l i n e s 3 i m p o r t PPO                                          increases the timestep. All other actions receive a reward of 0.
+model = PPO ( ” M u l t i I n p u t P o l i c y ” , env )
+model . l e a r n ( i n t ( 2 e5 ) )
+                                                                                              Thus, we chose the most basic reward function which gives a
+Listing 2. Training a PPO agent from the stable-baselines3 package on the
+                                                                                              negative reward every time the agent goes to the next timestep.
+environment initialized in Listing 1                                                             A vanilla PPO agent from the stable-baselines3 package
+After the agent is trained we would like to evaluate the policy                               was used to learn a policy for a two-qubit system with
+learned. Listing 3 shows how to make the agent use the learned                                commutation rules and the before mentioned reward function.
+policy to map a custom interaction graph. Each step can also                                  During training, a quantum circuit with at most 5 gates was
+be rendered, see the screenshot in Fig. 2.                                                    randomly generated at the start of each episode. Fig. 4 shows
+                                                                                              the mean episode length and mean episode reward for the 105
+o b s = env . r e s e t ( i n t e r a c t i o n g r a p h = c o n n e c t i o n g r a p h )
+for i in range (1000) :                                                                       total steps that were taken during training. Fig. 4(A) shows
+      a c t i o n , s t a t e s = model . p r e d i c t ( o b s )                             that the mean episode length decreases, while Fig. 4(B) shows
+      obs , r e w a r d s , done ,           , i n f o = env . s t e p ( a c t i o n )        an increase in reward. This means that the number of illegal
+      i f done :
+               break                                                                          actions decreases and the length of the produced schedule
+                                                                                              decreases as well. Hence, we gain confidence that the agent
+  Listing 3. Let a trained PPO agent map the connection graph to itself.
+                                                                                              has learned a policy that minimizes the length of the schedule.
+                                                                                              Furthermore, when the agent was given the circuit shown in
+B. Experiments and Results                                                                    Fig. 3(A), it produced the schedule shown in Fig. 3(C) (which
+  The goal of this framework is to enable further research,                                   is optimal). Thus, we show that even basic non-optimized RL
+however, during development we already observed that for the                                  agents can offer improvements over a standard ALAP method.
+scheduling task even a vanilla PPO agent can learn policies
+which can outperform the standard priority-based ALAP ap-                                                     IV. C ONCLUSION AND O UTLOOK
+proach. We demonstrate this finding in a proof of concept.                                      Compiling a generic quantum circuit into a hardware-
+The quantum circuit shown in Fig. 3(A) will be scheduled by                                   specific micro-code is a hard but important task that will even
+continue to grow due to increasing system complexity. The                      [15] A. Paler, L. Sasu, A.-C. Florea, and R. Andonie, “Machine learning op-
+concept of RL, however, can aid to train software agents in a                       timization of quantum circuit layouts,” ACM Transactions on Quantum
+                                                                                    Computing, vol. 4, no. 2, pp. 1–25, 2023.
+gym to solve the compilation challenge.                                        [16] T. Fösel, M. Y. Niu, F. Marquardt, and L. Li, “Quantum cir-
+   In this paper, we showcased the framework design of                              cuit optimization with deep reinforcement learning,” arXiv preprint
+qgym, outlining the initial mapping, routing and scheduling                         arXiv:2103.07585, 2021.
+                                                                               [17] G. Li, Y. Ding, and Y. Xie, “Tackling the qubit mapping problem
+environments, and how these can be used by RL researchers.                          for NISQ-era quantum devices,” in Proceedings of the Twenty-Fourth
+Through a proof of concept, we showed that the agents can                           International Conference on Architectural Support for Programming
+be trained to accomplish set tasks properly.                                        Languages and Operating Systems, 2019, pp. 1001–1014.
+                                                                               [18] M. Y. Siraichi, V. F. d. Santos, C. Collange, and F. M. Q. Pereira,
+   Qgym is one of a few open source gyms for quantum                                “Qubit allocation,” in Proceedings of the 2018 International Symposium
+compilation, therefore we invite RL researchers to train their                      on Code Generation and Optimization, 2018, pp. 113–125.
+own agents in our highly customizable gym.                                     [19] S. A. Cook, “The complexity of theorem-proving procedures,” in Logic,
+                                                                                    Automata, and Computational Complexity: The Works of Stephen A.
+   As our current work focused on training agents and making                        Cook, 2023, pp. 143–152.
+the framework accessible and coherent, future work will aim                    [20] A. Cowtan, S. Dilkes, R. Duncan, A. Krajenbrink, W. Simmons,
+at improving current environments, adding new environments,                         and S. Sivarajah, “On the qubit routing problem,” arXiv preprint
+                                                                                    arXiv:1902.08091, 2019.
+benchmarking and stress testing agents like [16] and also                      [21] S. Herbert, “On the depth overhead incurred when running quantum
+incorporating complex hardware specifics in reward functions,                       algorithms on near-term quantum computers with limited qubit connec-
+like the fidelity of qubit connections.                                             tivity,” arXiv preprint arXiv:1805.12570, 2018.
+                                                                               [22] M. Bandic, S. Feld, and C. G. Almudever, “Full-stack quantum com-
+                                                                                    puting systems in the NISQ era: algorithm-driven and hardware-aware
+                        ACKNOWLEDGMENT                                              compilation techniques,” in 2022 Design, Automation & Test in Europe
+   The authors are grateful for funding by QuTech and TNO.                          Conference & Exhibition (DATE). IEEE, 2022, pp. 1–6.
+                                                                               [23] T. Ito, N. Kakimura, N. Kamiyama, Y. Kobayashi, and Y. Okamoto,
+                                                                                    “Algorithmic theory of qubit routing,” arXiv preprint arXiv:2305.02059,
+                             R EFERENCES                                            2023.
+ [1] M. A. Nielsen and I. Chuang, “Quantum computation and quantum             [24] T. S. Metodi, D. D. Thaker, A. W. Cross, F. T. Chong, and I. L. Chuang,
+     information,” 2002.                                                            “Scheduling physical operations in a quantum information processor,”
+ [2] Qiskit contributors, “Qiskit: An open-source framework for quantum             in Quantum Information and Computation IV, vol. 6244. SPIE, 2006,
+     computing,” 2023.                                                              pp. 210–221.
+ [3] C. Developers, “Cirq,” Dec 2022, see full list of authors on Github:      [25] T. Itoko and T. Imamichi, “Scheduling of operations in quantum com-
+     https://github.com/quantumlib/Cirq/graphs/contributors.                        piler,” in 2020 IEEE International Conference on Quantum Computing
+ [4] N. Khammassi, I. Ashraf, J. Someren, R. Nane, A. Krol, M. A. Rol,              and Engineering (QCE). IEEE, 2020, pp. 337–344.
+     L. Lao, K. Bertels, and C. G. Almudever, “OpenQL: A portable quantum      [26] A. Raffin, A. Hill, A. Gleave, A. Kanervisto, M. Ernestus, and
+     programming framework for quantum accelerators,” ACM Journal on                N. Dormann, “Stable-baselines3: Reliable reinforcement learning
+     Emerging Technologies in Computing Systems (JETC), vol. 18, no. 1,             implementations,” Journal of Machine Learning Research, vol. 22,
+     pp. 1–24, 2021.                                                                no. 268, pp. 1–8, 2021. [Online]. Available: http://jmlr.org/papers/v22/
+ [5] B. Heim, M. Soeken, S. Marshall, C. Granade, M. Roetteler, A. Geller,          20-1364.html
+     M. Troyer, and K. Svore, “Quantum programming languages,” Nature          [27] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, “Prox-
+     Reviews Physics, vol. 2, no. 12, pp. 709–722, 2020.                            imal policy optimization algorithms,” arXiv preprint arXiv:1707.06347,
+ [6] B. Weder, J. Barzen, F. Leymann, M. Salm, and D. Vietz, “The                   2017.
+     quantum software lifecycle,” in Proceedings of the 1st ACM SIGSOFT
+     International Workshop on Architectures and Paradigms for Engineering
+     Quantum Software, 2020, pp. 2–9.
+ [7] J. Preskill, “Quantum computing in the NISQ era and beyond,” Quan-
+     tum, vol. 2, p. 79, 2018.
+ [8] Y. Shi, P. Gokhale, P. Murali, J. M. Baker, C. Duckering, Y. Ding,
+     N. C. Brown, C. Chamberland, A. Javadi-Abhari, A. W. Cross et al.,
+     “Resource-efficient quantum computing by breaking abstractions,” Pro-
+     ceedings of the IEEE, vol. 108, no. 8, pp. 1353–1370, 2020.
+ [9] M. Salm, J. Barzen, F. Leymann, B. Weder, and K. Wild, “Automating
+     the comparison of quantum compilers for quantum circuits,” in Service-
+     Oriented Computing: 15th Symposium and Summer School, SummerSOC
+     2021, Virtual Event, September 13–17, 2021, Proceedings 15. Springer,
+     2021, pp. 64–80.
+[10] A. JavadiAbhari, S. Patil, D. Kudrow, J. Heckey, A. Lvov, F. T. Chong,
+     and M. Martonosi, “Scaffcc: Scalable compilation and analysis of
+     quantum programs,” Parallel Computing, vol. 45, pp. 2–17, 2015.
+[11] R. S. Sutton and A. G. Barto, Reinforcement learning: An introduction.
+     MIT press, 2018.
+[12] G. Brockman, V. Cheung, L. Pettersson, J. Schneider, J. Schul-
+     man, J. Tang, and W. Zaremba, “OpenAI gym,” arXiv preprint
+     arXiv:1606.01540, 2016.
+[13] C. Cummins, B. Wasti, J. Guo, B. Cui, J. Ansel, S. Gomez, S. Jain,
+     J. Liu, O. Teytaud, B. Steiner et al., “Compilergym: Robust, performant
+     compiler optimization environments for ai research,” in 2022 IEEE/ACM
+     International Symposium on Code Generation and Optimization (CGO).
+     IEEE, 2022, pp. 92–105.
+[14] M. G. Pozzi, S. J. Herbert, A. Sengupta, and R. D. Mullins, “Using
+     reinforcement learning to perform qubit routing in quantum compilers,”
+     arXiv preprint arXiv:2007.15957, 2020.
+

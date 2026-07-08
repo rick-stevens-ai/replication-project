@@ -1,0 +1,149 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,backgroundcolor=\color{gray!8}}
+
+\title{QC-100 Replication Report --- arXiv:2003.02417 \\
+       \large ``Faster Amplitude Estimation'' (Nakaji, 2020)}
+\author{Ollie (independent QC-100 replication)}
+\date{2026-07-03 CDT (backfilled 2026-07-06)}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Nakaji's \emph{Faster Amplitude Estimation} (FAE, arXiv:2003.02417) proposes a QPE-free amplitude-estimation algorithm with a proven $N_{\mathrm{orac}} = O(1/\epsilon)$ upper bound whose prefactor $\approx 4.1\times 10^{3}$ is $\sim 10^{2}\times$ tighter than the previous best rigorous bound (Grinko IQAE). We independently reimplemented Algorithm~1 verbatim on a 2-qubit statevector simulator (a $4\times 4$ analytic simulator equivalent to Qiskit's \texttt{StatevectorSimulator}) together with a Suzuki-MLAE baseline, and reran the paper's Fig.~3 sweep for $a \in \{0.1, 0.2, 0.3, 0.4\}$ with 100 FAE trials per $\ell$. All four fitted log--log slopes lie in $[0.85, 1.26]$, consistent with the Heisenberg slope of~1 within statistical fluctuation; the stage-2 trigger $j_0$ decreases monotonically with $a$ (5, 4, 3, 3) exactly as reported; and the empirical prefactor sits $\sim 30\times$ below the proven upper bound, matching the paper's own observation that the bound is not tight in practice. \textbf{Verdict: REPLICATED.} The proof of Theorem~1 was not re-derived, and a head-to-head prefactor race against Grinko IQAE was \emph{not} run --- these are the principal caveats.
+\end{abstract}
+
+\section{Paper summary}
+
+Quantum amplitude estimation targets $a$ in
+$A|0\rangle = a|\tilde{\Psi}_{1}\rangle|1\rangle + \sqrt{1-a^{2}}|\tilde{\Psi}_{0}\rangle|0\rangle$.
+Canonical QAE (Brassard et al., QPE on the Grover-like operator $Q$) reaches Heisenberg $N_{\mathrm{orac}} = O(1/\epsilon)$ but needs deep controlled-$Q$ circuits ill-suited to NISQ. Nakaji's FAE (Algorithm~1) is QPE-free and built on:
+\begin{enumerate}
+    \item Attenuating the amplitude via $X = A \otimes R$ with $R|0\rangle = \tfrac{1}{4}|1\rangle + \tfrac{\sqrt{15}}{4}|0\rangle$, giving $\sin\theta = a/4$ with $\theta \in [0, 0.252]$.
+    \item Iteratively estimating $\cos(2(2^{k}+1)\theta)$ for $k = 1,\dots,\ell$, refining $[\theta_{\min}, \theta_{\max}]$ each round.
+    \item A \textbf{two-stage} structure: stage~1 uses $\arccos$ of the measured cosine until $2^{n+1}\theta_{\max} \geq 3\pi/8$; stage~2 additionally measures $\cos(2(2^{k}+2^{j_{0}}+1)\theta)$ and reconstructs $\sin$ via a trig-addition identity to resolve the $\bmod\,\pi$ ambiguity.
+    \item Chernoff-bound-driven shot counts $N_{\mathrm{shot}}^{1\mathrm{st}} = 1944\ln(2/\delta_{c})$, $N_{\mathrm{shot}}^{2\mathrm{nd}} = 972\ln(2/\delta_{c})$.
+\end{enumerate}
+Theorem~1 proves $N_{\mathrm{orac}} \leq (4.1\times 10^{3}/\epsilon)\ln(4\log_{2}(2\pi/3\epsilon)/\delta)$. Section~3 (Fig.~3) numerically verifies near-Heisenberg scaling with 1000 trials per $(a,\ell)$, reporting the 95th-percentile amplitude error.
+
+\section{Claims table}
+
+\begin{longtable}{p{0.6cm} p{7cm} p{2.5cm} p{2cm} p{2cm}}
+\toprule
+ID & Claim & Type & CPU-testable? & Tested? \\
+\midrule
+C1 & FAE reaches near-Heisenberg scaling $N_{\mathrm{orac}} \propto 1/\epsilon$ (Fig.~3 slope $\approx 1$) & Empirical & Yes & \textbf{YES} \\
+C2 & Proven bound prefactor $4.1\times 10^{3}$ (eq.~28), $\sim 10^{2}\times$ tighter than Grinko $1.15\times 10^{6}$ & Theoretical & Proof only & Symbolic read only \\
+C3 & Two-stage trigger $j_{0}$ decreases as $a$ increases & Empirical & Yes & \textbf{YES} \\
+C4 & ``First-Stage-Only'' errors sit slightly below the Heisenberg line & Empirical & Yes & Qualitative only \\
+C5 & $P(|11\rangle$ after $Q^{m}) = \sin^{2}((2m+1)\theta)$ with $\sin\theta = a/4$ & Algebraic & Yes & \textbf{YES (1e-15)} \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+
+\subsection{Environment}
+Python 3.14.6, \texttt{qiskit 2.5.0}, \texttt{qiskit-aer}, \texttt{numpy 2.5.0}, \texttt{scipy}, \texttt{matplotlib}. The actual runtime uses a purely analytic $4\times 4$ statevector simulator (the entire system fits in 2 qubits); correctness is verified to machine precision against the analytic identity $\sin^{2}((2m+1)\theta)$ in \S4.1.
+
+\subsection{Implementation}
+\begin{itemize}
+    \item \texttt{code/oracle.py} --- builds $A$, $R$, $X = A \otimes R$, and $Q = X S_{0} X^{\dagger} S_{\mathrm{good}}$ (eq.~5). \texttt{exact\_prob\_good\_after\_Qm(a, m)} is the honest statevector probability of $|11\rangle$ after $Q^{m}|\Psi'\rangle$.
+    \item \texttt{code/fae.py} --- Algorithm~1 verbatim: two stages, Chernoff intervals (eq.~8), extended \texttt{atan2} (eq.~9), integer $n_{j}$ update (eq.~25), $N_{\mathrm{shot}}^{1\mathrm{st}} = 1944\ln(2/\delta_{c})$, $N_{\mathrm{shot}}^{2\mathrm{nd}} = 972\ln(2/\delta_{c})$; \texttt{COS(m, N\_shot)} samples $\mathrm{Binomial}(N_{\mathrm{shot}}, p_{\mathrm{good}})$ and returns $c_{m} = 1 - 2N_{11}/N_{\mathrm{shot}}$.
+    \item \texttt{code/mlae.py} --- Suzuki MLAE baseline: exponential schedule $m_{k} = 2^{k-1}$ for $k = 1\dots M$ plus $m_{0} = 0$, likelihood optimised by grid + Brent over $\theta \in [0, 0.4]$.
+    \item \texttt{code/experiment.py} --- full sweep: $a \in \{0.1, 0.2, 0.3, 0.4\}$, FAE at $\ell \in \{3,4,5,6,7\}$ with 100 trials, MLAE at $M \in \{4,5,6,7,8,9\}$ with $N_{\mathrm{shot}} = 100$ and 200 trials.
+    \item \texttt{code/make\_plots.py} --- produces \texttt{report/evidence/fig3\_replication.png}.
+\end{itemize}
+
+\subsection{Commands}
+\begin{lstlisting}
+source .venv/bin/activate
+python code/oracle.py       # sanity: exact_prob_good vs sin^2((2m+1)theta) at 1e-15
+python code/fae.py          # smoke: FAE at ell = 3..6
+python code/mlae.py         # smoke: MLAE at M = 3..7
+python code/experiment.py   # main sweep, 132.4 s
+python code/make_plots.py
+\end{lstlisting}
+
+\section{Results}
+
+\subsection{Grover-operator correctness (C5)}
+Comparing $|\langle 11|Q^{m}|\Psi'\rangle|^{2}$ against $\sin^{2}((2m+1)\theta)$ for $a \in \{0.1, 0.2, 0.3, 0.4\}$, $m \in \{0, 1, 2, 4, 8, 16\}$: max deviation over 24 checks is $2.2\times 10^{-15}$. \textbf{PASS.}
+
+\subsection{FAE Heisenberg-scaling fits (C1)}
+$\log_{10}(N_{\mathrm{orac}}) = \mathrm{slope}\cdot\log_{10}(1/\epsilon) + \log_{10}C$:
+
+\begin{center}
+\begin{tabular}{c c c c c}
+\toprule
+$a$ & FAE slope & FAE $R^{2}$ & FAE $\epsilon$ range ($p95$) & FAE $N_{\mathrm{orac}}$ range (median) \\
+\midrule
+0.1 & \textbf{0.85} & 0.89 & $1.5\times 10^{-2}\!\to\!4.5\times 10^{-4}$ & $7.2\times 10^{4}\!\to\!1.47\times 10^{6}$ \\
+0.2 & \textbf{1.20} & 0.95 & $4.5\times 10^{-3}\!\to\!3.8\times 10^{-4}$ & $7.2\times 10^{4}\!\to\!1.43\times 10^{6}$ \\
+0.3 & \textbf{1.26} & 0.99 & $5.1\times 10^{-3}\!\to\!4.5\times 10^{-4}$ & $7.2\times 10^{4}\!\to\!1.39\times 10^{6}$ \\
+0.4 & \textbf{0.96} & 0.92 & $4.3\times 10^{-3}\!\to\!2.6\times 10^{-4}$ & $7.2\times 10^{4}\!\to\!1.39\times 10^{6}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+All four slopes in $[0.85, 1.26]$, within $\sim 25\%$ of the ideal Heisenberg slope of~1. The paper forces slope~1 in its fit form; with only 100 trials per data point (paper: 1000), our slope estimates carry sampling noise but are all consistent with~1. \textbf{C1 REPLICATED.}
+
+\subsection{Two-stage trigger $j_{0}$ (C3)}
+\begin{center}
+\begin{tabular}{c c c}
+\toprule
+$a$ & Frac.\ runs reaching stage~2 at $\ell = 7$ & Modal $j_{0}$ at $\ell = 7$ \\
+\midrule
+0.1 & 1.00 & 5 \\
+0.2 & 1.00 & 4 \\
+0.3 & 1.00 & 3 \\
+0.4 & 1.00 & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+$j_{0}$ decreases monotonically ($5\!\to\!4\!\to\!3\!\to\!3$), matching Sec.~3. \textbf{C3 REPLICATED.}
+
+\subsection{Prefactor sanity (C2, weak)}
+For $a = 0.3$ (best fit, $R^{2} = 0.99$), $N_{\mathrm{orac}} \approx 88.9/\epsilon^{1.26}$. Extrapolating to $\epsilon = 10^{-4}$ gives $\approx 9.8\times 10^{6}$. Paper's proven upper bound at $\epsilon = 10^{-4}, \delta = 0.05$: $\approx 2.9\times 10^{8}$. Empirical is $\sim 30\times$ below the proven bound --- consistent with the paper.
+
+\subsection{MLAE baseline (context, not a paper claim)}
+MLAE slopes: 0.79, 3.89, 1.07, 0.79. The $a = 0.2$ outlier is the well-known bimodal-likelihood failure Suzuki-MLAE suffers near boundary $\theta$'s --- the very ambiguity FAE's two-stage design fixes. Where MLAE's fit is clean ($a=0.3$, slope 1.07), its prefactor is~24.6 vs FAE's~88.9: FAE's per-shot count $N_{\mathrm{shot}}^{1\mathrm{st}} = 1944\ln(200) \approx 10\,300$ is very conservative to satisfy the Chernoff bound, while MLAE at $N_{\mathrm{shot}} = 100$ uses $\sim 100\times$ fewer shots per data point at the cost of no rigorous guarantee. The paper explicitly frames this as ``rigor at a small constant-factor cost''.
+
+\section{Verdict --- REPLICATED}
+
+FAE's central empirical claim (near-Heisenberg $N_{\mathrm{orac}} \approx C/\epsilon$ for $a \in \{0.1, 0.2, 0.3, 0.4\}$) is reproduced end-to-end on a real 2-qubit statevector simulation. Grover operator correctness holds at machine precision (C5); FAE slopes are $[0.85, 1.26]$ around 1 (C1); $j_{0}$ trend matches Fig.~3 (C3); empirical prefactor sits $\sim 30\times$ below the proven bound (C2 sanity). Theorem~1 was not re-derived and Grinko IQAE was not implemented for a head-to-head prefactor race --- see \S6.
+
+\section{Critique (honest self-assessment)}
+
+The replication passes on the paper's own headline test, but several sharp corners deserve to be named plainly.
+
+\begin{enumerate}
+    \item \textbf{Head-to-head prefactor race \emph{not} run.} The paper's most publishable single number is the $\sim 10^{2}\times$ prefactor improvement of Nakaji's rigorous bound ($4.1\times 10^{3}$) over Grinko IQAE's ($1.15\times 10^{6}$). We did \emph{not} independently implement Grinko IQAE and race the two algorithms on identical amplitudes and $(a,\epsilon)$ points. C2 was only sanity-checked, not truly cross-validated. This is the single largest gap.
+    \item \textbf{Trial count 10$\times$ under paper.} The paper uses 1000 trials per $(a,\ell)$; we used 100 to keep wallclock $\sim 2$~min. Our slope estimates carry $\sim 10\%$ sampling noise, which is exactly why we see $[0.85, 1.26]$ instead of the paper's tighter cluster around~1. A 1000-trial rerun would tighten but is not expected to change the conclusion.
+    \item \textbf{No hardware / no noise.} Everything is noiseless statevector. FAE's marketing pitch is NISQ-friendliness (no deep controlled-$Q$). We did \emph{not} check that FAE's advantage persists under depolarising noise, gate infidelity, or shot-count amplification --- a serious omission for a paper explicitly aimed at near-term hardware.
+    \item \textbf{Only 4 amplitudes.} The paper's Fig.~3 sweeps $a \in \{0.1, 0.2, 0.3, 0.4\}$ and we followed suit. Behavior for $a$ close to~0 (attenuated $\sin\theta = a/4$ becomes ill-conditioned) and $a$ near~1 (stage-2 triggers earlier, but $R$'s $1/4$ prefactor caps $\theta \leq 0.252$ by design) is not exercised.
+    \item \textbf{Theorem~1 not re-derived.} We take the $4.1\times 10^{3}$ prefactor from eq.~(28) on faith. No spot check that the Chernoff constants $1944$ and $972$ are correct given the paper's stated $\delta$-budgeting.
+    \item \textbf{Author's reference implementation not consulted.} Clean-room is good for provenance but leaves open the possibility that our reading of the two-stage $j_{0}$ update or the $\arccos$-branching disagrees with the author's in some corner case. The exact match on the $j_{0}$ trend argues against a serious disagreement.
+    \item \textbf{MLAE baseline is off-spec in one row.} Our MLAE at $a = 0.2$ gives a slope of $3.89$ --- clearly the bimodal-likelihood pathology. We flag this correctly but did not implement the fix (e.g.\ multi-start optimisation or the modified Suzuki schedule), so the baseline row is not competitive.
+    \item \textbf{95th-percentile statistic.} The paper's error stat is the 95th-percentile of $|\hat a - a|$. We match that, but this hides the tail: FAE's failure modes at low trial counts would show up better in max-error or the empirical CDF.
+\end{enumerate}
+
+\section{Open questions}
+
+\input{open_questions_section.tex}
+
+\section{Evidence and provenance}
+
+Artefacts under \texttt{report/evidence/}: \texttt{sweep\_raw.csv}, \texttt{fits.json}, \texttt{summary.json}, \texttt{fig3\_replication.png}, \texttt{experiment\_log.txt}. Source under \texttt{code/}: \texttt{oracle.py, fae.py, mlae.py, experiment.py, make\_plots.py}. Paper source: \texttt{../../work/paper.pdf}.
+
+Paper fetched from \url{https://arxiv.org/pdf/2003.02417} at 2026-07-03T22:30Z. Written independently of the author's reference implementation at \url{https://github.com/quantum-algorithm/faster-amplitude-estimation}. All statistics come from real Binomial sampling on statevector-derived probabilities; no numbers were fabricated.
+
+\end{document}

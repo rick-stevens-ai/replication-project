@@ -1,0 +1,748 @@
+                                            Quantum Circuit Optimization and Transpilation via
+                                                   Parameterized Circuit Instantiation
+                                                                                                Ed Younis, Costin Iancu
+                                                                                              {edyounis,cciancu}@lbl.gov
+                                                                                         Lawrence Berkeley National Laboratory
+
+
+                                               Abstract—Parameterized circuit instantiation is a common         are met. As each gate in a circuit becomes parameterized, nu-
+                                            technique encountered in the generation of circuits for a large     merical optimizers face scalability problems for large circuits.
+                                            class of hybrid quantum-classical algorithms. Despite being
+
+
+
+
+arXiv:2206.07885v1 [quant-ph] 16 Jun 2022
+                                                                                                                For these, we use a circuit partitioning approach introduced
+                                            supported by popular quantum compilation infrastructures such
+                                            as IBM Qiskit and Google Cirq, instantiation has not been           in [12] combined with iterative deletion.
+                                            extensively considered in the context of circuit compilation and    Gate-set Transpilation: Any available quantum processor
+                                            optimization pipelines. In this work, we describe algorithms        architecture exposes to users a reduced native gate-set: a few
+                                            to apply instantiation during two common compilation steps:         single-qubit rotations and usually a single two-qubit gate.
+                                            circuit optimization and gate-set transpilation. When placed
+                                            in a compilation workflow, our circuit optimization algorithm
+                                                                                                                Programs are often generated or expressed in only one gate-
+                                            produces circuits with an average of 13% fewer gates than other     set, e.g., {Rz , SX, CNOT} for some IBM processors. When
+                                            optimizing compilers. Our gate-set transpilation algorithm can      transpiling a program to a different native gate-set, most
+                                            target any gate-set, even sets with multiple two-qubit gates, and   compilers convert two-qubit gates using fixed gate identities
+                                            produces circuits with an average of 12% fewer two-qubit gates      or KAK [13] decompositions. In some cases, translations from
+                                            than other compilers. Overall, we show how instantiation can be
+                                            incorporated into a compiler workflow to improve circuit quality
+                                                                                                                one gate to another are not readily available. Indeed, when
+                                            and enhance portability, all while maintaining a reasonably low     considering the√set of existing native two-qubit gates {CNOT,
+                                            compile time overhead.                                              CZ, XX, ZZ, iSWAP, SYC}, we note that the most widely
+                                                                                                                used compilers have limited support for transpiling between
+                                                                  I. I NTRODUCTION                              these gates. Our instantiation-based formulation is completely
+                                               Circuit instantiation is an operation performed in many          portable as we directly represent gates by their associated
+                                            hybrid-classical quantum algorithmic workflows such as              unitary matrix.
+                                            VQE [1] or QAOA [2]. In this setting, the algorithm has                The main contributions of this work are as follows:
+                                            associated a circuit ansatz, where gates are represented in
+                                            their parameterized form, e.g. Rx (θ). The execution iterates,        1) A formal definition of instantiation and a brief survey
+                                            and at each step the gate parameters are instantiated (often by          of it in quantum compiler literature.
+                                            a numerical optimizer) using results from previous quantum            2) An optimization algorithm that performs well in existing
+                                            executions. Due to the popularity of hybrid algorithms, circuit          compilation pipelines and introduces non-local optimiza-
+                                            instantiation is directly supported by popular compilation               tions not present in current passes.
+                                            infrastructures such as IBM Qiskit [3], Google Cirq [4] or            3) A quantum circuit retargeting algorithm that works well
+                                            Tket [5].                                                                on any gate-set without user-defined rules. The algorithm
+                                               Instantiation is also becoming an important step in cir-              can be further specialized with user rules, if so desired.
+                                            cuit synthesis tools such as BQSKIT [6](QSearch [7] and                  It even works on gate-sets with multiple two-qubit gates
+                                            QFAST [8]), NACL [9], and Squander [10], [11]. Here,                     and produces circuits shorter than every other algorithm.
+                                            circuits are built bottom-up using parameterized gates and are           The transpiled circuits are informative about the efficacy
+                                            instantiated using numerical optimization at each step.                  of a particular gate-set to represent algorithms.
+                                               In this paper, we demonstrate that instantiation is a powerful     4) A verification procedure for non-exact compilation al-
+                                            primitive that can be easily incorporated into any quantum               gorithms on very large circuits that are not simulatable.
+                                            compilation workflow. In our approach, given an input circuit,         We evaluate our approach on a set of circuits used by
+                                            we replace its gates with parameterized representations and         other researchers to assess the efficacy of compiler optimiza-
+                                            apply instantiation to improve the resulting quality for two        tions [3], [5], [14]. For comparison, we consider the Qiskit,
+                                            essential tasks: circuit optimization and gate-set transpilation.   Cirq, and Tket compilers. When adding our instantiation-based
+                                            Circuit Optimization: Circuit depth is a direct measure of          optimization to already existing optimizing workflows, we
+                                            quantum program performance. Errors compound its impact             observe an additional gate reduction of 5% for two-qubit gates
+                                            in the NISQ era, and as a result, a significant portion of the      and 23% for single-qubit gates. When transpiling to existing
+                                            compilation workflow is dedicated to circuit depth reduction.       hardware gate-sets, we observe an average final two-qubit gate
+                                            Our algorithms reduce circuit depth by iteratively deleting         reduction of 12%. In particular, when we were transpiling a 64-
+                                            gates and reinstantiating the circuit until convergence criteria    qubit time-evolution circuit to Google’s Sycamore gate (SYC),
+we recorded a circuit with 3970 two-qubit gates, which is a
+51% reduction over Cirq’s circuit with 8064 two-qubit gates.
+   When examining the execution time overhead, we observe                                                                    =
+an average slowdown of 14×; however, we demonstrate the
+tunability of our algorithms by speeding up a specific execu-
+tion by 13× while only reducing quality by 0.6%.
+   The following intuition provides an explanation for the
+                                                                     Fig. 1: This is an example of a parameterized quantum circuit on the left.
+quality of our results. During circuit optimization, the available   It is composed of three-parameter universal single-qubit rotations and two-
+compilers use a sequence of rule-based peephole transfor-            qubit CNOT gates. For simulatable circuits, we can represent the circuit by its
+mations, where at each step, the circuit is only transformed         unitary operator shown on the right, which is calculated by tensor contraction
+                                                                     of all of its gates. Furthermore, we can represent parameterized circuits by a
+locally. Similarly, for transpilation, they form two-qubit blocks    parameterized unitary C(α), which can be instantiated to some other unitary
+and either apply rule-based translations or KAK-based de-            V by solving for the parameters α that maximize the overlap of C(α) and
+compositions. In contrast, a circuit undergoes many global           V . This can be accomplished with analytic methods in specific cases and
+                                                                     gradient descent or other numerical methods in the general case. The text
+transformations with our approach.                                   describing a parameterized single-qubit rotation will be left out in the other
+   Overall, we believe that the results indicate that instanti-      figures; a box on a single wire depicts a generic parameterized single-qubit
+ation can be easily and safely incorporated as a step in the         gate.
+compilation workflow. The ability to transpile algorithms well
+between native gate sets enables interesting architectural
+                                                        √ com-       have used this decomposition to optimize long sequences of
+parisons. For example, most circuits transpiled to iSWAP
+                                                                     operations. This is done by first grouping together consecutive
+and Sycamore gates required more gates than in other gate-
+                                                                     gates on a pair of qubits, then calculating the unitary imple-
+sets. On the other hand, due to the low gate latency [15], these
+                                                                     mented by the grouped gates, and finally applying the KAK
+long circuits may still yield faster execution and potentially
+                                                                     decomposition to convert to a potentially shorter sequence of
+less error.
+                                                                     gates.
+   The rest of this paper is structured as follows. In Section II,
+                                                                        For every universal gate-set, the KAK decomposition can
+we introduce parameterized circuit instantiation and provide
+                                                                     yield a parameterized circuit, to which it can instantiate any
+a brief survey of it in compiler literature. Then we describe
+                                                                     two-qubit unitary. Therefore, applying the KAK decomposi-
+our optimization and retargeting algorithms in Section III. We
+                                                                     tion to retarget a circuit’s gate-set is also possible. Once a
+include our experimental setup and verification procedure in
+                                                                     template is discovered in the desired gate-set, it can be utilized
+Section IV and evaluate the algorithms in Section V. Lastly, we
+                                                                     similarly to the optimization procedure to convert grouped
+discuss the results in Section VI and conclude in Section VII.
+                                                                     gates to gates of a different type. However, producing a circuit
+       II. PARAMETERIZED C IRCUIT I NSTANTIATION                     template when designing a new gate-set may be nontrivial.
+                                                                        Recently, bottom-up approaches to quantum synthesis have
+   Instantiation is the process of finding the parameters for a      been successful through numerical instantiation [7], [8], [9],
+circuit’s gates that make it to most closely implement a target      [10], [11], [16]. Rather than fixed mathematical identities,
+unitary. Techniques that perform instantiation are ubiquitously      these techniques employ a numerical optimizer to closely
+deployed in quantum compiler toolchains. The formal problem          approximate a solution to the instantiation problem. This is
+definition is given by:                                              done by minimizing a cost function, often the unitary error or
+Parameterized Circuit Instantiation Problem: Given a pa-             distance between the circuit’s unitary and a target unitary. This
+rameterized quantum circuit C : Rk 7→ U (N ) and a target            is given by the following formula using the same notation as
+unitary V ∈ U (N ), solve for                                        before.
+                     argmax tr(V † C(α))                                                                |tr(V † C(α))|
+                         α                                                            ∆(C(α), V ) = 1 −
+                                                                                                              N
+where k is the number of gate parameters in the circuit, and
+U (N ) is the set of all N × N unitary matrices. This definition        Other variations of this distance function include:
+is very general and considers the parameterized circuit as a                                                  Re(tr(V † C(α)))
+parameterized unitary operator, see Figure 1. The tr(V † C(α))                     ∆f (C(α), V ) = 1 −
+                                                                                                                    N
+component measures the Hilbert-Schmidt inner product, which
+physically represents the overlap between the target unitary            and
+and the circuit’s operator. The maximum value this can have                                              r
+is equal to N the dimension of the matrix, and this occurs                                                        |tr(V † C(α))|2
+                                                                                   ∆p (C(α), V ) =           1−
+when C(α), the unitary of the circuit with gate parameters α,                                                           N2
+is equivalent to V the target unitary up to a global phase.            All three methods have a range of [0, 1], and as they
+   The most common form of instantiation is the KAK [13] de-         approach zero, the circuit’s unitary approaches V. For the rest
+composition, which uses analytic methods to produce the two-         of our paper, we refer to the unitary distance or error as ∆,
+qubit circuit that implements any two-qubit unitary. Compilers       the first formulation.
+   Bottom-up synthesis methods build up the parameterized            B. Optimization Algorithm
+circuit by iteratively placing more gates. At every step, they          We need a methodology to select candidate gates for re-
+instantiate the parameters using numerical optimizers and            moval to use gate deletion in an optimization algorithm. For
+claim a solution when the error is less than some  threshold.       the same reasons mentioned previously, different strategies
+For example, QSearch [7] phrases the synthesis problem as            will lead to different results. Additionally, an algorithm’s
+a search over circuit templates, instantiating candidates as it      runtime is directly related to the number of times instantiation
+searches over them. QFAST [8] expands on this by conflating          is performed.
+the search and numerical optimization using a unique circuit            At one end of the spectrum, we have exhaustive search
+encoding. In the NACL [9] algorithm, machine learning meth-          procedures that scale exponentially with the number of gates
+ods are used alongside instantiation to synthesize noise-aware       in the starting circuit: the method will find the optimal result.
+circuits. SQUANDER [11] takes a more direct approach to              This can be accomplished by first attempting to remove each
+bottom-up synthesis. Here the circuit template is grown and          gate individually and then repeating this step on all circuits
+reinstantiated iteratively until a solution is found, at which       that successfully removed a gate.
+point, the circuit is then compressed into its optimal form.
+                                                                        At the other end of the spectrum, a linear complexity method
+In [16], instantiation is used in a similar bottom-up approach
+                                                                     will consider deleting each gate only once. A gate that failed
+to produce approximate circuits.
+                                                                     to be removed will never be reconsidered. Assuming that we
+   Several compilation algorithms have leveraged the high            have an ideal oracle instantiator, this approach will also find
+quality of results produced during bottom-up synthesis.              the optimal result in many cases. However, in practice we often
+QGo [12] combined circuit partitioning with synthesis to cre-        find that order of deletion matters: after removing a gate, re-
+ate a circuit mapping and optimization procedure. QUEST [17]         evaluating the removal of a previously considered gate can
+uses similar techniques to produce robust and resource-              lead to a successful deletion. Two observations explain this
+efficient approximate circuits. The growth of algorithms using       behavior: 1) the instantiation problem is challenging to existing
+numerical instantiation has been a motivation for BQSKit [6]         numerical optimizers; and 2) the newer problem is different
+developers to build a Python framework around instantiation.         and it has lower dimensionality, leading to fewer local minima.
+                                                                        Our deletion algorithm uses a middle-ground approach
+  III. N UMERICAL I NSTANTIATION - BASED A LGORITHMS                 where we iteratively scan the circuit using a linear strategy:
+                                                                     in each scan we attempt to delete each gate only once. The
+   Numerical instantiation is a powerful tool for restructuring      algorithm stops when no more gates can be deleted subject
+circuits in non-intuitive ways leading to circuit optimizations      to the ∆ accuracy convergence criteria requested by the user.
+likely unattainable by rule-based applications. Many synthesis       Algorithm 1 provides pseudocode for this method.
+algorithms have utilized it for high-quality circuit construction       This algorithm can work on any circuit with any gate-set
+through some variation of the bottom-up loop described in            because it only relies on numerical instantiation and not fixed
+Figure 2a. We have found small changes to this loop can              rules. It can also work on multi-level systems such as qutrits.
+yield a strategy for modifying already existing circuits, see        Furthermore, gate deletion will only ever remove gates, which
+Figure 2b. We demonstrate this strategy by building two              implies it can be run on a routed circuit without the worry of
+algorithms, a circuit optimization algorithm and a gate-set          ruining the routing.
+retargeting algorithm.
+                                                                     Algorithm 1 Iterative Scanning Gate Removal
+A. Gate Deletion                                                      1: C ← input circuit
+   The most straightforward way to use the transformation loop        2: t ← acceptable error threshold
+described in Figure 2b is to remove gates from a circuit. This        3: Ut ← the unitary implemented by C
+gate deletion process can be done by selecting a gate or group        4: N ← the number of gates in C
+of gates to remove and then instantiating the parameters to           5: M ← 0
+the remaining gates to accommodate the loss in accuracy. See          6: while N 6= M do
+Figure 3 for an illustration.                                         7:    for g ∈ C do
+   It is not always guaranteed that the result from deleting a        8:        Remove g from C
+gate will be an acceptable solution to the target unitary. This       9:        C,  ← instantiate(C, Ut )
+is partially because not all circuits can implement all unitaries.   10:        if  > t then
+It may be the case that removing a gate ensures the remaining        11:            Place g back into C
+gates can never implement the original target, and therefore,        12:       end if
+even an ideal instantiation tool will never find an acceptable       13:    end for
+solution. Gate deletion can also be fallible because the circuit     14:    M ←N
+space is extremely high dimensional, and the optimizers can          15:    N ← the number of gates in C
+get stuck in local minima. To combat this, one can use multi-        16: end while
+start optimization [18] strategies during instantiation.
+                             Create Initial Circuit
+                                                                                                                 Initial Circuit
+                                  Template
+
+
+
+
+                                 Instantiation                                                                   Instantiation
+
+
+
+
+         Extend Circuit                                       Is error                      Reduce/Change                                 Is error
+
+           Template                                         acceptable?                     Circuit Template                            acceptable?
+                                      No                                                                              Yes
+
+
+
+
+                                                      Yes                                                                          No
+
+
+
+
+                             Synthesized Circuit                                                               Optimized Circuit
+
+
+
+
+                      (a) Standard Bottom-up Synthesis Flow                                          (b) Circuit Optimization or Transpilation Flow
+Fig. 2: Instantiation is the core subroutine in all bottom-up circuit synthesis algorithms. The standard bottom-up loop (left) is to create an initial circuit
+template guess then continue to instantiate and extend it until an acceptable solution is found. Through a slight modification to this flow, instantiation can
+also be used to transform or optimize a quantum circuit (right). Instead of extending a circuit template like in bottom-up synthesis, we reduce or transform
+a circuit template and continue until it is no longer successful or necessary.
+
+
+
+                             1) Remove a gate
+                                                                                           generic two-qubit gate that is subsequently transpiled using
+                                                                                           either KAK decomposition or some other prescribed rule-
+                                                                                           based transformations. When introducing new two-qubit gates
+                                                                                           it may be non trivial to derive rules for transpiling from one
+                                                                                           source gate to the newly introduced one.
+                                                                                              Once a generic two-qubit gate is formed, our approach is
+   3b) Reject new circuit if                                              2) Instantiate
+                                                                                           based on the results from Bremner et al. [19] which shows that
+    error is unacceptable
+                                                                                           any two-qubit unitary can be represented by a short sequence
+                                                                                           of single qubit gates and arbitrary two-qubit entangling gates:
+                                                                                           the upper bound on two-qubit entangling gates required can be
+                                                                                           easily calculated based on the single qubit gate set. This is the
+                                                                                           first main intuition behind our approach. The second intuition
+                          3a) Accept new circuit if
+                                                                                           is that we can search over the space of these representations
+                            error is acceptable                                            during instantiation.
+                                                                                              Thus, we attempt to replace each generic interaction found
+Fig. 3: Gates can be removed from circuits through the use of instantiation.               at the first step with a series of templates created using gates
+This can be done by first selecting and removing a gate, then instantiating
+the remaining gates’ parameters to make up for the loss. This is not always
+                                                                                           in the new target gate-set. This collection is an enumeration
+successful. If the error on the new circuit is less than some threshold then the           of circuits starting with depth zero and ranging to an upper
+new circuit is accepted, otherwise the circuit is rejected.                                depth bound determined using [19]. Figure 4 illustrate four
+                                                                                           templates with zero to three two-qubit gates in its place. If a
+                                                                                           generic two qubit unitary can be implemented with fewer than
+C. Gate-Set Transpilation                                                                  N (three) gates in the new gate-set, this information can be
+   Another use of the transformation loop described in Fig-                                used to reduce the number of candidate solutions instantiated,
+ure 2b is to substitute gates with different ones. Instead of                              see Figure 4. The results in this paper are obtained with the
+deleting a gate, we can remove and replace a gate or group of                              four shown templates.
+gates with another gate or group of gates.                                                    The retargeting procedure is simple. We take the circuit in
+   We propose a gate-set transpilation algorithm based on                                  its original gate set and start traversing it, e.g. left to right.
+gate substitution using numerical instantiation. This works by                             At each step, we replace a grouped two-qubit interaction from
+iteratively replacing gates from one gate-set with gates from a                            the circuit with all of the possible templates and reinstantiate.
+target set. Since single-qubit gates can always be grouped and                             At each step of the algorithm, we have a collection of circuits
+decomposed into gates from any universal gate-set trivially, we                            equal to the number of template possibilities. Each of these
+focus on two-qubit gates in this algorithm.                                                circuits is composed of a prefix in the new gate set and a
+   First, we group together consecutive two-qubit interactions                             suffix in the original gate set. After instantiation, we select
+(gates) that act on the same two qubits. These interactions                                the shortest circuit with an acceptable error and continue
+will be replaced with gates in the new gate-set, one at                                    the circuit scan. This process is described in pseudocode in
+a time in a left-to-right sweep over the circuit. Note that                                Algorithm 2 and illustrated in Figure 5.
+existing compilers use a similar strategy of forming a new                                    This retargeting algorithm is advantageous to rule-based or
+                    Generic
+
+                    Portable
+
+                  Templates
+
+
+
+                       Gate
+
+                    Specific
+
+                  Templates
+
+
+Fig. 4: When using our retargeting algorithm, each gate from the old gate-set is replaced with templates containing new gate types. In the generic case,
+we use four templates with zero to three two-qubit gates. However, if we don’t need all four templates, as in the case with some gates, we can reduce the
+number of candidate solutions instantiated improving runtime.
+
+
+
+KAK-based retargeting algorithms for a few reasons.                           Algorithm 2 Numerical Retargeting Algorithm
+   First, we consider more than the local two-qubit interaction                1: C ← input circuit
+when replacing gates. Both rule- and KAK-based methods                         2: t ← acceptable error threshold
+consider isolated two-qubit interactions during their translation              3: Ut ← the unitary implemented by C
+process, i.e. they freeze the rest of the circuit not allowing its             4: Gi ← initial gate set
+parameters to change. By providing numerical instantiation                     5: Gt ← target gate set
+with a global view of the circuit, we allow the entire circuit to              6: n ← max number of replaced gates per interaction
+morph as we plug in new gates. This leads to a greater ability                 7: while ∃g ∈ Gi s.t. g ∈ C do
+to accommodate shorter sequences during translation.                           8:    Group g with neighbor gates
+   The second advantage is this algorithm’s ease-of-use. Re-                   9:    Ccandidates = {}
+targeting algorithms that rely on KAK decompositions or                       10:    for j ∈ Gt do
+circuit identities require users to gather and input rules. Often             11:        for i ∈ {0, 1, . . . , n} do
+when working with uncommon gate-sets, these rules can                         12:             h ← block with i gates of type j
+become difficult to produce. Numerical instantiation in this                  13:             Cc ← C with g replaced with h
+optimization algorithm removes the need to identify rules,                    14:             Push Cc on Ccandidates
+enabling it to support any circuit without restriction.                       15:        end for
+   Lastly, this algorithm can easily be adapted to target gate-               16:    end for
+sets with multiple two-qubit gates. To accomplish this, one                   17:    Csuccess = {}
+can generate an additional set of candidate circuits for each                 18:    for Cc ∈ Ccandidates do
+additional two-qubit gate. Then after instantiation, the shortest             19:        Cc ,  ← instantiate(Cc , Ut )
+acceptable circuit would be selected dynamically picking the                  20:        if  <= t then
+gate providing the shortest implementation for each interac-                  21:             Push Cc on Csuccess
+tion.                                                                         22:        end if
+                                                                              23:    end for
+D. Partitioning and Scalability                                               24:    C ← shortest circuit from Csuccess
+   Since methodologies that use numerical instantiation scale                 25: end while
+exponentially with the size of the system being instantiated,
+we employ the circuit partitioning procedure described by Wu
+et al [12] to ensure competitive performance and scalability,                 smaller block sizes will complete quicker. In this work we
+see Figure 6. For large circuits, we partition in smaller blocks              evaluate forming only blocks of three and four qubits.
+which we can optimize (delete gates) or transpile directly,
+transform the blocks and reassemble the original circuit.                                         IV. E XPERIMENTAL S ETUP
+   There is a trade-off present with the size of partitions.
+One advantage of our optimization and translation algorithm                      Both optimization and retargeting algorithms are imple-
+is the ability to change non-local operations when instanti-                  mented using the BQSKit framework [6], and have been
+ating Whenever we partition a circuit and restrict numerical                  recently integrated into the main BQSKit package available at
+instantiation within each block, we reduce the amount of non-                 https://github.com/bqskit/bqskit. We evaluated
+local operations considered. Also, the partition size chosen                  them with Python 3.8.10 on a 64-core AMD Epyc 7702p sys-
+determines the size of unitary matrices, and a larger matrix will             tem with 1TB of main memory. We use the BQSKit provided
+lead to exponentially longer runtimes. With both algorithms,                  instantiater configured to use the Google Ceres numerical opti-
+larger block sizes will likely lead to better quality results but             mizer with four initial starting points per instantiation. We used
+                         1) Replace gate wtih
+                                                                                                        3) Select best circuit with
+                   varying number of new gate
+                                                                                                              acceptable error
+
+
+
+
+                                                                 2) Instantiate Circuits
+
+
+
+
+Fig. 5: Instantiation can be used to convert gates from one type to another. This can be done by replacing the desired gate with a sequence of other gates
+and reinstantiating. Since this is not guaranteed to find a solution, we try a few different gate sequences, each one longer than the last. By default, we create
+4 different sequences with 0, 1, 2, and 3 gates from the new gate-set respectively. After instantiating, we select the successful circuit with the fewest number
+of gates.
+
+
+
+
+                                                                                       Block 1                       Block 2                Block 3
+
+
+
+
+                            (a) Original Circuit                                       (b) Partitioned Circuit with Three-Qubit Blocks
+Fig. 6: The original circuit on the left is partitioned into blocks containing three qubits. This will group together consecutive gates acting on the same
+three-qubits. This allows algorithms making use of numerical instantiation to scale to very large circuits.
+
+
+
+the partitioning algorithm designed as part of QGo [12] and                       arithmetic circuits in the suite since they are commonly used to
+implemented in BQSKit configured to form 3-qubit blocks.                          compare optimizing compilers [12], [20]. Generated arithmetic
+   We compared our optimization algorithm against three state-                    circuits also tend to have ladders of two-qubit gates without
+of-the-art optimizing compilers: Google’s Cirq, IBM’s Qiskit,                     single-qubit operations in between, which is valuable to test
+and CQC’s TKet. We also evaluated a workflow contain-                             against. These circuits are known to be sub-optimal. Addi-
+ing both our algorithm and these optimizing compilers. Our                        tionally, we have a couple of variational quantum algorithms
+retargeting algorithm was compared against the same three                         in our benchmark suite. Two circuits using the Quantum
+tools, however, not all tools were able to target every gate we                   Approximate Optimization Algorithm (QAOA) [2] to solve the
+tested. For each gate-set, we only compared against compilers                     MaxCut problem with the hardware efficient ansatz [21]. Three
+supporting it out-of-the-box. In all experiments we set an                        circuits are simulating a spinful Hubbard model generated with
+distance threshold of ∆ = 10−10 for instantiation.                                the Bravyi-Kitaev mapping [22], [23]. We include a Grover
+                                                                                  circuit generated with Qiskit’s algorithm library [24]. Lastly,
+A. Benchmarks                                                                     we include four time evolution circuits, two for Transverse
+   We used a benchmark suite consisting of real quantum                           Field Ising Models (TFIM) [25] and two for Transverse Field
+algorithms of various different types and ranging in size                         XY (TFXY) models. These circuits were generated by the
+from 5 to 64 qubits. There are multiplication and addition                        constant-depth F3C++ compiler [26] and are believed to be
+        Benchmark        CNOT Gates          Single-qubit Gates
+          adder9             98                      64
+         adder63            1405                    2885
+          mul10              163                     107
+          mul60            11405                   23666
+          qaoa5              42                      27
+         qaoa10              85                      40
+           hub4              180                     155
+           hub8             2196                    1513                       Fig. 8: By partitioning large circuits in simulatable sections, we can
+          hub12             8140                    4932                       calculate an upper-bound on error by summing together the individual section
+                                                                               errors. As the section size increases, the upper-bound becomes more accurate.
+         grover5             48                      80
+          tfim16             240                    1200
+          tfim64            4032                   20160                       optimizing circuits after running them with the aforementioned
+          tfxy16             240                    1200                       tools, which are labeled “+Qiskit”, “+Cirq”, and “+Tket”.
+          tfxy64            4032                   20160                       The execution times and percent of gates reduced are plotted
+Fig. 7: Gate counts for the 14 benchmarks before any optimizations or          in Figure 9. When run stand-alone and compared against
+retargeting. The number of qubits in each circuit is included in the name as   compilers, our algorithm is able to improve on single-qubit
+a suffix.                                                                      gate count for 50% of inputs, and on two-qubit gate count on
+                                                                               8% of the inputs. When run after other tools, the optimizer
+                                                                               produces shorter circuits in all cases, removing on average
+the best known implementations. The benchmarks are listed                      another 5% of the two-qubit gates. When run together with
+in Figure 7 alongside their gate counts.                                       either Qiskit or Tket, there was a reduction in two-qubit gate
+B. Verification                                                                counts discovered in the TFIM circuits that was not possible
+                                                                               with any individual optimizer.
+   We fully verified the results of our algorithms two ways. For
+                                                                                  This behavior is explained by the interaction between orig-
+circuits that were simulatable in size, we directly calculated
+                                                                               inal input circuit depth and partitioning: longer inputs form
+the unitary error. All these circuits had a total error lower
+                                                                               more partitions, with some loss of optimization potential at
+than 10−10 , with a majority having zero error. For circuits
+                                                                               boundaries. Partition size further affects the quality of the
+that were unable to be directly simulated, we first partitioned
+                                                                               optimization: larger partitions provide better opportunity for
+the circuit into large simulatable sections. We then ran the
+                                                                               optimization at the expense of execution time.
+algorithms within these sections, further partitioning to employ
+                                                                                  For example, the 4-qubit Hubbard model was the only
+numerical instantiation as necessary. After the algorithms
+                                                                               circuit directly optimized without partitioning. This led to a
+finished, we then directly computed the error of each section
+                                                                               78% reduction in CNOTs and a 86% reduction in single-qubit
+and calculated the theoretical upper-bound on process distance
+                                                                               gates, but required the longest compile time at 5728.9 seconds.
+by summing them together [17], see Figure 8. Section size
+                                                                               The best result from the other compilers was only a 13%
+matters when using this verification process. As the section
+                                                                               reduction in CNOT counts for the same circuit. This illustrates
+size approaches the size of the circuit, the error upper-bound
+                                                                               the trade-off with partitioning for scalability. By using larger
+approaches the exact error of the circuit. For example with
+                                                                               blocks in partitioning or directly optimizing the circuit, we
+the 60-qubit multiplier circuit, there were 2150 three-qubit
+                                                                               allow instantiation to consider more non-local interactions
+blocks. After running our optimization algorithm, summing
+                                                                               leading to a better optimization at the cost of runtime.
+the error on these small blocks gives an upper-bound of
+9.97 × 10−11 ; whereas, if we first partition the circuit into                 B. Retargeting Algorithm
+8-qubit sections and use these to calculate the upper-bound,                      The retargeting algorithm was evaluated by converting the
+we get 2.61 × 10−11 . If we further increase the section size,                 benchmark circuits to gate-sets that exist in hardware to-
+it is likely the upper-bound will decrease more.                               day: AQT and Rigetti’s CZ gate [27], [28], Honeywell’s ZZ
+   For all circuits, the total distance error ∆ < 10−10 when                   gate
+                                                                               √ [29], IonQ XX gate [30], and Google’s Sycamore and
+partitioning in three-qubit blocks. As simulating large cir-                     iSWAP [31] gate. For each gate-set, we compared directly
+cuits is computationally intensive, we have have performed                     to compilers that support that gate-set. Neither Qiskit, Cirq,
+the coarse grained procedure only for selected candidates to                   nor TKet support ZZ gate decomposition out-of-the-box, so
+confirm the intuition that the error upper bound is indeed loose               we compared to the theoretical rule that translates 1 CNOT to
+and the resulting circuits are accurate.                                       1 ZZ gate. The ratio of final two-qubit gate counts to initial
+                           V. E VALUATION                                      two-qubit gate counts is plotted alongside execution times for
+                                                                               the different benchmarks and compilers in Figure 10.
+A. Optimization Algorithm                                                         The numerical instantiation based retargeting algorithm was
+  The optimization algorithm is directly compared against                      able to translate circuits into new gate-sets using fewer two-
+Qiskit, Cirq, and Tket. Additionally, we include data from                     qubit gates in all but one case. Google’s Cirq was able to
+produce the 12-qubit Hubbard circuit in Sycamore Gates with          D. Tuning the Algorithms
+0.35% fewer gates than this algorithm.                                  Throughout the evaluation, we ran our algorithms config-
+   When converting to CZ gates, all the other compiler pro-          ured for four multi-starts and partitioned them into three-qubit
+duced roughly the same quality of result in roughly the same         blocks. While this is a recommended default and seems to
+time. Our algorithm produced circuits with an average of 8%          produce good results, we can also trade circuit quality for
+fewer CZ gates and up to 32% fewer CZ gates on the four-             execution speed: 1) bound the number of iterations during the
+qubit Hubbard circuit.                                               optimization pass to improve execution speed; 2) configure for
+   Qiskit and Cirq used a one-to-one rule to convert CNOT            faster but “inferior” numerical optimization; and 3) increase
+gates to XX gates, but did not optimize much past that. When         circuit quality with bigger partitions/blocks at the expense of
+compared our algorithm produced gates with 10% fewer XX              execution time.
+gates on average and a maximum of 30% fewer gates for the               The initial implementation of the mul60 circuit contains
+four-qubit Hubbard circuit.                                          11405 CNOT gates and 23666 single qubit gates. With the
+   In most cases we were able to beat the one-to-one rule for        default configuration, we optimized the 60-qubit multiplier
+ZZ gates significantly with an average of improvement of 10%.        circuit to 10798 CNOTs and 15384 single-qubit gates in
+In the case of the four-qubit Hubbard model, we produced a           1650.61 seconds. When dialing the algorithm to improve
+result with 32% fewer ZZ gates in the translated circuit versus      performance at the cost of quality by using only one multi-
+CNOT gates in the√input circuit.                                     start and only sweeping the circuit once during gate deletion
+   Converting to iSWAP and Sycamore gates was only                   we obtain 10865 CNOTs and 15765 single-qubit gates in only
+supported by Cirq, and these do not have a one-to-one rule           119.82 seconds. This is about a 13× speed-up at the cost of
+to convert between  √ CNOTs. Our algorithm produce circuits          0.6% in quality.
+with 11% fewer iSWAP gates and 29% fewer Sycamore                       Similarly, we can configure the block width used during
+gates. In some cases the difference between Cirq and our             partitioning and the number of multi-starts for each instanti-
+rebasing algorithm was quite significant. For example, the 64-       ation when tuning the retargeting algorithm. With the same
+qubit TFXY circuit compiled with our tool produced a circuit         configuration used for other circuits,  we produced a 60-qubit
+                                                                                                    √
+with 3970 sycamore gates, whereas Cirq produced a circuit            multiplier circuit with 12472 iSWAP gates in 2045.45 sec-
+with 8064 sycamore gates.                                            onds. If√we increase the block width to four from three, we get
+   Our algorithms relied on numerical instantiation rather than      11746 iSWAP gates in 6043.13 seconds. This configuration
+analytic methods, and as a result, we experienced a 14×              gives a 5.8% improvement in quality with 3× execution time
+slowdown on average. The maximum slowdown √        for retargeting   increase.
+was compiling the 9-qubit adder to the iSWAP gate which
+took a total of 56.46 seconds. The longest partitioned optimiza-                           VI. D ISCUSSION
+tion execution was 1650.61 seconds for the 60-qubit multiply            The retargeting algorithm proposed improves upon state-of-
+circuit.                                                             the-art techniques in both portability and quality, while the
+                                                                     proposed optimization algorithm is competitive and augments
+C. Comparison of Gate-sets                                           well existing compilation workflows. Overall, the results are
+   The transpiled circuits are informative about the efficacy of     very encouraging for the adoption of numerical instantiation
+different gate-sets across the algorithms. In Figure 11, we plot     algorithms in compilers. We consider instantiation a good
+the final gate count as ratios to the original gate counts for       middle ground between “peephole” compilers and full-blown
+all gate-sets. We also include
+                          √      the benchmarks compiled to a        circuit synthesis: 1) it is more computationally intensive than
+gate-set including both iSWAP and the     √ Sycamore gate.           compilers, but also able to improve circuit quality; 2) it has
+   In every case, circuits including the iSWAP or Sycamore           linear complexity when compared to the exponential complex-
+gates required more gates than with the others. However, not         ity of full synthesis.
+all gates are equal. The Sycamore gate is executed in 12ns on           We have shown how the algorithms can be tuned to execute
+Google’s hardware, where the CZ gate requires 26ns [15]. In          in a time comparable to a traditional optimizing compiler.
+all cases, circuits in the Sycamore gate set required less than      We note that further performance improvements are attainable
+twice the number of CZs gates. This implies that, although           through parallelization and exploiting GPU hardware. For
+the total circuit depth is greater in the Sycamore gate set, the     the large circuits, partitioning results in an embarrassingly
+total execution time and potentially decoherence may be less.        parallel problem easy to solve in distributed memory settings.
+This is especially true in the time evolution circuits, where the    Current state-of-the-art numerical instantiaters rely on CPU-
+same amount gates were required regardless of the type.              based optimization routines. There is a lot of active work
+   We also tried to test whether using more than √      one two-     efficiently simulating quantum circuits on GPUs [32], which
+qubit gate is beneficial, and compiled targeting both iSWAP          could be valuable to getting instantiaters running on GPUs.
+and Sycamore gates. The results are not conclusive, but it is        Moving to GPUs may significantly speed up algorithms while
+probably premature to abandon this line of inquiry. It may           also improving quality by batching more multi-starts.
+be the case that further tuning of our algorithm, or other              The algorithms can also be adapted to process multiple gates
+approaches may improve on circuit quality.                           or interactions in parallel. For example, instead of considering
+                                        CNOT Reduction Percent                                                                                              Single-Qubit Gate Reduction Percent
+0.8                                                                                                     Qiskit
+                                                                                                        Tket             0.8
+                                                                                                        Cirq             0.6
+0.6                                                                                                     Instantiation
+                                                                                                        +Qiskit          0.4
+                                                                                                        +Tket
+0.4                                                                                                     +Cirq            0.2
+                                                                                                                         0.0
+                                                                                                                                                                                                                     Qiskit           +Qiskit
+0.2                                                                                                                      0.2                                                                                         Tket             +Tket
+                                                                                                                         0.4                                                                                         Cirq             +Cirq
+                                                                                                                                                                                                                     Instantiation
+0.0
+      adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4   hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64                          adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4    hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64
+
+                                      Total Gate Reduction Percent                                                                                             Optimization Time in Seconds
+                                                                                                                         104
+0.8                                                                  Qiskit   Cirq            +Qiskit          +Cirq                                                                       Qiskit    Cirq                   +Qiskit    +Cirq
+                                                                     Tket     Instantiation   +Tket                                                                                        Tket      Instantiation          +Tket
+                                                                                                                         103
+0.6
+                                                                                                                         102
+0.4
+                                                                                                                         101
+0.2
+                                                                                                                         100
+0.0                                                                                                                     10 1
+      adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4   hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64                          adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4    hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64
+
+
+
+Fig. 9: The number of gates removed by different optimization algorithms as well as their runtime across a variety of different benchmarks. The number of
+gates removed are broken down into single-qubit and two-qubit gates removed. Additionally, the total number of gates removed are plotted. In some cases,
+more gates were added during optimization than removed, which is because some optimizers will prioritize two-qubit gates over single-qubit gates.
+
+
+
+one two-qubit interaction at a time in the retargeting algorithm,                                                                                              R EFERENCES
+we could attempt to change two or more interactions in every
+instantiation call. This change would reduce the total number                                                             [1] Jarrod R McClean, Jonathan Romero, Ryan Babbush, and Alán Aspuru-
+of instantiation calls but potentially affect the quality.                                                                    Guzik. The theory of variational hybrid quantum-classical algorithms.
+                                                                                                                              New Journal of Physics, 18(2):023023, 2016.
+   One practical question is where to place instantiation in a                                                            [2] Edward Farhi, Jeffrey Goldstone, and Sam Gutmann. A quantum
+complete compilation workflow. Throughout our evaluations,                                                                    approximate optimization algorithm. arXiv preprint arXiv:1411.4028,
+we performed the algorithms on the reference circuits as they                                                                 2014.
+                                                                                                                          [3] Qiskit Developers. Qiskit: An Open-source Framework for Quantum
+came and we never considered mapping or routing the initial                                                                   Computing, January 2019.
+inputs. Since both algorithms respect the logical connectivity                                                            [4] Cirq Developers. Cirq, August 2021. See full list of authors on Github:
+of the input circuit, i.e., they never introduce a new gate                                                                   https://github .com/quantumlib/Cirq/graphs/contributors.
+on a pair of qubits not interacting in the input, they could                                                              [5] Seyon Sivarajah, Silas Dilkes, Alexander Cowtan, Will Simmons, Alec
+                                                                                                                              Edgington, and Ross Duncan. t— ket¿: a retargetable compiler for nisq
+be run post-routing. Furthermore, circuits with SWAP gates                                                                    devices. Quantum Science and Technology, 6(1):014003, 2020.
+introduced during routing may benefit from our retargeting                                                                [6] Ed Younis, Costin C Iancu, Wim Lavrijsen, Marc Davis, Ethan Smith,
+algorithm. Instead of applying the one-to-three SWAP gate                                                                     et al. Berkeley quantum synthesis toolkit (bqskit) v1. Technical report,
+                                                                                                                              Lawrence Berkeley National Lab.(LBNL), Berkeley, CA (United States),
+conversion to CNOTs, which most compilers use, our retar-                                                                     2021.
+geting algorithm can be run to reduce the ratio below three                                                               [7] Marc G Davis, Ethan Smith, Ana Tudor, Koushik Sen, Irfan Siddiqi, and
+potentially. Our optimization algorithm can be run at multiple                                                                Costin Iancu. Towards optimal topology aware quantum circuit synthe-
+                                                                                                                              sis. In 2020 IEEE International Conference on Quantum Computing
+points in a standard compiler workflow. We can delete gates                                                                   and Engineering (QCE), pages 223–234. IEEE, 2020.
+in the reference circuit, delete gates post-routing, and delete                                                           [8] Ed Younis, Koushik Sen, Katherine Yelick, and Costin Iancu. Qfast:
+gates post-retargeting. Each time, new opportunities to remove                                                                Conflating search and numerical optimization for scalable quantum
+                                                                                                                              circuit synthesis. In 2021 IEEE International Conference on Quantum
+gates may appear.                                                                                                             Computing and Engineering (QCE), pages 232–243. IEEE, 2021.
+                                                                                                                          [9] Lukasz Cincio, Kenneth Rudinger, Mohan Sarovar, and Patrick J Coles.
+                                VII. C ONCLUSIONS                                                                             Machine learning of noise-resilient quantum circuits. PRX Quantum,
+                                                                                                                              2(1):010324, 2021.
+   In this work, we introduced and surveyed parameterized                                                                [10] Péter Rakyta and Zoltán Zimborás. Approaching the theoretical limit in
+circuit instantiation and presented two numerical instantiation-                                                              quantum gate decomposition, 2021.
+based compiler algorithms for circuit optimization and gate-set                                                          [11] Péter Rakyta and Zoltán Zimborás. Efficient quantum gate decomposi-
+                                                                                                                              tion via adaptive circuit compression, 2022.
+transpilation. We demonstrated the tunability of our algorithms                                                          [12] Xin-Chuan Wu, Marc Grau Davis, Frederic T. Chong, and Costin Iancu.
+and verified our procedures using an error bound on very large                                                                Reoptimization of quantum circuits via hierarchical synthesis. In 2021
+circuits. Overall, these algorithms performed well and are a                                                                  International Conference on Rebooting Computing (ICRC), pages 35–
+                                                                                                                              46, 2021.
+valuable addition to existing and new quantum compiler tools.                                                            [13] Robert R Tucci. An introduction to cartan’s kak decomposition for qc
+                                                                                                                              programmers. arXiv preprint quant-ph/0507171, 2005.
+                              ACKNOWLEDGMENTS                                                                            [14] Teague Tomesh, Pranav Gokhale, Victory Omole, Gokul Subramanian
+                                                                                                                              Ravi, Kaitlin N Smith, Joshua Viszlai, Xin-Chuan Wu, Nikos Hardav-
+  This work was supported by the DOE under contract DE-                                                                       ellas, Margaret R Martonosi, and Frederic T Chong. Supermarq: A
+5AC02-05CH11231, through the Office of Advanced Scientific                                                                    scalable quantum benchmark suite. arXiv preprint arXiv:2202.11045,
+                                                                                                                              2022.
+Computing Research (ASCR) Quantum Algorithms Team and                                                                    [15] Google devices. https://quantumai.google/cirq/google/devices. Ac-
+Accelerated Research in Quantum Computing programs.                                                                           cessed: 2022-04-29.
+                                          Average CZs per CNOT                                                                                   CZ Retargeting Time in Seconds
+1.00                                                                                                      103
+
+0.75                                                                                                      102
+
+0.50                                                                                                      101
+
+0.25    Qiskit                                                                                            100
+        Tket
+        Cirq
+        Instantiation
+                                                                                                         10 1
+       adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4   hub8 hub12 grover5 tfim16 tfim64 tfxy16 tfxy64              adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4   hub8 hub12 grover5 tfim16 tfim64 tfxy16 tfxy64
+
+                                          Average XXs per CNOT                                                                                   XX Retargeting Time in Seconds
+1.00                                                                                                      103
+
+0.75                                                                                                      102
+
+0.50                                                                                                      101
+
+0.25    Qiskit                                                                                            100
+        Cirq
+        Instantiation
+                                                                                                         10 1
+       adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4   hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64           adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4    hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64
+
+                                        Average ZZ Gates per CNOT                                                                               ZZ Retargeting Time in Seconds
+1.00
+
+0.75
+                                                                                                         102
+0.50
+
+0.25
+        Rule
+        Instantiation                                                                                    101
+       adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4   hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64          adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4     hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64
+
+
+                                        Average iSWAPs per CNOT                                                                                iSWAP Retargeting Time in Seconds
+2.00
+1.75                                                                                                     103
+1.50
+1.25                                                                                                     102
+1.00
+0.75                                                                                                     101
+0.50
+        Cirq                                                                                             100
+0.25
+        Instantiation
+       adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4   hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64          adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4     hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64
+
+                                     Average Sycamore Gates per CNOT                                                                         Sycamore Retargeting Time in Seconds
+2.00
+1.75                                                                                                     103
+1.50
+1.25                                                                                                     102
+1.00
+0.75                                                                                                     101
+0.50
+0.25    Cirq                                                                                             100
+        Instantiation
+       adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4   hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64          adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4     hub8   hub12 grover5 tfim16 tfim64 tfxy16 tfxy64
+
+
+
+Fig. 10: Retargeting algorithm efficiencies and runtime across a variety different benchmarks. On the left, the ratio of final two-qubit gates to initial two-qubit
+gates is plotted for 5 different gate sets found in existing hardware. On the right, execution times for the different retargeting algorithms are plotted.
+
+
+
+
+                                                                                       All Gate Types per CNOT
+2.00
+                                                                                                                                                                                          CZ
+1.75                                                                                                                                                                                      XX
+                                                                                                                                                                                          ZZ
+1.50                                                                                                                                                                                      SQiSW
+1.25                                                                                                                                                                                      Sycamore
+                                                                                                                                                                                          SQiSW+Sycamore
+1.00
+0.75
+0.50
+0.25
+                        adder9 adder63 mul10 mul60 qaoa5 qaoa10 hub4                                            hub8 hub12 grover5 tfim16 tfim64 tfxy16 tfxy64
+          Fig. 11: A comparison between all the gate-sets for each circuit produced with our instantiation-based algorithm.
+[16] Liam Madden and Andrea Simonetto. Best approximate quantum
+     compiling problems. ACM Transactions on Quantum Computing, 3(2),
+     mar 2022.
+[17] Tirthak Patel, Ed Younis, Costin Iancu, Wibe de Jong, and Devesh
+     Tiwari. Quest: systematically approximating quantum circuits for higher
+     output fidelity. In Proceedings of the 27th ACM International Conference
+     on Architectural Support for Programming Languages and Operating
+     Systems, pages 514–528, 2022.
+[18] Jeffrey Larson and Stefan M. Wild. Asynchronously parallel optimiza-
+     tion solver for finding multiple minima. Mathematical Programming
+     Computation, 10(3), 2 2018.
+[19] Michael J. Bremner, Christopher M. Dawson, Jennifer L. Dodd, Alexei
+     Gilchrist, Aram W. Harrow, Duncan Mortimer, Michael A. Nielsen, and
+     Tobias J. Osborne. Practical scheme for quantum computation with any
+     two-qubit entangling gate. Physical Review Letters, 89(24), nov 2002.
+[20] Steven A Cuccaro, Thomas G Draper, Samuel A Kutin, and David Petrie
+     Moulton. A new quantum ripple-carry addition circuit. arXiv preprint
+     quant-ph/0410184, 2004.
+[21] Abhinav Kandala, Antonio Mezzacapo, Kristan Temme, Maika Takita,
+     Markus Brink, Jerry M Chow, and Jay M Gambetta. Hardware-efficient
+     variational quantum eigensolver for small molecules and quantum mag-
+     nets. Nature, 549(7671):242–246, 2017.
+[22] Sergey B Bravyi and Alexei Yu Kitaev. Fermionic quantum computation.
+     Annals of Physics, 298(1):210–226, 2002.
+[23] John Hubbard. Electron correlations in narrow energy bands. Pro-
+     ceedings of the Royal Society of London. Series A. Mathematical and
+     Physical Sciences, 276(1365):238–257, 1963.
+[24] Lov K Grover. A fast quantum mechanical algorithm for database search.
+     In Proceedings of the twenty-eighth annual ACM symposium on Theory
+     of computing, pages 212–219, 1996.
+[25] Dongbin Shin, Hannes Hübener, Umberto De Giovannini, Hosub Jin,
+     Angel Rubio, and Noejung Park. Phonon-driven spin-floquet magneto-
+     valleytronics in mos 2. Nature Communications, 9(1):638, 2018.
+[26] Lindsay Bassman, Roel Van Beeumen, Ed Younis, Ethan Smith, Costin
+     Iancu, and Wibe A de Jong. Constant-depth circuits for dynamic
+     simulations of materials on quantum computers. Materials Theory,
+     6(1):1–18, 2022.
+[27] Bradley K Mitchell, Ravi K Naik, Alexis Morvan, Akel Hashim,
+     John Mark Kreikebaum, Brian Marinelli, Wim Lavrijsen, Kasra
+     Nowrouzi, David I Santiago, and Irfan Siddiqi. Hardware-efficient
+     microwave-activated tunable coupling between superconducting qubits.
+     Physical review letters, 127(20):200502, 2021.
+[28] Gates and instructions. https://pyquil-docs.rigetti.com/en/v2.7.0/apidocs/
+     gates.html. Accessed: 2022-04-29.
+[29] Juan M Pino, Jennifer M Dreiling, Caroline Figgatt, John P Gaebler,
+     Steven A Moses, CH Baldwin, M Foss-Feig, D Hayes, K Mayer,
+     C Ryan-Anderson, et al. Demonstration of the qccd trapped-ion quantum
+     computer architecture.
+[30] Klaus Mølmer and Anders Sørensen. Multiparticle entanglement of hot
+     trapped ions. Phys. Rev. Lett., 82:1835–1838, Mar 1999.
+[31] Frank Arute, Kunal Arya, Ryan Babbush, Dave Bacon, Joseph C Bardin,
+     Rami Barends, Rupak Biswas, Sergio Boixo, Fernando GSL Brandao,
+     David A Buell, et al. Quantum supremacy using a programmable
+     superconducting processor. Nature, 574(7779):505–510, 2019.
+[32] Sam Stanwyck, Harun Bayraktar, and Tim Costa. cuquantum: Accel-
+     erating quantum circuit simulation on gpus. Bulletin of the American
+     Physical Society, 2022.
+

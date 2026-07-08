@@ -1,0 +1,1127 @@
+                                                        Godunov Loss Functions for Modelling of Hyperbolic Conservation Laws
+
+                                                                                                     Rami Cassiaa , Rich Kerswella
+
+                                                         a Department of Applied Mathematics and Theoretical Physics, University of Cambridge, Wilberforce Rd, Cambridge, CB3 0WA, UK
+
+
+
+
+arXiv:2405.11674v3 [physics.flu-dyn] 27 May 2025
+                                                   Abstract
+
+                                                   Machine learning techniques are being used as an alternative to traditional numerical discretization methods for solving
+                                                   hyperbolic partial differential equations (PDEs) relevant to fluid flow. Whilst numerical methods are higher fidelity,
+                                                   they are computationally expensive. Machine learning methods on the other hand are lower fidelity but can provide
+                                                   significant speed-ups. The emergence of physics-informed neural networks (PINNs) in fluid dynamics has allowed
+                                                   scientists to directly use PDEs for evaluating loss functions. The downfall of this approach is that the differential form
+                                                   of systems is invalid at regions of shock inherent in hyperbolic PDEs such as the compressible Euler equations. To
+                                                   circumvent this problem we propose the Godunov loss function: a loss based on the finite volume method (FVM)
+                                                   that crucially incorporates the flux of Godunov-type methods. These Godunov-type methods are also known as
+                                                   approximate Riemann solvers and evaluate intercell fluxes in an entropy-satisfying and non-oscillatory manner, yielding
+                                                   more physically accurate shocks. Our approach leads to superior performance compared to standard PINNs that use
+                                                   regularized PDE-based losses as well as FVM-based losses, as tested on the 2D Riemann problem in the context of
+                                                   time-stepping and super-resolution reconstruction.
+                                                   Keywords: Machine Learning, Fluid Dynamics, Shocks, Riemann Problems
+
+
+
+                                                   Highlights
+
+                                                       • Introduction of Godunov loss functions which inherently incorporate solution of Riemann problems for ML
+                                                         modelling of compressible flow discontinuities.
+                                                       • Godunov loss yields superior performance to baseline losses in forward and inverse 2D Riemann problems, in
+                                                         terms of accuracy and stability.
+                                                       • Novel implementation of positivity preservation as a hard constraint in ML algorithms.
+
+
+                                                   1. Introduction
+
+                                                   Machine learning (ML) has become an increasingly popular tool in computational fluid dynamics (CFD). Applications
+                                                   broadly fall into the areas of CFD acceleration [1, 2, 3], reduced-order modelling [4, 5, 6], turbulence modelling
+                                                   [7, 8, 9], active flow control [10, 11, 12] and flow reconstruction [13, 14, 15]. In this work we are interested in using
+                                                   ML to model compressible flows governed by hyperbolic partial differential equations (PDEs) which are of relevance in
+                                                   aerodynamics and astrophysics. ML models in this context must ensure predictions are entropy-satisfying and prevent
+                                                   artificial oscillations forming in the flow.
+                                                   Raissi et al. [16] propose a method of integrating physics into ML frameworks by including physics-based PDE
+                                                   losses rather than using standard ML losses. They demonstrate the feasibility of these physics-informed neural
+                                                   networks (PINNs) on Navier-Stokes, Korteweg-De Vries, and Burgers’ equations. The use of PINNs for modelling
+                                                   of physical phenomena has gained popularity in recent times, particularly in fluid dynamics. This is in part due to
+                                                   the added interpretability that physical losses bring to ML. Numerous architectural modifications to standard fully-
+                                                   connected PINNs (FC-PINNs) have been proposed, such as Fourier neural operator learning [2] and MeshGraphNets
+                                                   Preprint submitted to Computer Methods in Applied Mechanics and Engineering                                                May 29, 2025
+[17]. Additionally, Ren et al. [18] use a convolutional long short-term memory network (Conv-LSTM) with hard
+imposition of initial/boundary conditions (I/BCs) to model the viscous 2D Burgers’ equations. Their work demonstrates
+improvement over FC-PINNs due to the ability of convolutional LSTMs in capturing spatiotemporal flow features.
+The hard imposition of I/BCs via padding negates the use of penalty terms which reduces hyperparameter tuning.
+Autoregressive and residual connections of the architecture also simulate time marching. The limitation of using
+PDE-based PINN losses for hyperbolic systems is their invalidity in potential shock regions. Mao et al. [19] alleviate
+this limitation by clustering training points in regions where shocks develop. This however requires prior knowledge
+of shock location. Liu et al. [20] introduce an additional loss term that is a function of flow gradient, such that
+highly-compressed regions have a smaller weighting during loss evaluation. The methodology is used to simulate
+the 2D Riemann problem as governed by the compressible Euler equations. Their method improves performance of
+PDE-based losses and yields accuracy comparable with high-order numerical methods.
+Further feasible ideas for ML modelling of conservative hyperbolic systems can be drawn from traditional numerical
+techniques. As such we briefly review these techniques1 . The first major advancement in finite volume methods (FVMs)
+for compressible flows and hyperbolic systems can be traced back to the work of Godunov in 1959 [21]. The so-called
+Godunov scheme assumes the flow-field is piecewise constant and relies on the exact solution of the local Riemann
+problem at each cell interface to estimate the intercell fluxes [22]. Godunov’s scheme preserves monotonicity and is
+entropy-satisfying [23]. However, Godunov’s theorem states that monotonicity-preserving constant-coefficient schemes
+can be at most 1st-order accurate [21]. Since the Riemann problem has to be exactly solved at every interface and at
+every time step, the Godunov scheme is computationally expensive when applied to non-linear systems of conservation
+laws [23]. Nevertheless the work of Godunov inspired the development of numerous extensions to his scheme. These
+extensions focus on reducing computational burden by approximating the Riemann problem or the flux computation.
+Such schemes are known as approximate Riemann solvers. One such scheme developed by Roe [24] linearizes the
+quasi-linear form of hyperbolic conservative equations by replacing Jacobians with interval-wise constant matrices
+such that hyperbolicity, consistency, and conservation are still satisfied. The approximate Riemann problem is linear
+meaning solutions only admit discontinuities and not expansion fans. Roe’s method is therefore not entropy-satisfying
+although entropy fixes have been proposed [25]. Osher’s method is similar to Roe’s method but approximates the
+Riemann problem using simple waves, rather than discontinuities [26, 27], and is entropy-satisfying [23]. The methods
+of Roe and Osher assume n intermediate states for n conservation laws when approximating the Riemann problem.
+Harten et al. [28] propose a simplification by assuming a Riemann solution of three states separated by two waves,
+which correspond to the fastest and slowest signal speeds emerging from the discontinuity at a cell interface. They
+name their algorithm the Harten, Lax, Van Leer solver (HLL). Toro et al. [29] modify the HLL solver by assuming an
+additional middle wave that accounts for contact and shear waves, known as the HLLC solver. Both HLL and HLLC
+are entropy-satisfying [23].
+Godunov’s theorem led to much research on developing higher-order non-linear schemes applicable to hyperbolic
+systems. Harten [30] postulates that monotonicity-preserving higher-order schemes are achievable provided the
+discrete total variation (TV) of the solution does not increase over time. He coins schemes that satisfy this non-
+increase in TV as total variation diminishing (TVD). The monotonic upstream-centered scheme for conservation laws
+(MUSCL) reconstructs piece-wise constant data into piecewise linear data to achieve 2nd-order accuracy [31, 32]. The
+reconstruction includes slope-limiting techniques to ensure the scheme is TVD. Similarly the piecewise parabolic
+method (PPM) is of 3rd-order accuracy [33, 34]. Essentially non-oscillatory schemes (ENO) involve a recursive
+piecewise polynomial reconstruction to the desired order of accuracy by iteratively including substencils for interpolation
+[35, 36, 37, 38, 39]. The choice between candidate substencils is based on which provides the smoothest interpolation
+as indicated by smoothness indicators. ENO is not strictly TVD although oscillations tend to disappear if the solution is
+adequately resolved [23]. WENO is a TVD-extension of ENO that uses a weighted convex combination of all possible
+candidate substencils for reconstruction [40]. Both ENO and WENO can achieve up to 5th-order accuracy. For a more
+detailed discussion of FVMs for hyperbolic systems we refer the reader to [41, 22].
+ML research that draws from traditional numerical techniques is as follows. Patel et al. [42] use a control volume
+PINN (cvPINN) which evaluates the physics-informed loss in integral form rather than PDE form. They use artificial
+
+
+  1 If the reader is already familiar with finite volume methods and specifically Godunov methods, they may skip the next two paragraphs.
+
+
+                                                                      2
+viscosity and an entropy inequality penalization term to yield entropy-satisfying solutions. A TV penalization term is
+also used to prevent artificial oscillations developing in the solution, in a manner similar to [43]. Their method proves
+to be superior to standard PDE-based PINNs when modelling 1D Euler and Bucky-Leverett equations. The use of
+three additional terms however leads to additional hyperparameter tuning. It is also unclear how the intercell flux is
+calculated in evaluating the control volume loss. Hansen et al. [44] take a probabilistic approach of combining the
+integral form of conservation laws with a Bayesian update to learn solutions of the generalized porous medium equation.
+Bezgin et al. [45] use a neural network to optimize the artificial viscosity parameter in the Lax-Friedrichs flux to yield
+a stable and less diffusive solution for the 2D Riemann problem. Xiong et al. [46] use convolutional neural networks
+(CNNs) to predict the linearization matrices of the Roe solver from the flow solution to perform time-stepping. Their
+method improves over a traditional Roe solver when applied on the shock-tube problem. Kossaczká et al. [47, 48] use
+neural networks to optimize the smoothness indicators of WENO schemes. They also add a regularization term to a
+MSE loss to penalize any overflows of the solution, thereby preventing artificial oscillations. Their method improves
+over other WENO variants when tested on numerous hyperbolic problems. Other similar works using ML to predict
+WENO weights and smoothness indicators are [49, 50, 51]. Wang and Hickey [52] make use of Rankine-Hugoniot
+(R-H) jump conditions to derive a regularizing term. The R-H conditions describe how physical quantities change
+across a shock wave as derived from conservation laws, eliminating entropy violations. They apply the methodology to
+simulate the 2D Riemann problem and yield higher accuracy in comparison to a numerical Roe solver. Peyvan et al.
+[53] use neural operator learning to solve the 1D Riemann problem. Their method consists of networks for encoding
+spatial information and input (left) pressure to predict state variables at the final time.
+In this paper, we present the first use of Godunov losses for modelling of 2D hyperbolic systems. We define Godunov
+losses as FVM-based loss functions that fundamentally incorporate the approximate solution of the Riemann problem
+to estimate the intercell fluxes required in the control volume loss. In using such loss functions we hope to a) improve
+accuracy compared to regularized PDE-based PINN losses as well as non-Godunov FVM-based PINN losses and
+b) encourage entropy-satisfying non-oscillatory solutions with minimal regularization terms (that otherwise require
+tuning). Our approach is fully unsupervised. We examine performance of this Godunov loss function on forward and
+inverse problems pertaining to the 2D Riemann problem. The 2D Riemann problem gives rise to varying complex flow
+patterns for different initial conditions (or configurations) and thus serves as a common canonical problem for testing
+compressible flow solvers. For the forward problem we time-step six different configurations of the Riemann problem
+using Conv-LSTM models. For the inverse problem we focus on one configuration and perform super-resolution
+reconstruction at three different input resolutions. The super-resolution is performed via a very deep super-resolution
+(VDSR) model [54]. Results indicate superiority of the Godunov loss compared to baseline physical losses (PDE-based
+and non-Godunov FVM-based) in terms of accuracy and convergence.
+The paper is structured as follows: in Section 2 we outline the equations, the ML architectures, and the formulation of
+the Godunov loss. In Section 3 we describe the experimental setups and discuss results. Finally we make concluding
+remarks in Section 4.
+
+
+2. Methodology
+
+2.1. Equations
+We are interested in conservative hyperbolic PDEs of the general form:
+
+                                       ∂t Q + ∂ x F (Q) + ∂y G (Q) + ∂z H (Q) = 0,                                    (1)
+
+with associated boundary conditions (BCs), where Q is the vector of conserved quantities and F, G and H are the flux
+vectors in the x, y and z directions. Re-writing equation (1) in quasilinear form:
+
+                                      ∂t Q + ∂Q F∂Q x + ∂Q G∂Qy + ∂Q H∂Qz = 0,                                        (2)
+
+allows us to define a hyperbolic system.
+                                                            3
+Definition [22]: A system is said to be hyperbolic if the eigenvalues of Jacobians ∂Q F, ∂Q G, and ∂Q H are all real with
+a corresponding set of linearly independent eigenvectors. The system is said to be strictly hyperbolic if the eigenvalues
+are distinct.
+In this paper we focus on the 2D Euler equations:
+
+                                              ρ         ρu                     ρv 
+                                                                                                     
+                                               ρu         ρu2 + p 
+                                                                              + ∂y  ρuv  = 0,
+                                                                                                         
+                                       ∂t   + ∂ x                                                               (3)
+                                                 ρv         ρuv                 ρv + p 
+                                                                                                 2
+
+                                                    E               u + p)
+                                                                     (E                        v (E + p)
+
+with associated Neumann BCs ∂n Q = 0. To close the system energy E is expressed in terms of velocities, pressure,
+density and ratio of specific heats γ:
+
+                                                            1  2          p
+                                                    E :=      ρ u + v2 +         .                                          (4)
+                                                            2            (γ − 1)
+
+2.2. Architectures
+
+For the forward time-stepping problem, we implement a Conv-LSTM architecture with a global residual connection to
+mimic the forward Eulerian scheme:
+
+                                      Xn+1 = Xn + ∆Xn = Xn + ∆t · F T S (Xn ; ΘT S ) ,                                      (5)
+
+where X is the feature, F T S is the time-stepper network parameterized by weights ΘT S , ∆t is the step size, and n is the
+temporal index. The residual connection in equation (5) automatically imposes the initial condition of the PDEs of
+concern. The network F T S comprises an encoder-LSTM-decoder combination (F Enc , F LS T M , F Dec ):
+
+
+                                             X̄n = F Enc (Xn ; ΘEnc )                                                       (6)
+                                                                                      
+                                             hn = F LS T M X̄n , hn−1 , Cn−1 ; ΘLS T M                                      (7)
+                                             ∆X = ∆t · F Dec (h ; ΘDec )
+                                                    n                       n
+                                                                                                                            (8)
+
+where X̄ is the encoding of X, h is the hidden state and C is the cell state. The LSTM module F LS T M comprises an
+input gate i, forget gate f, and output gate o, parameterized by weights {Wi , W f , Wc , Wo } and biases {bi , b f , bc , bo }.
+Equations (9) - (14) outline the LSTM operations [55]:
+
+                                                                            
+                                              in = σ Wi ∗ [X̄n , hn−1 ] + bi                                                (9)
+                                                                               
+                                              f n = σ W f ∗ [X̄n , hn−1 ] + b f                                            (10)
+                                                                                  
+                                              C̃n−1 = tanh Wc ∗ [X̄n , hn−1 ] + bc                                         (11)
+                                              Cn = f n ⊙ Cn−1 + in ⊙ C̃n−1                                                 (12)
+                                                                            
+                                              on = σ Wo ∗ [X̄n , hn−1 ] + bo                                               (13)
+                                              h = o ⊙ tanh (C )
+                                                n       n                n
+                                                                                                                           (14)
+
+where σ is the sigmoid function, ∗ is the convolutional operation, and ⊙ is the Hadamard product. Figure 1 illustrates
+the time-stepping framework.
+
+                                                                        4
+Figure 1: The Conv-LSTM architecture, which takes as input the initial condition X0 and iteratively updates it T − 1 times, storing each update in a
+list such that the final output is a sequence of snapshots X0:T . The hidden and cell states when n = 0, i.e., hi and Ci , are initialized randomly. All
+linear operations in the encoder, LSTM module and decoder are convolutional.
+
+
+For the inverse super-resolution problem, we first pass the low resolution input XLR into a series of convolutional and
+bilinear upsampling layers F US to get to the desired resolution, and then pass this output to a VDSR-based module
+F V DS R :
+
+                                                  XHR = F V DS R (F US (XLR ; ΘUS ) ; ΘV DS R ) .                                                 (15)
+
+The purpose of VDSR is to sharpen an image (without increasing resolution) by making use of a very deep convolutional
+network that is stabilized by a residual connection from its input. See [54] for additional details about VDSR. Figure 2
+illustrates the reconstruction process.
+A plausible choice for feature X is the set of primitives (ρ, u, v, E)T . However we choose to work with:
+
+                                                                                 !T
+                                                                       1 2
+                                                       X = ρ, u, v, E − ρ(u + v ) ,
+                                                                               2
+                                                                                                                                                  (16)
+                                                                       2
+
+and apply the following transformation on the final output from the network:
+
+                                                1         !T                   1          !T
+                                    ρ, u, v, E − ρ u2 + v2     −→ |ρ| , u, v, E − ρ u2 + v2      ,                                                (17)
+                                                2                                2
+
+such that we ensure positivity conservation for the set of all states as a hard constraint [56]:
+                                             (                                           )
+                                                                           1        
+                                                 (ρ, u, v, E)T , ρ > 0, E − ρ u2 + v2 > 0 .                                                       (18)
+                                                                           2
+
+
+                                                                           5
+Figure 2: The super-resolution architecture. Input XLR first passes through a series of convolutional and upscaling layers to get to the desired
+resolution. Upscaling is done via bilinear interpolation, with a scale factor of 2. The output from these layers is then passed to the VDSR network
+which is essentially a very deep convolutional neural network (number of hidden layers L ∼ 20 typically) with a residual connection. The residual
+connection allows for residual learning, which predicts the difference between the input and the desired output, enabling focus on fine details of the
+flow/image.
+
+
+Additionally, constant Neumann BCs are embedded into these convolutional architectures by padding with values
+interpolated from the interior domain. The simplest case, where the BC is ∂n Q = 0, is incorporated using replicative
+padding on the features, as shown in Figure 3.
+
+2.3. Godunov Loss
+A PINN typically evaluates its loss by directly evaluating derivatives in the relevant PDEs. However the differential
+form of the governing equations is invalid in regions of shocks that may manifest in hyperbolic systems. An integral
+form on the other hand is applicable across shocks. The approach presented here for evaluating the loss function is
+finite volume-based and inherently aims to achieve three desirable properties. Firstly, the approach aims to satisfy the
+weak form of the conservation law. In 1D, over domain [t1 , t2 ] × [x1 , x2 ], the weak conservation law is:
+                             Z x2                                     Z t2
+                                     [Q (x, t2 ) − Q (x, t1 )] dx +          [F (Q (x2 , t)) − F (Q (x1 , t))] dt = 0.                          (19)
+                                x1                                     t1
+
+                                                                            6
+                 Figure 3: Illustration of replicative padding as opposed to the default (zero) padding used in ML libraries.
+
+
+Secondly, the approach aims to satisfy the weak form of the entropy condition to encourage physically correct shocks.
+In 1D, over the same domain, the condition is:
+                    Z x2                                                 Z t2 h                                 i
+                            [Φ (Q (x, t2 )) − Φ (Q (x, t1 ))] dx +             F̃ (Q (x2 , t)) − F̃ (Q (x1 , t)) dt ≤ 0,        (20)
+                       x1                                                    t1
+
+
+where convex entropy function Φ (Q) satisfies ∂Q Φ∂Q F = ∂Q F̃, where F̃ is the entropy flux. Thirdly, the approach
+aims to preserve solution monotonicity (i.e., prevent artificial oscillations): see Section 1 in Harten et al. [28] for a
+detailed discussion of these three properties. A class of FVMs possessing these properties are known as Godunov
+methods. In the following subsections we outline the Godunov method then derive our so-called Godunov loss from
+it. Godunov’s method is outlined in 1D for brevity but is then extended to 2D when formulating the loss, as we are
+ultimately interested in modelling the 2D Euler equations.
+
+2.3.1. Godunov Methods
+Godunov methods are based on solving local Riemann problems at each FVM cell interface. Assuming piecewise-
+constant Q (xi , tn ) = Qni , the local Riemann problem at cell interface i + 1/2, at the nth time:
+                                                                  
+                                                                  Ql ≡ Qni
+                                                                                       x̄ < 0,
+                                                Q ( x̄, t¯ = 0) = 
+                                                                  
+                                                                                                                                (21)
+                                                                  Qr ≡ Qn
+                                                                  
+                                                                          i+1           x̄ > 0,
+
+depends only on states Ql and Qr , and ratio of local coordinates x̄/t¯, where x̄ = x − xi+ 12 and t¯ = t − tn . Since signals
+travel with finite velocity bounded by a minimum al and a maximum ar , then [28]:
+                                                                   
+                                                                   Ql ≡ Qni
+                                                                                        x̄/t¯ ≤ al ,
+                                            Q ( x̄/t¯; Ql , Qr ) = 
+                                                                   
+                                                                                                                                (22)
+                                                                   Qr ≡ Qn
+                                                                   
+                                                                           i+1           x̄/t¯ ≥ ar .
+
+By assuming λ|amax | < 1/2, where amax is the largest signal speed in the domain and λ = ∆t/∆x, then
+                                                                                                  h by equation
+                                                                                                           i        (22)
+there is no interaction between neighbouring Riemann problems and the solution Q̂ in the interval tn , tn+1 × [xi , xi+1 ]
+can be expressed exactly in terms of the solution to the local Riemann problem [22]:
+                                                                                    
+                                                     Q̂ (x, t) = Q x̄/t¯; Qni , Qni+1 .                                         (23)
+
+A piecewise-constant approximation at the next time tn+1 is then given by:
+                                                                Z x 1
+                                                           1        i+ 2
+                                                Qn+1 =                       Q̂ (x, tn + ∆t) dx,                                (24)
+                                                 i
+                                                           ∆x    xi− 1
+                                                                    2
+
+
+
+                                                                         7
+or in terms of local Riemann problems as:
+
+                                           Z ∆x                                                   Z 0
+                                      1         2                                      1                                         
+                        Qn+1 =                      Q       x/∆t; Qni−1 , Qni       dx +                         Q x/∆t; Qni , Qni+1 dx.    (25)
+                         i
+                                      ∆x    0                                            ∆x               − ∆x
+                                                                                                            2
+
+
+If we relax the time-step criterion such that λ|amax | ≤ 1, then waves issuing from interface xi− 12 do not reach xi+ 12 in the
+         h        i                                                                             h        i h              i
+interval tn , tn+1 , and vice versa. It can then be shown that, by applying equation (19) over tn , tn+1 × xi− 12 , xi+ 12 , we
+can arrive at a conservative expression at the next time level [28]:
+                                                                                         
+                                                    Qn+1
+                                                     i   = Qni − λ F (R)ni+ 1 − F (R)ni− 1 ,                                                (26)
+                                                                                             2                    2
+
+
+                                                                                                                         
+                     F (R)ni+ 1 = F Q x̄/t¯ = 0; Qni , Qni+1 ,                          F (R)ni− 1 = F Q x̄/t¯ = 0; Qni−1 , Qni .           (27)
+                              2                                                                   2
+
+
+
+For proof, see Chapter 6 in Toro [22]. Q̂ satisfies the weak form of the entropy condition (inequality (20)):
+                           Z x 1
+                                  i+ 2                                   h      n             n i
+                                         Φ Q̂ (x, tn + ∆t) dx ≤ ∆Φ Qni − ∆t F̃ (R)i+ 21 − F̃ (R)i− 21 ,
+                                                                      
+                                                                                                                                            (28)
+                              xi− 1
+                                  2
+
+
+                           n                                                              n                                
+                     F̃ (R)i+ 12 = F̃ Q x̄/t¯ = 0; Qni , Qni+1 ,                        F̃ (R)i− 21 = F̃ Q x̄/t¯ = 0; Qni−1 , Qni .         (29)
+
+Since Φ is a convex function, we can use Jensen’s inequality along with inequality (28) to deduce that Godunov’s
+method satisfies the entropy inequality [28].
+Due to averaging in equation (24), information contained in the exact solution of the Riemann problem is lost. This
+implies more efficient Godunov methods are achievable by assuming a simpler structure to the Riemann solution a-priori.
+These so-called Godunov-type methods are also known as approximate Riemann solvers. Like Godunov schemes, it
+can be shown that Godunov-type schemes also satisfy the entropy condition and can be written in conservation form to
+arrive at equation (26), see Section 3 in Harten et al. [28].
+
+2.3.2. Construction of Loss
+We are interested in 2D hyperbolic problems, and therefore extend equation (26) to 2D:
+                                                                                                       
+                         i, j = Qi, j − λ x F (R)i+ 1 , j − F (R)i− 1 , j − λy G (R)i, j+ 1 − G (R)i, j− 1 ,
+                                                                                    n              n
+                        Qn+1     n               n               n
+                                                                                                                                            (30)
+                                                                  2                      2                             2            2
+
+
+where by analogy to equation (27) we can express fluxes G as:
+                                                                                                                         
+                    G (R)nj+ 1 = G Q ȳ/t¯ = 0; Qnj , Qnj+1 ,                           G (R)nj− 1 = G Q ȳ/t¯ = 0; Qnj−1 , Qnj .           (31)
+                             2                                                                        2
+
+
+For compactness we re-write equation (30) as:
+                                                               h          i    h          i
+                                             i, j = Qi, j − λ x ∆F (R)i, j − λy ∆G (R)i, j ,
+                                                                                      n
+                                            Qn+1     n                n
+                                                                                                                                            (32)
+
+
+                       ∆F (R)ni, j = F (R)ni+ 1 , j − F (R)ni− 1 , j ,                  ∆G (R)ni, j = G (R)ni, j+ 1 − G (R)ni, j− 1 ,       (33)
+                                                     2                   2                                                 2            2
+
+
+where λ x = ∆t/∆x and λy = ∆t/∆y. Re-arranging equation (32) we can express the Godunov loss as:
+
+                                                                                    8
+Figure 4: The three-wave model assumed by the HLLC solver. The left and right characteristic lines correspond to the fastest and slowest signals, sl
+and sr , emerging from the cell interface at x = 0. The middle characteristic corresponds to the wave of speed s∗ which accounts for contact and shear
+waves.
+
+
+
+                                           ω
+                                                P                       h          i    h           i2
+                                                       i, j − Qi, j + λ x ∆F (R)i, j + λy ∆G (R)i, j     ,
+                                                                                                n
+                                  LG :=      ·        Qn+1     n                n
+                                                                                                                                                (34)
+                                           N i, j,n
+
+where N is total number of points in space and time, and ω weighs the residual contribution from each equation in a
+PDE system.
+Riemann solvers mainly differ by how the fluxes F (R) and G (R) are estimated. To demonstrate the effectiveness of
+Godunov losses in our experiments, we use as an example the HLLC method to determine the intercell flux from the
+ML prediction. However, we emphasize that any Riemann flux estimator could be used instead.
+An outline of the HLLC algorithm is now presented. The HLLC method assumes a three-wave structure to the Riemann
+problem at each cell interface, as shown in Figure 4. In order to determine the HLLC flux normal to a cell interface for
+the 2D Euler equations, it is sufficient to consider a x-split version of the 2D Euler equations because of rotational
+invariance [57]:
+
+                                                                ρ         ρu 
+                                                                                            
+                                                                 ρu         ρu2 + p 
+                                                         ∂t   + ∂ x                 = 0                                           (35)
+                                                                   ρv         ρuv 
+                                                                      E               u(E + p)
+
+Given this, we then estimate the pressure in the star region p̄∗ . A reliable approximation is [57]:
+
+                                                                al + ar − γ−1 (ur − ul ) 1/z
+                                                                                             
+                                                       p̄∗ =               2                                                             (36)
+                                                                            z + z
+                                                                           al    ar             
+                                                                            pl      pr
+
+
+where a =         γp/ρ is the speed of sound and z = (γ − 1) /2γ. Wave speeds sl and sr are then estimated as [58, 57]:
+              p
+
+                                                                                
+                                                                                1
+                                                                                
+                                                                                                              if p̄∗ ≤ pk ,
+                          sl = ul − al ql ,     sr = ur + ar qr ,          qk = 
+                                                                                
+                                                                                                        i 12                                    (37)
+                                                                                 1 + ( γ+1
+                                                                                 h             p̄∗
+                                                                                            )(     − 1)        if p̄∗ > pk
+                                                                                
+                                                                                
+                                                                                         2γ    pk
+
+where k = {l, r}. We then use sl and sr to compute intermediate speed s∗ [57]:
+
+                                                      pr − pl + ρl ul (sl − ul ) − ρr ur (sr − ur )
+                                               s∗ =                                                 .                                           (38)
+                                                             ρl (sl − ul ) − ρr (sr − ur )
+The intermediate conservative vectors Q∗l and Q∗r are then computed using s∗ , sl and sr as [57]:
+                                                                             9
+                                                                                     1
+                                                                                                           
+                                                              !                                         
+                                                       sk − uk                  s∗                        
+                                                                                                                 .
+                                         Q∗k = ρk                                  vkh                                                            (39)
+                                                       sk − s∗                                        i
+                                                                                                                  
+                                                                                                   pk
+                                                                     Ek
+                                                                       +                    +
+                                                                                                                    
+                                                                    ρk   (s ∗ − u k )   s ∗   ρk (sk −uk )
+
+Finally, the intermediate flux vectors F∗l and F∗r are computed from the state vectors so that the flux Fni+ 1 is computed
+                                                                                                             2
+using equation (40).
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        Fl           0 ≤ sl ,
+                                                                                                      sl ≤ 0 ≤ s∗ ,
+                                                                                        
+                                                                                        F∗l
+                                                                                        
+                                                                                        
+                                     F∗k = Fk + sk (Q∗k − Qk ),                Fni+ 1 = 
+                                                                                        
+                                                                                                                                                   (40)
+                                                                                    2
+                                                                                        
+                                                                                        
+                                                                                        
+                                                                                        F∗r          s∗ ≤ 0 ≤ sr ,
+                                                                                        
+                                                                                                      0 ≥ sr .
+                                                                                        
+                                                                                        Fr
+                                                                                        
+
+Due to rotational invariance, an analogous procedure allows us to determine the flux Gnj+ 1 .
+                                                                                                                          2
+
+
+
+
+3. Experiments
+
+3.1. Forward Problem: Time-Stepping
+We examine the performance of the proposed Godunov loss in time-stepping the 2D Riemann problem at training
+and inference time. The 2D Riemann problem is a canonical problem in compressible fluid dynamics. A unit square
+domain [0, 1] × [0, 1] is divided into four quadrants where each quadrant is uniformly initialized with its own set of
+(ρ, u, v, E)T . The quadrants are numbered 1 to 4, anticlockwise from the top-right quadrant. The initialization of the
+quadrants determines the types of the four waves separating them. There are three wave types - rarefaction R, shock
+S , and contact J, characterized by their thermodynamic relations across the wave [59]. Given these relations there
+exist nineteen physically admissible initial conditions representing different combinations of R, J, and S [59]. These
+nineteen configurations can be grouped into six classes characterized by numbers of each wave type:
+
+                                  4R         4S        4J        2R + 2J             2S + 2J               R + S + 2J
+
+For the purposes of this paper we examine a representative configuration from each class:
+
+           R+21 R+32 R+34 R+41     − + + −
+                                 S 21 S 32 S 34 S 41     − + − +
+                                                        J21 J32 J34 J41        R−21 J32
+                                                                                     − − −
+                                                                                        J34 R41              + + + +
+                                                                                                           S 21 J32 J34 S 41         − + +
+                                                                                                                               R−21 J32 J34 S 41
+
+where subscript lr = {21, 32, 34, 41}. The thermodynamic relations across each wave type and the initialization values
+are outlined in Appendix A. For each configuration, we train a separate Conv-LSTM model (Figure 1) to time-step the
+initial condition at n = 0 to n = 75, and then examine inference performance (on the same configuration) from n = 0 to
+n = 150, where n = t/∆t and ∆t = 0.002s 2 . The model is Kaiming-initialized, and training is performed in a series
+of fine-tunes which train 5 time-steps further than the previous fine-tune, using an Adam optimizer and a learning
+rate of 3 × 10−5 throughout. We use a single convolutional-swish layer to project the 1282 input with 4 channels to a
+representation with 128 channels. The LSTM module then time-steps this representation before projecting back to 4
+channels using a swish-deconvolutional layer. We use a kernel size of 3 for all layers 3 . We implement this procedure
+with a Godunov loss LG as described in equation (34). For comparisons we repeat the procedure using regularized
+PDE-based losses LVisc and LT V+Ent , as well as a non-Godunov FVM-based loss LLF :
+
+   2 Training and inference are performed on a single NVIDIA A100 GPU, requiring up to ∼ 20 Gb and ∼ 30 Gb of RAM, as well as ∼ 24 hrs and
+
+∼ 1s of compute time, respectively.
+   3 Tuning of hyperparameters is performed through a random grid-search of different combinations of hyperparameters.
+
+
+                                                                          10
+                                   ω                       2
+                       LPDE :=       · ∂t Q + ∂ x F + ∂y G 2 ,                                                                              (41)
+                                   N
+
+                                   ω                                         2
+                       LVisc :=      · ∂t Q + ∂ x F + ∂y G − α ∂ xx Q + ∂yy Q ,                                                             (42)
+                                   N                                           2
+
+
+                                                    β1                       β2                               2
+                       LT V+Ent := LPDE +              · ∥max (0, ∆T V)∥22 +    · max 0, ∂t Φ + ∂ x F̃ + ∂y G̃ ,                            (43)
+                                                    Nt                       N                                  2
+
+
+                                  ω
+                                      P                           n              n 2
+                       LLF :=       ·       Qn+1
+                                             i, j − Q n
+                                                      i, j + λ x  ∆F R      + λy   ∆G  R       ,                                            (44)
+                                  N i, j,n                             i, j              i, j
+
+
+
+where Nt is the total number of points in time, and all derivatives in equations (41), (42), and (43) are evaluated via
+1st-order finite-differencing4 (n.b. the L2 norms in equations (41) and (42) are taken over the space and time dimensions
+only). LVisc is an alternative way of obtaining entropy solutions by introducing artificial viscosity. The second term in
+LT V+Ent penalizes violations arising from oscillatory behaviour as measured by change in total variation [60, 61]:
+                                                                          X
+                          ∆T V = {T V n+1 − T V n },           T V n :=          ∆y|Qni+1, j − Qni, j | + ∆x|Qni, j+1 − Qni, j |.           (45)
+                                                                          i, j
+
+                                                                                            
+The third term penalizes entropy condition violations where F̃ = uΦ, G̃ = vΦ, and Φ := −ρln ρpγ .
+LLF is a FVM-based loss that uses Lax-Friedrichs flux estimation for F and G in equation (44). It is a non-Godunov
+type loss as the flux estimation does not incorporate solution of the Riemann problem (hence the notation R in equation
+(44)). The Lax-Friedrichs flux is defined in 2D as:
+
+                                                      1                           ∆x                    
+                                       Fni+ 1 , j =      F (Q)ni+1, j + F (Q)ni, j −     Qni+1, j − Qni, j                                  (46)
+                                            2         2                              2∆t
+
+                                                      1                           ∆y                    
+                                      Gni, j+ 1 =        G (Q)ni, j+1 + G (Q)ni, j −     Qni, j+1 − Qni, j                                  (47)
+                                                2     2                              2∆t
+We perform grid-search and find α = 0.0075, β1 = 10, and β2 = 1 give the best results for the regularized PDE losses.
+We arbitrarily set all four elements of ω to 0.25. We analyse performance of the four losses LG , LT V+Ent , LVisc , LLF
+by comparing their models’ predictions with respect to the solution of a reference 5th-order WENO numerical scheme
+[40]. The WENO ground truths are generated using the JAX-Fluids simulation framework [45]. The comparison is
+computed as percentage L2-norm difference between prediction and reference.
+We observe from Figure 5 and Figure 6 how the Conv-LSTM model trained using loss LG gives a visually faithful
+prediction of configuration 4S (i.e., four shock waves) at n = 75 and n = 150, with the inference window being double
+that of the training window. For this configuration Table 1 indicates a mean error of 1.81% at end of training (n = 75)
+and 2.64% at end of inference (n = 150), which are significantly lower than the other losses. The prediction using
+LVisc also faithfully captures the structure of the solution but in a more diffusive manner. LT V+Ent on the other hand
+gives a distorted solution, as does LLF .
+Similar trends are observed from Figure 6 and Table 1 for the other configurations, with the Godunov loss showing
+superior performance. The disparity in performance between LG and the other losses is due to LG being more
+expressive of the problem that is to be solved in the sense that what is expected of the loss (monotonicity, entropy
+satisfaction) is inherently built into the loss without additional regularizing terms. The Godunov loss is derived from
+
+    4 The Godunov loss we use is based on the HLLC solver which is 1st-order accurate. For this reason, spatial derivatives used in the PDE-based
+
+losses must also be 1st-order accurate to allow for fair comparison.
+
+                                                                          11
+Figure 5: Predicted density fields of Conv-LSTMs trained with losses LG , LT V+Ent , LVisc and LLF . Solutions shown are at end of training (n = 75),
+for the six configurations of interest. Ground truth solutions are obtained from a 5th-order WENO scheme. The right-most column shows error
+evolution (with 95% confidence intervals) of predictions of Conv-LSTMs trained with the different losses. Error values at n = 75 are outlined in
+Table 1.
+
+
+Godunov schemes, which have theoretical guarantees on entropy condition satisfaction and monotonicity. It is therefore
+expected to outperform the other loss variants. With specific regard to the other losses, a possible reason of the poor
+performance of LT V+Ent is its clear tendency to overfit the training range. This overfitting causes distortive artefacts
+to appear during inference. LVisc on the other hand is an already diffusive model at the end of training that further
+propagates diffusive behaviour in time causing loss of information - this is especially the case for 2R + 2J. Of course a
+way to decrease this diffusion is by decreasing parameter α, but we find that doing this introduces training instability.
+As for LLF , while its trained model is able to identify the general high-level solution structure during inference, the
+resemblance of these structures to the reference is remote at best. We show with this example how incorporating a
+non-Godunov FVM scheme into ML can be insufficient for modelling hyperbolic PDEs. While Godunov losses like
+LG utilize the structure of the Riemann problem so that each intercell flux is estimated from local information, a loss
+such as LLF does not. Loss LLF is based on Lax-Friedrichs flux estimation, which relies on simple averaging and a
+numerical diffusion term to smear out discontinuities. Such a technique evidently does not lend itself effectively to ML
+modelling of shocks.
+Figure 6 and Table 1 indicate that LG struggles most with the case of four contact waves (4J). This could be due to
+the solution exhibiting a larger range of length scales compared to other configurations, because of the vorticity that
+evolves from the centre of the domain. As a result the model struggles to capture the finer features of the vorticity
+towards the centre. Configuration R + S + 2J also appears to have this problem but to a lesser extent. A possible
+solution is to incorporate multiscale sub-architectures into the model.
+
+
+
+
+                                                                        12
+Figure 6: Predicted density fields of Conv-LSTMs trained with losses LG , LT V+Ent , LVisc and LLF . Solutions shown are at end of inference
+(n = 150), for the six configurations of interest. Ground truth solutions are obtained from a 5th-order WENO scheme. The right-most column shows
+error evolution (with 95% confidence intervals) of predictions of Conv-LSTMs trained with the different losses. Shaded regions indicate training
+range (n = 0 − 75). Error values at n = 75 and n = 150 are outlined in Table 1.
+
+
+Table 1: Error of Conv-LSTMs trained with LG , LT V+Ent . LVisc and LLF at end of training (n = 75) and at end of inference (n = 150), for the six
+configurations of interest. Errors (reported with 95% confidence intervals) are computed as percentage L2-norm difference between ML predictions
+and WENO references.
+
+
+
+                                      % Error (n = 75)                                                % Error (n = 150)
+     Con
+                     LG           LT V+Ent          LVisc            LLF              LG            LT V+Ent          LVisc            LLF
+     4R          1.39 ± 0.02    2.19 ± 0.17      3.42 ± 0.03     6.29 ± 0.01      2.09 ± 0.16    4.20 ± 1.31      4.37 ± 0.13      4.88 ± 0.14
+     4S          1.81 ± 0.03    4.46 ± 0.00     2.93 ± 0.01     12.34 ± 0.13      2.64 ± 0.14    14.18 ± 0.94      3.56 ± 0.10     10.75 ± 0.33
+     4J          5.26 ± 0.02    6.80 ± 0.03     10.16 ± 0.02    18.00 ± 0.04      9.28 ± 1.00    15.59 ± 4.28     13.91 ± 0.07     20.40 ± 1.04
+  2R + 2J        1.96 ± 0.02    3.11 ± 0.06     4.07 ± 0.01     10.95 ± 0.02      3.27 ± 0.64     7.44 ± 0.99     6.32 ± 0.05      14.50 ± 0.84
+  2S + 2J        1.42 ± 0.00    4.41 ± 0.21      3.33 ± 0.02     8.85 ± 0.01      3.05 ± 0.21    11.59 ± 3.17     4.49 ± 0.08       9.91 ± 0.16
+ R + S + 2J      1.67 ± 0.03    4.33 ± 0.10      3.28 ± 0.00    10.11 ± 0.08      2.39 ± 0.16     8.22 ± 5.76     4.08 ± 0.14      10.21 ± 0.34
+
+
+
+3.2. Inverse Problem: Super-Resolution Reconstruction
+We examine next the performance of the Godunov loss in the super-resolution reconstruction of the 2D Riemann
+problem. Here we focus on a single configuration and try to reconstruct it from three levels of low resolution.
+                                             − − − −
+The configuration is another 4S variant, S 21 S 32 S 34 S 41 , in the domain [0.3, 0.7] × [0.3, 0.7]. See Appendix A for
+initialization values of this configuration.
+To generate the low resolution input, we numerically generate a 2562 WENO solution and average-pool two subsequent
+                                                                       13
+snapshots by factors ×4, ×8, and ×16. We need two snapshots, spaced ∆t = 0.00005s, as a minimum to compute the
+time-derivative in the physical losses. We then use the VDSR-based model (Figure 2) to perform the reconstruction5 .
+The input passes through two convolution-ReLU layers followed by a convolution-interpolation layer, where interpola-
+tion is done bilinearly. This is repeated until the desired resolution of 2562 is reached. This upscaled representation
+is then passed into the VDSR module where it undergoes eighteen convolution-ReLU layers followed by a residual
+connection with the input to the VDSR module. The number of hidden channels is 256 for the upsampling module and
+64 for the VDSR module, and once again a kernel size of 3 is used6 . The model is Xavier-initialized and trained with
+an Adam optimizer at a learning rate of 5 × 10−5 .
+We again compare performance of LG (equation (34)) against LT V+Ent , LVisc and LLF (equations (42) - (44)) in terms
+of error difference with respect to the high resolution WENO truth. We find it is necessary for all the losses to have a
+regularization on solution boundedness. Given input XLR and prediction XHR this regularization takes the form:
+
+                                                      R := λ ∥AP (XHR ) − XLR ∥ ,                                                        (48)
+
+where AP denotes average-pooling and λ is the regularization weighting, which we set to 25 for all cases. Figure 7
+examines performance of the different losses and also includes outputs from bilinear and bicubic interpolation. For
+the same reasoning as in the time-stepping problem, LG provides the most accurate reconstruction both visually and
+in terms of % error at all downsampling levels. LT V+Ent performs similarly well to LG albeit with a slight decrease
+in accuracy. The outputs using LVisc are visually adequate at all downsampling levels but do have noticeable blur.
+LLF exhibits the worst performance with significant blurring. Bilinear and bicubic interpolation give visually faithful
+outputs at ×4 but produce checkerboard artifacts along discontinuities at ×8 and ×16, with errors consistently higher
+than that of LG and LT V+Ent .
+
+
+
+
+Figure 7: Super-resolution reconstruction of a 2D Riemann problem using VDSR-based models trained with losses LG , LT V+Ent , LVisc and LLF .
+Bilinear and bicubic interpolation outputs are also included for additional perspective. Each row shows super-resolution from a different input
+resolution. Errors (reported with 95% confidence intervals) on the top right of each plot are with respect to the WENO truth.
+
+It is interesting to also compare the convergence behaviour of all four losses in performing the reconstruction. To
+do this, we train the VDSR-based model from scratch until epoch 100, and repeat this procedure thirty times. We
+do this for each loss, for each sub-resolution level, and for three different random seeds, to determine the number of
+runs (per thirty runs) that are deemed ’towards convergence’ within 5000 epochs. To determine whether a run is on
+the path to convergence within 5000 epochs, we take the reconstructed output at epoch 100 and calculate its error
+
+
+   5 Training is performed on a single NVIDIA A100 GPU, requiring up to ∼ 4 Gb of RAM, as well as ∼ 20 minutes of compute time.
+   6 Tuning of hyperparameters is performed through a random grid-search of different combinations of hyperparameters.
+
+
+                                                                     14
+with respect to the truth. If this error is within 30% of the smallest error found at epoch 100 (over the 30 runs), then
+we assume the training is stable and converging. We find that this criterion is consistent with (and more systematic
+than) deciding whether training will converge based on visual output inspection at epoch 100. We plot the number of
+converging runs as in Figure 8, for different values of learning rate and regularization parameter λ. From the figure it is
+clear that LT V+Ent struggles with convergence in all parts of the parameter space, whilst LG , LVisc , and LLF are mostly
+converging.
+
+
+
+
+Figure 8: Number of converging runs (per 30 runs) for models trained with losses LG , LT V+Ent , LVisc and LLF . Subplots show convergence
+behaviour at ×4, ×8, ×16 lower resolution levels, respectively. Each color represents a different choice of learning rate and regularization parameter
+λ. Error bars show ±1 standard deviation.
+
+
+
+
+4. Conclusion
+
+In this paper we examine a Godunov loss function for modelling hyperbolic PDEs. We use this loss with a Conv-LSTM
+architecture to predict the evolution of the 2D Riemann problem under the influence of the 2D Euler equations. We
+also use the loss with a VDSR-based architecture to reconstruct the 2D Riemann problem from very low resolutions.
+Results show high accuracy with respect to a numerical reference and a superior, well-rounded performance compared
+to PDE-based losses with regularizations and compared to a non-Godunov FVM-based loss. The superior performance
+is due to the Godunov loss being inherently expressive of entropy and monotonicity constraints. The Godunov loss
+requires minimal hyperparameter tuning simplifying the search space for an optimized ML model. An obvious next
+step for this work is to extend to the 3D Riemann problem or to approach other classical problems such as high-speed
+compressible flow past a cylinder. There is also scope to improve training stability of models that use Godunov losses
+as well as explore the use of adaptive activation functions.
+Finally, we emphasize that the novelty of the paper is in the loss function and not in the architecture itself. We provide
+some justifications as to why the architectures we use are desirable, but ultimately the choice of architectures is arbitrary
+in that there are numerous other architectures capable of performing the same forward and inverse tasks. Therefore
+any choice of architecture can be coupled with the Godunov loss that we devise. If, for example, the simulation data
+is unstructured, then we can combine our loss with an architecture that inherently handles unstructured data, such as
+graph-based networks.
+
+
+Code and Data
+
+Code and data can be accessed via the following link.
+Additional information about data generation using JAX-Fluids can be accessed via the following link [45].
+
+
+
+                                                                         15
+References
+ [1] Y. Bar-Sinai, S. Hoyer, J. Hickey, and M. P. Brenner, “Learning data-driven discretizations for partial differential equations,” Proceedings of the
+     National Academy of Sciences, vol. 116, no. 31, pp. 15 344–15 349, 2019.
+ [2] Z. Li, N. Kovachki, K. Azizzadenesheli, B. Liu, K. Bhattacharya, A. Stuart, and A. Anandkumar, “Fourier neural operator for parametric
+     partial differential equations,” arXiv preprint arXiv:2010.08895, 2020.
+ [3] D. Kochkov, J. A. Smith, A. Alieva, Q. Wang, M. P. Brenner, and S. Hoyer, “Machine learning–accelerated computational fluid dynamics,”
+     Proceedings of the National Academy of Sciences, vol. 118, no. 21, p. e2101784118, 2021.
+ [4] B. R. Noack, K. Afanasiev, M. Morzyński, G. Tadmor, and F. Thiele, “A hierarchy of low-dimensional models for the transient and post-transient
+     cylinder wake,” Journal of Fluid Mechanics, vol. 497, pp. 335–363, 2003.
+ [5] E. Kaiser, B. R. Noack, L. Cordier, A. Spohn, M. Segond, M. Abel, G. Daviller, J. Östh, S. Krajnović, and R. K. Niven, “Cluster-based
+     reduced-order modelling of a mixing layer,” Journal of Fluid Mechanics, vol. 754, pp. 365–414, 2014.
+ [6] T. Murata, K. Fukami, and K. Fukagata, “Nonlinear mode decomposition with convolutional neural networks for fluid dynamics,” Journal of
+     Fluid Mechanics, vol. 882, p. A13, 2020.
+ [7] J. Ling, A. Kurzawski, and J. Templeton, “Reynolds averaged turbulence modelling using deep neural networks with embedded invariance,”
+     Journal of Fluid Mechanics, vol. 807, pp. 155–166, 2016.
+ [8] J.-L. Wu, H. Xiao, and E. Paterson, “Physics-informed machine learning approach for augmenting turbulence models: A comprehensive
+     framework,” Physical Review Fluids, vol. 3, no. 7, p. 074602, 2018.
+ [9] A. Beck, D. Flad, and C.-D. Munz, “Deep neural networks for data-driven LES closure models,” Journal of Computational Physics, vol. 398, p.
+     108910, 2019.
+[10] J. Rabault, F. Ren, W. Zhang, H. Tang, and H. Xu, “Deep reinforcement learning in fluid mechanics: A promising method for both active flow
+     control and shape optimization,” Journal of Hydrodynamics, vol. 32, pp. 234–246, 2020.
+[11] K. Bieker, S. Peitz, S. L. Brunton, J. N. Kutz, and M. Dellnitz, “Deep model predictive flow control with limited sensor data and online
+     learning,” Theoretical and computational fluid dynamics, vol. 34, pp. 577–591, 2020.
+[12] D. Bhattacharjee, B. Klose, G. B. Jacobs, and M. S. Hemati, “Data-driven selection of actuators for optimal control of airfoil separation,”
+     Theoretical and Computational Fluid Dynamics, vol. 34, pp. 557–575, 2020.
+[13] K. Fukami, K. Fukagata, and K. Taira, “Super-resolution reconstruction of turbulent flows with machine learning,” Journal of Fluid Mechanics,
+     vol. 870, pp. 106–120, 2019.
+[14] K. Fukami, B. An, M. Nohmi, M. Obuchi, and K. Taira, “Machine-learning-based reconstruction of turbulent vortices from sparse pressure
+     sensors in a pump sump,” Journal of Fluids Engineering, vol. 144, no. 12, p. 121501, 2022.
+[15] D. Kelshaw, G. Rigas, and L. Magri, “Physics-informed CNNs for super-resolution of sparse observations on dynamical systems,” arXiv
+     preprint arXiv:2210.17319, 2022.
+[16] M. Raissi, P. Perdikaris, and G. E. Karniadakis, “Physics-informed neural networks: A deep learning framework for solving forward and
+     inverse problems involving nonlinear partial differential equations,” Journal of Computational physics, vol. 378, pp. 686–707, 2019.
+[17] T. Pfaff, M. Fortunato, A. Sanchez-Gonzalez, and P. W. Battaglia, “Learning mesh-based simulation with graph networks,” arXiv preprint
+     arXiv:2010.03409, 2020.
+[18] P. Ren, C. Rao, Y. Liu, J.-X. Wang, and H. Sun, “Phycrnet: Physics-informed convolutional-recurrent network for solving spatiotemporal pdes,”
+     Computer Methods in Applied Mechanics and Engineering, vol. 389, p. 114399, 2022.
+[19] Z. Mao, A. D. Jagtap, and G. E. Karniadakis, “Physics-informed neural networks for high-speed flows,” Computer Methods in Applied
+     Mechanics and Engineering, vol. 360, p. 112789, 2020.
+[20] L. Liu, S. Liu, H. Yong, F. Xiong, and T. Yu, “Discontinuity computing with physics-informed neural network,” arXiv preprint arXiv:2206.03864,
+     2022.
+[21] S. K. Godunov and I. Bohachevsky, “Finite difference method for numerical computation of discontinuous solutions of the equations of fluid
+     dynamics,” Matematičeskij sbornik, vol. 47, no. 3, pp. 271–306, 1959.
+[22] E. F. Toro, Riemann solvers and numerical methods for fluid dynamics: a practical introduction. Springer Science & Business Media, 2013.
+[23] P. K. Sweby, “Godunov methods,” in Godunov Methods: Theory and Applications. Springer, 2001, pp. 879–898.
+[24] P. L. Roe, “Approximate Riemann solvers, parameter vectors, and difference schemes,” Journal of computational physics, vol. 43, no. 2, pp.
+     357–372, 1981.
+[25] M. Pelanti, L. Quartapelle, and L. Vigevano, “A review of entropy fixes as applied to Roe’s linearization,” Teaching material of the Aerospace
+     and Aeronautics Department of Politecnico di Milano, p. 31, 2001.
+[26] B. Engquist and S. Osher, “One-sided difference approximations for nonlinear conservation laws,” Mathematics of Computation, vol. 36, no.
+     154, pp. 321–351, 1981.
+[27] S. Osher and F. Solomon, “Upwind difference schemes for hyperbolic systems of conservation laws,” Mathematics of computation, vol. 38, no.
+     158, pp. 339–374, 1982.
+[28] A. Harten, P. D. Lax, and B. v. Leer, “On upstream differencing and Godunov-type schemes for hyperbolic conservation laws,” SIAM review,
+     vol. 25, no. 1, pp. 35–61, 1983.
+[29] E. F. Toro, M. Spruce, and W. Speares, “Restoration of the contact surface in the HLL-Riemann solver,” Shock waves, vol. 4, pp. 25–34, 1994.
+[30] A. Harten, “High resolution schemes for hyperbolic conservation laws,” Journal of computational physics, vol. 135, no. 2, pp. 260–278, 1997.
+[31] B. Van Leer, “Towards the ultimate conservative difference scheme. IV. A new approach to numerical convection,” Journal of computational
+     physics, vol. 23, no. 3, pp. 276–299, 1977.
+[32] B. Van Leer, “Towards the ultimate conservative difference scheme. V. A second-order sequel to Godunov’s method,” Journal of computational
+     Physics, vol. 32, no. 1, pp. 101–136, 1979.
+[33] P. Colella and P. R. Woodward, “The piecewise parabolic method (PPM) for gas-dynamical simulations,” Journal of computational physics,
+     vol. 54, no. 1, pp. 174–201, 1984.
+
+
+                                                                          16
+[34] P. Woodward and P. Colella, “The numerical simulation of two-dimensional fluid flow with strong shocks,” Journal of computational physics,
+     vol. 54, no. 1, pp. 115–173, 1984.
+[35] A. Harten, S. Osher, B. Engquist, and S. R. Chakravarthy, “Some results on uniformly high-order accurate essentially nonoscillatory schemes,”
+     Applied Numerical Mathematics, vol. 2, no. 3-5, pp. 347–377, 1986.
+[36] A. Harten and S. Osher, “Uniformly high-order accurate nonoscillatory schemes. I,” SIAM Journal on Numerical Analysis, vol. 24, no. 2, pp.
+     279–309, 1987.
+[37] C.-W. Shu and S. Osher, “Efficient implementation of essentially non-oscillatory shock-capturing schemes,” Journal of computational physics,
+     vol. 77, no. 2, pp. 439–471, 1988.
+[38] C.-W. Shu and S. Osher, “Efficient implementation of essentially non-oscillatory shock-capturing schemes, II,” Journal of Computational
+     Physics, vol. 83, no. 1, pp. 32–78, 1989.
+[39] A. Harten, B. Engquist, S. Osher, and S. R. Chakravarthy, Uniformly high order accurate essentially non-oscillatory schemes, III. Springer,
+     1997.
+[40] X.-D. Liu, S. Osher, and T. Chan, “Weighted essentially non-oscillatory schemes,” Journal of computational physics, vol. 115, no. 1, pp.
+     200–212, 1994.
+[41] R. J. LeVeque, Finite volume methods for hyperbolic problems. Cambridge university press, 2002, vol. 31.
+[42] R. G. Patel, I. Manickam, N. A. Trask, M. A. Wood, M. Lee, I. Tomas, and E. C. Cyr, “Thermodynamically consistent physics-informed neural
+     networks for hyperbolic systems,” Journal of Computational Physics, vol. 449, p. 110754, 2022.
+[43] I. K. Tezaur, J. A. Fike, K. T. Carlberg, M. F. Barone, D. Maddix, E. E. Mussoni, and M. Balajewicz, “Advanced fluid reduced order models for
+     compressible flow.” Sandia National Lab.(SNL-NM), Albuquerque, NM (United States), Tech. Rep., 2017.
+[44] D. Hansen, D. C. Maddix, S. Alizadeh, G. Gupta, and M. W. Mahoney, “Learning physical models that can respect conservation laws,” in
+     International Conference on Machine Learning. PMLR, 2023, pp. 12 469–12 510.
+[45] D. A. Bezgin, A. B. Buhendwa, and N. A. Adams, “JAX-Fluids: A fully-differentiable high-order computational fluid dynamics solver for
+     compressible two-phase flows,” Computer Physics Communications, vol. 282, p. 108527, 2023.
+[46] S. Xiong, X. He, Y. Tong, R. Liu, and B. Zhu, “RoeNets: predicting discontinuity of hyperbolic systems from continuous data,” arXiv preprint
+     arXiv:2006.04180, 2020.
+[47] T. Kossaczká, M. Ehrhardt, and M. Günther, “Enhanced fifth order WENO shock-capturing schemes with deep learning,” Results in Applied
+     Mathematics, vol. 12, p. 100201, 2021.
+[48] T. Kossaczká, A. D. Jagtap, and M. Ehrhardt, “Deep smoothness WENO scheme for two-dimensional hyperbolic conservation laws: A deep
+     learning approach for learning smoothness indicators,” arXiv preprint arXiv:2309.10117, 2023.
+[49] Y. Wang, Z. Shen, Z. Long, and B. Dong, “Learning to discretize: solving 1D scalar conservation laws via deep reinforcement learning,” arXiv
+     preprint arXiv:1905.11079, 2019.
+[50] D. A. Bezgin, S. J. Schmidt, and N. A. Adams, “WENO3-NN: A maximum-order three-point data-driven weighted essentially non-oscillatory
+     scheme,” Journal of Computational Physics, vol. 452, p. 110920, 2022.
+[51] Y. Li, L. Fu, and N. A. Adams, “A six-point neuron-based ENO (NENO6) scheme for compressible fluid dynamics,” arXiv preprint
+     arXiv:2207.08500, 2022.
+[52] J. C.-H. Wang and J.-P. Hickey, “Fluxnet: a physics-informed learning-based Riemann solver for transcritical flows with non-ideal thermody-
+     namics,” Computer Methods in Applied Mechanics and Engineering, vol. 411, p. 116070, 2023.
+[53] A. Peyvan, V. Oommen, A. D. Jagtap, and G. E. Karniadakis, “RiemannONets: Interpretable neural operators for riemann problems,” Computer
+     Methods in Applied Mechanics and Engineering, vol. 426, p. 116996, 2024.
+[54] J. Kim, J. K. Lee, and K. M. Lee, “Accurate image super-resolution using very deep convolutional networks,” in Proceedings of the IEEE
+     conference on computer vision and pattern recognition, 2016, pp. 1646–1654.
+[55] S. Hochreiter and J. Schmidhuber, “Long short-term memory,” Neural computation, vol. 9, no. 8, pp. 1735–1780, 1997.
+[56] P. Batten, N. Clarke, C. Lambert, and D. M. Causon, “On the choice of wavespeeds for the HLLC riemann solver,” SIAM Journal on Scientific
+     Computing, vol. 18, no. 6, pp. 1553–1570, 1997.
+[57] E. F. Toro, “The HLLC Riemann solver,” Shock Waves, vol. 29, no. 8, pp. 1065–1082, 2019.
+[58] S. Davis, “Simplified second-order Godunov-type methods,” SIAM Journal on Scientific and Statistical Computing, vol. 9, no. 3, pp. 445–473,
+     1988.
+[59] C. W. Schulz-Rinne, “Classification of the Riemann problem for two-dimensional gas dynamics,” SIAM journal on mathematical analysis,
+     vol. 24, no. 1, pp. 76–88, 1993.
+[60] J. B. Goodman and R. J. LeVeque, “On the accuracy of stable schemes for 2d scalar conservation laws,” Mathematics of computation, pp.
+     15–21, 1985.
+[61] L. Krivodonova and A. Smirnov, “On the TVD property of second order methods for 2D scalar conservation laws,” 2021.
+[62] A. Kurganov and E. Tadmor, “Solution of two-dimensional Riemann problems for gas dynamics without Riemann problem solvers,” Numerical
+     Methods for Partial Differential Equations: An International Journal, vol. 18, no. 5, pp. 584–608, 2002.
+
+
+
+
+                                                                       17
+Appendix A. 2D Riemann Configurations
+
+Appendix A.1. Thermodynamic Relations
+A unit square domain, typically [0, 1] × [0, 1], is divided into four quadrants where each quadrant is uniformly initialized
+with its own set of X = (ρ, u, v, p)T . The quadrants are numbered 1 to 4, anticlockwise, starting from the top-right
+quadrant and finishing in the bottom-right quadrant. The initialization of the quadrants determines the types of the four
+waves separating them. We denote the waves by their positions based on quadrant numbering, i.e., lr = {21, 32, 34, 41}.
+There are three wave types - rarefaction R, shock S , or contact J, characterized by their thermodynamic relations across
+                                               ′
+the wave [59]. In the following, let w and w denote the normal and tangential velocities (w.r.t waves).
+The relations for rarefaction waves R±lr are as follows:
+
+                                                          √ r
+                                                         2 γ
+                                                                   r !
+                                                              pl    pr
+                                       wl − wr = ±               −     ,                                              (A.1)
+                                                         γ−1  ρl    ρr
+
+                                               !1
+                                       ρl   pl γ
+                                          =       ,                                                                   (A.2)
+                                       ρr   pr
+                                         ′    ′
+                                       wl = wr ,         wl < wr ,      sgn (pl − pr ) = ∓1.                          (A.3)
+
+The relations for shock waves S lr± are as follows:
+
+                                                    s
+                                                          (pl − pr ) (ρl − ρr )
+                                       wl − wr =                                ,                                     (A.4)
+                                                                 ρl ρr
+
+                                       ρl   γ (pl + pr ) + (pl − pr )
+                                          =                           ,                                               (A.5)
+                                       ρr γ (pl + pr ) − (pl − pr )
+                                         ′    ′
+                                       wl = wr ,         wl > wr ,      sgn (pl − pr ) = ±1.                          (A.6)
+
+The relations for contact discontinuities Jlr± are as follows:
+
+                                           ′    ′
+                                                   
+                                       sgn wl − wr = ∓1,               wl = wr ,    pl = pr .                         (A.7)
+
+Note that energy E is defined as:
+
+                                                         1  2          p
+                                                  E :=     ρ u + v2 +         .                                       (A.8)
+                                                         2            (γ − 1)
+
+
+
+
+                                                                  18
+Appendix A.2. Initialization Values
+The following are the initialization values of the 2D Riemann configurations explored in this work. For initialization
+values of other 2D Riemann configurations, see Kurganov and Tadmor [62].
+
+                                      
+                                      
+                                      
+                                      
+                                      X1 = (1.0000, 0.0000, 0.0000, 1.0000) ,          x > 0.5,   y > 0.5
+                                      X2 = (0.5197, −0.7259, 0.0000, 0.4000) ,         x < 0.5,   y > 0.5
+                                      
+                                      
+                                      
+               R+21 R+32 R+34 R+41 := 
+                                      
+                                      
+                                      
+                                      
+                                      X3 = (0.1072, −0.7259, −1.4045, 0.0439) ,        x < 0.5,   y < 0.5
+                                      
+                                      X4 = (0.2579, 0.0000, −1.4045, 0.1500) ,
+                                      
+                                                                                       x > 0.5,   y < 0.5
+
+                                      
+                                      
+                                      
+                                      
+                                       X1 = (1.5000,   0.0000,   0.0000,   1.5000) ,   x > 0.5,   y > 0.5
+                                        X2 = (0.5323,                       0.3000) ,   x < 0.5,   y > 0.5
+                                      
+                                                        1.2060,   0.0000,
+                                      
+                                      
+                 − − − −
+                                      
+               S 21 S 32 S 34 S 41 := 
+                                      
+                                      
+                                      
+                                      
+                                       X3 = (0.1380,   1.2060,   1.2060,   0.0290) ,   x < 0.5,   y < 0.5
+                                      
+                                      X4 = (0.5323,
+                                      
+                                                       0.0000,   1.2060,   0.3000) ,   x > 0.5,   y < 0.5
+
+                                      
+                                      
+                                      
+                                      
+                                       X1 = (1.1000,   0.0000,   0.0000,   1.1000) ,   x > 0.5,   y > 0.5
+                                      X2 = (0.5065,                        0.3500) ,   x < 0.5,   y > 0.5
+                                      
+                                                        0.8939,   0.0000,
+                                      
+                                      
+                 − + + −
+                                      
+               S 21 S 32 S 34 S 41 := 
+                                      
+                                      
+                                      
+                                       X3 = (1.1000,   0.8939,   0.8939,   1.1000) ,   x < 0.5,   y < 0.5
+                                      
+                                      X4 = (0.5065,
+                                      
+                                                       0.0000,   0.8939,   0.3500) ,   x > 0.5,   y < 0.5
+
+                                     
+                                     
+                                     
+                                     
+                                      X1 = (1.0000, 0.7500, −0.5000, 1.0000) ,         x > 0.5,   y > 0.5
+                                     X2 = (2.0000, 0.7500, 0.5000, 1.0000) ,           x < 0.5,   y > 0.5
+                                     
+                                     
+                                     
+                − + − +
+                                     
+               J21 J32 J34 J41    := 
+                                     
+                                     
+                                     
+                                      X3 = (1.0000, −0.7500, 0.5000, 1.0000) ,         x < 0.5,   y < 0.5
+                                     
+                                     X4 = (3.0000, −0.7500, −0.5000, 1.0000) ,
+                                     
+                                                                                       x > 0.5,   y < 0.5
+
+                                     
+                                     
+                                     
+                                     
+                                      X1 = (0.5197, 0.1000, 0.1000, 0.4000) ,          x > 0.5,   y > 0.5
+                                     X2 = (1.0000, −0.6259, 0.1000, 1.0000) ,          x < 0.5,   y > 0.5
+                                     
+                                     
+                                     
+               R−21 J32
+                     − − −
+                                     
+                        J34 R41   := 
+                                     
+                                     
+                                     
+                                      X3 = (0.8000, 0.1000, 0.1000, 1.0000) ,          x < 0.5,   y < 0.5
+                                     
+                                     X4 = (1.0000, 0.1000, −0.6259, 1.0000) ,
+                                     
+                                                                                       x > 0.5,   y < 0.5
+
+                                    
+                                    
+                                    
+                                    
+                                     X1 = (0.5313,     0.0000,   0.0000,   0.4000) ,   x > 0.5,   y > 0.5
+                                    X2 = (1.0000,                          1.0000) ,   x < 0.5,   y > 0.5
+                                    
+                                                        0.7276,   0.0000,
+                                    
+                                    
+                 + + + +
+                                    
+               S 21 J32 J34 S 41 := 
+                                    
+                                    
+                                    
+                                     X3 = (0.8000,     0.0000,   0.0000,   1.0000) ,   x < 0.5,   y < 0.5
+                                    
+                                    X4 = (1.0000,
+                                    
+                                                       0.0000,   0.7276,   1.0000) ,   x > 0.5,   y < 0.5
+
+                                    
+                                    
+                                    
+                                    
+                                     X1 = (0.5313, 0.1000, 0.1000, 0.4000) ,           x > 0.5,   y > 0.5
+                                    X2 = (1.0222, −0.6179, 0.1000, 1.0000) ,           x < 0.5,   y > 0.5
+                                    
+                                    
+                                    
+                     − + +
+               R−21 J32
+                                    
+                        J34 S 41 := 
+                                    
+                                    
+                                    
+                                     X3 = (0.8000, 0.1000, 0.1000, 1.0000) ,           x < 0.5,   y < 0.5
+                                    
+                                    X4 = (1.0000, 0.1000, 0.8276, 1.0000) ,
+                                    
+                                                                                       x > 0.5,   y < 0.5
+
+
+
+
+                                                             19
+

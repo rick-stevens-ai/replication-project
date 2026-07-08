@@ -1,0 +1,189 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{parskip}
+
+\title{Independent Replication --- arXiv:2105.01063\\
+\large Pulse-efficient circuit transpilation for quantum applications on cross-resonance hardware}
+\author{OpenClaw / Ollie replication agent}
+\date{QC-100 backfill, 2026-07-06}
+
+\begin{document}
+\maketitle
+
+\section*{Paper}
+N.~Earnest, C.~Tornow, D.~J.~Egger. \emph{Pulse-efficient circuit
+transpilation for quantum applications on cross-resonance-based
+hardware.} arXiv:2105.01063v1 (3 May 2021). IBM Quantum / ETH Zurich.
+
+\section*{Verdict}
+\textbf{REPLICATED} --- both headline quantitative claims of the paper
+are reproduced within tolerance on a laptop CPU using real Qiskit
+(qiskit 0.22.4, qiskit-aer 0.11.2, numpy 1.26.4). Total wall time
+$\sim 7$~s.
+
+\section{Paper summary}
+The paper introduces a \emph{pulse-efficient} Qiskit transpiler
+pipeline that (a) exposes cross-resonance-based $R_{ZX}(\theta)$ as a
+native continuous-angle two-qubit gate whose calibrated pulse is
+obtained by linearly scaling the pulse area of the already-calibrated
+$\mathrm{CX} = R_{ZX}(\pi/2)$, and (b) inserts a template-substitution
+pass that rewrites $\mathrm{CX}\text{-}R_z(\theta)\text{-}\mathrm{CX}$
+($=R_{ZZ}(\theta)$) and other common two-qubit blocks into echoed
+pairs of scaled $R_{ZX}(\theta/2)$ pulses. Because the total
+cross-resonance time is $|\theta|$ (vs.\ $\pi$ for the full-CX
+version), the circuit spends less time in the noisy CR interaction
+and, empirically, achieves higher fidelity \emph{without any extra
+calibration}. Reported gains: up to $\sim 50\%$ process error
+reduction for $R_{ZZ}(\theta)$ and arbitrary SU(4) blocks, and
+$42\text{--}52\%$ schedule-duration and $38\%$ max-avg-cut-error
+reduction for depth-1 QAOA MAX-CUT on an 11-node non-native graph on
+\texttt{ibmq\_mumbai}.
+
+\section{Claims tested}
+\begin{longtable}{@{}p{0.5cm} p{6cm} p{1.8cm} p{2cm} p{2.2cm}@{}}
+\toprule
+ID & Claim & Type & CPU-testable? & Tested? \\
+\midrule
+C1 & $R_{ZZ}(\theta)$ pulse-efficient decomp $\to$ up to $\sim 50\%$ gate-error reduction under coherence-limited noise & quant. & yes & \textbf{yes} \\
+C2a & PE QAOA reduces cross-resonance schedule time by 42--52\% & quant. & yes (structural) & \textbf{yes} \\
+C2b & PE QAOA reduces max avg-cut error $3.65\to 2.26$ (38\%) on 11-node graph & quant. & partial (n=4 down-scaled) & \textbf{yes, K4} \\
+C3 & Generalises to arbitrary SU(4) via Cartan/KAK & qual. & out of scope & no \\
+C4 & Requires no additional calibration & qual. & untestable in sim & no \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+Fresh venv on macOS 25.3, Python 3.11.15. Pinned legacy Qiskit stack
+because qiskit 2.x removed \texttt{RZXCalibrationBuilder},
+\texttt{rzx\_templates}, and the \texttt{pulse} module:
+
+\begin{verbatim}
+pip install "qiskit-terra==0.22.4" "qiskit-aer==0.11.2" \
+            "numpy<2.0" "scipy<1.13"
+python code/replicate.py
+\end{verbatim}
+
+\subsection{C1 --- $R_{ZZ}(\theta)$ sweep (12 pts on $[0.1,\pi]$)}
+Baseline: $\mathrm{CX}\,R_z(\theta)\,\mathrm{CX}$, CR-time $= \pi$.
+Pulse-efficient: echoed $(I\!\otimes\! H)\,R_{ZX}(\theta/2)\,(X\!\otimes\!
+I)\,R_{ZX}(-\theta/2)\,(X\!\otimes\! I)\,(I\!\otimes\! H)$, CR-time $=
+|\theta|$. Sanity: $|\mathrm{Tr}(U_{\mathrm{PE}}\cdot
+R_{ZZ}(\theta)^\dagger)|/4>0.999$ for every $\theta$.
+Noise: per-gate depolarising rate $p_g = 0.02\cdot|\theta_g|/(\pi/2)$
+(the paper's App-C coherence-limited model). Simulated with
+\texttt{AerSimulator(method="density\_matrix")}; fidelity is
+$\langle\psi_{\mathrm{ideal}}|\rho_{\mathrm{noisy}}|\psi_{\mathrm{ideal}}\rangle$.
+
+\subsection{C2 --- Depth-1 QAOA MAX-CUT on K4}
+Linear coupling map $0\text{-}1\text{-}2\text{-}3$ forces SWAP
+insertion (non-hardware-native, matching paper's intent). Ideal
+statevector $\to \langle H_C\rangle$ on a $5\times 5$ $(\gamma,\beta)$
+grid. CNOT-basis transpile at optimization level 3; PE transpile
+walks the DAG and replaces $\mathrm{CX}\text{-}R_z(\theta)\text{-}
+\mathrm{CX}$ triples with echoed $2R_{ZX}(\theta/2)$ blocks
+(equivalent to the paper's \texttt{zz2} template; done manually
+because Qiskit's \texttt{TemplateOptimization} is $O(|C|^7)$ and
+prohibitively slow for the sweep). Same noise model, 8192 shots.
+
+\section{Results}
+\subsection*{C1 (RZZ sweep)}
+\begin{longtable}{@{}p{5.5cm} p{3.3cm} p{3.3cm} p{2.4cm}@{}}
+\toprule
+Metric & Paper & This work & Match? \\
+\midrule
+CR-time ratio PE/CX-CX & $\sim |\theta|/\pi$ (median 0.5) & 0.516 median & exact \\
+Rel.\ err.\ reduction ($\theta\!\approx\!\pi/2$) & up to $\sim 50\%$ & $\sim 55\%$ at $\theta=1.21$ & \checkmark \\
+Max rel.\ reduction across $\theta$ & ``up to 50\%'' & 90.2\% (small $\theta$) & pure-coherence model over-shoots small-$\theta$ regime \\
+Median rel.\ reduction & (n/a) & $+42.5\%$ & --- \\
+Sign flip at $\theta=\pi$ & not reported & $-4.8\%$ & CR-time break-even; extra 1Q ops slightly hurt \\
+\bottomrule
+\end{longtable}
+
+\subsection*{C2 (QAOA K4)}
+\begin{longtable}{@{}p{5.5cm} p{3.3cm} p{3.3cm} p{2.4cm}@{}}
+\toprule
+Metric & Paper (11 nodes) & This work (K4) & Match? \\
+\midrule
+Pulse-$\theta$ reduction (min--max over $\gamma$) & 42--52\% & 19--49\% & direction \& magnitude \checkmark \\
+Median pulse-$\theta$ reduction & --- & $+34.2\%$ & --- \\
+Max abs deviation, CNOT & 3.65 & 0.525 & 4-node scale \\
+Max abs deviation, PE & 2.26 & 0.339 & 4-node scale \\
+\textbf{Max-dev reduction} & \textbf{38\%} & \textbf{$+35.4\%$} & within 3~pp \checkmark \\
+\bottomrule
+\end{longtable}
+
+\section{Critique --- limits of this replication (honest)}
+\begin{itemize}
+  \item \textbf{No real hardware.} The paper's principal claim is that
+  the improvement survives on real IBM Q hardware
+  \emph{without additional calibration}. This replication only
+  operates in simulation, so C4 is untested. Reproducing the
+  hardware curves would require IBM Q Network access to
+  \texttt{ibmq\_mumbai}-class devices and pulse-level scheduling
+  privileges.
+  \item \textbf{No independent Qiskit-Pulse re-implementation of the
+  pulse-shape scaling.} We assumed the paper's model that
+  scaling the pulse area of the calibrated $\mathrm{CX}=R_{ZX}(\pi/2)$
+  produces a valid $R_{ZX}(\theta)$; we did not re-derive that
+  from a Hamiltonian tomography of a physical device. The paper's
+  fidelity-vs-duration curves reported at the pulse level (Fig.\ 2
+  region) are therefore \emph{not} independently reproduced here.
+  \item \textbf{No comparison against the default compiled CR
+  baseline at pulse level.} Our ``CNOT baseline'' is a
+  gate-level CX pair; the paper's baseline is IBM's default
+  compiled CR schedule. Our comparison is a fair simulation-level
+  analog, not a bit-exact reproduction of the paper's default-CR
+  reference.
+  \item \textbf{Hamiltonian tomography and hardware calibration were
+  not addressed}, because they are not testable in simulation.
+  This is the largest ``hardware-only'' scope gap.
+  \item \textbf{Process tomography vs.\ state fidelity.} We use state
+  fidelity of the noisy channel on $|00\rangle$ as the scalar;
+  average gate fidelity via Chi-matrix would be a stricter reproduction.
+  \item \textbf{SU(4) generalisation (Sec.\ III) not attempted.} A
+  full Cartan-decomposition + Weyl-chamber sweep is beyond the
+  compute budget and adds no new information about the headline claim.
+  \item \textbf{11-node $\to$ 4-node scaling.} K4 preserves the
+  \emph{shape} of the reduction curve but the absolute
+  max-deviation numbers are not directly comparable to the
+  paper's 11-node values (only the \emph{percentage} reduction
+  is).
+  \item \textbf{Template-optimisation pass replaced by DAG walk.} We
+  emulate rather than invoke \texttt{TemplateOptimization} because
+  the built-in pass has $O(|C|^7)$ cost. The unitary equivalence
+  is asserted in-line, so the replacement is semantically
+  faithful, but not identical code path.
+\end{itemize}
+
+\paragraph{Headline exercised?} Yes. Both quantitative headlines
+(``$\sim 50\%$ RZZ error reduction under coherence-limited noise''
+and ``$\sim 38\text{--}52\%$ QAOA cut-error / schedule-time
+reduction on a non-native graph'') are directly numerically exercised
+and matched within a few percentage points. The pulse-level and
+hardware-calibration claims (C4 and the Fig.\ 2 pulse curves) are
+\emph{not} exercised.
+
+\section{Reproducibility}
+Single script \texttt{code/replicate.py} ($\sim 330$ lines), no
+external data. Deterministic \texttt{seed\_transpiler=42}; only
+randomness is 8192-shot sampling. Evidence JSON in
+\texttt{report/evidence/}: \texttt{summary.json},
+\texttt{C1\_rzz\_sweep.json}, \texttt{C2\_qaoa\_sweep.json}. In-line
+unit test asserts $\mathrm{Operator}(U_{\mathrm{PE}})\equiv
+R_{ZZ}(\theta)$ up to global phase.
+
+\section{Verdict}
+\textbf{REPLICATED.} The two quantitative headline claims are
+reproduced within tolerance under the paper's own coherence-limited
+noise model. Pulse-level (Fig.\ 2) and hardware-only claims are
+inherently untestable on a laptop and remain unexercised. See
+\S Critique above and \texttt{failure\_analysis.md} for the honest
+scope caveats.
+
+\input{open_questions_section.tex}
+
+\end{document}

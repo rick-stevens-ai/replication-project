@@ -1,0 +1,7 @@
+# Brief — QC-1801.04042 (Brown & Eastin 2018)
+
+**Paper:** "Randomized benchmarking with restricted gate sets" — Winton G. Brown & Bryan Eastin (Northrop Grumman), arXiv:1801.04042v1, 12 Jan 2018.
+
+**What:** Extends the standard Clifford-group randomized-benchmarking (RB) protocol to *proper subgroups of the Clifford group that are not unitary 2-designs*, specifically (a) the **real Clifford group** (generators H, CNOT, single-qubit Paulis; preserves Y-count parity) and (b) the **CNOT+Pauli group**. Shows that twirling by these subgroups produces a fidelity decay curve that is a sum of exponentials, one per invariant block of Pauli operators (2 blocks for real Clifford; 4 blocks for CNOT+Pauli). Derives per-block eigenvalue formulas and shows that the entanglement infidelity can still be estimated to within a factor of 2 (asymptotically 1 in qubit count) even without a 2-design.
+
+**Why (replication):** RB with subgroups is directly relevant to logical-qubit benchmarking on codes where a full logical Clifford 2-design is too expensive (T gates, magic-state injection). This replication tests the *core numerical prediction*: for each subgroup and each initial-state / measurement block, the extracted decay rate λ matches the paper's closed-form block eigenvalue formula under a known injected depolarizing channel. We simulate with **Stim** (Aaronson-Gottesman tableau simulator; exact for Clifford circuits with Pauli noise) on 2 qubits, inject per-qubit depolarizing noise, and compare fitted λ to theory.

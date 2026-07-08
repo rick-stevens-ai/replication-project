@@ -1,0 +1,5 @@
+# Brief
+
+**What:** Independent replication of Willsch, Willsch, Jin, De Raedt & Michielsen, *"Benchmarking the Quantum Approximate Optimization Algorithm"* (arXiv:1907.02359; Quantum Inf. Process. **19**, 197, 2020).
+
+**Why/How:** The paper benchmarks QAOA on classical simulators (JUQCS + Nelder-Mead) using three performance measures — success probability (M1), energy expectation (M2), and the ratio *r* related to the approximation ratio (M3, Eq. 16) — over exactly specified 8-var 2-SAT and 16-var weighted-MaxCut Ising instances. I re-implemented the QAOA statevector simulator from scratch in pure numpy (no quantum SDK), transcribed the exact problem instances from Appendix B, and reproduced (a) the exact ground energies, (b) the analytic p=1 energy formula (Eq. 19) as a machine-precision cross-check, (c) the Table-1 success-probability / ratio trends for p=1…5 under energy-minimization, and (d) the large-p linear-annealing-initialization → high-success-probability result (Figs. 10–11). Hardware claims (IBM Q Experience, D-Wave 2000Q) were out of scope. **Verdict: REPLICATED.**

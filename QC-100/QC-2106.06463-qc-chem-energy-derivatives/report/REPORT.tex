@@ -1,0 +1,149 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{listings}
+
+\title{Independent Replication --- arXiv:2106.06463\\
+\large VQE Energy Derivatives for Quantum Chemistry (Azad \& Singh, 2021)}
+\author{OpenClaw subagent (QC-100 wave) \\ CherryRd local sim}
+\date{2026-07-03 (backfilled 2026-07-06)}
+
+\begin{document}
+\maketitle
+
+\section*{Verdict}
+\textbf{REPLICATED} --- the headline claim (VQE with the paper's gradient
+prescription recovers H$_2$/STO-3G FCI and finds the equilibrium bond length via
+gradient-descent geometry optimization) is reproduced within
+$\ll$ chemical accuracy on an independently written PennyLane implementation.
+
+\section{Paper summary}
+Azad \& Singh (arXiv:2106.06463v1) present a VQE-based framework for computing
+first- and second-order energy derivatives (nuclear gradients, Hessian, dipole,
+polarizability) on quantum hardware. Their headline applications are (i)
+minimum-energy configuration search for H$_2$, (ii) response properties
+(dipole $\mu_Z$, polarizability $\alpha_{ZZ}$) under an electric field, and
+(iii) transition-state search for H$_2 + $H $\leftrightarrow$ H $+ $H$_2$.
+Derivatives are obtained either by finite-difference of VQE expectation values
+across shifted geometries, or by a Hellmann--Feynman formula
+$\langle \psi(\theta^*) | \partial H / \partial \eta | \psi(\theta^*) \rangle$
+that differentiates the Hamiltonian with respect to system parameters $\eta$
+rather than the ansatz with respect to circuit parameters $\theta$.
+
+\section{Tested claims and coverage}
+\begin{center}\small
+\begin{tabular}{clcc}
+\toprule
+\# & Claim (paraphrase) & Tested here? & Result \\
+\midrule
+C1 & VQE recovers FCI for H$_2$/STO-3G at all $R \in [0.2,1.5]$\,\AA & Yes & $<10^{-8}$ Ha residual (5 pts) \\
+C2 & Finite-difference of $E_{\text{VQE}}$ gives $dE/dR$ & Yes & $10^{-8}$ Ha/\AA{} vs FCI-FD \\
+C3 & Hellmann--Feynman $\langle \partial H / \partial R\rangle$ gives alt.\ gradient & Yes & $10^{-5}$ Ha/\AA{} vs FCI \\
+C4 & Grad-descent geom opt $\to$ (0.741 \AA, $-1.137$ Ha) & Yes & (0.7349 \AA, $-1.137306$ Ha) \\
+C5 & Newton's method (Hessian-based) converges faster & Optional & Not exercised \\
+C6 & Dipole $\mu_Z$ / polarizability $\alpha_{ZZ}$ curves (Fig.\ 5) & Extension & Not exercised \\
+C7 & TS search for H+H$_2$ $\to$ symmetric TS at (0.936, 0.936) \AA & Extension & Not exercised \\
+C8 & Excited-state (SS-VQE) derivatives (Fig.\ 7) & Extension & Not exercised \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Headline exercised.} C1--C4 (VQE energy $\equiv$ FCI, the two gradient
+recipes, and the geometry-optimization loop that carries the paper's central
+methodological claim) were all reproduced. C5--C8 are separate demonstrations
+that share the same verified derivative machinery and were skipped for wall-clock reasons.
+
+\section{Method (as run)}
+Independent PennyLane 0.45.1 / PySCF 2.13.1 implementation. Ansatz: 4-qubit
+Jordan--Wigner mapping of H$_2$/STO-3G, HF reference $|1100\rangle$ plus all
+singles/doubles enumerated by \texttt{qml.qchem.excitations(2,4)} (3
+parameters: two SingleExcitations + one DoubleExcitation, i.e.\ the standard
+UCCSD-restricted ansatz that is exact for H$_2$/STO-3G). VQE optimized with
+\texttt{GradientDescentOptimizer} (stepsize 0.4, 200 iters max,
+$\Delta E < 10^{-8}$ Ha), warm-started across bond lengths. Gradients: central
+difference ($h = 0.005$\,\AA) on either $E_{\text{VQE}}(R)$ (VQE-FD) or on
+$\langle H(R\pm h) \rangle$ at fixed $|\psi(\theta^*, R)\rangle$ (VQE-HF).
+Classical reference: PySCF FCI + finite-difference gradient.
+
+\section{Results}
+\subsection{Energies (5 points)}
+All five sampled bond lengths reproduce FCI to $<10^{-8}$ Ha residual --- the
+3-parameter ansatz spans the exact ground-state manifold for this system.
+
+\subsection{Gradients}
+VQE-FD gradient matches classical FCI-FD gradient to $\sim 10^{-8}$ Ha/\AA{}
+across all 5 points. Hellmann--Feynman gradient has $\sim 10^{-5}$ Ha/\AA{}
+residual --- three orders of magnitude worse than VQE-FD but still four orders
+below the chemical-force threshold ($\sim 10^{-3}$ Ha/\AA).
+
+\subsection{Geometry optimization}
+Gradient descent from $R_0 = 1.0$\,\AA{} converges in 7 iterations to
+$R = 0.7349$\,\AA, $E = -1.137306$\,Ha. Compared to the paper's quoted
+$(0.741\text{ \AA}, -1.137\text{ Ha})$: energy agreement $|\Delta E| = 0.306$\,mHa,
+about $5\times$ under the paper's chemical-accuracy tolerance of 1.6 mHa. Our
+converged $R$ in fact matches the analytical STO-3G FCI equilibrium more
+tightly than the paper's quoted 0.741 \AA.
+
+\section{Critique / honest assessment}
+\subsection*{What was genuinely verified}
+\begin{itemize}
+\item An \emph{independent reimplementation} of the two derivative recipes (VQE-FD
+      and Hellmann--Feynman) was written from scratch in PennyLane and produced
+      values numerically consistent with a classical FCI-FD reference on the
+      same molecule/basis. This is a real code-level replication, not just a
+      re-run of paper-provided scripts.
+\item Finite-difference agreement was checked at 5 bond lengths (headline: full
+      curve straddles the equilibrium; sign flip of $dE/dR$ correctly localizes
+      the minimum between $R = 0.70$ and $R = 0.735$\,\AA).
+\item The geometry-optimization loop was closed end-to-end: gradient recipe
+      $\to$ update rule $\to$ convergence within chemical accuracy of the
+      paper's stated minimum. This is the paper's central methodological claim.
+\end{itemize}
+
+\subsection*{What was NOT exercised / weaknesses of this replication}
+\begin{itemize}
+\item \textbf{Hessian / higher-order derivatives not tested.} The paper's C5 (Newton's
+      method) and by extension its polarizability $\alpha_{ZZ}$ (a second
+      derivative of $E$ w.r.t.\ electric field) were skipped. Since the Hessian
+      recipe is the natural extension of the gradient recipe, the derivative
+      machinery is not \emph{fully} verified --- only its first-order slice.
+\item \textbf{Measurement-count / shot-noise scaling not addressed.} The paper's
+      \S III.C discusses NISQ measurement overhead, but this reproduction uses
+      the noise-free \texttt{default.qubit} statevector simulator with no shot
+      sampling. The reproduced numbers therefore say nothing about the
+      \emph{practical} feasibility claim (that these derivatives are estimable
+      within realistic shot budgets on hardware).
+\item \textbf{H$_2$ is the easiest possible test.} The 3-parameter UCCSD ansatz for
+      H$_2$/STO-3G is provably exact --- \emph{any} correctly implemented VQE
+      matches FCI here. This replication therefore verifies our code and
+      confirms the paper's derivative formulas are correct on this system, but
+      does not stress-test the method on ansatz-error-limited regimes (larger
+      molecules, tighter basis sets, active-space truncations) where derivative
+      quality would actually be a discriminating benchmark.
+\item \textbf{Response properties ($\mu_Z$, $\alpha_{ZZ}$) not reproduced.} The
+      dipole/polarizability curves of Fig.\ 5 --- which are the paper's most
+      distinctive numerical contribution beyond geometry optimization --- were
+      skipped. Without these, the ``derivatives for property calculations''
+      framing of the paper is only partially covered.
+\item \textbf{H+H$_2$ TS search not reproduced.} The transition-state exercise
+      (Fig.\ 6b, symmetric TS at $(0.936, 0.936)$\,\AA) is the paper's most
+      demanding geometric application. Skipping it means our verdict is
+      conditional on the extra saddle-point search machinery not introducing
+      new bugs beyond the minimum-search recipe we did verify.
+\item \textbf{Ideal simulator only.} No noise model, no hardware run. All modern
+      derivative-VQE hardware demos (real transmon runs) fight barren plateaus
+      and measurement noise that are absent here.
+\end{itemize}
+
+\section{Reproducibility}
+Verified 2026-07-03 on macOS 25.3.0 / Python 3.14.6, PennyLane 0.45.1,
+PySCF 2.13.1. Runtime: 10 s (5-point scan) + 15 s (geometry opt) on one CPU
+core. All commands, seeds, and evidence artifacts recorded in
+\texttt{report/REPORT.md} and \texttt{report/evidence/}. Included open questions
+(\S\ref{sec:oq}) enumerate the concrete next probes needed to close the gaps above.
+
+\input{open_questions_section.tex}
+
+\end{document}

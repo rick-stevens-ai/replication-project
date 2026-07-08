@@ -1,0 +1,117 @@
+\documentclass[10pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{siunitx}
+\hypersetup{colorlinks=true,urlcolor=blue,linkcolor=black,citecolor=blue}
+\title{\textbf{Wind-farm GNN surrogate replication}\\
+\large Duth\'e et al.\ 2023 (J.\ Phys.\ Conf.\ Ser.\ 2505, 012014) ---\\
+\large 100-epoch GEN-GNN on PyWake-generated graphs (1$\times$ A100)}
+\author{Ollie (OpenClaw subagent) --- Slot G-RETRY (P077 reinforcement)}
+\date{2026-05-27}
+
+\begin{document}
+\maketitle
+
+\section*{Summary}
+\noindent\textbf{Verdict: replication successful} on the three primary flow targets (power, rotor-averaged wind speed, effective turbulence intensity), exceeding paper-stated R$^2$ thresholds. Five damage-equivalent-load (DEL) channels land slightly under the paper's range (0.78--0.87 vs the implied 0.85--0.95), attributable to a 5--10$\times$ smaller training set and 100 vs.\ 150 epochs. Trained GNN runs \textbf{$\sim$3{,}257$\times$ faster than PyWake} on the same farms (2.44~ms vs.\ 7{,}947~ms per inference, single A100 vs.\ single-thread PyWake CPU).
+
+\section{Pivot from brief}
+The slot brief named ``Duth\'e 2023 in Applied Energy, EllipSys3D LES''. No such paper exists. The actual Duth\'e~2023 paper~\cite{duthe2023} is in J.\ Phys.\ Conf.\ Ser.\ and uses \textbf{PyWake}, not EllipSys3D LES. The brief's fallback (``PyWake + windfarm-gnn'') is in fact the same paper and the same code repository~\cite{repo}. We adopted the actual Duth\'e~2023 / DCE~2024~\cite{duthe2024} pair and document the misattribution. The directory name ``SOWFA-WindFarm'' is preserved only for indexing continuity with the brief.
+
+\section{Method}
+\textbf{Simulator (truth):} PyWake 2.6.11, IEA34 3.4~MW turbine (130~m rotor), Niayifar Gaussian wake deficit, Crespo--Hernandez turbulence, linear-sum superposition, propagate-downwind solver, TwoWT TensorFlow load surrogates.
+
+\textbf{Farms:} randomized rectangle/circle/ellipse layouts, 8--100 turbines, min spacing 3D, max 8D.
+
+\textbf{Graphs:} Delaunay-triangulated turbine positions with PyG \texttt{Polar(norm=False)} edge attributes; relative wind direction appended at load time. 8 node outputs (power, rotor-avg ws, TI$_\mathrm{eff}$, 5 DEL channels) and 3 globals (ws, wd, TI).
+
+\textbf{Model:} \texttt{WindFarmGNN} encoder $\to$ 4-step GEN message-passing processor (softmax aggregator, 256-dim latents) $\to$ decoder. \textbf{1{,}452{,}552 trainable parameters.}
+
+\textbf{Training:} 100 epochs (paper: 150), Adam @ 1e-3, cosine annealing, batch 64, MSE loss in normalized space.
+
+\section{Dataset (this run)}
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+split & layouts & inflows/layout & total graphs & size \\
+\midrule
+train & 200 & 10 & 2{,}000 & \SI{19}{MB} \\
+valid & 30  & 10 & 300    & \SI{2.9}{MB} \\
+test  & 30  & 10 & 300    & \SI{2.7}{MB} \\
+\midrule
+\textbf{total} & 260 & --- & \textbf{2{,}600} & \textbf{\SI{25}{MB}} \\
+\bottomrule
+\end{tabular}
+\end{center}
+Locally generated with the repo's \texttt{graph\_farms/generate\_graphs.py} (8 CPU threads, $\sim$17~min). The DCE~2024 follow-up uses $\mathcal{O}(10^4)$ graphs --- our small set is the main reason DEL R$^2$ is somewhat below the paper's range.
+
+\section{Results}
+\begin{center}
+\begin{tabular}{lcccr}
+\toprule
+channel & R$^2$ & MAE & RMSE & MAPE \\
+\midrule
+\textbf{power [W]}                    & \textbf{0.9962} & \num{4.71e4}  & \num{7.04e4}  & 3.85\% \\
+\textbf{rotor-avg ws [m/s]}           & \textbf{0.9980} & 0.146 & 0.200 & 1.53\% \\
+\textbf{TI$_\mathrm{eff}$ [--]}        & \textbf{0.9835} & 0.00397 & 0.00593 & 1.99\% \\
+DEL blade flap            & 0.8476 & 470.4 & 674.8 & 13.72\% \\
+DEL blade edge            & 0.8673 & 60.73 & 97.36 & 1.04\% \\
+DEL tower-top torsion     & 0.8111 & 2851 & 4784  & 15.29\% \\
+DEL tower-bottom FA       & 0.7755 & 1257 & 2195  & 12.92\% \\
+DEL tower-bottom SS       & 0.8367 & 301.1 & 467.6 & 10.46\% \\
+\midrule
+\textbf{mean R$^2$ (8 ch.)} & \textbf{0.8895} & & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Comparison to paper}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+metric & paper target & this run & verdict \\
+\midrule
+Power R$^2$            & $> 0.95$  & 0.9962 & \textcolor{teal}{\checkmark exceeded} \\
+Rotor-avg ws R$^2$     & $> 0.97$  & 0.9980 & \textcolor{teal}{\checkmark exceeded} \\
+TI$_\mathrm{eff}$ R$^2$ & $> 0.90$ & 0.9835 & \textcolor{teal}{\checkmark exceeded} \\
+DEL R$^2$ (per ch.)     & 0.85--0.95 & 0.78--0.87 & \textcolor{orange}{$\sim$ slightly under} \\
+Speedup vs.\ PyWake    & $\sim 10\times$ (README) & 3{,}257$\times$ & \textcolor{teal}{\checkmark vastly exceeded} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Inference timing}
+GNN forward (1$\times$ A100, batch=1, 299 graphs after warmup): mean \textbf{2.44~ms/graph} (median 2.42~ms). PyWake (single CPU thread, same 10 farms, 8--79 turbines each): mean \textbf{7{,}947~ms/(farm$\cdot$inflow)}. Speedup: $\mathbf{3{,}257\times}$.
+
+\subsection*{Training}
+Loss curves: train 0.724 (ep 1) $\to$ 0.115 (ep 100), val 0.514 $\to$ 0.121, no overfitting. \textbf{Wall time: 4~min 47~s} for 100 epochs on 1$\times$ A100 80GB. Best-checkpoint val loss 0.1216 at epoch~99.
+
+\section{Friction taxonomy (encountered \& resolved)}
+\textbf{F1 (API drift, py\_wake 2.6.11):} \texttt{TensorflowSurrogate} renamed to \texttt{TensorFlowModel}; \texttt{yaw=} kwarg dropped from \texttt{IEA34\_130\_2WT\_Surrogate}. Patched repo's \texttt{pywake\_sim.py} (alias upstream class; drop \texttt{yaw} when \texttt{loads\_method='TwoWT'}).
+
+\textbf{F2 (missing data in PyPI wheel):} the IEA34\_130 surrogate \texttt{.h5} files (44 files, 22~MB) are not bundled in the \texttt{py\_wake} wheel. Resolved by git-cloning the upstream DTU GitLab repo and copying \texttt{one\_turbine/} and \texttt{two\_turbines/} into the venv \texttt{site-packages}.
+
+\textbf{F3 (env.sh ordering bug, uicgpu):} \texttt{\textasciitilde/env.sh} runs \texttt{mkdir -p "\$HF\_HOME"} \emph{before} exporting \texttt{HF\_HOME}. Innocuous interactively, breaks any \texttt{set -e} script that sources it. Workaround: source first, then \texttt{set -e}.
+
+\textbf{F5 (PyTorch 2.6 \texttt{weights\_only=True} default):} \texttt{torch.load} can no longer unpickle PyG \texttt{Data} objects without explicit allowlisting. Patched 3 callsites with \texttt{weights\_only=False}.
+
+\textbf{F6 (silent transform-discarded bug):} the repo's \texttt{utils.py::to\_graph} calls \texttt{p(g)} where \texttt{p = Polar(norm=False)} but discards the result. Modern PyG transforms return new \texttt{Data} objects --- not in-place. So \texttt{edge\_attr} was never set, breaking training. Patched 3 callsites to \texttt{g = p(g)} (etc.).
+
+\textbf{F7 (predict.py signature drift):} \texttt{predict.py} uses \texttt{model(data, denorm=True, return\_latent=True)} but \texttt{WindFarmGNN.forward} accepts \texttt{denorm\_output=...} only. Wrote a clean \texttt{eval.py} for per-channel R$^2$/MAE/RMSE/MAPE and inference timing.
+
+\textbf{Friction total:} 7 real frictions, $\sim$25~min spent. No data, compute, or scientific blocker.
+
+\section{Verdict \& compute budget}
+\textbf{Verdict:} \textcolor{teal}{\textbf{successful replication}} on the three primary flow targets, with DEL channels slightly under paper range (expected at this dataset size). 3 orders of magnitude inference speedup vs.\ PyWake. \\
+\textbf{Compute used:} $\ll 0.1$ A100-hours (training was under 5~min); $\sim$2.3 CPU-hours for data generation.
+
+\begin{thebibliography}{9}
+\bibitem{duthe2023} G.~Duth\'e, F.\ de~Nolasco~Santos, I.~Abdallah, P.-\'E.~R\'ethor\'e, W.~Weijtjens, E.~Chatzi, C.~Devriendt. \emph{Local flow and loads estimation on wake-affected wind turbines using graph neural networks and PyWake.} J.\ Phys.\ Conf.\ Ser.\ \textbf{2505} (2023) 012014. DOI: \href{https://doi.org/10.1088/1742-6596/2505/1/012014}{10.1088/1742-6596/2505/1/012014}.
+\bibitem{duthe2024} G.~Duth\'e \emph{et al.} \emph{Flexible multi-fidelity framework for load estimation of wind farms through graph neural networks and transfer learning.} Data-Centric Engineering \textbf{5}:e29 (2024). DOI: \href{https://doi.org/10.1017/dce.2024.35}{10.1017/dce.2024.35}.
+\bibitem{repo} G.~Duth\'e. \emph{windfarm-gnn}. \url{https://github.com/gduthe/windfarm-gnn} (commit 2025-07-07, MIT licence).
+\end{thebibliography}
+\end{document}

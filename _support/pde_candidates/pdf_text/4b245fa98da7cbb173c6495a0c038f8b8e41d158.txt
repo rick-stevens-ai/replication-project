@@ -1,0 +1,1764 @@
+                                                                 Poisson Flow Generative Models
+
+
+                                                               Yilun Xu∗, Ziming Liu∗, Max Tegmark, Tommi Jaakkola
+                                                                         Massachusetts Institute of Technology
+                                                         {ylxu, zmliu, tegmark}@mit.edu; tommi@csail.mit.edu
+
+
+
+
+arXiv:2209.11178v4 [cs.LG] 20 Oct 2022
+                                                                                         Abstract
+                                                      We propose a new “Poisson flow” generative model (PFGM) that maps a uniform
+                                                      distribution on a high-dimensional hemisphere into any data distribution. We
+                                                      interpret the data points as electrical charges on the z = 0 hyperplane in a space
+                                                      augmented with an additional dimension z, generating a high-dimensional electric
+                                                      field (the gradient of the solution to Poisson equation). We prove that if these
+                                                      charges flow upward along electric field lines, their initial distribution in the
+                                                      z = 0 plane transforms into a distribution on the hemisphere of radius r that
+                                                      becomes uniform in the r → ∞ limit. To learn the bijective transformation,
+                                                      we estimate the normalized field in the augmented space. For sampling, we
+                                                      devise a backward ODE that is anchored by the physically meaningful additional
+                                                      dimension: the samples hit the (unaugmented) data manifold when the z reaches
+                                                      zero. Experimentally, PFGM achieves current state-of-the-art performance among
+                                                      the normalizing flow models on CIFAR-10, with an Inception score of 9.68 and a
+                                                      FID score of 2.35. It also performs on par with the state-of-the-art SDE approaches
+                                                      while offering 10× to 20× acceleration on image generation tasks. Additionally,
+                                                      PFGM appears more tolerant of estimation errors on a weaker network architecture
+                                                      and robust to the step size in the Euler method. The code is available at https:
+                                                      //github.com/Newbeeer/poisson_flow.
+
+
+                                         1       Introduction
+                                         Deep generative models are a prominent approach for data generation, and have been used to produce
+                                         high quality samples in image [1], text [2] and audio [35], as well as improve semi-supervised
+                                         learning [20], domain generalization [25] and imitation learning [15]. However, current deep
+                                         generative models also have limitations, such as unstable training objectives (GANs [1, 12, 17]) and
+                                         low sample quality (VAEs [21], normalizing flows [6]). New techniques [12, 24] are introduced
+                                         to stablize the training of CNN-based or ViT-based GAN models. Although recent advances on
+                                         diffusion [16] and scored-based models [33] achieve comparable sample quality to GAN’s without
+                                         adversarial training, these models have a slow stochastic sampling process. [33] proposes backward
+                                         ODE samplers (normalizing flow) that speed up the sampling process but these methods have not yet
+                                         performed on par with the SDE counterparts.
+                                         We present a new “Poisson flow” generative model (PFGM), exploiting a remarkable physics fact
+                                         that generalizes to N dimensions. As illustrated in Fig. 1(a), motion in a viscous fluid transforms
+                                         any planar charge distribution into a uniform angular distribution. Specifically, we interpret N -
+                                         dimensional data points x (images, say) as positive electric charges in the z = 0 plane of an
+                                         N + 1-dimensional space (see Fig. 1(a)) filled with a viscous liquid (say honey). A positive charge
+                                         with z > 0 will be repelled by the other charges and move in the direction of their repulsive force,
+                                         eventually crossing an imaginary hemisphere of radius r. We show that, remarkably, if the the original
+                                         charge distribution is let loose just above z = 0, this law of motion will cause a uniform distribution
+                                         for their hemisphere crossings in the r → ∞ limit.
+                                             ∗
+                                                 Equal Contribution.
+
+
+                                         36th Conference on Neural Information Processing Systems (NeurIPS 2022).
+                          z
+                                                                        Forward ODE
+
+
+
+
+ density                                                               Backward ODE
+high                                           y                        Forward ODE
+
+                      O       z=0
+low
+
+                                                                       Backward ODE
+                                 x
+                      (a)                                                   (b)
+
+Figure 1: (a) 3D Poisson field trajectories for a heart-shaped distribution (b) The evolvements of a
+distribution (top) or an (augmented) sample (bottom) by the forward/backward ODEs pertained to
+the Poisson field.
+
+
+Our Poisson flow generative process reverses the forward process: we generate a uniform distribution
+of negative charges on the hemisphere, then track their motion back to the z = 0 plane, where they
+will be distributed as the data distribution. A Poisson flow can be viewed as a type of continuous
+normalizing flows [4, 10, 33] in the sense that it continuously maps between an arbitrary distribution
+and an easily sampled one: in the previous works an N -dimensional Gaussian and in PFGM a
+uniform distribution on an N -dimensional hemisphere. In practice, we implement the Poisson flow
+by solving a pair of forward/backward ordinary differential equations (ODEs) induced by the electric
+field (Fig. 1(b)) given by the N -dimensional version of Coulomb’s law (the gradient of the solution
+to the Poisson’s equation with the data as sources). We will interchangeably refer to this gradient as
+the Poisson field, since electric fields normally refer to the special case N = 3.
+The proposed generative model PFGM has a stable training objective and empirically outperforms
+previously state-of-the-art continuous flow methods [30, 33]. As a different iterative method, PFGM
+offers two advantages compared to score-based methods [32, 33]. First, the ODE process of PFGM
+achieves faster sampling speeds than the SDE samplers in [33]. while retaining comparable perfor-
+mance. Second, our backward ODE exhibits better generation performance than the reverse-time
+ODEs of VE/VP/sub-VP SDEs [33], as well as greater stability on a weaker architecture NSCNv2 [32].
+The rationale for robustness is that the time variables in these ODE baselines are strongly correlated
+with the sample norms during training time, resulting in a less error-tolerant inference. In contrast,
+the tie between the anchored variable and the sample norm in PFGM is much weaker.
+Experimentally, we show that PFGM achieves current state-of-the-art performance on CIFAR-10
+dataset in the normalizing flow family, with FID/Inception scores of 2.48/9.65 (w/ DDPM++ [33])
+and 2.35/9.68 (w/ DDPM++ deep [33]). It performs competitively with current state-of-the-art SDE
+samplers [33] and provides 10× to 20× speed up across datasets. Notably, the backward ODE in
+PFGM is the only ODE-based sampler that can produce decent samples on its own on NCSNv2 [32],
+while other ODE baselines fail without corrections. In addition, PFGM demonstrates the robustness to
+the step size in the Euler method, with a varying number of function evaluations (NFE) ranging from
+10 to 100. We further showcase the utility of the invertible forward/backward ODEs of the Poisson
+field on likelihood evaluation and image manipulations, and its scalability to higher resolution images
+on LSUN bedroom 256 × 256 dataset.
+
+2      Background and Related works
+
+Poisson equation Let x ∈ RN and ρ(x) ∶ RN → R be a source function. We assume that the source
+function has a compact support, ρ ∈ C 0 and N ≥ 3. The Poisson equation is
+                                          ∇2 ϕ(x) = −ρ(x),                                          (1)
+                                                                          ∂2
+where ϕ(x) ∶ R → R is called the potential function, and ∇
+                N                                              2
+                                                                   ≡ ∑N
+                                                                      i=1 ∂x2 is the Laplacian operator.
+                                                                         i
+It is usually helpful to define the gradient field E(x) = −∇ϕ(x) and rewrite the Poisson equation as
+
+
+                                                   2
+∇ ⋅ E = ρ, known in physics as Gauss’s law [11]. The Poisson equation is widely used in physics,
+giving rise to Newton’s gravitational theory [9] and the electrostatic theory [11], when ρ(x) is
+interpreted as mass density or electric charge density, respectively. E is the N -dimensional analog of
+the electric field. The Poisson equation Eq. (1) (with zero boundary condition at infinity) admits a
+unique simple integral solution 2 :
+                                                                  1               1
+              ϕ(x) = ∫ G(x, y)ρ(y)dy,          G(x, y) =                                  ,            (2)
+                                                           (N − 2)SN −1 (1) ∣∣x − y∣∣N −2
+where SN −1 (1) is a geometric constant representing the surface area of the unit (N − 1)-sphere 3 ,
+and G(x, y) is the extension of Green’s function in N -dimensional space (details in Appendix A.3).
+The negative gradient field of ϕ(x), referred as Poisson field of the source ρ, is
+                                                                                 1        x−y
+       E(x) = −∇ϕ(x) = − ∫ ∇x G(x, y)ρ(y)dy,                ∇x G(x, y) = −                        .    (3)
+                                                                             SN −1 (1) ∣∣x − y∣∣N
+Qualitatively, the Poisson field E(x) points away from sources, or equivalently −E(x) points towards
+sources, as illustrated in Fig. 1. It is straightforward to check that when ρ(x) → δ(x − y), we get
+ϕ(x) → G(x, y) and E(x) → −∇x G(x, y). This implies that G(x, y) and −∇x G(x, y) can be
+interpreted as the potential function and the gradient field generated by a unit point source, e.g.,
+a point charge, located at y. When ρ(x) takes general forms but has bounded support, simple
+asymptotics exist for ∣∣x∣∣ ≫ ∣∣y∣∣. To the lowest order, E(x) = ∇x G(x, y)∣y=0 ∼ x/∣∣x∣∣N behaves as
+if it were generated by a unit point source at y = 0. In physics, the power law decay is considered to
+be long-range (compared to exponential decay) [11].
+Particle dynamics in a Poisson field The Poisson field immediately defines a flow model, where the
+probability distribution evolves according to the gradient flow ∂pt (x)/∂t = −∇ ⋅ (pt (x)E(x)). The
+gradient flow is a special case of the Fokker-Planck equation [28], where the diffusion coefficient is
+zero. Intuitively we can think of pt (x) as represented by a population of particles. The corresponding
+(non-diffusion) case of the Itô process is the forward ODE dx     dt
+                                                                      = E(x). We can interpret the
+trajectories of the ODE as particles moving according to the Poisson field E(x), with initial states
+drawn from p0 . The physical picture of the forward ODE is a charged particle under the influence of
+electric fields in the overdamped limit (details in Appendix F).
+The dynamics is also rescalable in the sense that the particle trajectory remains the same for dx
+                                                                                                dt
+                                                                                                   =
+±f (x)E(x) for f (x) > 0, f (x) ∈ C , because the time rescaling dt → f (x(t))dt recovers dt =
+                                    1                                                           dx
+
+±E(x). Note that the dynamics is stiff due to the power law factor in the denominator in Eq. (3),
+posing computational challenges. Luckily the rescalablility allows us to rescale E(x) properly to get
+new ODEs (formally defined later in Section 3.3) that are more amenable for sampling.
+Generative Modeling via ODE Generative modeling can be done by transforming a base distribution
+to a data distribution via mappings defined by ODEs. The ODE-based samplers allow for adaptive
+sampling, exact likelihood evaluation and modeling of continuous-time dynamics [4, 33]. Previous
+works broadly fall into two lines. [4, 3] introduce a continuous-time normalizing flow model that
+can be trained with maximum likelihood by the instantaneous change-of-variables formula [4]. For
+sampling, they directly integrate the learned invertiable mapping over time. Another work [33] unifies
+the scored-based model [31, 32] and diffusion model [16] into a general diffusion process, and uses
+the reverse-time ODE of the diffusion process for sampling. They show that the reverse-time ODE
+produces high quality samples with improved architecture.
+
+3   Poisson Flow Generative Models
+In this section, we start with the properties of the Poisson flow in the augmented space and show
+how to draw samples from the data distribution by following the backward ODE of the Poisson
+flow (Section 3.1). We then discuss how to actually learn a normalized Poisson field from data
+samples through simulations of the forward ODE (Section 3.2) and present an equivalent backward
+ODE that allows for exponentially decay on z (Section 3.3).
+  2
+    Eq. (2) is valid for N ≥ 3. When N = 2, the Green’s function is G(x, y) = −log(∣∣x − y∣∣)/2π. We assume
+N ≥ 3 since N is typically large in the relevant applications.
+  3
+    The N -sphere with radius r is defined as {x ∈ RN +1 , ∣∣x∣∣ = r}
+
+
+                                                    3
+ No augmentation (2D)           Augmentation (3D)                                     z
+                                                                                                        dΦout = dΩ/SN(1)
+                                                                         r→∞                            S1
+                                                                                                   S2
+                                                                                                 Gauss′s Law
+                                                                                 dΩ              dΦin = dΦout
+                                                                                           S3
+                                                                                           dΦin = p(x)dA/2
+                                                                         N dim    O        S4
+                                                                                      S5
+
+                                                                     ￼
+
+                          (a)                                                     (b)
+
+Figure 2: (a) Poisson field (black arrows) and particle trajectories (blue lines) of a 2D uniform disk
+(red). Left (no augmentation, 2D): all particles collapse to the disk center. Right (augmentation, 3D):
+particles hit different points on the disk. (b) Proof idea of Theorem 1. By Gauss’s Law, the outflow
+flux dΦout equals the inflow flux dΦin . The factor of two in p(x)dA/2 is due to the symmetry of
+Poisson fields in z < 0 and z > 0.
+
+3.1   Augment the data with additional dimension
+
+We wish to generate samples x ∈ RN from a distribution p(x) supported on a bounded region. We
+may set the source ρ(x) = p(x) ∈ C 0 4 and compute the resulting gradient field E(x) from Eq. (3).
+Since −E(x) points towards sources, the backward ODE dx/dt = −E(x) will take samples close to
+the sources. One may naively hope that the backward ODE is a generative model that recovers p(x).
+Unfortunately, the backward ODE has the problem of mode collapse. We illustrate this phenomenon
+with a 2D uniform disk. The reverse Poisson field −E(x) on the 2D (x, y)-plane points towards the
+center of the disk O (Fig. 2(a) left), so all particle trajectories (blue lines) will eventually hit O. If we
+instead add an additional dimension z (Fig. 2(a) right), particles can hit different points on the disk
+and faithfully recover the data distribution.
+Consequently, instead of solving the Poisson equation ∇2 ϕ(x) = −p(x) in the original data space,
+we solve the Poisson equation in an augmented space x̃ = (x, z) ∈ RN +1 with an additional variable
+z ∈ R. We augment the training data x̃ in the new space by setting z = 0 such that x̃ = (x, 0). As a
+consequence, the data distribution in the augmented space is p̃(x̃) = p(x)δ(z), where δ is the Dirac
+delta function. By Eq. (3), the Poisson field by solving the new Poisson equation ∇2 ϕ(x̃) = −p̃(x̃)
+has an analytical form:
+                                                          1           x̃ − ỹ
+                    ∀x̃ ∈ RN +1 , E(x̃) = −∇ϕ(x̃) =            ∫                 p̃(ỹ)dỹ                            (4)
+                                                        SN (1)   ∣∣x̃ − ỹ∣∣N +1
+The associated forward/backward ODEs of the Poisson field are dx̃/dt = E(x̃), dx̃/dt = −E(x̃).
+Intuitively, theses ODEs uniquely define trajectories of particles between the z = 0 hyperplane and
+an enclosing hemisphere (cf. Fig. 1(a)). In the following theorem, we show that the backward
+ODE defines a transformation between the uniform distribution on an infinite hemisphere and the
+data distribution p̃(x̃) in the z = 0 plane. We present the formal proof to Appendix A, illustrated
+by Fig. 2(b). The proof is based on the idea that when the radius of hemisphere r → ∞, the data
+distribution p̃(x̃) can be effectively viewed as a delta distribution at origin. Consequently, the Poisson
+                                                                     +
+field points in the radial direction at r → ∞, perpendicular to SN     (r) (Green arrows in Fig. 2(b)).
+Theorem 1. Suppose particles are sampled from a uniform distribution on the upper (z > 0) half
+of the sphere of radius r and evolved by the backward ODE dx̃      dt
+                                                                       = −E(x̃) until they reach the z = 0
+hyperplane, where the Poisson field E(x̃) is generated by the source p̃(x̃). In the r → ∞ limit, under
+some mild conditions detailed in Appendix A, this process generates a particle distribution p̃(x̃), i.e.,
+a distribution p(x) in the z = 0 hyperplane.
+                                                                                     +
+Proof sketch. Suppose the flux of the backward ODE connects a solid angle dΩ (on SN    (r)) with
+an area dA (on supp(p̃(x̃)). According to Gauss’s law, the outflow flux dΦout = dΩ/SN (1) on the
+   4
+     A probability distribution p(x) is a special case of “charge density” ρ(x) because p(x) need to be non-
+negative and integrates to unity. Here we focus on applications to probability distribution of data, which is the
+objective to be modeled in generative modeling.
+
+
+                                                       4
+hemisphere (Green arrows in Fig. 2(b)) equals the inflow flux dΦin = p(x)dA/2 on supp(p̃(x̃)) (Red
+arrows in Fig. 2(b)). dΦin = dΦout gives dΩ/dA = p(x)SN (1)/2 ∝ p(x). Together, by change-of-
+variable, we conclude that the final distribution in the z = 0 hyperplane is p(x).
+
+The theorem states that starting from an infinite hemisphere, one can recover the data distribution p̃
+by following the inverse Poisson field −E(x̃). We defer the formal proof and technical assumptions
+of the theorem to Appendix A. The property allows generative modeling by following the Poisson
+flow of ∇2 ϕ(x̃) = −p̃(x̃).
+
+3.2   Learning the normalized Poisson Field
+
+Given a set of training data D = {xi }ni=1 i.i.d sampled from the data distribution p(x), we define the
+empirical version of the Poisson field (Eq. (4)) as follows:
+                                                    n
+                                                            x̃ − x̃i
+                                     Ê(x̃) = c(x̃) ∑
+                                                   i=1 ∣∣x̃ − x̃i ∣∣
+                                                                    N +1
+
+
+where the gradient field is calculated on n augmented datapoints {x̃i = (xi , 0)}ni=1 , and c(x̃) =
+1/ ∑ni=1 ∣∣x̃−x̃1i ∣∣N +1 is the multiplier for numerical stability. We further normalize the field to re-
+solve the variations in the magnitude of the norm ∥ √    Ê(x̃) ∥2 , and fit the neural network to the
+more amenable negative normalized field v(x̃) = − N Ê(x̃)/∥ Ê(x̃) ∥2 . The Poisson field is
+rescalable (cf. Section 2) and thus trajectories of its forward/backward ODEs are invariant under
+normalization. We denote the√empirical field calculated on batch data B by ÊB and the negative
+normalized field as vB (x̃) = − N ÊB (x̃)/∥ ÊB (x̃) ∥2 .
+Similar to the scored-based models, we sample points inside the hemisphere by perturbing the
+augmented training data. Given a training point x ∈ D, we add noise to its augmented version
+{x̃i = (xi , 0)}ni=1 to construct the perturbed point (y, z):
+                            y = x+ ∥ x ∥ (1 + τ )m u,       z = ∣z ∣(1 + τ )m                       (5)
+
+where  = (x , z ) ∼ N (0, σ 2 IN +1×N +1 ), u ∼ U(SN (1)) and m ∼ U[0, M ]. The upper limit M ,
+standard deviation σ and τ are hyper-parameters. With fixed  and u, the added noise increases
+exponentially with m. The rationale behind the design is that points farther away from the data
+support play a less important role in generative modeling, sharing a similar spirit with the choice of
+noisy scales in score-based models [32, 33].
+                                                                                  ∣B∣
+In practice, we sample the points by perturbing a mini-batch data B = {xi }i=1 in each iteration. We
+uniformly sample the power m in [0, M ] for each datapoint. We select a large M (typically around
+300) to ensure the perturbed points can reach a large enough hemisphere. We use a larger batch BL
+for the estimation of normalized field since the empirical normalized field is biased, which empirically
+                                                                    ∣B∣
+gives better results. Denoting the set of perturbed points as {ỹi }i=1 , we train the neural network fθ
+on these points to estimate the negative normalized field by minimizing the following loss:
+
+                                          1 ∣B∣
+                                L(θ) =       ∑ ∥ fθ (ỹi ) − vBL (ỹi ) ∥2
+                                                                         2
+                                         ∣B∣ i=1
+We summarize the training process in Algorithm 1. In practice, we add a small constant γ to the
+denominator of the normalized field to overcome the numerical issue when ∃i, ∣∣x̃ − x̃i ∣∣ ≈ 0.
+
+3.3   Backward ODE anchored by the additional dimension
+
+After estimating the normalized field v, we can sample from the data distribution by the backward
+ODE dx̃ = v(x̃)dt. Nevertheless, the boundary condition of the above ODE is unclear: the starting
+and terminal time t of the ODE are both unknown. To remedy the issue, we propose an equivalent
+backward ODE in which x evolves with the augmented variable z:
+                                        dx dt
+                          d(x, z) = (         dz, dz) = (v(x̃)x v(x̃)−1
+                                                                     z , 1)dz
+                                        dt dz
+
+
+                                                    5
+Algorithm 1 Learning the normalized Poisson Field
+    Input: Training iteration T , Initial model fθ , dataset D, constant γ, learning rate η.
+    for t = 1 . . . T do
+                                                                                          ∣B∣
+      Sample a large batch BL from D and subsample a batch of datapoints B = {xi }i=1 from BL
+                                               ∣B∣
+      Simulate the ODE: {ỹi = perturb(xi ) }i=1
+                                                              √
+      Calculate the normalized field by BL : vBL (ỹi ) = − N ÊBL (ỹi )/(∥ ÊBL (ỹi ) ∥2 +γ), ∀i
+                                         ∣B∣
+      Calculate the loss: L(θ) = ∣B∣1
+                                       ∑i=1 ∥ fθ (ỹi ) − vBL (ỹi ) ∥22
+      Update the model parameter: θ = θ − η∇L(θ)
+    end for
+    return fθ
+
+Algorithm 2 perturb(x)
+    Sample the power m ∼ U[0, M ]
+    Sample the initial noise (x , z ) ∼ N (0, σ 2 I(N +1)×(N +1) )
+    Uniformly sample the vector from the unit ball u ∼ U(SN (1))
+    Construct training point y = x+ ∥ x ∥ (1 + τ )m u, z = ∣z ∣(1 + τ )m
+    return ỹ = (y, z)
+
+
+where v(x̃)x , v(x̃)z are the corresponding components of x, z in vector v(x̃). In the new ODE, we
+replace the time variable t with the physically meaningful variable z, permitting explicit starting
+and terminal conditions: when z = 0, we arrive at the data distribution and we can freely choose
+a large zmax as the starting point in the backward ODE. The backward ODE is compatible with
+general-purpose ODE solvers, e.g., RK45 method [23] and forward Euler method. The popular
+black-box ODE solvers, such as the one in Scipy library [37], typically use a common starting time
+for the same batch of samples. Since the distribution on the z = zmax hyperplane is no longer uniform,
+we derive the prior distribution by radially projecting uniform distribution on the hemisphere with
+radius r = zmax to the z = zmax hyperplane:
+                                            N +1
+                                          2zmax                             2zmax
+                pprior (x) =                                   =
+                               SN (zmax )(∥ x ∥22 +zmax
+                                                    2 ) N2+1       SN (1)(∥ x ∥22 +zmax
+                                                                                    2 ) 2
+                                                                                       N +1
+
+
+
+where SN (r) is the surface area of N -sphere with radius r. The reason behind the radial projection
+is that the Poisson field points in the radial direction at r → ∞. The new backward ODE also defines
+a bijective transformation between pprior (x) on the infinite hyperplane (zmax → ∞) and the data
+distribution p̃(x̃), analogous to Theorem 1. In order to sample from pprior (x), it is suffice to sample
+                                                                       −1                  N +1
+the norm (radius) from the distribution: pradius (∥ x ∥2 ) ∝ ∥ x ∥N  2    /(∥ x ∥22 +zmax
+                                                                                      2
+                                                                                          ) 2 and then
+uniformly sample its angle. We provide detailed derivations and practical sampling procedure in
+Appendix A.4. We further achieve exponentially decay on the z dimension by introducing a new
+variable t′ :
+                         [Backward ODE] d(x, z) = (v(x̃)x v(x̃)−1
+                                                               z z, z)dt
+                                                                        ′
+                                                                                                      (6)
+
+The z component in the backward ODE, i.e., dz = zdt′ , can be solved by z = et . Since z reaches
+                                                                                       ′
+
+
+zero as t′ → −∞, we instead choose a tiny positive number zmin as the terminal condition. The
+corresponding starting/terminal time of the variable t′ are log zmax / log zmin respectively. Empirically,
+this simple change of variable leads to 2× faster sampling with almost no harm to the sample quality. In
+addition, we substitue the predicted v(x̃)z with a more accurate one when z is small (Appendix B.2.3).
+We defer more details of the simulation of backward ODE to Appendix B.2.
+
+4     Generative Modeling via the Backward ODE
+In this section, we demonstrate the effectiveness of the backward ODE associated with PFGM
+on image generation tasks. In Section 4.1, we show that PFGM achieves currently best in class
+performance in the normalizing flow family. In comparison to the existing state-of-the-art SDE
+or MCMC approaches, PFGM exhibits 10× or 20× acceleration while maintaining competitive or
+
+
+                                                      6
+  Table 1: CIFAR-10 sample quality (FID, Inception) and number of function evaluation (NFE).
+                                             Invertible?   Inception ↑   FID ↓   NFE ↓
+              PixelCNN [36]                      7            4.60        65.9   1024
+              IGEBM [8]                          7            6.02        40.6     60
+              ViTGAN [24]                        7            9.30        6.66      1
+              StyleGAN2-ADA [17]                 7            9.83        2.92      1
+              StyleGAN2-ADA (cond.) [17]         7           10.14        2.42      1
+              NCSN [31]                          7            8.87       25.32   1001
+              NCSNv2 [32]                        7            8.40       10.87   1161
+              DDPM [16]                          7            9.46        3.17   1000
+              NCSN++ VE-SDE [33]                 7            9.83        2.38   2000
+              NCSN++ deep VE-SDE [33]            7            9.89        2.20   2000
+              Glow [19]                          3            3.92        48.9      1
+              DDIM, T=50 [30]                    3              -         4.67     50
+              DDIM, T=100 [30]                   3              -         4.16    100
+              NCSN++ VE-ODE [33]                 3            9.34        5.29    194
+              NCSN++ deep VE-ODE [33]            3            9.17        7.66    194
+              DDPM++ backbone
+              VP-SDE [33]                        7            9.58       2.55    1000
+              sub-VP-SDE [33]                    7            9.56       2.61    1000
+              VP-ODE [33]                        3           9.46        2.97    134
+              sub-VP-ODE [33]                    3           9.30        3.16    146
+              PFGM (ours)                        3           9.65        2.48    104
+              DDPM++ deep backbone
+              VP-SDE [33]                        7            9.68       2.41    1000
+              sub-VP-SDE [33]                    7            9.57       2.41    1000
+              VP-ODE [33]                        3           9.47        2.86    134
+              sub-VP-ODE [33]                    3           9.40        3.05    146
+              PFGM (ours)                        3           9.68        2.35    110
+
+
+higher generation quality. Meanwhile, unlike existing ODE baselines that heavily rely on corrector to
+generate decent samples on weaker architectures, PFGM exhibits greater stability against error (Sec-
+tion 4.2). Finally, we show that PFGM is robust to the step size in the Euler method (Section 4.3),
+and its associated ODE allows for likelihood evaluation and image manipulation by editing the latent
+space (Section 4.4).
+
+4.1   Efficient image generation by PFGM
+
+Setup For image generation tasks, we consider the CIFAR-10 [22], CelebA 64 × 64 [38] and
+LSUN bedroom 256 × 256 [39]. Following [32], we first center-crop the CelebA images and then
+resize them to 64 × 64. We choose M = 291 (CIFAR-10 and CelebA)/356 (LSUN bedroom),
+σ = 0.01 and τ = 0.03 for the perturbation Algorithm 2, and zmin = 1e − 3, zmax =
+40 (CIFAR-10)/60 (CelebA 642 )/100 (LSUN bedroom) for the backward ODE. We further clip
+the norms of initial samples into (0, 3000) for CIFAR-10, (0, 6000) for CelebA 642 and (0, 30000)
+for LSUN bedroom. We adopt the DDPM++ and DDPM++ deep architectures [33] as our backbones.
+We add the scalar z (resp. predicted direction on z) as input (resp. output) to accommodate the
+additional dimension. We take the same set of hyper-parameters, such as batch size, learning rate and
+training iterations from [33]. We provide more training details in Appendix B.1, and discuss how to
+set these hyper-parameters for general datasets in B.1.1 and B.2.1.
+
+Baselines We compare PFGM to modern autoregressive model [36], GAN [17, 24], normalizing
+flow [19] and EBM [8]. We also compare with variants of score-based models such as DDIM [30]
+and current state-of-the-art SDE/ODE methods [33]. We denote the methods that use forward-time
+SDEs in [33] such as Variance Exploding (VE) SDE/Variance Preserving (VP) SDE/ sub-Variance
+Preserving (sub-VP), and the corresponding backward SDE/ODE, as A-B, where A ∈ {VE, VP,
+sub-VP} and B ∈ {SDE, ODE}. We follow the model selection protocol in [33], which selects the
+checkpoint with the smallest FID score over the course of training every 50k iterations.
+
+
+                                                 7
+Figure 3: Uncurated samples on datasets of increasing resolution. From left to right: CIFAR-10
+32 × 32, CelebA 64 × 64 and LSUN bedroom 256 × 256.
+
+
+Numerical Solvers The backward ODE (Eq. (6)) is compatible with any general purpose ODE
+solver. In our experiments, the default solver of ODEs is the black box solver in the Scipy library [37]
+with the RK45 [7] method (RK45), unless otherwise specified. For VE/VP/subVP-SDEs, we use the
+predictor-corrector (PC) sampler introduced in [33]. For VP/sub-VP-SDEs, we apply the predictor-
+only sampler, because its performance is on par with the PC sampler while requiring half computation.
+
+Results For quantitative evaluation on CIFAR-10, we report the Inception [29] (higher is better)
+and FID [13] scores (lower is better) in Table 1. We also include our preliminary experimental results
+on a weaker architecture NCSNv2 [32] in Appendix D.2. We measure the inference speed by the
+average NFE (number of function evaluation). We also explicitly indicate which methods belong to
+the invertible flow family.
+Our main findings are: (1) PFGM achieves the best Inception scores and FID scores among the
+normalizing flow models. Specifically, PFGM obtains an Inception score of 9.68 and a FID score
+of 2.48 using the DDPM++ deep architecture. To our best knowledge, these are the highest FID and
+Inception scores by flow models on CIFAR-10. (2) PFGM achieves a 10× ∼ 20× faster inference
+speed than the SDE methods using the similar architectures, while retaining comparable sam-
+ple quality. As shown in Table 1, PFGM requires NFEs of 110 whereas the SDE methods typically
+use 1000 ∼ 2000 inference steps. PFGM outperforms all the baselines on DDPM++ in all metrics. In
+addition, PFGM generally samples faster than other ODE baselines with the same RK45 solver. (3)
+The backward ODE in PFGM is compatible with architectures with varying capacities. PFGM
+consistently outperforms other ODE baselines on DDPM++ (Table 1) or NCSNv2 (Appendix D.2)
+backbones. (4) PFGM shows scalability to higher resolution datasets. In Appendix D.1, we show
+that PFGM are capable of scale-up to LSUN bedroom 256×256. In particular, PFGM has comparable
+performance with VE-SDE with 15× fewer NFE.
+In Fig. 3, we visualize the uncurated samples from PFGM on CIFAR-10, CelebA 64 × 64 and LSUN
+bedroom 256 × 256. We provides more samples in Appendix E.
+
+
+4.2   Failure of VE/VP-ODEs on NCSNv2 architecture
+
+In our preliminary experiments on NCSNv2                  PFGM               Score-based VE-ODE
+architectures, we empirically observe that the
+VE/VP-ODEs have FID scores greater than 90
+on CIFAR-10. In particular, VE/VP-ODEs                                   p(||x||2)                  p(||x||2)
+can only generate decent samples when apply-
+                                                                       20                           20
+ing the Langevin dynamics corrector, and even
+                                               10      2
+                                                                 15       10         2
+                                                                                              15
+then, their performances are still inferior to                    z(t')                          (t)
+                                                  ||x10||2 10 10               ||x10||2 10 10
+                                                           3                             3
+
+PFGM (Table 9, Table 10). The poor perfor-                       4                           4
+
+
+mance on NCSNv2 stands in striking contrast to
+their high sample quality on NCSN++/DDPM++ Figure 4: Sample norm distributions with varying
+in [33]. It indicates that the VE/VP-ODEs time variables (σ for VE-ODE and z for PFGM)
+
+
+                                                   8
+                         VE-ODE (Euler)                                              PFGM (Euler)                200
+                                                                                                                                CIFAR-10
+                       Cleaner samples                             1200                                                                        PFGM (Euler)
+         800           Noisier samples                                                                                                         DDIM
+                       Noisier samples w/ corrector                1000                                          150            20             VP-ODE (Euler)
+         600           l2 norm = (t) N
+
+   l2 norm                                                   l2 norm
+                                                                       800
+                                                                                                           FID   100            10
+         400                                                           600
+                                                                       400                                                       0
+         200                                                                                                      50
+                                                                       200
+             0                                                           0                                         0
+
+                                     (t)                                                   z(t )
+                 0.0   2.5    5.0    7.5    10.0 12.5 15.0                   0   2         4       6   8               0   20        40   60       80      100
+                                                                                               0
+                                                                                                                                      NFE
+         (a) Norm-σ(t) in VE-ODE                                   (b) Norm-z(t′ ) in PFGM                  (c) FID vs. NFE on CIFAR-10
+
+Figure 5: (a) Norm-σ(t) relation during the backward sampling of VE-ODE (Euler). (b) Norm-z(t′ )
+relation during the backward sampling of PFGM (Euler). The shaded areas mean the standard
+deviation of norms. (c) Number of steps versus FID score.
+
+
+are more susceptible to estimation errors than PFGM. We hypothesize that the strong norm-σ
+correlation seen during the training of score-based models causes the problem.
+For score-based models, the l2 norms of perturbed training samples  √ and the standard deviations σ(t)
+of Gaussian noises have strong correlation, e.g., l2 norm ≈ σ(t) N for large σ(t) in VE [33]. In
+contrast, as shown in Fig. 4, PFGM allocates high mass across a wide spectrum of the training sample
+norms. During sampling, VE/VP-ODEs could break down when the trajectories of backward ODEs
+deviate from the norm-σ(t) relation to which most training samples pertain. The weaker NCSNv2
+backbone incurs larger errors and thus leads to their failure. The PFGM is more resistant to estimate
+errors because of the greater range of training sample norms.
+To further verify the hypothesis above, we split a batch of VE-ODE samples into cleaner and noisier
+samples according to visual quality (Fig. 8(a)). In Fig. 5(a), we investigate the relation for cleaner and
+noisier samples during the forward Euler simulation of VE-ODE when σ(t) < 15. We can see that
+the trajectory of cleaner samples stays close to the norm-σ(t) relation (the red dash line), whereas
+that of the noisier samples diverges from the relation. The Langevin dynamics corrector changes
+the trajectory of noisier samples to align with the relation. Fig. 5(b) further shows that the anchored
+variable z(t′ ) and the norms in the backward ODE of PFGM are not strongly correlated, giving rise
+to the robustness against the imprecise estimation on NCSNv2. We defer more details to Appendix C.
+
+
+4.3     Effects of step size in the forward Euler method
+
+In order to accelerate the inference speed of ODEs, we can increase the step size (decrease the NFEs)
+in numerical solvers such as the forward Euler method. It also enables the trade-off between sample
+quality and computational efficiency in real-world deployment. We study the effects of increasing
+step size on PFGM, VP-ODE and DDIM [30] using the forward Euler method, with a varying NFE
+ranging from 10 to 100.
+In Fig. 5(c), we report the sample quality measured by FID scores on CIFAR-10. As expected, all the
+methods have higher FID scores when decreasing the NFE. We observe that the sample quality of
+PFGM degrades gracefully as we decrease the NFE. Our method shows significantly better robustness
+to step sizes than the VP-ODE, especially when only taking a few Euler steps. In addition, PFGM
+obtains better FID scores than DDIM on most NFEs except for 10 where PFGM is marginally worse.
+This suggests that the PFGM is a promising method for accommodating instantaneous resource
+availability, as high-quality samples can be generated in limited steps.
+
+
+4.4     Utilities of ODE: likelihood evaluation and latent representation
+
+Similar to the family of discrete normalizing flows [6, 19, 14] and continuous probability flow [33],
+the forward ODE in PFGM defines an invertible mapping between the data space and latent space
+with a known prior. Formally, we define the invertible forward M mapping by integrating the
+
+
+                                                                                       9
+corresponding forward ODE d(x, z) = (v(x̃)x v(x̃)−1       ′
+                                                 z z, z)dt of Eq. (6):
+                                                               log zmax
+        x(log zmax ) = M(x(log zmin )) ≡ x(log zmin ) + ∫                 v(x(t′ ))x v(x̃(t′ ))−1    ′
+                                                                                                    ′
+                                                                                                  t
+                                                                                               z e dt
+                                                              log zmin
+
+where log zmin /log zmax are the starting/terminal time in the forward ODE. The forward mapping
+transfers the data distribution to the prior distribution pprior on the z = zmax hyperplane (cf. Section 3.3):
+pprior (x(log zmax )) = M(p(x(log zmin ))). The invertibility enables likelihood evaluation and creates
+a meaningful latent space on the z = zmax hyperplane. In addition, we can adapt to the computational
+constraints by adjusting the step size or the precision in numerical ODE solvers.
+Likelihood evaluation We evaluate the data likelihood                    Table 2: Bits/dim on CIFAR-10
+by the instantaneous change-of-variable formula [4, 33].
+In Table 2, we report the bits/dim on the uniformly de-                                         bits/dim ↓
+
+quantized CIFAR-10 test set and compare with exist-                         RealNVP [6]           3.49
+                                                                            Glow [19]             3.35
+ing baselines that use the same setup. We observe that                      Residual Flow [3]     3.28
+PFGM achieves better likelihoods than discrete normaliz-                    Flow++ [14]           3.29
+ing flow models, even without maximum likelihood train-                     DDPM (L) [16]        ≤ 3.70*
+ing. Among the continuous flow models, sub-VP-ODE                           DDPM++ backbone
+shows the lowest bits/dim, although its sample quality is                   VP-ODE [33]           3.20
+worse than VP-ODE and PFGM (Table 1). The explo-                            sub-VP-ODE [33]       3.02
+ration of the seeming trade-off between likelihood and                      PFGM (ours)           3.19
+sample quality is left for future works.
+Latent representation Since the samples are uniquely identifiable by their latents via the invertible
+mapping M, PFGM further supports image manipulation using its latent representation on the z =
+zmax hyperplane. We include the results of image interpolation and the temperature scaling [6, 19, 33]
+to Appendix D.4 and Appendix D.5. For interpolation, it shows that we can travel along the latent
+space to obtain perceptually consistent interpolations between CelebA images.
+
+5    Conclusion
+We present a new deep generative model by solving the Poisson equation whose source term is
+the data distribution. We estimate the normalized gradient field of the solution in an augmented
+space with an additional dimension. For sampling, we devise a backward ODE that exponential
+decays on the physically meaningful additional dimension. Empirically, our approach has currently
+best performance over other normalizing flow baselines, and achieving 10× to 20× acceleration
+over the stochastic methods. Our backward ODE shows greater stability against errors than popular
+ODE-based methods, and enables efficient adaptive sampling. We further demonstrate the utilities
+of the forward ODE on likelihood evaluation and image interpolation. Future directions include
+improving the normalization of Poisson fields. More principled approaches can be used to get around
+the divergent near-field behavior. For example, we may exploit renormalization, a useful tool in
+physics, to make the Poisson field well-behaved in near fields.
+
+Acknowledgements
+We are grateful to Shangyuan Tong, Timur Garipov and Yang Song for helpful discussion. We would
+like to thank Octavian Ganea and Wengong Jin for reviewing an early draft of this paper. YX and TJ
+acknowledge support from MIT-DSTA Singapore collaboration, from NSF Expeditions grant (award
+1918839) ”Understanding the World Through Code”, and from MIT-IBM Grand Challenge project.
+ZL and MT would like to thank the Center for Brains, Minds, and Machines (CBMM) for hospitality.
+ZL and MT are supported by The Casey and Family Foundation, the Foundational Questions Institute,
+the Rothberg Family Fund for Cognitive Science and IAIFI through NSF grant PHY-2019786.
+
+
+
+
+                                                     10
+References
+ [1] Andrew Brock, Jeff Donahue, and Karen Simonyan. Large scale gan training for high fidelity
+     natural image synthesis. ArXiv, abs/1809.11096, 2019.
+ [2] Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhari-
+     wal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal,
+     Ariel Herbert-Voss, Gretchen Krueger, T. J. Henighan, Rewon Child, Aditya Ramesh, Daniel M.
+     Ziegler, Jeff Wu, Clemens Winter, Christopher Hesse, Mark Chen, Eric Sigler, Mateusz Litwin,
+     Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Rad-
+     ford, Ilya Sutskever, and Dario Amodei. Language models are few-shot learners. ArXiv,
+     abs/2005.14165, 2020.
+ [3] Ricky T. Q. Chen, Jens Behrmann, David Kristjanson Duvenaud, and Jörn-Henrik Jacobsen.
+     Residual flows for invertible generative modeling. ArXiv, abs/1906.02735, 2019.
+ [4] Tian Qi Chen, Yulia Rubanova, Jesse Bettencourt, and David Kristjanson Duvenaud. Neural
+     ordinary differential equations. ArXiv, abs/1806.07366, 2018.
+ [5] Prafulla Dhariwal and Alexander Nichol. Diffusion models beat gans on image synthesis.
+     Advances in Neural Information Processing Systems, 34:8780–8794, 2021.
+ [6] Laurent Dinh, Jascha Sohl-Dickstein, and Samy Bengio. Density estimation using real nvp.
+     ArXiv, abs/1605.08803, 2017.
+ [7] J. R. Dormand and P. J. Prince. A family of embedded runge-kutta formulae. Journal of
+     Computational and Applied Mathematics, 6:19–26, 1980.
+ [8] Yilun Du and Igor Mordatch. Implicit generation and generalization in energy-based models.
+     ArXiv, abs/1903.08689, 2019.
+ [9] Herbert Goldstein, Charles Poole, and John Safko. Classical mechanics, 2002.
+[10] Will Grathwohl, Ricky T. Q. Chen, Jesse Bettencourt, Ilya Sutskever, and David Kristjanson
+     Duvenaud. Ffjord: Free-form continuous dynamics for scalable reversible generative models.
+     ArXiv, abs/1810.01367, 2019.
+[11] David J Griffiths. Introduction to electrodynamics, 2005.
+[12] Ishaan Gulrajani, Faruk Ahmed, Martı́n Arjovsky, Vincent Dumoulin, and Aaron C. Courville.
+     Improved training of wasserstein gans. In NIPS, 2017.
+[13] Martin Heusel, Hubert Ramsauer, Thomas Unterthiner, Bernhard Nessler, and Sepp Hochreiter.
+     Gans trained by a two time-scale update rule converge to a local nash equilibrium. In NIPS,
+     2017.
+[14] Jonathan Ho, Xi Chen, A. Srinivas, Yan Duan, and P. Abbeel. Flow++: Improving flow-
+     based generative models with variational dequantization and architecture design. ArXiv,
+     abs/1902.00275, 2019.
+[15] Jonathan Ho and Stefano Ermon. Generative adversarial imitation learning. In NIPS, 2016.
+[16] Jonathan Ho, Ajay Jain, and P. Abbeel. Denoising diffusion probabilistic models. ArXiv,
+     abs/2006.11239, 2020.
+[17] Tero Karras, Miika Aittala, Janne Hellsten, Samuli Laine, Jaakko Lehtinen, and Timo Aila.
+     Training generative adversarial networks with limited data. ArXiv, abs/2006.06676, 2020.
+[18] Tero Karras, Samuli Laine, and Timo Aila. A style-based generator architecture for generative
+     adversarial networks. In Proceedings of the IEEE/CVF conference on computer vision and
+     pattern recognition, pages 4401–4410, 2019.
+[19] Diederik P. Kingma and Prafulla Dhariwal. Glow: Generative flow with invertible 1x1 convolu-
+     tions. In NeurIPS, 2018.
+
+
+                                                11
+[20] Diederik P. Kingma, Shakir Mohamed, Danilo Jimenez Rezende, and Max Welling. Semi-
+     supervised learning with deep generative models. ArXiv, abs/1406.5298, 2014.
+[21] Diederik P. Kingma and Max Welling. Auto-encoding variational bayes. CoRR, abs/1312.6114,
+     2014.
+[22] Alex Krizhevsky, Vinod Nair, and Geoffrey Hinton. Cifar-10 (canadian institute for advanced
+     research). 2009.
+[23] F Shampine Lawrence. Some practical runge-kutta formulas. Mathematics of Computation,
+     46:135–150, 1986.
+[24] Kwonjoon Lee, Huiwen Chang, Lu Jiang, Han Zhang, Zhuowen Tu, and Ce Liu. Vitgan:
+     Training gans with vision transformers. ArXiv, abs/2107.04589, 2021.
+[25] Daiqing Li, Junlin Yang, Karsten Kreis, Antonio Torralba, and Sanja Fidler. Semantic segmenta-
+     tion with generative models: Semi-supervised learning and strong out-of-domain generalization.
+     2021 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pages
+     8296–8307, 2021.
+[26] Takeru Miyato, Toshiki Kataoka, Masanori Koyama, and Yuichi Yoshida. Spectral normalization
+     for generative adversarial networks. ArXiv, abs/1802.05957, 2018.
+[27] Henry Ricardo. A modern introduction to differential equations. 2002.
+[28] Hannes Risken. Fokker-planck equation. 1984.
+[29] Tim Salimans, Ian J. Goodfellow, Wojciech Zaremba, Vicki Cheung, Alec Radford, and Xi Chen.
+     Improved techniques for training gans. ArXiv, abs/1606.03498, 2016.
+[30] Jiaming Song, Chenlin Meng, and Stefano Ermon. Denoising diffusion implicit models. ArXiv,
+     abs/2010.02502, 2021.
+[31] Yang Song and Stefano Ermon. Generative modeling by estimating gradients of the data
+     distribution. ArXiv, abs/1907.05600, 2019.
+[32] Yang Song and Stefano Ermon. Improved techniques for training score-based generative models.
+     ArXiv, abs/2006.09011, 2020.
+[33] Yang Song, Jascha Sohl-Dickstein, Diederik P. Kingma, Abhishek Kumar, Stefano Ermon, and
+     Ben Poole. Score-based generative modeling through stochastic differential equations. ArXiv,
+     abs/2011.13456, 2021.
+[34] Christian Szegedy, V. Vanhoucke, S. Ioffe, Jon Shlens, and Z. Wojna. Rethinking the inception
+     architecture for computer vision. 2016 IEEE Conference on Computer Vision and Pattern
+     Recognition (CVPR), pages 2818–2826, 2016.
+[35] Aäron van den Oord, Sander Dieleman, Heiga Zen, Karen Simonyan, Oriol Vinyals, Alex
+     Graves, Nal Kalchbrenner, Andrew W. Senior, and Koray Kavukcuoglu. Wavenet: A generative
+     model for raw audio. In SSW, 2016.
+[36] Aäron van den Oord, Nal Kalchbrenner, Lasse Espeholt, Koray Kavukcuoglu, Oriol Vinyals,
+     and Alex Graves. Conditional image generation with pixelcnn decoders. In NIPS, 2016.
+[37] Pauli Virtanen, Ralf Gommers, Travis E. Oliphant, Matt Haberland, Tyler Reddy, David
+     Cournapeau, Evgeni Burovski, Pearu Peterson, Warren Weckesser, Jonathan Bright, Stéfan J.
+     van der Walt, Matthew Brett, Joshua Wilson, K. Jarrod Millman, Nikolay Mayorov, Andrew
+     R. J. Nelson, Eric Jones, Robert Kern, Eric Larson, C J Carey, Ilhan Polat, Yu Feng, Eric W.
+     Moore, J. Vanderplas, Denis Laxalde, Josef Perktold, Robert Cimrman, Ian Daniel Henriksen,
+     E. A. Quintero, Charles R. Harris, Anne M. Archibald, Antônio H. Ribeiro, Fabian Pedregosa,
+     Paul van Mulbregt, Aditya Alessandro Pietro Alex Andreas Andreas Anthony Ant Vijaykumar
+     Bardelli Rothberg Hilboll Kloeckner Sco, Aditya Vijaykumar, Alessandro Pietro Bardelli,
+     Alex Rothberg, Andreas Hilboll, Andre Kloeckner, Anthony M. Scopatz, Antony Lee, Ariel S.
+     Rokem, C. Nathan Woods, Chad Fulton, Charles Masson, Christian Häggström, Clark Fitzgerald,
+
+
+                                                12
+     David A. Nicholson, David R. Hagen, Dmitrii V. Pasechnik, Emanuele Olivetti, Eric Martin,
+     Eric Wieser, Fabrice Silva, Felix Lenders, Florian Wilhelm, Gert Young, Gavin A. Price, Gert-
+     Ludwig Ingold, Gregory E. Allen, Gregory R. Lee, Hervé Audren, Irvin Probst, Jorg P. Dietrich,
+     Jacob Silterra, James T. Webber, Janko Slavi, Joel Nothman, Johannes Buchner, Johannes
+     Kulick, Johannes L. Schönberger, José Vinı́cius de Miranda Cardoso, Joscha Reimer, Joseph E.
+     Harrington, Juan Luis Cano Rodrı́guez, Juan Nunez-Iglesias, Justin Kuczynski, Kevin Lee Tritz,
+     Martin Dr Thoma, Matt Newville, Matthias Kümmerer, Maximilian Bolingbroke, Michael
+     Tartre, Mikhail Pak, Nathaniel J. Smith, Nikolai Nowaczyk, Nikolay Shebanov, Oleksandr
+     Pavlyk, Per Andreas Brodtkorb, Perry Lee, Robert T. McGibbon, Roman Feldbauer, Sam Lewis,
+     Sam Tygier, Scott Sievert, Sebastiano Vigna, Stefan Peterson, Surhud More, Tadeusz Pudlik,
+     Taku Oshima, Thomas J. Pingel, Thomas P. Robitaille, Thomas Spura, Thouis Raymond Jones,
+     Tim Cera, Tim Leslie, Tiziano Zito, Tom Krauss, U. Upadhyay, Yaroslav O. Halchenko, and
+     Y. Vázquez-Baeza. Scipy 1.0: fundamental algorithms for scientific computing in python.
+     Nature Methods, 17:261 – 272, 2020.
+[38] Shuo Yang, Ping Luo, Chen Change Loy, and Xiaoou Tang. From facial parts responses to face
+     detection: A deep learning approach. 2015 IEEE International Conference on Computer Vision
+     (ICCV), pages 3676–3684, 2015.
+[39] Fisher Yu, Yinda Zhang, Shuran Song, Ari Seff, and Jianxiong Xiao. Lsun: Construction of a
+     large-scale image dataset using deep learning with humans in the loop. ArXiv, abs/1506.03365,
+     2015.
+
+
+
+
+                                                13
+Appendix
+A     Proofs
+A.1   Formal Proof of Theorem 1
+
+Before proceeding to Theorem 1, we show a technical lemma that guarantees the existence-uniqueness
+of the solution to the Poisson equation, under some mild conditions.
+Lemma 1. Given Ω = RN , N ≥ 3, assume that the source function ρ ∈ C 0 (Ω), and ρ has a compact
+support. Then the the Poisson equation ∇2 ϕ(x) = −ρ(x) on Ω with zero boundary condition at
+infinity (lim∥x∥2 →∞ ϕ(x) = 0) has a unique solution ϕ(x) ∈ C 2 (Ω) up to a constant.
+
+Proof. For the existence of the solution, one can verify that the analytical construction us-
+ing the extension of Green’s function in N ≥ 3 dimensional space (Lemma 4), i.e., ϕ(x) =
+∫ G(x, y)ρ(y)dy, G(x, y) = (N −2)SN −1 (1) ∣∣x−y∣∣N −2 , is one possible solution to the Poisson equa-
+                                  1             1
+
+tion ∇ ϕ(x) = −ρ(x). Since ρ ∈ C (Ω) and ∇ ϕ(x) = −ρ(x), we conclude that ϕ(x) ∈ C 2 (Ω).
+      2                         0             2
+
+The proof idea of the uniqueness is similar to the uniqueness theorems in electrostatics. Suppose we
+have two different solutions ϕ1 , ϕ2 ∈ C 2 which satisfy
+                                ∇2 ϕ1 (x) = −ρ(x), ∇2 ϕ2 (x) = −ρ(x).                                   (7)
+We define ϕ̃(x) ≡ ϕ2 (x) − ϕ1 (x). Subtracting the above two equations gives
+                                          ∇2 ϕ̃(x) = 0, ∀x ∈ Ω.                                         (8)
+By the vector differential identity we have
+                        ϕ̃(x)∇2 ϕ̃(x) = ∇ ⋅ (ϕ̃(x)∇ϕ̃(x)) − ∇ϕ̃(x) ⋅ ∇ϕ̃(x),                            (9)
+By the divergence theorem we have
+                                                      {
+                      ∫ ∇ ⋅ (ϕ̃(x)∇ϕ̃(x))d x =
+                                          N
+                                                           ϕ̃(x)∇ϕ̃(x) ⋅ dN −1 S = 0,                  (10)
+                        Ω
+                                                      ∂Ω
+
+where dN −1 S denotes an N − 1 dimensional surface element at infinity, and the second equation
+holds due to zero boundary condition at infinity. Combining Eq. (8)(9)(10), we have
+
+                         ∫ ∇ ⋅ (ϕ̃(x)∇ϕ̃(x))d x = ∫ ∣∣∇ϕ̃(x)∣∣ d x = 0,
+                                             N                2 N
+                                                                                                       (11)
+                            Ω                              Ω
+
+since this is an integral of a positive quantity, we must have ∇ϕ̃(x) = 0, or ϕ̃(x) = c, ∀x ∈ Ω.
+This means ϕ1 and ϕ2 differ at most by a constant, but a constant does not affect gradients, so
+∇ϕ1 (x) = ∇ϕ2 (x).
+
+In our method section (Section 3.1), we augmented the original N -dimensional data with an extra
+dimension. The new data distribution in the augmented space is p̃(x̃) = p(x)δ(z), where δ is the
+Dirac delta function. The support of the data distribution is in the z = 0 hyperplane. In the following
+lemma, we show the existence and uniqueness of the solution to ∇2 ϕ(x̃) = −p̃(x̃) outside the data
+support.
+Lemma 2. Assume the support of the data distribution in the augmented space (supp(p̃(x̃))) is a
+compact set on the z = 0 hyperplane, p(x) ∈ C 0 and N ≥ 3. The Poisson equation ∇2 ϕ(x̃) = −p̃(x̃)
+with zero boundary condition at infinity (lim∥x∥2 →∞ ϕ(x̃) = 0) has a unique solution ϕ(x̃) ∈ C 2 for
+x̃ ∈ RN +1 ∖ supp(p̃(x̃)), up to a constant.
+
+Proof. Similar to the proof in Lemma 1, one can easily verify that the analytical construction using
+Green’s method, i.e., ϕ(x̃) = ∫ G(x̃, ỹ)p̃(x̃)dỹ, G(x̃, ỹ) = (N −1)S
+                                                                     1             1
+                                                                       N (1) ∣∣x̃−ỹ∣∣
+                                                                                      N −1 , is one possible
+                                                                                  N +1
+solution to the Poisson equation ∇ ϕ(x̃) = −p̃(x̃). Since p̃(x̃) = 0 for x̃ ∈ R
+                                   2
+                                                                                         ∖ supp(p̃(x̃)) and
+∇2 ϕ(x̃) = −p̃(x̃), we conclude that ϕ(x̃) ∈ C 2 (RN +1 ∖ supp(p̃(x̃))).
+
+
+                                                    14
+                                                         z
+                                                                               dΦout = dΩ/SN(1)
+                                        r→∞                                    S1
+                                                                          S2
+                                                                        Gauss′s Law
+                                                  dΩ                    dΦin = dΦout
+                                                               S3
+                                                              dΦin = p(x)dA/2
+                                        N dim       O          S4
+                                                         S5
+
+                                    ￼
+Figure 6: Proof idea of Theorem 2. By Gauss’s Law, the outflow flux dΦout equals the inflow flux
+dΦin . The factor of two in p(x)dA/2 is due to the symmetry of Poisson fields in z < 0 and z > 0.
+
+
+For the uniqueness, suppose we have two different solutions ϕ1 , ϕ2 ∈ C 2 (RN +1 ∖ supp(p̃(x̃))) which
+satisfy
+                                ∇2 ϕ1 (x̃) = −p̃(x̃), ∇2 ϕ2 (x̃) = −p̃(x̃).                       (12)
+We define ϕ̃(x̃) ≡ ϕ2 (x̃) − ϕ1 (x̃). Subtracting the above two equations gives
+                               ∇2 ϕ̃(x̃) = 0, ∀x̃ ∈ RN +1 ∖ supp(p̃(x̃)).                                    (13)
+By the vector differential identity we have
+                        ϕ̃(x̃)∇2 ϕ̃(x̃) = ∇ ⋅ (ϕ̃(x̃)∇ϕ̃(x̃)) − ∇ϕ̃(x̃) ⋅ ∇ϕ̃(x̃),                           (14)
+By the divergence theorem we have
+                                                                    {
+                                                 N +1
+                  ∫ N +1 ∇ ⋅ (ϕ̃(x̃)∇ϕ̃(x̃))d           x̃ =            ϕ̃(x̃)∇ϕ̃(x̃) ⋅ dN S = 0,            (15)
+                    R
+                                                               ∂RN +1
+
+where dN S denotes an N dimensional surface element at infinity, and the second equation holds due
+to zero boundary condition at infinity. Combining Eq. (13)(14)(15), we have
+                                        N +1
+           ∫ N +1 ∇ ⋅ (ϕ̃(x̃)∇ϕ̃(x̃))d         x̃ = ∫                          ∇ ⋅ (ϕ̃(x̃)∇ϕ̃(x̃))dN +1 x̃
+             R                                          RN +1 ∖supp(p̃(x̃))
+
+                                                 =∫                            ∣∣∇ϕ̃(x̃)∣∣2 dN +1 x̃ = 0,
+                                                        RN +1 ∖supp(p̃(x̃))
+
+The first equation holds because Lebesgue measure of supp(p̃(x̃)) is zero. Since ∣∣∇ϕ̃(x̃)∣∣2 is an
+integral of a positive quantity, we must have ∇ϕ̃(x̃) = 0, or ϕ̃(x̃) = c, ∀x̃ ∈ RN +1 ∖ supp(p̃(x̃)).
+This means ϕ1 and ϕ2 differ at most by a constant function, but a constant does not affect gradients,
+so ∇ϕ1 (x̃) = ∇ϕ2 (x̃).
+
+As illustrated in Fig. 6, there is a bijective mapping between the upper hemisphere of radius r and the
+z = 0 plane, where each pair of corresponding points is connected by an electric field line. We will
+now formally prove that, in the r → ∞ limit, this mapping transforms the arbitrary charge distribution
+in the source plane (that generated the electric field) into a uniform distribution on the hemisphere.
+Theorem 2. Suppose particles are sampled from a uniform distribution on the upper (z > 0) half
+of the sphere of radius r and evolved by the backward ODE dx̃    dt
+                                                                    = −E(x̃) until they reach the z = 0
+hyperplane, where the Poisson field E(x̃) is generated by the source p̃(x̃). In the r → ∞ limit, under
+the conditions in Lemma 2, this process generates a particle distribution p̃(x̃), i.e., a distribution
+p(x) in the z = 0 hyperplane.
+
+Proof. By Lemma 2, we know that with zero boundary at infinity, the Poisson equation ∇2 ϕ(x̃) =
+−p̃(x̃) has a unique solution ϕ(x̃) ∈ C 2 for x̃ ∈ RN +1 ∖ supp(p̃(x̃)). Hence E(x̃) = −∇ϕ(x̃) ∈ C 1 ,
+guaranteeing the existence-uniqueness of the solution to the ODE dx̃dt
+                                                                       = −E(x̃) according to Theorem
+2.8.1 in [27].
+
+
+                                                         15
+Consider the tube in Fig. 6 connecting an area on dA in the z =  → 0+ hyperplane (S3 ) to a solid
+angle dΩ on the hemisphere (S1 ), with S2 as its side. The tube is the space swept by dA following
+electric field E, so by definition the electric field is parallel to the tangent space of the tube sides S2 .
+The bottom of the tube S3 is located at z =  → 0+ , a bit above the z = 0 plane, so the tube does not
+enclose any charges. We note that the divergence of Poisson field is zero in RN +1 ∖ supp(p̃(x̃)):
+                     ∇ ⋅ E(x̃) = −∇2 ϕ(x̃) = p̃(x̃) = 0, ∀x̃ ∈ RN +1 ∖ supp(p̃(x̃))
+                                                                                                  v
+Denote the volume and surface of the tube as V and B. According to divergence theorem,                E(x̃) ⋅
+dB = ∫V ∇ ⋅ E(x̃)dV = 0. Hence the net flux leaving the tube is zero:
+                                                  {
+                  ΦS1 + ΦS2 + ΦS3 = 0, ΦSi ≡         E(x̃) ⋅ dB (i = 1, 2, 3)                           (16)
+                                                         Si
+
+
+There is no flux through the sides, i.e., ΦS2 = 0, since E(x̃) is orthogonal to the surface element
+dB on the tube sides by definition. As a result, the flux ΦS3 entering from below must equal
+the flux ΦS1 leaving the other end. Denote the l2 norm of the vector r as r. We first calculate
+the influx ΦS3 . To do so, we study a Gaussian pillbox whose top, side and bottom are S3 , S4
+and S5 . S3 and S5 are located at z =  and z = − ( → 0+ ). Denote the volume and surface
+                    ′        ′
+v the pillbox′ as V and B . The
+of                                  pillbox contains charge p(x)dA, so according to Gauss’s law
+   E(x̃) ⋅ dB = ∫V ′ ∇ ⋅ E(x̃)dV ′ = ∫V ′ p̃(x̃)dV ′ = p(x)dA, i.e.,
+                                                         {
+                Φ′S3 + Φ′S4 + Φ′S5 = p(x)dA, Φ′Si ≡         E(x̃) ⋅ dB′ (i = 3, 4, 5)          (17)
+                                                              Si
+
+The flux on the sides Φ′S4 ∝  → 0, and Φ′S3 = Φ′S5 due to mirror symmetry of z = 0. So
+Φ′S3 = Φ′S5 = p(x)dA/2. Note on the S3 surface, the outflux of the pillbox is exactly the influx of the
+tube, so we have:
+                                       ΦS3 = −Φ′S3 = −p(x)dA/2,                                         (18)
+inserting which and ΦS2 = 0 to Eq. (16) gives
+                                        ΦS1 = −ΦS3 = p(x)dA/2.                                          (19)
+On the other hand, in the far-field limit r → ∞, since supp(p(x)) is bounded, the data distribution
+can be effectively seen as a point charge (see Appendix A.2). By Lemma 3, we have limr→∞ E(r) =
+− limr→∞ ∇ϕ(r) = SN (1)r  r
+                            N +1 . The resulting outflux on the hemisphere is
+
+
+                                      ΦS1 = Er rN dΩ = dΩ/SN (1)                                        (20)
+where Er ≡ E(r) ⋅ r/r is the radial component of E. Comparing Eq. (19) and Eq. (20) yields
+dΩ/dA = p(x)SN (1)/2 ∝ p(x). In other words, the mapping from the z = 0 hyperplane to the
+hemisphere dilutes the charge density p(x) up to a constant factor. Thus by change-of-varible, we
+conclude that the mapping transforms the data distribution into a uniform distribution on the infinite
+hemisphere. Since the ODE is reversible, the backward ODE transforms the uniform distributoin on
+the infinite hemisphere to the distribution p̃(x̃).
+
+A.2     Multipole Expansion
+
+We discuss the behaviors of the potential function in Poisson equation (Eq. (1)) under different
+scenarios, utilizing the multipole expansion. Suppose we have a unit point charge q = 1 located at
+x ∈ RN . We know that the potential function at another point y ∈ RN is ϕ(y − x) = 1/∣∣y − x∣∣N −2
+(ignoring a constant factor). Now we assume that x is close to the origin such that we can Taylor
+expand around x = 0:
+                                          N
+                                                              1 N N
+                    ϕ(y − x) = ϕ(y) − ∑ xα ϕα (y) +             ∑ ∑ xα xβ ϕαβ (y) − ...                 (21)
+                                         α=1                  2 α=1 β=1
+where
+                                  ∂ϕ(y − x)                  yα
+                     ϕα (y) = (             )    = (N − 2)
+                                    ∂xα      x=0
+                                                           ∣∣y∣∣N
+                                                                                                        (22)
+                                 ∂ 2 ϕ(y − x)             N yα yβ − ∣∣y∣∣2 δαβ
+                     ϕαβ (y) = (              ) = (N − 2)
+                                   ∂xα ∂xβ x=0                 ∣∣y∣∣N +2
+
+                                                    16
+In the case where the source is a distribution p(x), the potential ϕ(y) can again be Taylor expanded:
+                                             N                   N   N
+                        ϕ(y) = qϕ(y) + ∑ qα ϕα (y) + ∑ ∑ qαβ ϕαβ (y) − ...                           (23)
+                                            α=1                α=1 β=1
+
+where
+                       q = ∫ p(x)dx, qα = ∫ p(x)xα dx, qαβ = ∫ p(x)xα xβ dx,                         (24)
+which are called monopole, dipole and quadrupole in physics, respectively. The gradient field
+E(y) = ∇Φ(y) can be expanded in the same such that
+                                  E(y) = E(0) (y) + E(1) (y) + E(2) (y) + ...                        (25)
+                            (i)                         N −2+i
+It is easy to check that ∣∣E (y)∣∣ decays as 1/∣∣y∣∣ , which means higher-order corrections decay
+faster than leading terms. So when ∣∣y∣∣ → ∞, only the monopole term ∣∣E(0) (y)∣∣ matters, which
+behaves like a point source.
+In a more realistic setup, we only have a large but finite ∣∣y∣∣, so the question is: under what condition
+is the point source approximation valid? We examine ϕ(0) , ϕ(1) and ϕ(2) more carefully:
+                     1
+         ϕ(0) =
+                 ∣∣y∣∣N −2
+                 N
+                              yα xα             xT y
+        ϕ(1) = ∑ (N − 2)             = (N − 2)                                                       (26)
+                 α=1          ∣∣y∣∣N           ∣∣y∣∣N
+                 1 N N         N yα yβ − ∣∣y∣∣2 δαβ         N − 2 N (xT y)2 − ∣∣x∣∣2 ∣∣y∣∣2
+        ϕ(2) =     ∑ ∑ (N − 2)                      xα xβ =
+                 2 α=1 β=1          ∣∣y∣∣N +1                2           ∣∣y∣∣N +2
+Since ϕ(1) is an odd function of x, integrating ϕ(1) over x leads to zero (samples are normalized to
+zero mean). In machine learning applications, N is usually a large number (although in physics N is
+merely 3). If y is a random vector of length ∣∣y∣∣, then xT y ∼ ( √1N ± N1 )∣∣x∣∣∣∣y∣∣. So Eq. (26) can be
+approximated as                                              √
+                                             1                 N ∣∣x∣∣2
+                                ϕ(0) ∼             , ϕ (2)
+                                                           ∼                                          (27)
+                                         ∣∣y∣∣N −2            2 ∣∣y∣∣N
+                                                              √
+Requiring ∫ ϕ(0) p(x)dx ≫ ∫ ϕ(2) p(x)dx gives ∣∣y∣∣2 ≫ N Ep(x) ∣∣x∣∣2 . So the condition for the
+point source approximation to be valid is:
+                                                     2∣∣y∣∣2
+                                            κ= √                     ≫1                              (28)
+                                                   N Ep(x) ∣∣x∣∣2
+Based on this condition, we can partition space into three zones: (1) the far zone κ ≫ 1, where the
+point source approximation is valid; (2) the intermediate zone κ ∼ O(1), where the gradient field
+has moderate curvature; (3) the near zone κ ≪ 1, where the gradient field has high curvature. In
+practice, the initial value ∣∣y∣∣ is greater than 1000 (hence κ ≫ 1) with high probability on CIFAR-10
+and CelebA datasets, incidating that the initial samples lie in the far zone and gradually move toward
+the near zone where ∣∣y∣∣ ≈ ∣∣x∣∣ (κ ≪ 1).
+We summarize above observations in the following lemma in the ∣∣y∣∣ → ∞ limit:
+Lemma 3. Assume the data distribution p(x) ∈ C 0 has a compact support in RN , then the solution
+ϕ to the Poisson equation ∇2 ϕ(x) = −p(x) with zero boundary condition at infinity satisfies
+lim∥x∥2 →∞ ∇ϕ(x) = − SN −1
+                        1        x
+                           (1) ∥x∥N
+                                    .
+                                        2
+
+
+
+Proof. By Lemma 1, the gradient of the solution has the following form:
+                                                                     1       x−y
+            ∇ϕ(x) = ∫ ∇x G(x, y)p(y)dy, ∇x G(x, y) = −                               .
+                                                                SN −1 (1) ∣∣x − y∣∣N
+
+Since p(x) has a bounded support, we assume max{∥ x ∥2 ∶ p(x) /= 0} < B. On the other hand, we
+have
+                                          1       x−y                    1       x
+           lim ∇x G(x, y) = lim −                         = lim −
+         ∥x∥2 →∞             ∥x∥2 →∞ SN −1 (1) ∣∣x − y∣∣N  ∥x∥2 →∞ SN −1 (1) ∣∣x∣∣N
+
+
+
+                                                        17
+for ∀y such that ∥ y ∥2 < B. Hence,
+
+            lim ∇ϕ(x) =           lim ∫ ∇x G(x, y)p(y)dy = ∫                    lim ∇x G(x, y)p(y)dy
+        ∥x∥2 →∞                  ∥x∥2 →∞                                      ∥x∥2 →∞
+                                                                                 1        x
+                                                                        =−
+                                                                             SN −1 (1) ∥ x ∥N
+                                                                                            2
+
+
+
+
+A.3   Extension of Green’s Function in N -dimensional Space
+
+In this section, we show that the function G(x, y) defined in Eq. (2) is the N -dimensional extension
+of the Green’s function, ϕ(x) = ∫ G(x, y)ρ(y)dy solves the Poisson equation ∇2 ϕ(x) = −ρ(x).
+Lemma 4. Assume the dimension N ≥ 3, and the source term satisfies ρ ∈ C 0 (Ω), ∫RN ρ2 (x)dx <
++∞, lim∥x∥2 →∞ ρ(x) = 0. The extension of Green’s function G(x, y) = (N −2)S1N −1 (1) ∣∣x−y∣∣
+                                                                                           1
+                                                                                             N −2
+
+solves the Poisson equation ∇x G(x, y) = −δ(x − y). In addition, with zero boundary condition at
+                              2
+
+infinity (lim∥x∥2 →∞ ϕ(x) = 0), ϕ(x) = ∫ G(x, y)ρ(y)dy solves the Poisson equation ∇2 ϕ(x) =
+−ρ(x).
+
+Proof. It is convenient to denote r = x − y, r = ∣∣r∣∣ and notice ∂r/∂x = r/r. Firstly, we calculate
+∇x G(x, y):
+                                                1                  1
+                          ∇x G(x, y) =                     ∇x ( N −2 )
+                                        (N − 2)SN −1 (1)         r
+                                                1           ∂      1
+                                      =                        (     )∇x r                      (29)
+                                        (N − 2)SN −1 (1) ∂r rN −2
+                                              1       r
+                                      =−
+                                         SN −1 (1) rN
+Then we calculate ∇2x G(x, y):
+                           ∇2x G(x, y) ≡ ∇x ⋅ ∇x G(x, y)
+                                               1          r
+                                       =−           ∇x ⋅ N
+                                          SN −1 (1)      r
+                                               1           1        1
+                                       =−           (∇x ( N ) ⋅ r + N ∇r ⋅ r)
+                                          SN −1 (1)       r        r                                   (30)
+                                               1       N     N
+                                       =−           (−     +     )
+                                          SN −1 (1) rN rN
+                                                 0
+                                       =−
+                                          SN −1 (1)rN
+which is 0 for r > 0, but undermined for r = 0. So we are left with proving
+
+                                           ∫            ∇2x G(x, y)dN x = −1,                          (31)
+                                               S (y)
+
+where S (y) denotes a ball centered at y with a radius  → 0+ . With the divergence theorem, we have
+                                                     {
+                       ∫       ∇2x G(x, y)dN x =          ∇x G(x, y) ⋅ dN −1 B                   (32)
+                            S (y)
+                                                              ∂S (y)
+
+where the surface integral can be computed
+   {                              {          1      r                     1    SN −1 ()
+         ∇x G(x, y) ⋅ dN −1 B =       (−              ) ⋅ dN −1 B = −                    = −1 (33)
+                                         SN −1 (1) rN                 SN −1 (1) N −1
+  ∂S (y)                             ∂S (y)
+                   v
+in which we used       ∂S (y)
+                                 r ⋅ dN −1 B = SN −1 (). Together, we conclude that
+
+                                               ∇2x G(x, y) = −δ(x − y)                                 (34)
+
+
+                                                             18
+Next we show that ϕ(x) = ∫ G(x, y)ρ(y)dy solves ∇2 ϕ(x) = −ρ(x). Taking the Laplacian
+operator of both sides gives:
+                           ∇2x ϕ(x) = ∇2x ∫ G(x, y)ρ(y)dy
+
+                                    = ∫ ∇2x G(x, y)ρ(y)dy
+
+                                    = ∫ −δ(x − y)ρ(y)dy                        (By Eq. (34))
+                                    = −ρ(x)
+
+In addition, we show that ϕ(x) is zero at infinity. Since ρ(x) ∈ C 0 and has compact support, we
+know that ρ(x) is bounded, and let ∣ρ(x)∣ < B.
+                  lim ϕ(x) =        lim ∫ G(x, y)ρ(y)dy
+                ∥x∥2 →∞          ∥x∥2 →∞
+                                                             1                1
+                               ≤B     lim ∫                                           dy
+                                    ∥x∥2 →∞   supp(ρ) (N − 2)S N −1 (1) ∣∣x − y∣∣N −2
+
+                               =0
+The last equality holds since supp(ρ) is a compact set.
+
+A.4   Proof for the Prior Distribution on z = zmax Hyperplane
+
+
+                                                 z
+                                                              x
+                                                                          θ      dA3
+                                                                               dA2
+
+                                               zmax                      dA1
+                                                          r
+
+                                                                  zmax
+                                                      θ
+
+                                                 O
+
+
+
+
+                          Figure 7: Diagram of the deviation in Proposition 1
+                                                                                  +
+We obtain the prior distribution pprior by projecting the uniform distribution U(SN (zmax )) on the
+               +
+hemisphere SN (zmax ) to the z = zmax hyperplane. In the following proposition, we show that the
+projected distribution is pprior (x) = SN (1)r
+                                          2zmax
+                                               N +1 .
+
+                                           +                             +
+Proposition 1. The radial projection of U(SN (zmax )) on the hemisphere SN (zmax ) to the z = zmax
+hyperplane is pprior (x) = SN (1)rN +1 .
+                              2zmax
+
+
+
+Proof. We calculate the change-of-variable ratio by comparing two associate areas. As illustrated
+                              +
+in Fig. 7, an area dA1 on SN    (zmax ) is projected to an area dA3 on the hyperplane in the (x, zmax )
+direction, and we have
+                                         +
+                                   U(SN    (zmax ))dA1 = pprior (x)dA3
+We aim to calculate the ratio dA1 /dA3 below. We define the angle between (0, zmax ) and x̃ =
+(x, zmax ) to be θ. We project√dA3 to the hyperplane orthogonal to x̃ to get dA2 = dA3 cosθ =
+dA3 zmax /r where r ≡ ∣∣x̃∣∣2 = ∣∣x∣∣22 + zmax
+                                             2 . Since dA is parallel to dA and they lie in the same
+                                                           1                 2
+cone from the origin O, we have dA2 /dA1 = (r/zmax )N . Combining all the results gives
+                 +          dA1          +          dA1 dA2         2       zmax N zmax       2zmax
+pprior (x) = U(SN  (zmax ))      = U(SN    (zmax ))          =            (     )       =               .
+                            dA3                     dA2 dA3 SN (1)zmax r
+                                                                       N            r     SN (1)rN +1
+
+
+
+                                                      19
+In order to sample from pprior (x), we first sample the norm (radius) R = ∣∣x∣∣2 from the distribution:
+                         pradius (R) ∝ RN −1 pprior (x)           (pprior is isotropic)
+                                           N −1                     N +1
+                                    ∝R            /(∣∣x∣∣22 + zmax
+                                                               2
+                                                                   ) 2
+                                   = RN −1 /(R2 + zmax
+                                                                 N +1
+                                                       2
+                                                         ) 2                                   (35)
+and then uniformly sample its angle. Sampling from pprior encompasses three steps. We first sample a
+real number r1 with parameters α = N2 , β = 12 , i.e.,
+                                                R1 ∼ Beta(α, β)
+Next, we set R2 = 1−R
+                    R1
+                          such that R2 is effectively sampled from the inverse beta distribution a(also
+                        1                                                                √
+known as beta prime distribution) with parameters α = N2 , β = 12 . Finally, we set R3 = zmax2 R . To
+                                                                                                  2
+verify the pdf of R3 is pradius , note that the pdf of inverse beta distribution is
+                                                        N
+                                                            −1
+                                  p(R2 ) ∝ R22 (1 + R2 )− 2 − 2
+                                                                        N   1
+
+
+                                            √
+Next, by change-of-variable, the pdf of R3 = zmax
+                                                2 R is
+                                                    2
+                                N
+                                  −1        − N
+                                                − 1 2R3
+                   p(R3 ) ∝ R22 (1 + R2 ) 2 2 ∗ 2
+                                                    zmax
+                                       N
+                                           −1
+                                  R3 R22
+                            ∝
+                                (1 + R2 ) 2
+                                           N +1
+
+
+
+                                  (R3 /zmax )N −1
+                            =
+                                (1 + (R32 /zmax
+                                            2 )) 2      N +1
+
+
+
+                                       R3N −1
+                            ∝
+                                (1 + (R32 /zmax
+                                            2 )) 2      N +1
+
+
+
+                                     R3N −1
+                            ∝                           ∝ pradius (R3 )         (By Eq. (35))
+                                (zmax
+                                  2 + R2 ) 2     N +1
+                                       3
+
+Hence we conclude that p(R3 ) = pradius (R3 ).
+
+B     Experimental Details
+B.1     Training
+
+In this section we include more details about the training of PFGM and other baselines. We show the
+hyper-parameters settings for all the baselines (Appendix B.1.1). All the experiments are run on a
+single NVIDIA A100 GPU.
+
+B.1.1    Additional Settings
+PFGM We set the hyper-parameters γ = 5, the larger batch size for calculating normalize
+field ∣BL ∣ = 2048 (CIFAR-10), 256 (CelebA), 64 (LSUN bedroom) in Algorithm 1, and M =
+291 (CIFAR-10, CelebA)/356 (LSUN bedroom), σ = 0.01 and τ = 0.03 in Algorithm 2. We use the
+a batch size of ∣B∣ = 128 (CIFAR-10, CelebA)/32 (LSUN bedroom), the same Adam optimizer and
+exponential moving average in [33]. We center the data around the origin. The initial z components in
+the normalized field are approximately zero with small initial ∣z ∣ values in Algorithm 2. In this case,
+the trajectories of the forward ODE terminate at points that are unlikely traversed by the backward
+ODE, i.e., points with large ∥ x ∥2 and small z. In light of this, we heuristically confine the maximum
+sampling step to M = 200 (CIFAR-10, CelebA)/250 (LSUN bedroom) for points with the initial
+∣z ∣ smaller than 0.005. More principal solutions are left for future works.
+For selecting M in more general settings, we recommend the following rule-of-thumb. According
+to analysis in Section A.2, given a perturbation point (y, z) when setting the exponent m = M in
+Algorithm 2, we can ensure the point source approximation by
+                                             √
+                                     ∣∣y∣∣2 ≫ N Ep(x) ∣∣x∣∣2 /2                             (36)
+
+
+                                                            20
+                                                                                                √
+where N is the data dimension and p(x) is the data distribution. By WLLN, we have ∣∣x ∣∣ = N σ,
+and recall that y = x+ ∥ x ∥ √
+                              (1 + τ )M u where  = (x , z ) ∼ N (0, σ 2 IN +1×N +1 ), u ∼ U(SN (1)).
+Together, we conclude ∣∣y∣∣ ≈ N σ(1 + τ )M . Substituting in Eq. (36), we have
+                                                                 Ep(x) ∣∣x∣∣2
+                                   1      Ep(x) ∣∣x∣∣2 1 ln 2√N σ2
+                                M > log1+τ √          =
+                                   2       2 N σ2       2 ln 1 + τ
+                                                Ep(x) ∣∣x∣∣2
+                                          ln      √
+We empirically observe that setting M = 34 ln2 1+τ
+                                                N σ2
+                                                  already gives good results, and the correspond-
+ing ∣∣y∣∣ ≈ 3000. For example, on CIFAR-10 datasets, N = 3072, τ = 0.03, σ = 0.01, Ep(x) ∣∣x∣∣2 ≈
+                        Ep(x) ∣∣x∣∣2
+                   ln     √
+900, we have M = 34 ln2 1+τ
+                         N σ2
+                                       ≈ 291.
+Since we are operating in the augmented space, we add minor modifications to the
+DDPM++/DDPM++ deep architectures to accommodate the extra dimension. More specifically, we
+replace the conditioning time variable in VP/sub-VP with the additional dimension z in PFGM as
+the input to the positional embedding. We also need to add an extra scalar output representing the z
+direction. To this end, we add an additional output channel to the final convolution layer and take
+the global average pooling of this channel to obtain the scalar. For LSUN bedroom dataset, we both
+experiments with the channel configurations suggested in NSCN++ [33] and DDPM [16].
+
+VE/VP/sub-VP We use the same set of hyper-parameters and the NCSN++/DDPM++ (deep)
+backbone and the continuous-time training objectives for forward SDEs in [33].
+
+B.2     Sampling
+
+We provide more details of PFGM and VE/VP sampling implementations in Appendix B.2.1. We
+further discuss two techniques used in PFGM ODE sampler: change-of-variable formula (Ap-
+pendix B.2.2) and the substitution of ground-truth Poisson field direction on z (Appendix B.2.3).
+
+B.2.1    Additional settings
+PFGM For           RK-45      sampler,        we    use   the     function      implemented        in
+scipy.integrate.solve ivp with atol=1e − 4, rtol=1e − 4. For forward Euler method,
+we discretize the ODE with constant step size determined by the number of steps, i.e., step size =
+(log zmax − log zmin )/number of steps for the backward ODE (Eq. (6)). As in [1], we set the terminal
+value of zmin = 1e − 3. We choose zmax = 40 (CIFAR-10), 60 (CelebA 642 ), 100 (LSUN bedroom)
+to satisfy the condition κ ≫ 1 by the multipole expansion analysis in Appendix A.2. The condition
+ensures that the data distribution can be viewed roughly as a point source at origin. For example,
+we set zmax = 40 on CIFAR-10, and the corresponding κ is greater than 50 with high probability.
+The hyperparameters work well without further fine tuning. Hence, we hypothesize that PFGM is
+insensitive to the choice of hyperparameters in a reasonable range, as shown in Table 3. We clip
+the norms of initial samples into (0, 3000) for CIFAR-10, (0, 6000) for CelebA and (0, 30000) for
+LSUN bedroom.
+For selecting zmax and clipping upper bound of norms for general datasets, we recommend the
+following rule-of-thumb. Recall that during the training perturbations (Eq. (5)), given a random initial
+value z ∼ N (0, σ 2 ), maximum z is
+                                          z = ∣z ∣(1 + τ )M
+                                        √
+Hence we set zmax = E[∣z ∣(1 + τ )M ] = π2 σ(1 + τ )M . For example, on CIFAR-10, τ = 0.03, M =
+291,
+√ and zmax M ≈ 43. The clipping upper value is similarity derived, by setting it to E[∣∣x ∣∣(1 + τ )M ] =
+  N σ(1 + τ ) ≈ 3000, where x ∼ N (0, σ 2 IN ×N ). By combining Eq. (36), we further have
+                        √                   √                      3
+                             2                    2 Ep(x) ∣∣x∣∣2 4
+                 zmax =        σ(1 + τ ) =
+                                        M
+                                                     (     √    )
+                            π                   σπ        2 N
+                                                             √                      3
+                                          √                     N Ep(x) ∣∣x∣∣2 4
+                 clipping upper value = N σ(1 + τ ) =    M
+                                                                    (    √        )
+                                                                σ      2 N
+
+
+                                                      21
+where N is the data dimension and p(x) is the data distribution. These formulas are easier for
+practitioner to apply PFGM on new datasets.
+
+VE/VP/sub-VP For the PC sampler in VE, we follow [33] to set the reverse diffusion process as
+the predictor and the Langevin dynamics (MCMC) as the corrector. For VP/sub-VP, we drop the
+corrector in PC sampler since it only gives slightly better results [33].
+
+                        Table 3: FID scores versus zmax on PFGM w/ DDPM++
+                                           zmax                30     40       50
+                                       FID score               2.49   2.48    2.48
+
+
+
+B.2.2    Exponential Decay on z Dimension
+Recall that in Section 3.3, we replace the vanilla backward ODE with a new ODE anchored by z:
+                                            dx dt
+                             d(x, z) = (          dz, dz) = (v(x̃)x v(x̃)−1
+                                                                         z , 1)dz
+                                            dt dz
+We further use the change-of-variable formula, i.e., t′ = − log z, to achieve exponential decay on the
+z dimension:
+                                       d(x, z) = (v(x̃)x v(x̃)−1
+                                                              z z, z)dt
+                                                                       ′
+
+
+
+The trajectories of the two ODEs above are the same when dt, dt′ → 0. We compare the NFE and
+the sample quality of different ODEs in Table 4. We measure the NFE/FID of generating 50000
+CIFAR-10 samples with the RK45 method in Scipy package [37]. The batch size is set to 1000. All
+the numbers are produced on a single NVIDIA A100 GPU. We observe that the ODE with the anchor
+variable t′ not only accelerates the vanilla by 2 times, but has almost no harm to the sample quality
+measured by FID score.
+
+                  Table 4: NFE and FID scores of different backward ODEs in PFGM
+                                   Algorithm             d(x, z)/dz        d(x, z)/dt′
+                                     NFE                       242            104
+                                   FID score                   2.53           2.48
+
+
+
+B.2.3    Substitute the Predicted z Direction with the Ground-truth
+Since the neural network cannot perfectly learn the ground-truth z direction, we replace the predicted
+fθ (x)z with the ground-truth direction when z is small. More specifically, given x̃ = (x, z) ∈ RN +1 ,
+recall that the empirical field is Ê(x̃) = c(x̃) ∑ni=1 ∣∣x̃−x̃
+                                                            x̃−x̃i
+                                                               i ∣∣
+                                                                   N +1 where c(x̃) = 1/ ∑i=1 ∣∣x̃−x̃ ∣∣N +1 . Hence
+                                                                                          n          1
+                                                                                                     i
+we can rewrite the empirical field as
+                                                         n
+                                          Ê(x̃) = ∑ w(x̃, x̃i )(x̃ − x̃i )
+                                                         i=1
+                                            1
+
+where ∑ni=1 w(x̃, x̃i ) = ∑   n
+                              i=1 ∑ n
+                                     ∣∣x̃−x̃i ∣∣N +1
+                                                 1        = 1. Furthermore we have ∀i, (x̃ − x̃i )z = z − 0 = z.
+                                    j=1 ∣∣x̃−x̃ ∣∣N +1
+                                                 j
+
+Together, the z component in the empirical field is Ê(x̃)z = ∑ni=1 w(x̃, x̃i )(x̃ − x̃i )z = z. The
+predicted normalized field (on x) is trained to approximate the normalized field (on x), i.e.,
+                                      √            √
+                         fθ (x̃)x ≈ − N Ê(x̃)x /( ∥ Ê(x̃)x ∥22 +z 2 + γ)
+                                      √            √
+                                  ≈ − N Ê(x̃)x /( ∥ Ê(x̃)x ∥22 + γ)
+
+
+                                                                22
+The last approximation
+           √
+                       is due to ∥ Ê(x̃)x ∥2 ≫ z. Solving for ∥ Ê(x̃)x ∥2 , we get ∥ Ê(x̃)x ∥2 ≈
+ γ∥fθ (x̃)x ∥2 / N
+                √ . Hence the z component in the normalized field after substituting the ground-truth
+1−∥fθ (x̃)x ∥2 / N
+                √                            √                   √
+                                                  γ∥fθ (x̃)x ∥2 / N 2
+is Ê(x̃)z /( ∥ Ê(x̃)x ∥2 +z + γ) = z/( ( 1−∥f
+                          2    2                                  √ ) + z 2 + γ). In our experiments, we
+                                                      θ (x̃)x ∥2 / N
+                                                            √        √                 √
+                                                                        γ∥fθ (x̃)x ∥2 / N 2
+therefore replace the original prediction fθ (x̃)z with − N z/( ( 1−∥f                  √ ) + z 2 + γ) when
+                                                                            θ (x̃)x ∥2 / N
+
+z < 5/1/0.1 during the backward ODE sampling for CIFAR-10/CelebA 64 /LSUN bedroom 256 .
+                                                                                   2                     2
+
+Table 5 reports the NFE and FID score w/o and w/ the above substitution. We observe that the usage
+of ground-truth z direction in the near field accelerates the sampling speed.
+
+                        Table 5: NFE and FID scores of w/ and w/o substitution
+                             Algorithm        w/o substitution       w/ substitution
+                                NFE                 134                   104
+                              FID score             2.48                  2.48
+
+
+
+B.3   Evaluation
+
+We use FID [13] and Inception scores [29] to quantitatively measure the sample quality, and
+NFE (number of evaluation steps) for the inference speed. FID (Fréchet Inception Distance) score is
+the Fréchet distance between two multivariate Gaussians, whose means and covariances are estimated
+from the 2048-dimensional activations of the Inception-v3 [34] network for real and generated samples
+respectively. Inception score is the exponential mutual information between the predicted labels of the
+Inception network and the images. We also report bits/dim for likelihood evaluation. It is computed
+by dividing the negative log-likelihood by the data dimension, i.e., bits/dim = − log pprior (x)/N .
+For CIFAR-10, we compute the Fréchet distance between 50000 samples and the pre-computed
+statistics of CIFAR-10 dataset in [13]. For CelebA 64 × 64, we follow the setting in [32] where the
+distance is computed between 10000 samples and the test set. For model selection, we follow [32]
+and pick the checkpoint with smallest FID every 50k iterations on 10k samples for computing all the
+scores.
+
+B.4   Effects of Step Size: FID versus NFE
+
+For preciseness, Table 6 reports the exact numbers in Fig. 5(c).
+
+                  Table 6: The FID scores in Fig. 5(c) of different methods and NFE.
+                           Method / NFE            10         20        50            100
+                               VP-ODE           192.36       72.25     38.18      19.73
+                                DDIM             13.36       6.48      4.67        4.16
+                                PFGM             14.98       6.46      3.48        2.89
+
+
+Since in the ODE d(x, z) = −(v(x̃)x v(x̃)−1                    ′
+                                                  z z, z)dt of PFGM, the z variable is a function of
+ ′
+t (z = e ), we integrate the z in the Euler method to reduce the discretization error. The vanilla update
+        t′
+
+from time t′i to time t′i+1 is (xi+1 , zi+1 ) = (xi , zi ) − (v(x̃i )x v(x̃i )−1            ′      ′
+                                                                              zi zi , zi )(ti+1 − ti ), and the new
+                                                              t′                 t′
+update is (xi+1 , zi+1 ) = (xi , zi ) − (v(x̃i )x v(x̃i )−1
+                                                         zi ∫t′i
+                                                                i+1
+                                                                    z(t′ )dt′ , ∫t′ i+1 z(t′ )dt′ ). We empirically
+                                                                                  i
+observe that the new update scheme significantly improve the FID score.
+
+C     Failure of VE/VP-ODE on NCSNv2 backbone
+In Fig. 5(a), we demonstrate the trajectories of cleaner samples/noisier samples/noisier samples w/
+corrector. We visualize these three groups in Fig. 8(a) and Fig. 8(b). The noisier samples are marked
+
+
+                                                        23
+            (a) Samples from VE-ODE (Euler)            (b) Samples from VE-ODE (Euler w/ correc-
+                                                       tor)
+
+Figure 8: (a) Samples from VE-ODE (Euler w/o corrector). We highlight the noisier images with red
+boxes. The rest are cleaner images. (b) Samples from VE-ODE (Euler w/ corrector). We mark the
+noisier samples after correction with green boxes.
+
+
+with red boxes in Fig. 8(a) and the remaining images in Fig. 8(a) are cleaner samples. The samples
+within green boxes in Fig. 8(b) are noisier samples w/ corrector. Samples on the same spatial locations
+in the two figures are generated by identical initial latents.
+                                                                           √
+The Gaussian kernels in score-based models are N (x, σ(t)2 ) (VE) and N ( 1 − σ(t)2 x, σ(t)2 ) (VP)
+                                                                              √
+[33]. When σ(t) is large, the norms of perturbed samples are approximately N σ(t). The backward
+ODE could break down if the trajectories diverge from the norm-σ(t) relation, as shown by the noisier
+samples’ trajectories in Fig. 5(a). In contrast, the norm distributions of PFGM is approximately
+                     −2                 N
+p(∥ x ∥) ∝ ∥ x ∥N  2    /(∥ x ∥22 +z 2 ) 2 when z is large (see deviation for pprior in Appendix A.4),
+which have a wider span for high density region (see Fig. 4). The weak correlation between norm
+and z makes PFGM more robust on the lighter NCSNv2 backbone.
+
+D     Extra Experiments
+D.1   LSUN Bedroom 256 × 256
+
+We report the FID scores and NFEs for LSUN bedroom dataset in Table 7. We adopt the code base of
+[33] in our experiments. In [33], they experimented on the LSUN bedroom 256× 256 dataset only
+on VE-SDE using a deeper NCSN++ backbone. In our DDPM++ architecture, we directly borrow
+the configuration of channels from the NCSN++ architecture [33] in each residual block (PFGM w/
+NCSN++ channel). We further change zmax to 100, as it empirically gives better sample quality.
+We also evaluate the performance when using the configuration of channels in the DDPM [16]
+architecture (PFGM w/ DDPM channel). We use the RK45 [7] solver in the Scipy library [37] for
+PFGM sampling. We report the FID score using the evaluation protocol in [5].
+
+                          Table 7: FID/NFE on LSUN bedroom 256 × 256
+                                                             FID ↓    NFE ↓
+                           StyleGAN [18]                     2.65       1
+                           DDPM [16]                          6.86     1000
+                           VE-SDE [33]                       11.75     2000
+                           PFGM w/ NCSN++ channel            17.01     134
+                           PFGM w/ DDPM channel              13.66     122
+
+
+
+                                                  24
+Table 7 shows that PFGM has comparable performance with VE-SDE when using DDPM channel,
+while achieving around 15× acceleration. We observe that PFGM achieves a better FID score
+using the similar configuration in the DDPM model, and converges faster — 150k over the total
+2.4M training iterations suggested in [33]. Remarkably, the VE-ODE baseline — the method most
+comparable to ours — only produces noisy samples on this dataset. It suggests that PFGM is able
+to scale up to high resolution images when using advanced architectures. We also compare with
+the number reported in [16] using similar architecture. Note that DDPM requires 1000 NFE during
+sampling, and doesn’t possess invertibility compared to flow models.
+
+D.2     Results on NCSNv2 Architecture
+
+In this section, we demonstrate the image generation on CIFAR-10 and CelebA 64 × 64, using
+NCSNv2 architecture [32], which is the predecessor of NCSN++ and DDPM++ [33] and has smaller
+capacity. Since the VE/VP-ODE has poor performance (FID greater than 90), with the RK45 solver,
+we also apply the forward Euler method (Euler) with fixed number of steps. We explicitly name the
+sampler, with forward Euler method as predictor and Langevin dynamics as corrector, as Euler w/
+corrector. For Euler w/ corrector in VE/VP-ODE, we use the probability flow ODE (reverse-time
+ODE) as the predictor and the Langevin dynamics (MCMC) as the corrector. We borrow all the
+hyper-parameters from [33] except for the signal-to-noise ratio. We empirically observe the new
+configurations in Table 8 give better results on the NCSNv2 architecture.
+To accommodate the extra dimension z on NCSNv2, we concatenate the image with an additional
+constant channel with value z and thus the first convolution layer takes in four input channels. We also
+add an additional output channel to the final convolution layer and take the global average pooling of
+this channel to obtain the direction on z.
+
+                   Table 8: Signal-to-noise ratio of different dataset-method pairs
+        Dataset-Method        CIFAR-10 - VE      CIFAR-10 - VP       CelebA - VE      CelebA - VP
+      signal-to-noise ratio        0.16                0.27              0.12             0.27
+
+
+
+D.2.1    CIFAR-10
+Table 9 reports the image quality measured by Inception/FID scores and the inference speed measured
+by NFE on CIFAR-10, using a weaker architecture NCSNv2 [32]. We show that PFGM with the
+RK45 solver has competitive FID/Inception scores with the Langevin dynamics, which was the best
+model on the NCSNv2 architecture before, and requires 10× less NFE. In addition, PFGM performs
+better than all the other ODE samplers. Our method is more tolerant of sampling error. Among the
+compared ODEs, our backward ODE (Eq. (6)) is the only one that successfully generates high quality
+samples while the VE/VP-ODE fail w/o the Langevin dynamics corrector. The backward ODE still
+beats the baselines w/ corrector.
+
+D.2.2    CelebA
+In Table 10, we report the quality of images generated by models trained on CelebA 64 × 64, as
+measured by the FID scores, and the sampling speed, as measured by NFE. We use this dataset as
+our preliminary experiments hence we only apply NCSNv2 [32] for different baselines. As shown in
+Table 10, PFGM achieves best FID scores than all the baselines on CelebA dataset, while accelerating
+the inference speed around 20×. Remarkably, PFGM outperforms the Langevin dynamics and
+reverse-time SDE samplers, which are usually considered better than their deterministic counterparts.
+
+Remark: On the FID scores on CelebA 64 × 64 One interesting observation is that the samples
+of PFGM (RK45) (Fig. 9(b)) contain more obvious artifacts than Langevin dynamics (Fig. 9(a)),
+although PFGM has a lower FID score on the same architecture. We hypothesize that the diversity of
+samples has larger effects on the FID scores than the artifacts. As shown in Fig. 9(a) and Fig. 9(b),
+samples generated by PFGM have more diverse background colors and hair colors than samples of
+Langevin dynamics. In addition, we evaluate the performance of PFGM on the DDPM++ architecture.
+We show that the FID score can be further reduced to 3.68 using the more advanced DDPM++
+
+
+                                                  25
+Table 9: CIFAR-10 sample quality (FID, Inception) and number of function evaluation (NFE). All
+the methods below the NCSNv2 backbone separator use the NCSNv2 [32] network architecture as the
+backbone.
+                                                   Inception ↑   FID ↓   NFE ↓
+                    PixelCNN [36]                     4.60       65.93   1024
+                    IGEBM [8]                         6.02       40.58    60
+                    WGAN-GP [12]                   7.86 ± .07    36.4      1
+                    SNGAN [26]                     8.22 ± .05    21.7      1
+                    NCSN [31]                      8.87 ± .12    25.32   1001
+                    NCSNv2 backbone
+                    Langevin dynamics [32]         8.40 ± .07    10.87   1161
+                    VE-SDE [33]                    8.23 ± .02    10.94   1000
+                    VP-SDE [33]                    6.85 ± .01    44.05   1000
+                    VE-ODE (Euler w/ corrector)    8.05 ± .03    11.33   1000
+                    VP-ODE (Euler w/ corrector)    7.33 ± .07    37.74   1000
+                    PFGM (Euler)                   8.00 ± .09    11.78    200
+                    PFGM (RK45)                    8.30 ± .05    11.22   118
+
+
+architecture. By examining the generated samples of PFGM on DDPM++ (Fig. 13), we observe that
+the samples are diverse and exhibit fewer artifacts than PFGM on NCSNv2. It suggests that by using
+a more powerful architecture like DDPM++, we can remove the artifacts while retaining the diversity
+in PFGM.
+
+
+
+
+           (a) Langevin dynamics [31]                              (b) PFGM (RK45)
+
+Figure 9: Uncurated samples from Langevin dynamics [31] and PFGM (RK45), both using the
+NCSNv2 architecture.
+
+
+D.3   Wall-clock Sampling Time
+
+The main bottleneck of sampling time in each ODE step is the function evaluation of the neural
+network. Hence, for different ODE equations using similar neural network architectures, their
+inference times per ODE step are approximately the same.
+We implement PFGM on the NCSNv2 [32], DDPM++ [33], and DDPM++ deep [33] architectures,
+with sight modifications to account for the extra dimension z. In Table 11, we report the sampling
+time per ODE step method with the DDPM++ backbone, as well as the total sampling time. We
+measure the sampling time of generating a batch of 1000 images on CIFAR-10. We compare PFGM,
+
+
+                                                  26
+                               Table 10: FID/NFE on CelebA 64 × 64
+                                                             FID ↓     NFE ↓
+                           NCSN [31]                         26.89     1001
+                           NCSNv2 backbone
+                           Langevin dynamics [32]            10.23     2501
+                           VE-SDE [33]                        8.15     1000
+                           VP-SDE [33]                       34.52     1000
+                           VE-ODE (Euler w/ corrector)        8.30      200
+                           VP-ODE (Euler w/ corrector)       41.81      200
+                           PFGM (Euler)                       7.85      100
+                           PFGM (RK45)                        7.93      110
+                           DDPM++ backbone
+                           PFGM (RK45)                        3.68         110
+
+
+VP/sub-VP ODEs using the RK45 solver. As a reference, we also report the results of VP-SDE using
+the predictor-corrector sampler [33]. All the numbers are produced on a single NVIDIA A100 GPU.
+
+                            Table 11: Wall-clock sampling time (second)
+                  Method               PFGM       VP-ODE       sub-VP-ODE        VP-SDE (PC)
+                    NFE                  110         134             146             1000
+         Wall-clock time per step       0.526       0.522          0.520             0.491
+           Total wall-clock time        57.81       69.97          75.92            490.65
+
+
+As expected, ODEs using similar architectures and the same solver have nearly the same wall-clock
+time per ODE step. The table also shows that PFGM achieves the smallest total wall-clock sampling
+time.
+
+D.4   Image Interpolations
+
+The invertibility of the ODE in PFGM enables the interpolations between pairs of images. As shown
+in Fig. 10, we adopt the spherical interpolations between the latent representations of the images in
+the first and last column.
+
+D.5   Temperature Scaling
+
+To demonstrate more utilities of the meaningful latent space of PFGM, we include the experiments of
+temperature scaling on CelebA 64 × 64 dataset. We linearly increase the norm of latent codes from
+1000 to 6000 to get the samples in Fig. 11.
+
+E     Extended Examples
+We provide extended samples from PFGM on CIFAR-10 (Fig. 12), CelebA 64 × 64 (Fig. 13) and
+LSUN bedroom 256 × 256 (Fig. 14) datasets.
+
+F     Physical Interpretation of the ODEs in PFGM
+In Section 2, in order to move the particles along the electric lines, we set the time derivative of x to
+the Poisson field E(x):
+                                   dx                                              dx
+         [q = 1, forward ODE]          = E(x), [q = −1, backward ODE]                 = −E(x)        (37)
+                                   dt                                              dt
+
+                                                   27
+   Figure 10: Interpolation on CelebA 64 × 64 by PFGM
+
+
+
+
+Figure 11: Temperature scaling on CelebA 64 × 64 by PFGM
+
+
+
+
+                          28
+We give the interpretation of the ODEs from a physical perspective. Newton’s law implies that
+the external force is proportional to the acceleration of the particle. In the overdamped limit, e.g.,
+when the particle is moving in honey, the external force is instead proportional to the velocity of the
+particle, making the equation of motion a first-order ODE. Denoting the viscosity of the fluid as γ,
+the dynamics of the particle under the influence of the electric field of the source ρ(x) is
+                                          d2 x      dx
+                                      m        = −γ    + qE(x),
+                                          dt2       dt
+which has an overdamped limit dx
+                               dt
+                                  = qE(x) when we set t → γt and γ → ∞. In this case, a particle
+with mass m = 1 and charge q = 1 would follow the electric field with velocity equal to E, justifying
+Eq. (37).
+
+G    Limitations and Future Directions
+In Section 3.2 we discuss the training paradigm of PFGM, including the normalized Poisson field and
+the discretized forward ODE. There are several potential improvements. First, the normalized field
+on mini-batch is biased. In this paper, we directly alleviate the bias by using a larger training batch.
+However, it does not solve the problem fundamentally. Some potential directions are incorporating
+more physical tools: we can exploit renormalization to make the Poisson field well-behaved in near
+fields. Another possibility is to replace a point charge with a quantum particle, whose position
+uncertainty fills the empty space among nearest neighbor data samples and makes the data manifold
+smoother.
+
+H    Potential Social Impact
+Generative models is a rapidly growing field of study with far-reaching implications for science
+and society. Our work proposes a new generative model that allows for high-quality samples, quick
+inference and adaptivity. Many downstream applications benefit from our PFGM models’ powerful
+expressive capabilities, particularly those that need fast inference speed and good sample quality at
+the same time. The usage of these models might have both positive and negative outcomes depending
+on the downstream use case. For example, PFGM can be incorporated in producing good image/audio
+samples by the fast backward ODE. This, on the other hand, promotes deepfake technology and leads
+to social scams. Generative models are also brittle and susceptible to backdoor adversarial attacks
+on publicly available training data, causing unanticipated failure. Addressing the above concerns
+requires further research in providing robustness guarantees for generative models as well as close
+collaborations with researchers in socio-technical disciplines.
+
+
+
+
+                                                  29
+Figure 12: CIFAR-10 samples from PFGM (RK45)
+
+
+
+
+                    30
+

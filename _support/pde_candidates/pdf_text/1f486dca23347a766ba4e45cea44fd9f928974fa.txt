@@ -1,0 +1,1511 @@
+                                                                                   FLUPS: A FOURIER-BASED LIBRARY OF UNBOUNDED POISSON SOLVERS ∗
+                                                                                            DENIS-GABRIEL CAPRACE ‡†, THOMAS GILLIS‡†, AND PHILIPPE CHATELAIN ‡
+
+                                                        Abstract. A Fourier-based Library of Unbounded Poisson Solvers (FLUPS) for 2D and 3D homogeneous distributed grids is presented. It is designed to handle
+                                                   every possible combination of periodic, symmetric, semi-unbounded and fully unbounded boundary conditions for the Poisson equation on rectangular domains
+                                                   with uniform resolution. FLUPS leverages a dedicated implementation of 3D Fourier transforms to solve the Poisson equation using Green’s functions, in a fast
+                                                   and memory-efficient way. Several Green’s functions are available, optionally with explicit regularization, spectral truncation, or using lattice Green’s functions,
+                                                   and provide verified convergence orders from 2 to spectral-like. The algorithm depends on the FFTW library to perform 1D transforms, while Message Passing
+                                                   Interface (MPI) communications enable the required remapping of data in memory. For the latter operation, a first available implementation resorts to the standard
+                                                   all-to-all routines. A second implementation, featuring non-blocking and persistent point-to-point communications, is however shown to be more efficient in a
+                                                   majority of cases and especially while taking advantage of the shared memory parallelism with OpenMP. The scalability of the algorithm, aimed at massively parallel
+                                                   architectures, is demonstrated up to 73 720 cores. The results obtained with three different supercomputers show that the weak efficiency remains above 40% and
+
+
+
+
+arXiv:2006.09300v4 [physics.comp-ph] 17 Jan 2021
+                                                   the strong efficiency above 30% when the number of cores is multiplied by 16, for typical problems. These figures are slightly better than those expected from a
+                                                   third party 3D Fast Fourier Transform (FFT) tool, with which a 20% longer execution time was also measured on average. From the outside, the solving procedure
+                                                   is fully automated so that the user benefits from the optimal performances while not having to handle the complexity associated with memory management, data
+                                                   mapping and Fourier transform computation.
+                                                   The parallel code is available under Apache license 2.0 at github.com/vortexlab-uclouvain/flups.
+
+                                                       Key word. Poisson equation, parallel computing, 3D Fourier transform, elliptic problem, free-space boundary
+
+                                                       AMS subject classifications. 35J05,35J08,35J15,35J25,68N01
+
+
+                                                       1. Introduction. The solution of Poisson problems is ubiquitous in computational physics as it concerns problems ranging
+                                                   from fluid dynamics and electromagnetism to particle physics. Consequently, there is a widespread need for dedicated, adapted
+                                                   numerical solvers. When considering time-dependent applications such as fluid dynamics for example, this equation has to be
+                                                   solved many times per simulation, and the efficiency of solvers is hence also crucial. In this work, we consider the Poisson
+                                                   equation in a 3D computational domain,
+
+                                                   (1.1)                                                                      ∇2 φ = f .
+
+                                                   Often such problems are unbounded in nature, as they describe a potential field induced by sources located in a compact region
+                                                   of space. Nevertheless it is also common to exploit symmetries that may arise from the physical configuration of the domain, or
+                                                   periodicity, for the sake of modeling. In all cases, the geometry of the problem naturally drives the conditions that f and φ need
+                                                   to satisfy at the computational domain boundaries. Therefore, (1.1) has to be complemented with a set of appropriate boundary
+                                                   conditions (BCs) which, in each direction, specify the periodicity or an arbitrary combination of symmetries and (semi-)infinite
+                                                   direction.
+                                                        Historically, three main families of approaches have emerged to efficiently solve (1.1): the Multigrid-based (MG) approaches
+                                                   [32], the Fast Multipole Methods (FMM) [17] and the Fast Fourier Transform (FFT)-based techniques [21]. In addition to the brief
+                                                   summary that we provide hereafter, we refer the reader to [12] and references therein for a detailed description and comparison
+                                                   of these approaches. In the MG approaches, (1.1) is treated as a linear system usually emerging from a finite-difference or a finite-
+                                                   volume discretization, where several levels of resolution are recursively used to converge towards the solution. In the FMM and
+                                                   the FFT-based techniques, Green’s functions are employed to obtain the solution of (1.1), φ = G ∗ f , as the convolution of the
+                                                   right-hand side (RHS), f , with a precomputed kernel, G. The FMM treats near and far interactions separately, whereas the FFT
+                                                   framework does not require the distinction. Because of their specificities, the choice of the most adapted approach for a given
+                                                   problem is mostly driven by three criteria: (i) the computational complexity; (ii) the characteristics of the source term, f , and its
+                                                   support; and (iii) the desired BCs.
+                                                        In terms of computational complexity, for a domain with N p sources, tree-based algorithms (like the FMM) theoretically
+                                                   reduce the computational cost from O (N p2 ) (direct interactions) down to O (N p ) [15]. Similarly, when the sources are uniformly
+                                                   distributed on a grid of size N 3 , the multigrid approach reaches a linear complexity, O N 3 (in 3D), where N is the number of
+                                                                                                                                               ¡ ¢
+
+                                                   unknowns in each direction. However, in those conditions, higher computational performances can be expected from an FFT-
+                                                   based algorithm which allows one to cast the convolution into a pointwise multiplication in the spectral space,
+
+                                                   (1.2)                                                                       φ̂ = Ĝ fˆ ,
+
+                                                   where .̂ denotes ¡the 3D Fourier transform. The required forward and backward FFTs thus entail fast executions, in spite of their
+                                                   complexity of O N 3 log(N ) operations per direction . Moreover, the three approaches can be compared in terms of their relative
+                                                                              ¢
+
+                                                   computational intensity [22]. While the multigrid methods present the lowest intensity, the FMM-based approaches are the most
+                                                   intense methods, as the computation of the multipole expansions requires many operations for fewer memory accesses.
+
+                                                     ∗ Submitted to the editors December 5, 2019. Corresponding authors: denis-gabriel.caprace@uclouvain.be, thomas.gillis@uclouvain.be.
+                                                       Copyright: Denis-Gabriel Caprace, Thomas Gillis, Philippe Chatelain, 2019.
+                                                     † These authors contributed equally to the work.
+                                                     ‡ Institute of Mechanics, Materials and Civil Engineering, Université catholique de Louvain, 1348 Louvain-la-Neuve, Belgium.
+
+                                                                                                                                    1
+2                                                     CAPRACE, GILLIS, CHATELAIN
+
+
+     Most importantly, one must also consider the adequacy of the method for the source term and the geometry of its support.
+When f is made of a distributed collection of compact sources, the FMM is most suited. On the other hand, FFT-based techniques,
+which require the use of a uniform grid, are best-in-class to handle evenly distributed and compactly supported source terms.
+     An additional advantage of the FMM over the others is that it naturally enables unbounded solutions. The spectral decompo-
+sition inherent to the Fourier transforms implies assumptions on the boundary conditions: the discreet Fourier transform (DFT)
+imposes periodic conditions, whereas all the combinations of odd and even symmetries are accessible through the various types
+of cosine and sine transforms (DCT and DST). Still, fully unbounded directions can also be achieved in an FFT-based framework
+using zero-padding, as described in the domain doubling technique proposed by Hockney and Eastwood [20].
+     In the present work, we focus on the case of source terms compactly and homogeneously supported within a parallelepiped-
+like domain (see [2, 7, 11, 28] for application examples). In that specific case, a uniform Cartesian mesh is well adapted and the
+FFT-based methods were reported to exhibit the shortest time-to-solution [12]. We here aim to present the efficient implementa-
+tion of an FFT-based method, within an inclusive computational framework supporting various types of BCs.
+
+    The use of Green’s functions in a discrete physical domain implies a second classification among the potential methods. In
+order to obtain the Green’s function value on the grid, a first approach consists in sampling the Green’s function corresponding to
+the continuous Poisson problem. In that case, a specific treatment is required to handle the singularity of the Green’s functions
+(which can thus not be evaluated in one or several locations). In this respect, three major techniques have been proposed:
+       I. the replacement of the singular values with a cell-averaged equivalent [4];
+      II. the use of an explicit (high-order, spectral in the limit) regularization of the Green’s function which thus solves the regu-
+          larized Poisson problem [18, 19, 30];
+     III. the truncation of the Green’s function in the physical space to a sphere of radius R encompassing the source term. This
+          truncated kernel method [33] leads to an analytical kernel which yields spectral-accurate results for isotropic problems.
+          However, as detailed in [16], its generalization to anisotropic domains comes at the price of oversampling in the Fourier
+          space, hence leading to a significant overhead, or the loss of the analytical expression.
+A second approach consists in determining the fundamental solution of the discrete version of (1.1), obtained using finite differ-
+ences. The corresponding Lattice Green’s Functions (LGFs, hereafter denoted type (IV) ) were initially proposed in 2D [14, 25] and
+further applied in 3D [24]. The kernel computation involves the evaluation of an integral in infinite domain for close interactions,
+and requires the use of an expansion for further interactions [25]. This splitting renders the LGF also naturally well suited for an
+implementation of the FMM approach. In that respect, let us highlight that the computation of the interactions can be accel-
+erated through the use of FFTs, as proposed in [24], hence providing a hybrid implementation of the FMM, optionally also with
+multiresolution [9].
+
+     Solving the Poisson equation is a computationally intensive task and many previous efforts have focused on parallel perfor-
+mance optimization, a challenge due to the inherent elliptic character of the problem. Because the distribution of the computation
+entails a subdivision of the domain, communications are needed between all the computational entities, which drive the overall
+computational performance of the algorithm. While FFT-based algorithms may rely on highly optimized (mostly serial) libraries,
+such as FFTW [10], their parallel 3D implementation for distributed architectures requires handling dedicated communication
+patterns (several of them are reviewed in [31]), which are subject to specific optimization. Among the numerous initiatives tack-
+ling 3D FFT computations, the renowned P3DFFT library [26] takes advantage of the message passing interface (MPI) and the
+pencil (1D) decomposition of the computational domain. As highlighted in [29], the 1D pencil decomposition indeed waives
+some partition-size limitations on massively parallel architectures. A pencil-based transform is able to exploit N 2 cores at most
+(for a cubic domain of N 3 unknowns), but requires the transposition of data, which can be efficiently implemented as in [3]. By
+contrast, a transform that relies on a 2D slab decomposition would be limited to the use of N cores. Moreover, when used for 3D
+transforms, the slab decomposition features one actual all-to-all communication as the slabs need to be transformed into pencils
+in the third direction: one MPI rank will thus communicate with all the Nr ank other p  ranks. With the pencil decomposition, the
+communication can be arranged such that one rank only communicates twice with Nr ank other ranks, which will reduce the
+communication latency on very large partitions. The same ideas were exploited in other packages such as PFFT [27], FFTK [6]
+and MPI4PYFFT [8] (see also references therein), with small variations and improvements on the parallel implementation. For the
+above-mentioned solutions, the scalability of the algorithm was tested on Bluegene and Cray XT/XC architectures, for some up to
+64k cores and more, often showing similar performances. Concurrently, hardware acceleration applied to Poisson’s problem has
+also been considered [23].
+     Although the above-mentioned efforts have brought several substantial advances to the solving methodology and to its nu-
+merical implementation (specifically related to 3D FFTs), an open-source solution dedicated to solving Poisson’s equation with
+any type of BCs on a parallelepiped and uniform Cartesian mesh, that would encompass all these improvements, is still missing
+to date. In particular, one might wish for a solution that would hide the complexity of the FFT-based implementation from the
+user—whose focus should be on the boundary value problem only—but that would still benefit from the above improvements.
+Furthermore, such an integrated solution would push the optimization of the whole algorithm one step further, by tailoring the
+management of memory and data to the Poisson problem on a given mesh configuration, and by advantageously sharing the
+computational resources over the whole computational process.
+     Moreover, techniques to address certain combinations of BCs are also missing. For instance, one would be interested in
+                                                                         FLUPS                                                              3
+
+computing the solution of (1.1) in a domain which is unbounded on one side, and symmetric on the other side. This corresponds
+to semi-infinite problems such as the boundary layer on a flat plate in fluid mechanics. The treatment of such a configuration in a
+FFT-based Poisson solver was never exposed.
+     This work presents the concepts that have supported the development of the Fourier-based Library of Unbounded Poisson
+Solvers (FLUPS). FLUPS provides an integrated solution for a variety of Poisson’s problems with high computational throughput.
+The library, written in C++ with an API in C, supports any arbitrary combination of BCs on 2D and 3D uniform grids. The parallel
+implementation is based on the MPI standard and can also take advantage of shared-memory parallelism with OpenMP, depend-
+ing on the size of the problem and the computational resources available. FLUPS is thus intended as an open-source, state-of-the-
+art, and highly optimized implementation of a Poisson solver over uniform grids, available at github.com/vortexlab-uclouvain/
+flups.
+     In this article, the general scheme for solving Poisson’s equation in 3D with Green’s functions is first explained. Details are
+given about the various types of BCs, and the consequences in the algorithm in terms of Green’s functions and FFT computations.
+In particular, a novel method for the treatment of a semi-infinite direction with symmetry at one end is proposed. Then, a verifi-
+cation and validation of FLUPS is presented, focusing on the accuracy of the Poisson solver, and on the weak and strong scalability
+of the algorithm up to 73 720 processors, measured on three different massively parallel architectures.
+     2. Methodology of FLUPS in 3D. FLUPS is capable of handling scalar and vector fields and, by default, assumes that data are
+given in a “cell-centered” framework; i.e. their numerical values correspond to the evaluation of the fields at the center of the grid
+cells. Each field must be attached to a topology object, which describes the size and the memory arrangement of the field, as will
+be detailed in Section 3. The initialization of FLUPS always starts with the precomputation of the communication patterns and
+with the planning of the FFTs, which depend on the user-specified BCs and on the topology of the RHS field, f . The evaluation of
+the user-specified Green’s function is also performed during the setup of the library, and the Green’s function in the full spectral
+space Ĝ is eventually obtained and stored. Then, for any given RHS, the solution is obtained by first computing fˆ, i.e. the forward
+3D FFT of f , by multiplying it with Ĝ, and by computing the backward transform of the solution. Each of the following sections
+focuses on the specific stages of this process.
+     2.1. Evaluation of Green’s function for spectral and unbounded directions. Following the numbering of the introduction,
+the Green’s functions available in FLUPS are (I) the singular expressions with replacement of the singularities by cell-average values
+as in [4]; (II) those of [18, 30] with explicit regularization up to the order m = 10 and their spectral generalization presented in [19]
+; and (IV) the lattice Green’s functions of [24]. The analytical expressions of the Green’s functions in cases (I) , (II) and (IV) are
+summarized in Appendix B. Depending on the BCs, additional processing (including FFTs) is required to obtain Ĝ.
+    2.1.1. Fully unbounded problems. For fully unbounded problems the Green’s function is expressed in the physical space.
+Indeed, the singular Green’s functions of type (I) are obtained as the solution of
+(2.1)                                                               ∇2G = δ(x),
+and the regularized type (II) Green’s functions are obtained from
+(2.2)                                                           ∇2G m = ζε,m (x) ,
+where the analytical expression of G is known as a function of the spatial coordinates. The domain doubling technique must be
+used to obtain the result in the Fourier space (thus involving a 3D FFT); see Section 2.2.2. In (2.2), ζε,m is a regularization kernel, as
+in [18]. It is here assimilated to a Gaussian mollification of order m and of characteristic smoothing length ε = 2h (see Appendix A
+for their mathematical expressions).
+    2.1.2. Fully spectral problems. Conversely, if all directions are spectral (i.e., with periodic or symmetric BCs), the Green’s
+function is readily expressed in the full-spectral space. For instance, (2.2) is expressed in the Fourier space as (ik) · (ik) Ĝ = ζ̂ε,m (k),
+which yields for Ĝ
+                                                                          1
+(2.3)                                                         Ĝ m = −       ζ̂ε,m (k) ,
+                                                                         k·k
+where k = k x , k y , k z , with k i ∈ [−π/h i ; π/h i ]. No FFTs are hence required to evaluate the Green’s function.
+         £               ¤
+
+     2.1.3. Partially unbounded problems. For domains combining one (resp., two) spectral direction and two (resp., one) infi-
+nite (or semi-infinite) directions, Green’s functions are obtained from the solution of a Helmholtz equation. Indeed, the Laplacian
+operator is split between the unbounded and the periodic/symmetric direction, and one considers the partial Fourier transform
+of (1.1) along the latter direction, which hence becomes spectral [4]. This results in a Helmholtz equation, which is expressed as a
+function of the wave number k in the spectral direction and as a function of the spatial coordinates in the unbounded directions.
+For example, considering two unbounded directions X , Y and a periodic direction Z , the regularized Green’s function is obtained
+as the solution of
+(2.4)                                           ∇2x,y G̃(x, y, k z ) − k z2G̃(x, y, k z ) = ζ̂ε,m (k z ) ,
+where .̃ denotes the partially transformed function. The remaining spatial directions are then to be transformed using FFTs and
+the domain doubling technique.
+4                                                              CAPRACE, GILLIS, CHATELAIN
+
+
+     2.2. 3D FFT transform and convolution. Numerically, the 3D FFT is obtained as the succession of 1D FFTs in all three di-
+rections, and each transform type is driven by the BCs in the considered direction. For example, starting from f (x, y, z) in spatial
+coordinates and seeking for the fully periodic transform, one thus obtains successively f˜(x, y, k z ) as the result of the first DFT
+in z, f˜(k x , y, k z ) as the result of the second DFT in x, and finally fˆ(k x , k y , k z ) as the result in all-spectral coordinates. The type
+of BC dictates the order of the transforms, and hence the order of treatment of the directions, so as to minimize the number of
+computational operations (see Section 3).
+
+     In a fashion much akin to the P3DFFT library, FLUPS uses pencil decompositions of the domain. From one FFT operation to
+another, a change in topology is thus required—here called topology switch. The latter involves a very large number of communi-
+cations, and a significant effort was dedicated to reducing the associated latency in FLUPS (see Section 3). Additionally, since all
+1D FFT operations (here conducted using the FFTW library [10]) require the contiguity of data in memory along the transformed
+direction, a memory transpose is also necessary to reorder the data along each pencil direction. Notice that non-unit stride 1D
+FFTs are also implemented in FFTW, but their use would here lead to a slower execution.
+     In the following subsections, the treatment of the transform in each direction is described, with a focus on the particularities
+of the various types of BCs. Moreover, the operations on the field f and on the field G are detailed when appropriate. The final
+result of the 3D FFT hence consists in a succession of these treatments for all the directions, which are processed separately as 1D
+problems.
+
+     2.2.1. Spectral direction. The spectral (symmetric or periodic) directions are the most straightforward. With periodic BCs,
+the forward Fourier transform of f is readily obtained using a Direct Fourier Transform (DFT). For symmetric directions, and
+accounting for the fact that fields f and φ are “cell-centered”, symmetry conditions are implicitly satisfied at the cell edges using
+       • the type-I I DST for odd-odd cases,
+       • the type-I V DST for odd-even cases,
+       • the type-I V DCT for even-odd cases,
+       • the type-I I DCT for even-even cases.
+The latter are equivalent to, yet much more efficient than, the use a DFT on a domain of size 2N (for odd-odd and even-even cases)
+or 4N (for crossed cases), where the symmetries would be explicitly enforced by a copy of the data into a symmetric image in the
+extended domain. We refer the reader to [10] and to the documentation of the FFTW package1 for complete definitions. Notice
+that the backward transform of φ̂ is performed with the corresponding DFT/DCT/DST type, as the solution field enjoys the same
+symmetries as the RHS.
+
+      THe Green’s function needs not undergo an FFT in the spectral directions as the analytical expression is already expressed as
+a function of the spectral coordinates for both periodic and symmetric BCs. However, the wave number k used for its evaluation
+(i.e. the wave number of the current direction) must correspond to the modes resulting from the transform of the source field.
+Considering the definition of the various types of transforms,
+        • the type-I I DCT is given by
+
+                                                                         NX
+                                                                          −1              · µ     ¶ ¸
+                                                                                                 1 k
+          (2.5)                                                 f˜ = 2        f (x j ) cos π j +      ,
+                                                                         j =0                    2 N
+
+         where the kth entry in the result of the DCT corresponds to the mode k. The flip-flop mode, k = N , is trivially null and the
+         Green’s function G̃ is thus evaluated between k = 0 and k = N − 1;
+       • the type-I I DST is given by
+
+                                                                       NX
+                                                                        −1              · µ     ¶
+                                                                                               1 k+1
+                                                                                                     ¸
+          (2.6)                                               f˜ = 2        f (x j ) sin π j +         ,
+                                                                       j =0                    2 N
+
+         where the kth entry in the result of the DST corresponds to the mode k + 1 since the mode k = 0 is trivially null. G̃ is thus
+         evaluated between k = 1 and k = N ;
+       • the type-I V DCT corresponds to
+
+                                                                                                 j + 21
+                                                                                       "µ    ¶ ¡        ¢#
+                                                                      NX
+                                                                       −1                  1
+          (2.7)                                              f˜ = 2        f (x j ) cos k + π              ,
+                                                                      j =0                 2       N
+
+       and the first entry f˜(k = 0) is actually the global mode k = 1/2. G̃ is thus correspondingly evaluated with an offset of 12 .
+       The same conclusion holds for the type-I V DST.
+   Notice that the forward transform of f in periodic directions uses a real to complex or a complex to complex transform,
+depending on the input data type. The backward transform of φ̂ makes use of the corresponding inverse operation.
+
+    1 The documentation of the FFTW library is available online at www.fftw.org/fftw3_doc.
+                                                                    FLUPS                                                                5
+
+      2.2.2. Fully unbounded direction. Following the domain doubling technique by Hockney and Eastwood [20], f is extended
+to a domain of size 2N with zero-padding; the Green’s function is extended to 2N and symmetrized about the Nth data, as in the
+example shown in Figure 1a and Figure 1b. The unbounded (i.e. aperiodic) convolution is obtained through the convolution in
+the doubled domain with periodic BCs. Figure 1c, Figure 1d and Figure 1e illustrate the operations involved in that convolution, as
+if it was performed in spatial coordinates, with periodicity over the doubled domain of size 2L. One easily verifies that performing
+the convolution between the padded fields with periodic BCs yields the same results as if the domain was unbounded in the non-
+padded region (x ∈ [0, L]). The result in the padded region (x ∈]L, 2L]) is spurious and is hence discarded. One thus obtains f˜
+
+
+
+
+ 0              L             2L
+
+
+      (a) Green’s function G
+
+
+
+
+  0             L             2L       (c) convolution term j = 0           (d) convolution term j = 1      (e) convolution term j = 2
+
+
+      (b) right hand side f
+
+
+Figure 1: Example of the steps involved in a convolution between the Green’s function and a source term, φ(x i ) = N
+                                                                                                                            P −1
+                                                                                                                              j =0 G(x j −
+x i ) f (x j ). The filled bullets show the data in the initial domain x = [0, L] of size N = 3. The empty bullets denote the data in the
+extension of the domain, with symmetry on G about x = L and zero-padding on f .
+
+
+and G̃ as the the forward transform of f and G using DFTs over the doubled domain, again of type real to complex or complex to
+complex, depending on the input data type.
+    As previously mentioned, the convolution in FLUPS is implemented through the multiplication in Fourier space. It is to be
+noted that, because of the domain extension and the implicit periodicity, the Green’s function and the field eventually have the
+same size of 2N unknowns in the Fourier space. Hence, no special care needs to be taken for the computation of the point-to-point
+multiplication.
+
+     2.2.3. Semi-unbounded direction. A semi-unbounded direction is a direction with a symmetry condition at one end and an
+infinite BC at the other end. Conceptually, this configuration is easily modeled with an extension of the domain. As illustrated in
+Figure 3, the source term is first copied so as to explicitly satisfy the BC, hence extending the computational domain from [0, L]
+to [−L, L] in the case of a symmetry condition on the left side of the domain (or to [0, 2L] in the case of a symmetry condition on
+the right side of the domain). The resulting configuration is unbounded on a domain of size 2L and can be solved as described in
+the previous section: the Green’s function is evaluated over [0, 2L] and symmetrized in the padded region, [2L, 4L], and a DFT is
+used to obtain the data in the spectral space. However, strictly applying this would require a domain of size 4N (because of two
+successive domain doublings), which is not acceptable for performance reasons.
+     Instead, DSTs and DCTs are here exploited to reduce the computational cost, while still imposing the correct symmetry condi-
+tion at the desired domain end. In this approach, the domain doubling is still performed as for the fully unbounded direction, but
+the zero-padding is here done on the side which is unbounded. In the example considered in Figure 2b, it takes place on the right
+side, ]L, 2L]. The domain over which the DST/DCT will be executed is hence [0, 2L]. As for the Green’s function (Figure 2a), it must
+be here evaluated in the extended domain and transformed using a DCT (whereas it was explicitly symmetrized in the extended
+domain for fully unbounded domains; see Figure 1a). As shown in Figure 3, this guarantees that the convolution accounts for the
+proper BCs on the domain [0, 2L].
+     As shown in Figure 2a, the Green’s function is evaluated in a “vertex-centered” framework, as it characterizes the influence of
+a source located in x = 0 on any other location in the domain. Most importantly, f is in a cell-centered layout. Therefore different
+types of Fourier transforms have to be used to compute f˜ and G̃ with the proper symmetry conditions. In order to guarantee
+that their product is consistent with the aimed convolution, the kth entry in the result of the FFT of f must be related to the
+corresponding mode k of G̃.
+     Practically, the field f (with 2N cell-centered real data, as in Figure 2b) will be transformed into f˜ using a type-I I DCT for an
+6                                                           CAPRACE, GILLIS, CHATELAIN
+
+
+
+
+         0        L         2L        3L      4L     −L         0         L           2L      3L    −L        0        L        2L        3L
+
+
+
+        (a) Green’s function G extended for a semi- (b) right hand side f with even symmetry (c) right hand side f with odd symmetry on
+        unbounded direction                         on the left                              the left
+
+
+Figure 2: Green’s function and RHS initially on a domain x = [0, L] of size N = 3, and their virtual extension in a domain of size
+4L for the resolution of a semi-infinite direction with symmetry on the left. Faded colors indicate ghost data that are not present
+when using a DCT or a DST to enforce the symmetry. Only the portion [0, 2L] is then effectively evaluated.
+
+
+
+
+              (a) convolution for j = 4                       (b) convolution for j = 7                       (c) convolution for j = 9
+
+
+Figure 3: The convolution of G (top) with f (bottom) on a 4N size domain padded for a semi-unbounded transform with odd
+symmetry on the left. The correct solution is retrieved in x = [−L, L].
+
+
+
+even symmetry, and using a type-I I DST for an odd symmetry, which both return 2N numbers (real or complex; the same kind
+as f ). According to their definitions ((2.5) for the DCT; (2.6) for the DST) when expressed in the case of a domain with 2N cells,
+the flip-flop mode (k = 2N ) is trivially zero in the type-I I DCT, while the mode k = 0 is trivially zero in the type-I I DST. On the
+other hand, the 2N +1 numerical values of the Green’s function (evaluated on the vertices of the interval [0, 2L], as in Figure 2a) are
+transformed using a type-I DCT, which yields 2N + 1 values:
+
+                                                                               2N
+                                                                                X−1
+                                                                                               · µ
+                                                                                                     k
+                                                                                                       ¶¸
+(2.8)                                      G̃ = G(x 0 ) + (−1)k G(x 2N ) + 2        G(x j ) cos π j       ,
+                                                                               j =1                 2N
+
+where the kth entry corresponds to mode k and neither the constant mode k = 0 nor the flip-flop mode k = 2N is null. Hence
+particular care must be taken to match the entries of fˆ and Ĝ with the same mode k while performing the pointwise multiplication
+in Fourier space. By doing so, one finally obtains the field φ̂ of size 2N , with the first or the last mode being trivially null and ready
+for the application of the backward transform.
+
+     2.2.4. Order of the transforms. The order in which the directions are transformed to obtain the 3D FFT can be chosen arbi-
+trarily. As the DCTs and DSTs are real to real transforms (for symmetric and semi-unbounded directions), one may want to avoid
+performing them on complex data, i.e. separately on the real and on the complex parts. Therefore, the symmetric directions are
+always treated first, in order to reduce the size and the cost of subsequent FFT evaluations (which can thus be real to real, or real
+to complex). Then, the semi-unbounded directions are transformed, which yields real values on a doubled domain. Finally, the
+FFTs in the periodic directions and in the unbounded directions are performed, using real to complex or complex to complex
+transforms, depending on the input data type.
+     FLUPS follows these directives to determine the actual order of executions of the FFTs. This order is stored in the dimorder
+array.
+
+    3. Additional notes on the parallel implementation.
+
+   3.1. Topologies and data layout. As already mentioned, FLUPS uses topology objects in order to describe every field in the
+memory. The topology specifies the useful information on the field, including the global and local numbers of field data in each
+                                                                              FLUPS                                                      7
+
+                                                                                                                                     y
+direction, the type of data (nf = 1 for real data and nf = 2 for complex data), the number of MPI ranks in each direction Ncx , Nc , Ncz ,
+and the associated MPI communicator. If the communicator is of type MPI_Cart, the information on the mapping between the
+cores and the physical domain is retrieved from the communicator itself, otherwise it needs to be specified by the user.
+     Most importantly, every topology also has its own specific fastest rotating index (FRI), ax0 , i.e. an integer indicating the axis
+(X = 0, Y = 1 or Z = 2) along which data are contiguous in memory. The 3D data are stored sequentially in memory: data are
+decomposed in the order ax0 , ax1 , ax2 , where the last two indices
+                                                                   £ follow a¤ natural permutation of indices, ax1 = (ax0 + 1) %3 and
+ax2 = (ax0 + 2) %3. As an example, for¡ a 3D data set of size
+                                                           ¢  N  =  N x , N y , N z with an FRI£ aligned with
+                                                                                                          ¡ ax0 ¢= 1 (and
+                                                                                                                       ¡ thus with
+                                                                                                                                ¢¤ ax1 = 2
+and ax2 = 0), the element located in x = 10, y = 2, z = 3 will be located in memory at 2 (nf ) + 3 Ny ∗ nf + 10 Nz Ny ∗ nf .
+     The size of the computational domain may be extended along the FRI in order to fulfil data alignment requirements. Indeed,
+only one FFTW plan is defined per pencil topology, and it is used to transform all the pencils in the domain. For this to be possible,
+the starting element of each pencil must be aligned in memory. Therefore, if the size of one pencil does not match a multiple of
+the memory chunk size, the domain is padded in the FRI dimension to ensure the correct alignment of all pencils.
+     In the other dimensions, the sizes of the pencils are chosen in order to ensure load balancing: the width of all pencils in a given
+direction differs by 1 at most. For example, if the x direction with N x = 20 was to be split between three cores, each core would be
+in charge of, respectively, 7, 7, and 6 data.
+
+     3.2. Memory management and computational complexity. In order to avoid repetitive large allocations of memory, the
+whole solver is designed to work “in place”. The total amount of memory required for the solve operation is allocated once at
+initialization. The size of the allocation, which corresponds to the maximum size that the data will occupy, is determined by the
+execution of a dry run. This procedure accounts for the directions that will need zero-padding, and also predicts the type of FFT
+transform (real to real, real to complex, complex to complex) in order to determine the input and output sizes. This information is
+used to create three topologies with pencils in each direction that will enable the series of 1D FFTs, to determine the optimal order
+dimorder in which these topologies will be used, and to prepare the switches between the successive topologies.
+     Even though the size of the memory allocation corresponds to the maximum size of the problem (accounting for domain
+doubling), FFTs are only performed on the significant part, i.e., not on zero-padded data. For instance, a 3D unbounded problem
+of size N × N × N requires a total memory allocation of (2N + 2) × (2N + 2) × (2N + 2) floating   point
+                                                                                                     ¢ values, but the computational
+complexity associated with the forward (or backward) transform2 is as small ¡as 7N 2 O ¢N log(N ) . If the FFTs were all heedlessly
+                                                                                           ¡
+
+computed on the full size domain (2N + 2)3 , the complexity would be 12N¡2 O N log(N    ¢ ) —almost twice as large. This can also be
+compared to the cost of a fully periodic transform without padding, 3N 2 O N log(N ) .
+     As another example, a domain with odd-odd symmetry conditions in the first two dimensions, and fully unbounded in the
+third direction, leads to a memory allocation of N × N × (2N + 2) floating point values. First, f is transformed twice in the sym-
+metric directions using N × N DSTs of size N (hence excluding the zero-padded region). Then, the fully unbounded direction is
+transformed using N DFTs with 2N real numbers as an input and with N + 1 complex numbers as an output (thus correspond-
+ing to ¡2N + 2 values).  By explicitly discarding the zero-padded region for the first two DSTs, the total cost of one transform is
+4N 2 O N log (N ) .
+                  ¢
+
+      3.3. Creation of topologies and topology switches. Again, during the initialization of FLUPS, three pencil topologies ded-
+icated to each of the 1D FFTs are first created. These topologies have an FRI aligned with the direction of the pencils. For an
+illustration of the pencil decompositions, the reader is referred to Figure 2 in [6], which follows the same idea. Three switches are
+also set up. The first one is dedicated to remapping data from the physical topology to the first pencil topology, and the two others
+work as pencil-to-pencil.
+      When creating the new pencil topologies, FLUPS is free to choose the decomposition regardless of the physical topology. In
+particular, the number of pencils in each direction can be optimized based on the predetermined order of the switch operations
+(as described in Section 2.2.4). This number is here chosen in order to take advantage of the interfaces between MPI ranks that are
+common in the origin and the destination topologies. Indeed, the common interfaces partition the domain into subsets of ranks:
+if a rank belongs to a subset in the input topology, it belongs to the same subset in the output topology. Moreover, each of the
+                                                                    y
+subsets contains a smaller number of ranks than the total Ncx Nc Ncz . Inside the subset, they are to communicate in an all-to-all
+fashion during the execution of the topology switch. One sub-communicator can thus be created per subset, and the reduced
+size helps in lowering the communication latency on very large partitions. For this to work, one further needs to ensure that rank
+numbering is consistent in both input and output topology communicators.
+                                                                                       y
+      Consider a physical topology with the number of ranks per direction [Nxc = 2, Nc = 2, Nzc = 2], and a dimorder = [1, 0, 2], as illus-
+trated in Figure 4a. First, the rank IDs are split following the 3D decomposition given by dimorder, which yields a 3D index. For
+example, the rank 2 will have the 3D index [1, 0, 0], since 0 + 1 ∗ 2 + 0 ∗ 4 = 2. This is to ensure that a rank which is located in one
+sub-communicator will remain in the same sub-communicator in the next topology. Then, FLUPS sets up the pencil decompo-
+sition: the sizes of the first two directions in the dimorder array are multiplied, while the last one is left unchanged. In this case,
+           y
+[Nxc = 4, Nc = 1, Nzc = 2], hence creating 4 sub-communicators because of the 2 common interfaces. Afterwards, FLUPS permutes
+                                                                              y
+the number of ranks to reach the second pencil decomposition, [Nxc = 1, Nc = 4, Nzc = 2], creating 2 sub-communicators, as depicted
+                                                                                                                  y
+in Figure 4b. Finally FLUPS would permute the last two directions of the dimorder array to obtain [Nxc = 2, Nc = 4, Nzc = 1], creating
+
+   2 The leading complexity of an FFT over a doubled domain is 2N log(2N ) = 2N (log(2) + log(N )) thus still O N log(N ) .
+                                                                                                               ¡         ¢
+8                                                       CAPRACE, GILLIS, CHATELAIN
+
+
+4 sub-communicators (not presented in the figure). This strategy ensures that the last topology switch, which should involve the
+largest volume of transferred data due to the padding for unbounded directions, uses as many sub-communicators as possible
+(and thus decoupled communication patterns).
+
+
+
+
+                                               Z                                                                    Z
+                                                   X                                                                    X
+                                          Y                                                                     Y
+
+(a) Switch from the physical topology (in red) to the first pencil     (b) Switch form the first pencil topology aligned in the Y direction
+topology aligned in the Y direction (in blue). The grey area repre-    (in blue) to the second pencil topology aligned in the X direction (in
+sents interface between ranks, highlighted for interfaces shared by    green). One of the two sub-communicators associated to this topol-
+both topologies.                                                       ogy switch is highlighted in the corresponding topology’s color.
+
+
+Figure 4: Illustration of the topology switches that FLUPS would define starting from a physical topology with 8 MPI ranks, 2 in
+each direction (in red). Examples of communication blocks are shown in grey.
+
+
+      MPI is used to communicate between the cores when switching from one topology to another. Prior to the communication,
+data in memory are grouped in blocks, defined as the largest possible subset of the domain that will be either sent to or received
+from a given rank (as shown in grey in Figure 4). During the initialization of FLUPS, the size of those blocks and the communication
+patterns (origin and destination of each blocks) are determined and stored. The maximum total size of the communication buffers
+is also precomputed so that only one memory allocation is performed, and they are reused for the three topology switches, akin to
+what is done for the field data.
+      The execution of a topology switch starts with the copy of the blocks into the send buffers. As the blocks are made of several
+chunks of contiguous memory, this operation benefits from autovectorization along the FRI. The start address of each chunk is not
+necessarily aligned in memory, but when possible, instructions for aligned memory access are issued. When the send buffers are
+filled, one proceeds to the communication. More details on this operation are provided hereafter. As a result, new data are available
+in receive buffers. Since the FRI changes between the origin and the destination topologies, these data need to be transposed in
+memory to realign them in the correct direction. To do so, one option would consist in looping over the indices of the destination
+topology and simply copying back values from the buffer to the field. This, however, would result in slow, non-unit stride memory
+accesses. Instead, one here rather resorts to the FFTW library to efficiently “shuffle” the data in the buffer, through the functions
+fftw_plan_guru_r2r for real data and fftw_plan_guru_dft for complex data. The data can then be copied from the buffers
+back into the field, again benefiting from autovectorization and, potentially, aligned access.
+
+     3.4. Communication strategies. For the communication in itself, two different methods are made available to the user, as
+the optimal communication scheme will depend on the implementation of the MPI standard as well as on the targeted hardware.
+The first communication method is implemented using calls to the MPI_alltoall and MPI_alltoallv routines. When all blocks
+across a whole sub-communicator have the same size, FLUPS automatically uses the MPI_alltoall routine, as it is believed
+to sometimes outperform its variable-size counterpart thanks to more advanced internal optimizations. In all other cases, the
+MPI_alltoallv routine is used.
+     In the second method, all communications are handled using MPI non-blocking persistent send and receive calls, detailing
+explicitly the origin, the destination and the size of each block. The communication patterns are precomputed once and stored at
+initialization, hence sparing some time during the execution of the switches. Even though point-to-point send and receive oper-
+ations are generally expected to be slower than the all-to-all communication (which benefits from global network optimization),
+a slight performance gain is here expected from the non-blocking aspect. Indeed, as soon as a block is received by a core (i.e.,
+when the MPI_waitany routine returns), the copy from the corresponding receive buffer to the main memory can start, while the
+process is still waiting to receive the other blocks. In practice, as soon as the communication is initiated, each process starts by
+                                                                          FLUPS                                                                       9
+
+copying the block that remains on that rank (if there is one).
+     FLUPS is able to exploit shared-memory parallelism, when the user requires threads. If so, all the copy operations (from/to
+buffers for instance) are accelerated with OpenMP parallel for instructions. In addition, OpenMP is also used to parallelize the
+FFTs. The total number of 1D transforms to be performed in a pencil topology is split between the available threads.
+     As FLUPS supports hybrid parallelism, for a given number of cores, an optimum is likely to be found between the number of
+threads and the number of MPI ranks. Generally, for a decreasing number of MPI ranks (i.e. an increasing number of threads), the
+size of the blocks increases and one expects the communication latency to decrease, up to a point where the transfer speed does
+not depend on the size of the message. The communication latency mainly depends on the network architecture of the targeted
+computer, and on the network congestion (see Section 5 for timings).
+     3.5. Rank reordering. An additional optimization of FLUPS was designed to potentially adapt the distribution of the MPI
+rank indices to the actual network architecture. As the communication pattern between the ranks is known a-priori for each
+topology switch, one may want to optimize globally the position of each rank in the hardware communication network, in or-
+der to reduce the congestion of the network during the communications, and to avoid any bottleneck. Such an optimization
+reduces to permuting the rank indices between cores in the physical topology adequately, resulting in a given rank (associ-
+ated to a given portion of the 3D domain) located at the desired location in the network. The determination of the optimal
+permutation—which should account for a specified communication graph, for the actual network architecture and for the re-
+sources allocated—is beyond the scope of this paper. However, according to the MPI specifications, this task is supposedly
+achieved by the MPI_Dist_graph_create_adjacent routine when the reordering of the ranks is requested. To exploit it, the
+communication graph between the MPI ranks is established at the initialization of FLUPS: an edge exists between ranks i and j
+if they need to communicate during one of the pencil to pencil topology switches, and the associated edge weight is computed
+as the total amount of data that will be exchanged during the forward and backward transforms. Based on the weighed graph,
+MPI_Dist_graph returns a new communicator where the rank indices are “smartly” permuted. FLUPS then recomputes the com-
+munication pattern of the first topology switch in order to ensure that the data in the user topology will be routed to the correct
+core with the new numbering in the first pencil topology. As a result, a bit more data needs to be exchanged during the execution of
+the first topology switch, between the user-specified physical topology with the original communicator and the first pencil topol-
+ogy with the new communicator. The potential increase in communication delay related to this operation should be balanced by
+the gain over the subsequent topology switches. Optionally, the optimized communicator can be retrieved by the user so that it
+can be used from the beginning of the computation on the user side, thus avoiding the data rerouting of the first topology switch.
+     FLUPS is thus ready to exploit such an optimization. In practice, however, it was not possible to demonstrate the efficiency of
+this feature. At the time of this writing, the authors could not find an MPI implementation with documentation on the reordering.
+Several tests were executed on different machines using Intel’s implementation of MPI (see Section 5), but none of them led to rank
+indices actually permuted at the output of MPI_Dist_graph. The result presented in the following sections are hence obtained
+with the canonical rank ordering.
+    4. Validation. In this section, an extensive validation of FLUPS is presented for the Poisson equation (reproduced from (1.1))
+
+                                                                       ∇2 φ = f ,
+
+with various combinations of BCs, in 3D. The convergence of the solver is measured using the infinite norm of the error (as the
+infinite norm bounds the 2-norm), defined as
+
+                                                      E ∞ = sup |φ(x, y, z) − φr e f (x, y, z)| ,
+                                                               ©                               ª
+(4.1)
+                                                             x,y,z
+
+where φr e f is an analytical solution. For the latter, a composite expression is employed:
+
+(4.2)                                                    φr e f (x, y, z) = φx (x)φ y (y)φz (z) .
+
+The 1D functions φx , φ y , and φz are chosen to satisfy the set of BCs. Simple analytic expressions are preferred so that meaningful
+numerical solutions can be obtained even with small resolutions, hence allowing us to verify the slopes of the convergence more
+easily. For instance, sine and cosine are used in the periodic and symmetric directions, with   Ã an
+                                                                                                   Ã appropriate!!  wavelength. Fully
+
+unbounded solutions are guaranteed with a compact Gaussian function, i.e., φx (x) = exp C 1 − ³                                 1
+                                                                                                                             ¡ x−x ¢2 ´   for −1 < x−x
+                                                                                                                                                    σ <
+                                                                                                                                                       c
+                                                                                                                           1− σ c
+1, and φx = 0 elsewhere. The dimensional parameter σ and the center of the blob x c are set so that the value of the RHS at
+the unbounded boundaries is null. The constant C is arbitrarily set to 10. For semi-infinite directions, a linear combination of
+compact Gaussian functions is used. The parameter x c and the sign of each term are chosen in order to explicitly impose the
+symmetric BC. Given these analytical expressions, the RHS f is computed as
+
+                                           d 2 φx                              d 2 φy                              d 2 φz
+(4.3)                      f (x, y, z) =          (x) φ y (y)φ z (z) + φ x (x)        (y) φ z (z) + φ x (x)φ y (y)        (z) .
+                                            d x2                                d y2                                d z2
+10                                                      CAPRACE, GILLIS, CHATELAIN
+
+
+     In FLUPS, the BCs in a single direction can be set to periodic, or to a pair of options among even symmetry, odd symmetry, and
+unbounded. This leads to a thousand possible combinations of BCs in 3D. For the sake of concision, only three cases of validation
+are presented here. All the other configurations were tested and validated as part of an automated process during the development
+of the library. For the interested reader, FLUPS provides a C++ sample code dedicated to the test and the validation of the library.
+When built, the associated executable can be easily used to reproduce the convergence results.
+
+     4.1. Domain with symmetric and periodic BCs. The Poisson equation is here solved on a cubic domain of spatial extent [0, L]
+in all directions, with even-even symmetry conditions in X , odd-even symmetry conditions in Y , and periodic in Z . The chosen
+reference solution is
+
+                                                                  ³ x´    µ
+                                                                            9π y
+                                                                                 ¶    ³ z´
+(4.4)                                       φr e f (x, y, z) = cos 2π cos          sin 8π   .
+                                                                     L       2 L          L
+
+
+
+
+                                         10−3
+
+
+
+                                    E∞   10−7
+
+
+
+                                         10−11
+
+
+
+                                         10−15
+
+                                                      32 3      64 3   12       25       51       1,   2,
+                                                                        8   3       63    2   3   02
+                                                                                                   4   3
+                                                                                                           04
+                                                                                                            8   3
+
+                                                                                N
+
+                                                                                                                         LGF2 O h 2 ,
+                                                                                                                                ¡   ¢
+Figure
+  ¡ ¢ 5: Convergence
+                 ¡ ¢ of FLUPS with
+                                ¡ symmetric and¡periodic BCs:   ¡ CHAT2 and HEJ0 spectral,                                              HEJ2
+O h2 ,    HEJ4 O h 4 ,    HEJ6 O h 6 , HEJ8 O h 8 ,      HEJ10 O h 10 .
+                                    ¢             ¢                  ¢
+
+
+
+
+     The error obtained with FLUPS is measured in terms of infinite norm for all the implemented Green’s functions: the singular
+expression (CHAT2, which is in the present case equivalent to HEJ0), the regular expressions with order up to m = 10 (HEJ2,HEJ4,HEJ6,
+HEJ8 and HEJ10), and the lattice Green’s function LGF2. Their mathematical expressions can be found in Appendix B.4. The results
+are shown in Figure 5, as a function of the resolution per direction of the domain. Convergence is indeed observed, at the order
+corresponding to the theoretical order of each method. As the present test case is fully spectral, the singular Green’s function used
+by CHAT2 provides the exact (spectral) solution, and the error thus amounts to the machine precision regardless of the resolution.
+
+     4.2. Domain with three fully unbounded BCs. Unbounded BCs are now used in all directions, on the same domain. The
+reference solution is
+                                                                                                                  
+                                                                   1              1                1
+                         φr e f (x, y, z) = exp 
+                                                                                                         
+(4.5)                                           10 3 − ³
+                                                    
+                                                                ¡ 2x ¢2 ´ − µ  ³     ´2 ¶ − ³   ¡ 2z  ¢2 ´  .
+                                                                                                           
+                                                             1− L −1             2y           1− L −1
+                                                                             1− L −1
+
+
+     The convergence results obtained with the Green’s functions (recalled in Appendix B.1) are shown in Figure 6. Again, we
+retrieve the expected convergence behavior. Moreover, the additional spectrally truncated HEJ0 kernel indeed exhibits spectral-
+like convergence (saturating at the machine precision).
+
+    4.3. Domain with two semi-infinite directions and one fully unbounded BC . Semi-unbounded BCs are finally used. An
+even symmetry is imposed on the right side of the domain in the X direction, and an odd symmetry is imposed on the left side in
+                                                                              FLUPS                                                                                  11
+
+
+
+         10−2                                                                              10−2
+
+
+         10−5                                                                              10−5
+
+ E∞                                                                                   E∞
+         10−8                                                                              10−8
+
+
+      10−11                                                                                10−11
+
+
+      10−14                                                                                10−14
+
+                   32     64         8       6    51             4   2,                               32      64      12       25       51             4         8
+                      3      3    12  3   25  3    2   3
+                                                           1, 02     04
+                                                                      8
+                                                                                                         3       3      8  3       63    2   3
+                                                                                                                                                 1, 02     2, 04
+                                                                 3        3                                                                            3         3
+
+                                          N                                                                                    N
+
+Figure 6: Convergence
+             ¡ 2¢       of FLUPS
+                              ¡ 2 ¢ with fully unbounded
+                                                 ¡ 2¢     BCs:                     Figure 7: Convergence
+                                                                                                ¡ 2¢       of FLUPS
+                                                                                                                 ¡ 2 ¢with semi-unbounded
+                                                                                                                                  ¡ 2¢     BCs:
+    CHAT2  O  h  ,    LGF2  O  h   ,     HEJ2  O  h  ,   HEJ4                          CHAT2  O  h  ,    LGF2  O  h   ,    HEJ2 O  h  ,   HEJ4
+O h4 ,      HEJ6 O h 6 ,      HEJ8 O h 8 ,       HEJ10 O h 10 ,                    O h4 ,      HEJ6 O h 6 ,      HEJ8 O h 8 ,     HEJ10 O h 10 ,
+  ¡ ¢              ¡ ¢                 ¡ ¢              ¡    ¢                       ¡ ¢              ¡ ¢                ¡ ¢             ¡    ¢
+
+    HEJ0 spectral-like.                                                                HEJ0 spectral-like.
+
+
+
+the Z direction. The BCs in the Y direction are kept fully unbounded. The reference solution is
+                                                                                         
+                                                  1                                  1
+          φr e f (x, y, z) = exp 10 1 − ³            ¢2 ´ + exp 10 1 − ³
+                                                                     
+                                                                                  ¡ 2x−2.6 ¢2 ´
+                                                                                                
+                                             1 − 2x−1.4
+                                                ¡
+                                                    L                        1 −       L
+(4.6)
+                                                               
+                                                                                                                             
+                                                    1                                1                               1
+                                exp 
+                                    10 1 − µ              ´2 ¶  exp 10 1 − ³               ¢2 ´ − exp 10 1 − ³
+                                                                                                                           .
+                                                                                                                      ¡ 2z+0.6 ¢2 ´
+                                                                                 1 − 2z−0.6
+                                                   ³                                 ¡
+                                                     2y                                                           1 −
+                                                1−      −1 L                               L                               L
+
+
+    The Green’s functions are those of Appendix B.2, and the obtained convergence results are shown in Figure 7 and matches the
+expected convergence behaviors.
+     5. Scalability. This section exposes the performance of the non-blocking implementation compared to the all-to-all version
+and the influence of the partition of the resources between MPI ranks and threads. A speed comparison with the P3DFFT library
+is also presented.
+     The mean time required for the execution of the solve operation is tested on three different clusters, listed in Table 1. For the
+sake of concision, a selection of plots representative of the behaviors of FLUPS is here presented.
+
+           Name                Location       Type         NCPU           CPU                      Interconnect             Compiler         MPI
+    1.     Zenobea             Belgium        tier-1       8 208          Intel Xeon E5-2697v2     InfiniBand QDR           Intel            Intel
+    2.     MareNostrumb        Spain          tier-0       165 888        Xeon Platinum 8160       Intel Omni-Path          Intel            Intel
+    3.     Juwelsc             Germany        tier-0       122 768        Xeon Platinum 8168       Infiniband EDR           Intel            Parastationd
+
+   a Zenobe is in the top 500 supercomputers, more specifications available at www.top500.org/system/178439 (last visited November 2019).
+   b MareNostrum is in the top 500 supercomputers, more specifications available at www.top500.org/system/179067 (last visited November 2019).
+   c Juwels is in the top 500 supercomputers, more specifications available at www.top500.org/system/179424 (last visited October 2019).
+   d Parastation MPI is developped by ParTec Cluster Competence Center GmbH, see www.par-tec.com/products/parastation-mpi.html (last visited October 2019).
+
+
+                                  Table 1: List of supercomputers used for testing the scalability of FLUPS.
+
+
+
+     5.1. Strong scaling. Let T (Nc , M ) be the time required to solve a problem of M unknowns using Nc cores. Using this defini-
+tion, the strong efficiency, defined by
+                                                                       ³               ´
+                                                                  re f   re f
+                                                                 Nc T Nc , M r e f
+(5.1)                                               η st r ong =                         ,
+                                                                   Nc T Nc , M r e f
+                                                                       ¡             ¢
+12                                                                      CAPRACE, GILLIS, CHATELAIN
+
+
+                 2.5
+                                                                                                     1
+
+                   2
+                                                                                                    0.8
+
+
+
+t st r ong [s]
+                 1.5
+                                                                                                    0.6
+                                                                                       η st r ong
+                   1
+                                                                                                    0.4
+
+                 0.5                                                                                0.2
+
+
+                   0                                                                                 0
+                        1, 1
+                                   30
+                                      4
+                                             60
+                                                8   9, 2   18    36       73                                 1      3      6      9,         ,       ,       ,
+                          52    2,        4,          16    ,4     ,8       ,7                            1,     2,     4,            6   18      36      73
+                                                            30     60        20                             52     04      08      21       430     860     720
+                                               Ncor e                                                                          Ncor e
+                                                                                                                        (b) Efficiency
+                           (a) Mean execution time [s] per solve
+
+
+Figure 8: Strong scalability of the solve operation on Juwels, for a fully unbounded problem of size 11523 using all-to-all (                               ) and
+non-blocking (      ) communications.
+
+
+
+describes the ability of the software to decrease the computational time while increasing the number of resources for a given
+problem size M r e f . In this study, the reference size is chosen as 11523 cells for a fully unbounded problem, hence leading to a
+final size of 23043 due the domain doubling algorithm. For each data point, the presented timing is obtained as the mean of 20
+consecutive solve operations, in order to reduce timing uncertainties and to isolate any external influence of a possible network
+congestion.
+     Figure 8a shows the execution time. The non-blocking implementation is usually faster than the all-to-all version, but the
+advantage significantly shrinks when the number of cores increases. For the largest number of cores, the all-to-all version is even
+slightly faster. As expected, the gain of starting the memory copies while waiting for the other communications decreases when
+the number of unknowns per core decreases, and becomes insignificant for a few thousands unknowns per rank. Correspondingly,
+the size of the MPI messages has become so small that the communication latency globally increases significantly. As even more
+clearly observed in Figure 8b, FLUPS exhibits the typical strong scalability of communication bounded applications. In the present
+case, a loss of performance of 70% is obtained when the number of cores is multiplied by 16 on a unbounded problem of size 11523 .
+
+                 5.2. Weak scalability. The weak efficiency, defined as
+                                                                              ³              ´
+                                                                                 re f
+                                                                            T Nc , M r e f
+(5.2)                                                              η weak = Ã                   ! ,
+                                                                                   Nc
+                                                                           T Nc , r e f M r e f
+                                                                                 Nc
+
+represents the ability of the software to keep its initial efficiency while increasing the number of cores together with the size of
+the problem. We highlight that this scalability analysis is the most relevant for the interested user as, practically, the problem size
+usually scales with the number of resources.
+     As expected from a communication bounded software, the weak scaling efficiency (Figure 9) decreases with an increasing
+                                                                                               3/2
+number of cores, since the number of communications through the network increases as Nrank         , where Nrank is here the number of
+MPI ranks. This results in the congestion of the network and explains the decreasing efficiency. Indeed, all the clusters used here
+have a network architecture in tree, with several nodes being connected to switches and switches being connected to racks (unlike
+BlueGene and Cray computers which feature a multidimensional grid network architecture). Consequently, for calculations on
+more than 18430 cores, the efficiency is even more reduced, probably due to bottlenecks in this tree network architecture.
+     The computation time spent in each major step of the solver is shown in Figure 10. As expected, the communication is the
+most time-expensive part of the solver and drives the scalability, while the other operations almost scale perfectly. Initially, the
+non-blocking implementation is 10% faster. For a large number of cores, the all-to-all version becomes more advantageous as it
+is able to globally balance the communication over the tree network.
+                                                                                          FLUPS                                                                                     13
+
+                                                                                                           1
+
+             1.5
+                                                                                                       0.8
+
+
+
+
+t weak [s]
+                                                                                                       0.6
+                                                                                              η weak
+                1
+
+                                                                                                       0.4
+
+             0.5
+                                                                                                       0.2
+
+
+                0                                                                                          0
+                        1,        2,       4, 6       9,       18 ,     36        73                                     2   2,        4,        9,             3   36 ,     73 ,
+                        152       30 4
+                                             08       21 6          0    ,8          ,7                            1, 15       30 4      60 8     21      18
+                                                                                                                                                             ,4          0       0
+                                                                 43          60      20                                                              6         0      86       72
+                                                  Ncor e                                                                                    Ncor e
+                                   (a) Mean execution time                                                                             (b) Efficiency
+
+
+Figure 9: Weak scaling efficiency of the two implementations on Juwels, for a fully unbounded problem and 643 unknowns per
+core using all-to-all (  ) and non-blocking (     ) communications.
+
+
+
+                    2                                                                                          2
+
+
+
+                1.5                                                                                        1.5
+
+
+
+        t [s]       1                                                                              t [s]       1
+
+
+
+                0.5                                                                                        0.5
+
+
+
+                    0                                                                                          0
+                             11     23 0     46 0     92 1     18 4     36      73                                      11 5      23      46      92      18        36 8   73 7
+                              52         4        8        6     32      86 4     72 8                                       2     04       08       16     43 2      64      28
+                                                    Ncor e                                                                                      Ncor e
+                              (a) All-to-all communications                                                             (b) Non-blocking communications
+
+
+Figure 10: Time spent in each part of the ‘solve’ operation using 643 unknowns by core, on Juwels. From bottom to top, the shaded
+areas correspond to the computation of the 1D Fourier transforms (           ), the time spent in the communication waiting for the
+data to be transferred (   ), the data transfer from the memory to the send buffers and from the receive buffers to the transposed
+memory (      ) and miscellaneous operations (      ). The latter includes, among others, the multiplication in Fourier space for the
+convolution and the reset of the buffers to zero.
+
+
+
+
+     A similar communication-bounded behavior is also observed when increasing the computational load to 1283 unknowns per
+core (see Figure 11). However, for this size, the non-blocking communication approach is clearly faster by ±20 − 25% compared to
+the all-to-all approach. This is due to the overlap between the communication and the copy of the data to the transposed memory.
+This technique turns out to be beneficial only when the number of data to copy is large enough to compensate the less efficient
+communication, compared to an all-to-all implementation.
+     Incidentally, one could argue that other computational operations could possibly be executed during the communication. For
+14                                                                   CAPRACE, GILLIS, CHATELAIN
+
+
+                                                                                                   1
+              2.5
+
+                                                                                                  0.8
+               2
+
+
+
+ t weak [s]
+                                                                                                  0.6
+              1.5
+                                                                                         η weak
+               1                                                                                  0.4
+
+
+              0.5                                                                                 0.2
+
+
+               0                                                                                   0
+                          2          2, 3                     8          9,                                1               3              4,                     6
+                    1, 15                               4, 60             21                            1,              2,                 60                 21
+                                        04                                  6                             52               04                8             9,
+                                            Ncor e                                                                             Ncor e
+                              (a) Mean execution time                                                                  (b) Efficiency
+
+
+Figure 11: Weak scalability on MareNostrum with all-to-all (                          ) and non-blocking (           ) communications, using 1 thread per
+rank and 1283 unknowns per core .
+
+
+
+instance, the computation of the FFTs could start as soon as the first complete row of data in the pencil has been received. However,
+since the FFTs represent less than 10% of the computation time, this would likely not significantly improve the computational
+efficiency, while greatly increasing the implementation complexity. Even worse, it would overwhelm the network with a lot of very
+small messages, hence slowing down the solver.
+
+     5.3. Hybrid MPI/OpenMP parallel performance. We compare the pure MPI and a hybrid MPI-OpenMP layout (without hy-
+perthreading). The former defines as many MPI ranks as the number of available cores, Nrank = Ncore . In the latter, the cores that
+belong to the same socket can be grouped and execute a chosen number of threads , such that Nrank = Ncore /Nthread . (We use the
+MPI_THREAD_FUNNELED mode in order to mitigate the communication cost.)
+     Let us first examine the expected influence of the addition of threads. On theoretical grounds, the simplified PlogP model [1]
+decomposes the communication time into a constant overhead, a linear dependency on the number of messages to send and a
+                                                                                                            p
+linear dependency on the message size. In the case of a pure MPI layout, one core sends and receives P = Ncore messages, each
+of size Ndata , hence leading to a communication time of
+
+                                                                   MPI
+(5.3)                                                             Tcomm = α + P g + Ndata G (P ) ,
+
+where g is the gap between messages (expressed in [s]) and G is the gap per byte for long messages [s/B ]. Grouping Nthread cores
+under the same MPI rank will decrease the number of sent messages from P to P /Nthread , which results in a communication time
+given by
+
+                                                      h ybr i d
+(5.4)                                                Tcomm = α + P /Nthread g + Nthread Ndata G (P /Nthread ) .
+
+The increase in size of the messages has a beneficial effect through the second term of (5.4), and a detrimental effect through
+the last term. The latter might however be compensated by the increased bandwidth (i.e., the rate at which data is transferred,
+equivalent to 1/G) generally observed for larger messages. Besides, the use of threads within a single MPI rank also adds a non-
+negligible overhead, due to the thread management in the copy and the shuffle operations. Due to these antagonist effects, the use
+of threads may result in either improved or deteriorated performances, and dedicated tests must be performed3 . Notice that the
+computational cost associated with the FFT remains unchanged in a multithreaded environment, as the pencils are distributed
+among the threads and each thread treats them sequentially using single-thread FFTs.
+     As observed in the weak scaling presented in Figure 12, only the small number of cores benefits from an acceleration when
+using 4 threads and all-to-all communications, while it is significantly slower on large partitions. Indeed, in the present all-to-all
+
+          3 Even though the general concepts presented in this paragraph are true, the actual performance may vary depending on the targeted network architecture. In
+order to ease the determination by the user of the optimal thread setting for the machine he plans to use, we provide guidelines to run dedicated tests in the code
+documentation.
+                                                                         FLUPS                                                                         15
+
+              10                                                                           1
+
+
+               8                                                                          0.8
+
+
+
+
+ t weak [s]
+               6                                                                          0.6
+                                                                                 η weak
+               4                                                                          0.4
+
+
+               2                                                                          0.2
+
+
+               0                                                                           0
+                      8      6      1, 1       2,         4,     6,                                   8      57         1,         2,         91 2
+                   28     57                       4       60     91                               28                       2         4    6,
+                                      52        30           8      2                                         6          15        30      4, 608
+
+                                    Ncor e                                                                             Ncor e
+                          (a) Mean execution time                                                                 (b) Efficiency
+
+
+Figure 12: Weak scalability on Zenobe with 1 thread per rank (all-to-all:                       , non-blocking:      ) and 4 threads per rank (all-to-all:
+    , non-blocking:     ), using 1283 unknowns per core.
+
+
+
+implementation, the communication and the copy are sequential. Hence, the copy overhead remains the same, but the commu-
+nication cost drastically increases with the number of cores. Indeed, the communication time is driven by the cost associated with
+the message length, Nthread NdataG, which is here not compensated by a gain in bandwidth.
+    However, in the non-blocking approach, the communication overlaps with the copy and with the shuffle operations. Even
+though the time-to-solution slightly increases for small Ncor e with respect to the non-threaded implementation (attributed to the
+overhead of threads), the non-scalable communication times are thus partially hidden behind more scalable copy and shuffle
+operations, which explains the better scalability obtained with the hybrid MPI-OpenMP non-blocking approach. Consequently,
+the threaded execution becomes faster than the non-threaded one at high Ncore . Furthermore, the non-blocking version with
+threads is mostly faster than the all-to-all version without threads.
+
+    Finally, the comparison of the results obtained with different clusters reveals that the scalability is strongly dependent on the
+running environment, with a difference in efficiency larger than 10% for large sizes, as seen in Figure 13. The driving factors are
+the different interconnects and the various MPI implementations.
+     5.4. Comparison with P3DFFT++. A campaign of computations was dedicated to compare the performances of the P3DFFT
+library4 V3 (also known as P3DFFT++) with those of FLUPS (for the 3D transform only). To this end, a single executable is created,
+in which each library is used to perform the same fully periodic 3D FFT. As opposed to the previous section, the starting topology
+is here already set up with a pencil decomposition, such that the execution will only involve two topology switches and three
+computations of 1D FFT. Both libraries use the same binary from the compilation of FFTW. They also both use the FFTW_MEASURE
+option when creating 1D FFT plans, such that the difference in timing only originates in the implementation of the 3D FFT, specific
+to FLUPS and P3DFFT.
+     Similarly to the weak scaling study, a resolution of 1283 per core was selected, and the number of cores was increased (using 1
+thread in FLUPS). The results were obtained on Zenobe and are shown in Figure 14.
+     On average, FLUPS is roughly 20% faster than P3DFFT++, and exhibits a similar scalability. For this comparison, the all-to-all
+version of FLUPS was used. An even larger difference is thus to be expected with the non-blocking implementation.
+    6. Conclusions. The Fourier-based Library of Unbounded Poisson Solvers (FLUPS) enables the fast resolution of the Poisson
+equation on 2D rectangle and 3D parallelepiped-like domains with uniform resolution and with arbitrary boundary conditions on
+each boundary. The library features a collection of solvers using a Green’s function of various types, and with a verified convergence
+order from 2 to spectral-like, to solve the Poisson equation. The convolution of the Green’s function with the RHS of the Poisson
+equation is performed in Fourier space. To this end, data are transformed using fast Fourier transforms performed in 1D pencils
+and transposed efficiently.
+    The mathematical background for the resolution of the Poisson equation with the various boundary conditions was exposed,
+
+    4 The latest version of P3DFFT V3 available at the time of this study was used, with git SHA 2150652831daab38b1028d16db7e4c7318df1133 from github.com/
+sdsc/p3dfft.3.
+16                                                               CAPRACE, GILLIS, CHATELAIN
+
+
+            1
+                                                                                                 0.5
+
+           0.8
+                                                                                                 0.4
+
+           0.6
+                                                                                                 0.3
+  η weak                                                                                 t [s]
+           0.4                                                                                   0.2
+
+           0.2                                                                                   0.1
+
+
+            0                                                                                     0
+                 1,152         2,304             4,608             9,216                               128         256        512        1024        2048
+                                       Ncor e                                                                                Ncor e
+
+Figure 13: Weak scaling efficiency of the all-to-all implemen-                      Figure 14: Wall time for a 3D FFT, using the all-to-all version of
+tation on Juwels (    ) and MareNostrum (           ), for a fully                  FLUPS (     ) and P3DFFT++ (       ), executed on Zenobe, using
+unbounded problem and 1283 unknowns per core.                                       1283 unknowns per core.
+
+
+
+
+including the newly enabled semi-unbounded directions. In particular, the numerical treatment of data required for the RHS
+and for the Green’s function was detailed in all cases. The particularities of the numerical implementation were also addressed,
+especially related to the implementation of the 3D FFT. The comparison between two communication methods showed that point-
+to-point non-blocking MPI send-receive instructions lead to a faster execution when they are interlaced with memory copy oper-
+ations, compared to regular all-to-all directives. Under some conditions on the communication latency and on the size of the MPI
+messages, the use of threads can even further improve the overall execution time. The scalability of the library was measured on
+current top world-class supercomputers with tree-like network architectures. It features the behavior typical of communication-
+bounded software: when multiplying the number of cores by 16, the strong efficiency drops by 70% (for a problem of size 11523 )
+and the weak efficiency by 60% (for 643 unknowns per core). Still, FLUPS has been demonstrated to be roughly 20% faster than a
+reference third-party package for 3D FFTs.
+     The final implementation hence exhibits encouraging performances, propitious to massively parallel computational archi-
+tectures, which proves that FLUPS is now ready for production use.
+
+    Acknowledgements. The authors would like to acknowledge the insightful discussions with Prof. G. Winckelmans, Dr. M.
+Duponcheel and Dr. J. Lambrechts (UCLouvain, Belgium).
+    D.-G. Caprace is funded by an Aspirant fellowship from the Fonds de la Recherche Scientifique de Belgique, F.R.S.-FNRS. Com-
+putational resources have been provided by the Consortium des Équipements de Calcul Intensif (CÉCI), funded by the Fonds de la
+Recherche Scientifique de Belgique (F.R.S.-FNRS) under Grant n ◦ 2.5020.11 and by the Walloon Region. The present research also
+benefited from computational resources made available on the Tier-1 supercomputer of the Federation Wallonie-Bruxelles, infra-
+structure funded by the Walloon Region under the grant agreement n ◦ 1117545. Finally, we acknowledge PRACE for awarding us
+access to MareNostrum at Barcelona Supercomputing Center (BSC), Spain; and JUWELS at GCS@FZJ, Germany.
+       References.
+ [1] A. A LEXANDROV, M. F. I ONESCU , K. E. S CHAUSER , AND C. S CHEIMAN, Loggp: Incorporating long messages into the logp model for parallel computation,
+     Journal of Parallel and Distributed Computing, 44 (1997), pp. 71–79, https://doi.org/https://doi.org/10.1006/jpdc.1997.1346, http://www.sciencedirect.com/
+     science/article/pii/S0743731597913460.
+ [2] C. R. A NDERSON, High order expanding domain methods for the solution of poisson’s equation in infinite domains, Journal of Computational Physics, 314
+     (2016), pp. 194 – 205, https://doi.org/https://doi.org/10.1016/j.jcp.2016.02.074, http://www.sciencedirect.com/science/article/pii/S0021999116001613.
+ [3] J. C. B OWMAN AND M. R OBERTS, Adaptive matrix transpose algorithms for distributed multicore processors, in Interdisciplinary Topics in Applied Mathematics,
+     Modeling and Computational Science, Springer, 2015, pp. 97–103.
+ [4] P. C HATELAIN AND P. KOUMOUTSAKOS, A Fourier-based elliptic solver for vortical flows with periodic and unbounded directions, Journal of Computational
+     Physics, 229 (2010), pp. 2425–2431.
+ [5] P. C HATELAIN AND A. L EONARD, Isotropic compact interpolation schemes for particle methods, Journal of Computational Physics, 227 (2008), pp. 3244 – 3259,
+     https://doi.org/http://dx.doi.org/10.1016/j.jcp.2007.11.039.
+ [6] A. G. C HATTERJEE , M. K. V ERMA , A. K UMAR , R. S AMTANEY, B. H ADRI , AND R. K HURRAM, Scaling of a fast fourier transform and a pseudo-spectral fluid
+     solver up to 196608 cores, Journal of Parallel and Distributed Computing, 113 (2018), pp. 77 – 91, https://doi.org/https://doi.org/10.1016/j.jpdc.2017.10.014,
+     http://www.sciencedirect.com/science/article/pii/S0743731517302903.
+ [7] P. C OSTA, A fft-based finite-difference solver for massively-parallel direct numerical simulations of turbulent flows, Computers & Mathematics with Ap-
+     plications, 76 (2018), pp. 1853 – 1862, https://doi.org/https://doi.org/10.1016/j.camwa.2018.07.034, http://www.sciencedirect.com/science/article/pii/
+     S089812211830405X.
+ [8] L. D ALCIN , M. M ORTENSEN , AND D. E. K EYES, Fast parallel multidimensional fft using advanced mpi, Journal of Parallel and Distributed Computing, 128
+                                                                               FLUPS                                                                               17
+
+     (2019), pp. 137 – 150, https://doi.org/https://doi.org/10.1016/j.jpdc.2019.02.006, http://www.sciencedirect.com/science/article/pii/S074373151830306X.
+ [9] B. D ORSCHNER , K. Y U , G. M ENGALDO, AND T. C OLONIUS, A fast multi-resolution lattice green’s function method for elliptic difference equations, Journal of
+     Computational Physics, 407 (2020), p. 109270.
+[10] M. F RIGO AND S. G. J OHNSON, The Design and Implementation of FFTW3, Proceedings of the IEEE, 93 (2005), pp. 216–231. Special issue on Program Genera-
+     tion, Optimization, and Platform Adaptation.
+[11] V. F UKA, Poisfft – a free parallel fast poisson solver, Applied Mathematics and Computation, 267 (2015), pp. 356 – 364, https://doi.org/https://doi.org/10.1016/
+     j.amc.2015.03.011, http://www.sciencedirect.com/science/article/pii/S0096300315003057. The Fourth European Seminar on Computing (ESCO 2014).
+[12] A. G HOLAMI , D. M ALHOTRA , H. S UNDAR , AND G. B IROS, FFt, Fmm, or Multigrid? A comparative Study of State-Of-the-Art Poisson Solvers for Uniform and
+     Nonuniform Grids in the Unit Cube, SIAM Journal on Scientific Computing, 38 (2016), pp. C280–C306.
+[13] T. G ILLIS , G. W INCKELMANS , AND P. C HATELAIN, Fast immersed interface Poisson solver for 3D unbounded problems around arbitrary geometries, Journal of
+     Computational Physics, 354 (2018), pp. 403 – 416, https://doi.org/https://doi.org/10.1016/j.jcp.2017.10.042.
+[14] A. G ILLMAN AND P. M ARTINSSON, Fast and accurate numerical methods for solving elliptic difference equations defined on lattices, Journal of Computational
+     Physics, 229 (2010), pp. 9026 – 9041, https://doi.org/http://dx.doi.org/10.1016/j.jcp.2010.07.024.
+[15] A. G ILLMAN AND P. M ARTINSSON, A fast solver for Poisson problems on infinite regular lattices, Journal of Computational and Applied Mathematics, 258 (2014),
+     pp. 42 – 56, https://doi.org/http://dx.doi.org/10.1016/j.cam.2013.09.003.
+[16] L. G REENGARD, S. J IANG , AND Y. Z HANG, The anisotropic truncated kernel method for convolution with free-space green’s functions, SIAM Journal on Scientific
+     Computing, 40 (2018), pp. A3733–A3754.
+[17] L. G REENGARD AND V. R OKHLIN, A fast Algorithm for Particle Simulations, Journal of Computational Physics, 135 (1997), pp. 280 – 292.
+[18] M. H EJLESEN , J. R ASMUSSEN , P. C HATELAIN , AND J. WALTHER, A high order solver for the unbounded Poisson equation, Journal of Computational Physics, 252
+     (2013), pp. 458–467, https://doi.org/10.1016/j.jcp.2013.05.050.
+[19] M. M. H EJLESEN , G. W INCKELMANS , AND J. H. WALTHER, Non-singular green’s functions for the unbounded poisson equation in one, two and three dimen-
+     sions, Applied Mathematics Letters, 89 (2019), pp. 28–34, https://doi.org/https://doi.org/10.1016/j.aml.2018.09.012, http://www.sciencedirect.com/science/
+     article/pii/S0893965918303264.
+[20] R. H OCKNEY AND J. E ASTWOOD, Computer Simulation using Particles, Taylor & Francis, Inc. Bristol, PA, USA, 1988.
+[21] R. W. H OCKNEY, A fast direct solution of poisson’s equation using fourier analysis, Journal of the Association for Computing Machinery, 12 (1965), pp. 95–113.
+[22] H. I BEID, L. O LSON , AND W. G ROPP, Fft, fmm, and multigrid on the road to exascale: Performance challenges and opportunities, Journal of Parallel and
+     Distributed Computing, 136 (2020), pp. 63–74.
+[23] J. L. J ODRA , I. G URRUTXAGA , J. M UGUERZA , AND A. Y ERA, Solving poisson’s equation using fft in a gpu cluster, Journal of Parallel and Distributed Computing,
+     102 (2017), pp. 28 – 36, https://doi.org/https://doi.org/10.1016/j.jpdc.2016.09.004, http://www.sciencedirect.com/science/article/pii/S0743731516301678.
+[24] S. L ISKA AND T. C OLONIUS, A parallel fast multipole method for elliptic difference equations, Journal of Computational Physics, 278 (2014), pp. 76 – 91,
+     https://doi.org/http://dx.doi.org/10.1016/j.jcp.2014.07.048.
+[25] P.-G. M ARTINSSON AND G. J. R ODIN, Asymptotic expansion of lattice Green’s function, Proceedings: Mathematical, Physical and Engineering Sciences, 458
+     (2002), pp. 2609–2622.
+[26] D. P EKUROVSKY, P3dfft: A framework for parallel computations of fourier transforms in three dimensions, SIAM Journal on Scientific Computing, 34 (2012),
+     pp. C.192–C.209, https://search-proquest-com.proxy.bib.ucl.ac.be:2443/docview/1033558975?accountid=12156. Copyright - © 2012, Society for Industrial
+     and Applied Mathematics; Dernière mise à jour - 2012-09-17.
+[27] M. P IPPIG, Pfft: An extension of fftw to massively parallel architectures, SIAM Journal on Scientific Computing, 35 (2013), pp. C213–C236, https://doi.org/10.
+     1137/120885887, https://doi.org/10.1137/120885887.
+[28] J. Q IANG, A fast parallel 3d poisson solver with longitudinal periodic and transverse open boundary conditions for space-charge simulations, Computer Physics
+     Communications, 219 (2017), pp. 255 – 260, https://doi.org/https://doi.org/10.1016/j.cpc.2017.06.002, http://www.sciencedirect.com/science/article/pii/
+     S0010465517301844.
+[29] I. F. S BALZARINI , J. H. WALTHER , B. P OLASEK , P. C HATELAIN , M. B ERGDORF, S. E. H IEBER , E. M. KOTSALIS , AND P. KOUMOUTSAKOS, A software framework for
+     the portable parallelization of particle-mesh simulations, 2006.
+[30] H. J. S PIETZ , M. M. H EJLESEN , AND J. H. WALTHER, A regularization method for solving the poisson equation for mixed unbounded-periodic domains, Jour-
+     nal of Computational Physics, 356 (2018), pp. 439 – 447, https://doi.org/https://doi.org/10.1016/j.jcp.2017.12.018, http://www.sciencedirect.com/science/
+     article/pii/S0021999117309038.
+[31] A. S UNDERLAND, S. P ICKLES , M. N IKOLIC , A. J OVIC , J. J AKIC , V. S LAVNIC , I. G IROTTO, P. N ASH , AND M. LYSAGHT, An analysis of fft performance in prace
+     application codes, tech. report, PRACE, 2012.
+[32] U. T ROTTENBERG , C. O OSTERLEE , AND A. S CHULLER, Multigrid, Academic Press, 2000.
+[33] F. V ICO, L. G REENGARD, AND M. F ERRANDO, Fast convolution with free-space Green's functions, Journal of Computational Physics, 323 (2016), pp. 191 – 203,
+     https://doi.org/http://dx.doi.org/10.1016/j.jcp.2016.07.028.
+18                                                              CAPRACE, GILLIS, CHATELAIN
+
+
+     Appendix A. Analytical expressions of the Gaussian regularisation functions.
+     The regularization functions considered in this work are based on radially symmetric functions ζm (ρ),
+                                                                   1    ³r ´
+(A.1)                                                  ζε,m (r ) = d ζm      .
+                                                                  ε      ε
+where d is the dimensionality of the space. For a given order m, ζm
+                                                                  ε satisfies the m first moments, that is, ∀β ∈ {0, . . . , m − 2},
+                                                      R∞ β m
+                                                     2 0R r ζε (r )d r
+                                                                             in 1D,
+                                                 β         ∞ β m
+(A.2)                                           0 = 2π 0 r ζε (r )r d r       in 2D,
+                                                      R∞ β m
+                                                     
+                                                       4π 0 r ζε (r )r 2 d r in 3D,
+
+Notice that the constraint is always satisfied for odd β as the function ζm is radially symmetric.
+     The Gaussian regularization functions were extensively used in [18] and by co-authors in other works, and their expressions
+are here reproduced for the sake of completeness. In that particular case,
+                                                                                      µ          ¶
+                                                                                          −ρ 2
+                                                                                           2
+(A.3)                                                             ζm (ρ) = P m (ρ)e                  ,
+
+where P m (ρ) = a 1 + a 2 ρ 2 + · · · + a m/2 ρ m−2 . For a given m, the fulfilment of (A.2) reduces to solving a system of m/2 equations for
+the coefficients a i . Alternatively, ζm can be obtained as the result of a recursive procedure [5]. For example, in 1D,
+                                           1¡                            1¡                                            1 ¡
+                                             3 − ρ2 ,                       15 − 10ρ 2 + ρ 4 ,                             105 − 105ρ 2 + 21ρ 4 − ρ 6 ,
+                                                   ¢                                        ¢                                                        ¢
+(A.4)        P 2 (ρ) = 1,      P 4 (ρ) =                     P 6 (ρ) =                                    P 8 (ρ) =
+                                           2                             8                                            48
+
+                                                              1 ¡
+                                                                 945 − 1 260ρ 2 + 378ρ 4 − 36ρ 6 + ρ 10
+                                                                                                        ¢
+                                                P 10 (ρ) =
+                                                             384
+     It is also convenient to express the Fourier transform of (A.3),
+                                                                                           s2
+(A.5)                                                              ζ̂m (s) = D m (s)e − 2 ,
+                  Pm/2−1 (s 2 /2)n
+where D m (s) =     n=0       n!     .
+    Appendix B. Analytical expressions of the Green’s functions in 3D.
+    In this section, the expression of the Green’s kernels G used in FLUPS to solve the Poisson equation, ∇2 φ = f , is reproduced.
+The solution is obtained as φ = G ∗ f .
+     B.1. 3 directions unbounded.
+     B.1.1. Singular. The exact solution, and the cell-averaged value replacement, reproduced from [4], are, respectively,
+                                                                                                    ¶2
+                                                                                            1 1 3h 3 3
+                                                                                             µ
+                                                           1
+(B.1)                                           G(x) = −                  and      G(0) = −            .
+                                                         4π|x|                              2 2π 2
+
+     B.1.2. Regularized. The regularized Green’s functions, reproduced from [18], use ρ = |x| ε , such that
+                                                                            ρ2        ρ
+                                                                 µ                  µ    ¶¶
+                                                             1
+(B.2)                                        G m (|x|) = −        Q m (ρ)e − 2 + erf p      ,
+                                                           4π|x|                       2
+                                                   Rz     2
+using the conventional definition of erf (z) = p2π 0 e −q d q, and where Q m is given by
+                                                                          µ         ¶                  µ               ¶
+                                                1                      1    7    1                   1   19    2     1
+(B.3)          Q 2 (ρ) = 0,          Q 4 (ρ) = p (ρ),      Q 6 (ρ) = p        ρ − ρ3 ,    Q 8 (ρ) = p       ρ − ρ3 + ρ5 ,
+                                                2π                     2π 4      4                   2π 8      3    24
+                                                                 µ                                 ¶
+                                                            1      187    233 3 29 5        1 7
+                                                Q 10 (ρ) = p           ρ−      ρ +     ρ −      ρ .
+                                                            2π      64    192      192     192
+The limit for |x| −→ 0 is given by
+                          p                      p                                  p                                    p                             p
+                        1    2                 3   2                            15    2                              35    2                      315    2
+(B.4)       G 2 (0) = −        ,   G 4 (0) = −       ,              G 6 (0) = −         ,                G 8 (0) = −         ,       G 10 (0) = −          .
+                        4π ²
+                           3/2                 8π ²
+                                                 3/2                            32 π ²
+                                                                                    3/2                              64 π ²
+                                                                                                                         3/2                      512 π ²
+                                                                                                                                                       3/2
+
+     A generalization to spectrally convergent kernels was proposed in [19], here noted as G ∞ , which leads to
+                                                                   1 Si (ρ)                                 1
+(B.5)                                             G ∞ (|x|) =               ,         G ∞ (0) = −               ,
+                                                                 2π2 σ ρ                                  2π2 σ
+                                                 Rx
+where σ = hπ is the spectral cutoff, and Si (x) , 0 sin(t )
+                                                       t dt is the sine integral function.
+                                                                                FLUPS                                                                                 19
+
+     B.1.3. LGF. The lattice Green’s function is defined as
+                                              Ñ π/h
+                                         1                             h 2 exp (−i x · k)
+(B.6)                        G h (x) =      3              2                 2
+                                                                               ¡       ¢       2
+                                                                                                                dk ,
+                                       (2π)      −π/h 4 sin (k x h/2) + 4 sin k y h/2 + 4 sin (k z h/2)
+                                                     π
+where h is the uniform grid size and k x,y,z ∈ −π
+                                               £       ¤
+                                                 h ,h .
+                                                                                         x ©
+Here instead, it is evaluated using the indexed form, G (x) , h1 Θ (m), where m = = m x ; m y ; m z , ξ = kh and
+                                                                                                                 ª
+                                                                                         h
+                            Ñ π
+                                                 exp (−im · ξ)
+                                                                                           Z ∞
+                        1
+(B.7)        Θ (m) =                                                             d ξ  =  −     e −6t I m x (2t ) I m y (2t ) I m z (2t ) d t .
+                      (2π)3    −π 4 sin (ξx /2) + 4 sin ξ y /2 + 4 sin (ξz /2)
+                                       2               2               2
+                                                         ¡    ¢
+                                                                                            0
+
+
+The integral (B.7) is precomputed using its second form5 and stored for every point satisfying max m x , m y , m z < 64. For every
+                                                                                                  £               ¤
+
+
+other location, we use the following expansion such that the estimated error is lower that the machine precision [13], i.e. with an
+
+estimated error of 64−9 ≈ 10−17 ,
+
+                                            ·                                                                            ¸
+                       −1              1
+            Θ (m) =               −                  m x4 + m 4y + m z4 − 3m x2 m 2y − 3m x2 m z2 − 3m 2y m z2
+                      4π|m|         16π|m|7
+                                             ·
+                                       1             ³                  ´      ³    ³          ´                         ³            ´´
+                                                      m x8 + m 8y + m z8 − 244 m x6 m 2y + m z2 + m 6y m x2 + m z2 + m z6 m x2 + m 2y
+                                                                                                         ¡             ¢
+                                 −
+                                   128π|m|13
+                                                                                   ³                                 ´¸
+                                                     −228m x2 m 2y m z2 |m|2 + 621 m x4 m 4y + m 4y m z4 + m x4 m z4
+                                                 ·
+                                      1                  ³                  ´
+                                −                    2588 m x12 + m 12   12
+                                                                    y + mz
+                                  2048π|m|19
+                                                             ³                                                                             ´
+                                                     −65 676 m x10 m 2y + m x2 m 10
+                                                                                  y +   m   10 2
+                                                                                            x m z  + m   2 10
+                                                                                                          m
+                                                                                                         x z    + m   10 2
+                                                                                                                      y m  z  + m 2 10
+                                                                                                                                   m
+                                                                                                                                  y z
+(B.8)
+                                                               ³                                                                     ´
+                                                     +426 144 m x8 m 4y + m x4 m 8y + m x8 m z4 + m x4 m z8 + m 8y m z4 + m 4y m z8
+                                                               ³                                ´
+                                                     −712 884 m x6 m 6y + m x6 m z6 + m 6y m z6
+                                                             ³                                                ´
+                                                     −62 892 m x8 m 2y m z2 + m x2 m 8y m z2 + m x2 m 2y m z8
+                                                               ³                                                                                                  ´
+                                                     −297 876 m x6 m 4y m z2 + m x6 m 2y m z4 + m x4 m 6y m z2 + m x2 m 6y m z4 + m x2 m 4y m z6 + m x4 m 2y m z6
+                                                                 ³            ´¸        µ
+                                                                                            1
+                                                                                               ¶
+                                                     +2 507 340 m x4 m 4y m z4 + O                .
+                                                                                          |m|9
+
+
+
+     B.2. 2 directions unbounded, 1 direction spectral.
+     B.2.1. Singular. If z is the spectral direction, the exact Green’s function for the continuous problem is
+                                                               (
+                                                                 1
+                                                                   log(r )          if k z = 0,
+(B.9)                                            G̃(r, k z ) = 2π 1
+                                                                − 2π K 0 (|k z |r ) otherwise,
+           p
+where r = x 2 + y 2 , and K 0 is the modified Bessel function of the second kind. The singular value in r = 0 is replaced by the cell
+                                                        h2
+average value. With the 2D equivalent radius r eq = p      π
+                                                             ,
+
+                                                                1 π − 6 + 2 log π r eq
+                                                                ¡                         ¡   ¢¢
+                                                                8π                           2    if k z = 0,
+(B.10)                                           G̃(0, k z ) =    1−k z r eq K 1 (k z r eq )
+                                                               −                                 otherwise.
+                                                                      π(k z r eq )2
+                                              p 2
+                                                 x +y 2
+     B.2.2. Regularized. Defining ρ =             ε     and s z = εk z , the Green’s function should be obtained as
+                                                                                     µq                ¶
+                                                                           Z ∞ ζ̂m        s 2 + s z2
+                                                                       1
+(B.11)                                           G̃ m (ρ, s z ) = −                                        J 0 (sρ)s d s .
+                                                                      2π    0        s 2 + s z2
+    5 The integration was performed using the quadgk functions of Matlab along with the besseli function.
+20                                                                    CAPRACE, GILLIS, CHATELAIN
+
+
+As noticed in [30], finding a closed form solution to B.11 is not trivial. The authors of the same reference suggest the use of an
+approximation under the form of a composite expression in the spectral space, which is here reproduced:
+                                                                           
+                                                                               2D
+                                                                           Ĝ m  (s)            if s z = 0,
+                                                                                  ³p
+(B.12)                                                          Ĝ m (k) ≈
+                                                                                          ´
+                                                                                        2
+                                                                           − ζ̂m s +s z
+                                                                                      2
+
+                                                                                     |k|2
+                                                                                                 otherwise,
+              q
+where s = ε       k x2 + k y2 . Ĝ m,2D is obtained as the Fourier transform of the solution of a 2D unbounded regularized problem,
+
+                                                                                                     µ 2 ¶¶
+                                                                                            ρ2        ρ
+                                                                       µ
+                                                        2D           1                          1
+(B.13)                                                 Gm  (ρ) =        log(ερ) − R m (ρ)e − 2 + E 1        ,
+                                                                    2π                          2      2
+                                             R ∞ −zq
+with the first exponential integral E 1 (z) = 1 e q d q , and
+
+                                         1                    3 1 2                         11  7     1                             25 23 2 13 4     1 6
+(B.14)    R 2 (ρ) = 0,          R 4 (ρ) = ,      R 6 (ρ) =     − ρ ,           R 8 (ρ) =       − ρ2 + ρ4,              R 10 (ρ) =     − ρ +     ρ −     ρ .
+                                         2                    4 8                           12 24    48                             24 48   192     384
+The limit when ρ → 0 is obtained as
+
+                                1     ³γ         p ´                            1
+                                                                                     µ
+                                                                                      γ       p     1
+                                                                                                      ¶
+                                                                                                                                  1
+                                                                                                                                      µ
+                                                                                                                                       γ       p     3
+                                                                                                                                                       ¶
+(B.15)            G 22D (0) = −            − log( 2ε) ,           G 42D (0) = −         − log( 2ε) + ,              G 62D (0) = −        − log( 2ε) + ,
+                                   2π 2                                            2π 2             2                               2π 2             4
+
+                                                     1 γ       p                                            1 γ       p
+                                                      µ                  ¶                                   µ                  ¶
+                                                                      11                                                     25
+                                    G 82D (0) = −        − log( 2ε) +      ,                  2D
+                                                                                            G 10 (0) = −        − log( 2ε) +      .
+                                                    2π 2              12                                   2π 2              24
+
+with γ = 0.5772156649 being Euler’s constant.
+      B.3. 1 direction unbounded, 2 directions spectral.
+      B.3.1. Singular. If x is the unbounded direction, the exact solution is
+                                                                               (
+                                                                                1
+                                                                                2 |x|          if κ = 0,
+(B.16)                                                            G̃(x, κ) =          −κ|x|
+                                                                                − 12 e κ       otherwise,
+            q
+where κ =       k y2 + k z2 .
+                                                      q
+      B.3.2. Regularized. Defining s = ε                  k y2 + k z2 and ρ = |x|
+                                                                               ε , the regularized kernel is
+
+                                                                                                            p
+                                                 ε               s −ρ                     s +ρ             ε 2           s 2 +ρ 2
+                                                      µµ       µ      ¶¶        µ       µ      ¶¶      ¶
+                                                                           −sρ                      sρ
+(B.17)                           G̃ m (ρ, s) = −        1 − erf p        e     + 1 − erf p        e      − p Um (ρ, s)e − 2
+                                                 4s                 2                        2               π
+
+and
+                                               1                           5  1                                    11  1     1      1         1
+(B.18)      U2 (ρ, s) = 0,          U4 (ρ, s) = ,           U6 (ρ, s) =      + (s 2 − ρ 2 ),         U8 (ρ, s) =      + s 2 − ρ 2 − s 2 ρ 2 + (s 4 + ρ 4 ),
+                                               4                          16 16                                    32 12     8     48        96
+
+                                       93   73 2 47 2 17 2 2 11 4 23 4               1 2 4                  1 6
+                       U10 (ρ, s) =       +   s −     ρ −     s ρ +     s +     ρ +     (s ρ − s 4 ρ 2 ) +     (s − ρ 6 ).
+                                      256 768     256     384       768     768     256                    768
+When s = 0, the solution of a 1D unbounded problem has to be used,
+
+                                                         r     ρ    ε
+                                                             µ    ¶
+(B.19)                                      G̃ m (ρ, 0) = erf p − p Vm (ρ) ,
+                                                         2      2   2π
+
+with
+                       ρ2                                      ρ2                                     ¢ ρ2                                         5 − ρ2
+               µ          ¶                             µ         ¶                        µ                ¶                        µ               ¶
+                                                      1                                  1                                        5     1   1
+(B.20) V2 (ρ) = 1 − e − 2 ,                              1 − e− 2 ,                         3 − ρ2 + 3 e − 2 ,                      − − ρ4 + ρ2 +
+                                                                                               ¡
+                                         V4 (ρ) =                           V6 (ρ) =                                  V8 (ρ) =                         e 2 ,
+                                                      2                                  8                                       16    48   4     16
+
+                                                                         1 6 23 4 47 2 35 − ρ2
+                                                                      µ                             ¶
+                                                                 35
+                                                    V10 (ρ) =       −       ρ −     ρ +     ρ +       e 2
+                                                                128     384     384     128     128
+
+      B.4. 3 directions spectral.
+                                                                         FLUPS                                           21
+
+    B.4.1. Singular. The well-known exact solution is
+
+                                                                                1
+(B.21)                                                             Ĝ(k) = −       ,
+                                                                                k2
+           q
+with k =   k x2 + k y2 + k z2 . By default, FLUPS arbitrarily sets Ĝ(0) = 0.
+                                                q
+    B.4.2. Regularized. Again with k = k x2 + k y2 + k z2 , the regularized Green’s function is given by
+
+                                                                              ζ̂m (εk)
+(B.22)                                                         Ĝ m (k) = −            ,
+                                                                                 k2
+
+and again, Ĝ m (0) = 0 by default. The limit m → ∞ corresponds exactly to the singular case.
+   B.4.3. Lattice Green’s Function. The spectral LGF is computed as the spectral equivalent to the finite-difference Poisson
+equation, ∇2h φ = f ,
+
+                                                                                 h2
+(B.23)                                   Ĝ h (k) = −                                                            .
+                                                        4 sin2 (k x h2 ) + 4 sin2 (k y h2 ) + 4 sin2 (k z h2 )
+

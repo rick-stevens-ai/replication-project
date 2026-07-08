@@ -1,0 +1,768 @@
+                                                        MoG-VQE: Multiobjective genetic variational quantum eigensolver
+
+                                                      D. Chivilikhin,1 A. Samarin,1 V. Ulyantsev,1 I. Iorsh,2 A. R. Oganov,3 and O. Kyriienko4, 2
+                                                            1
+                                                               Computer Technologies Laboratory, ITMO University, St. Petersburg, 197101, Russia
+                                                                                2
+                                                                                  Department of Nanophotonics and Metamaterials,
+                                                                                ITMO University, St. Petersburg, 197101, Russia
+                                               3
+                                                 Skolkovo Institute of Science and Technology, Skolkovo Innovation Center, 3 Nobel Street, Moscow 143026, Russia
+                                                       4
+                                                         Department of Physics and Astronomy, University of Exeter, Stocker Road, Exeter EX4 4QL, UK
+                                                                                              (Dated: July 10, 2020)
+                                                          Variational quantum eigensolver (VQE) emerged as a first practical algorithm for near-term quan-
+                                                       tum computers. Its success largely relies on the chosen variational ansatz, corresponding to a quan-
+                                                       tum circuit that prepares an approximate ground state of a Hamiltonian. Typically, it either aims
+                                                       to achieve high representation accuracy (at the expense of circuit depth), or uses a shallow circuit
+                                                       sacrificing the convergence to the exact ground state energy. Here, we propose the approach which
+
+
+
+
+arXiv:2007.04424v1 [quant-ph] 8 Jul 2020
+                                                       can combine both low depth and improved precision, capitalizing on a genetically-improved ansatz
+                                                       for hardware-efficient VQE. Our solution, the multiobjective genetic variational quantum eigen-
+                                                       solver (MoG-VQE), relies on multiobjective Pareto optimization, where topology of the variational
+                                                       ansatz is optimized using the non-dominated sorting genetic algorithm (NSGA-II). For each circuit
+                                                       topology, we optimize angles of single-qubit rotations using covariance matrix adaptation evolution
+                                                       strategy (CMA-ES) — a derivative-free approach known to perform well for noisy black-box op-
+                                                       timization. Our protocol allows preparing circuits that simultaneously offer high performance in
+                                                       terms of obtained energy precision and the number of two-qubit gates, thus trying to reach Pareto-
+                                                       optimal solutions. Tested for various molecules (H2 , H4 , H6 , BeH2 , LiH), we observe nearly ten-fold
+                                                       reduction in the two-qubit gate counts as compared to the standard hardware-efficient ansatz. For
+                                                       12-qubit LiH Hamiltonian this allows reaching chemical precision already at 12 CNOTs. Conse-
+                                                       quently, the algorithm shall lead to significant growth of the ground state fidelity for near-term
+                                                       devices.
+
+
+                                                                INTRODUCTION                                by angles {θ}; 3) prepare an approximation to the ground
+                                                                                                            state as |ψ(θ)i = Û(θ)|ψ0 i; 4) measure the expected en-
+                                                                                                            ergy as E = hψ(θ)|Ĥ|ψ(θ)i; 5) update parameters using
+                                              In recent years quantum computing made a giant leap
+                                                                                                            a classical optimization procedure, and repeat steps 3, 4,
+                                           from being a purely theoretical concept into forming a
+                                                                                                            and 5 until energy minimum is reached.
+                                           full-scale quantum industry. Its major applications are
+                                           in the fields of quantum chemistry and materials sci-               By now variational quantum algorithms are repre-
+                                           ence [1, 2]. A particularly promising task for quan-             sented by the family of protocols, which can be ten-
+                                           tum computing is studying low energy states of strongly-         tatively divided into chemically-inspired and hardware-
+                                           correlated molecular complexes and materials [3, 4]. By          efficient approaches (see recent reviews [1] and [2] for the
+                                           using quantum phase estimation and Hamiltonian sim-              detailed discussion). For the chemically-inspired meth-
+                                           ulation techniques [5, 6], one can perform calculations          ods a unitary version of the coupled cluster ansatz is
+                                           with exponentially improved scaling as compared to clas-         considered [10], which is routinely used in quantum chem-
+                                           sical computational methods. However, this typically             istry, and allows converging close to the system ground
+                                           requires large auxiliary qubit registers and controlled          state. At the same time, the chemically-motivated
+                                           multi-qubit operations. As modern quantum hardware               ansatz typically relies on implementing a large number
+                                           is prone to noise, the implementation of deep quantum            of Pauli operator strings (originating from fermions-to-
+                                           circuits becomes impractical unless quantum-error cor-           qubits mapping). This makes it an expensive ansatz for
+                                           rection is used. The viable alternative for noisy inter-         near-term devices. The approach was used for exper-
+                                           mediate scale quantum (NISQ) devices [7] corresponds             imental demonstrations of the ground state energy es-
+                                           to hybrid quantum-classical approaches that rely on the          timation ranging from the simple molecular hydrogen
+                                           variational ground state search.                                 molecule [11] to recent state-of-the-art VQE for H2 O
+                                              The first example of a hybrid quantum-classical al-           molecule with an ion-trap processor [12]. The hardware-
+                                           gorithm is the variational quantum eigensolver [8–10],           efficient approach represents a chemistry-agnostic ansatz
+                                           which combines the quantum state preparation with a              that is formed by layers of entangling operations (usually
+                                           classical optimization procedure. The standard workflow          taken as CNOT gates) and rotations with angles {θ},
+                                           can be sketched as: 1) start from the initial state |ψ0 i        such that at increased number of layers a ground state
+                                           as a simple product state, being a closest match to the          can be prepared. First demonstrated experimentally for
+                                           ground state of the Hamiltonian Ĥ; 2) construct a uni-          two, four, and six-qubit systems [13–15], the approach of-
+                                           tary operator Û(θ) as a variational ansatz parametrized         fers resource-efficient simulation at the expense of growth
+                                                                                                                                   2
+
+                                                                            min[E]; NCNOT
+                                                                                                 genetic multiobjective
+                                           evolutionary derivative-free
+                                                                                                 optimization of circuit
+                                             optimization of circuit
+                                                                                                 topology with NSGA-II
+                                            parameters with CMA-ES
+                                                    {q}®{q'}                        Û (q)
+
+                                    {q'}                                  E; {q}
+                  variational state preparation     |y(q)         energy estimation
+
+                                                                E = y(q) | Ĥ|y(q)
+                                                                   =               Ĥ
+
+
+FIG. 1: Multiobjective genetic VQE workflow. The goal of the algorithm is to optimize a circuit ansatz Û(θ) for preparing
+the ground state of the Hamiltonian Ĥ. First, a quantum circuit layout is chosen using a multiobjective genetic algorithm (left
+block, NSGA-II), where the number of CNOT operators is minimized alongside the energy hψ(θ)|Ĥ|ψ(θ)i. Next, for the chosen
+scheme variational angles {θ} are defined using an evolutionary optimizer (middle block, CMA-ES). Function evaluations are
+performed by the quantum hardware, which in our case is simulated classically.
+
+
+of variational parameters number. At the same time, the                    cally modified to yield quasi-optimal solutions in terms
+convergence with the number of layers is unknown, and                      of energy precision and number of entangling two-qubit
+strongly-correlated molecules generally require a large                    operations. Considering particular examples of 8- and
+number of layers and two-qubit operations. Finally, a                      12-qubit Hamiltonians corresponding to BeH2 , H4 , and
+different approach based on Givens rotations was used                      LiH molecules, we show that the number of CNOT op-
+to prepare variationally Hartree-Fock states of hydrogen                   erations can be reduced by an order of magnitude, being
+chains and study isomerization of diazene [16].                            as low as 12 CNOTs for chemically precise preparation
+   Various improvements upon the basic VQE workflow                        of 12-qubit LiH ground state.
+were proposed. For instance, the state-of-the-art opti-
+mization strategies based on imaginary-time evolution
+and natural gradient techniques were developed [17–                                          THE MOG-VQE ALGORITHM
+21]. Symmetry constraints can be introduced into the
+ansatz [22, 23], thus simplifying the circuit and lower-                      First, we recall the standard hardware-efficient VQE
+ing the gate count. A mixed variational approach with                      approach. It was proposed and used by the IBM Quan-
+elements of quantum phase estimation allowed acceler-                      tum group to find experimentally the ground state energy
+ating VQE into the genuine ground state direction [24].                    of small molecules with a superconducting quantum pro-
+Derivative-based methods were considered, where the use                    cessor [13]. The hardware-efficient VQE uses a layered
+of analytic derivatives for unitary circuits was shown to                  structure of a variational ansatz. The zeroth layer cor-
+be highly beneficial [25, 26]. Huge importance of the form                 responds to choosing the basis by variation of optimal
+of the variational cost-function was noted [27]. Time-grid                 angles (single qubit rotations) on top of a trivial binary
+methods based on state overlap measurement recently                        initial state. Next, the layer of CNOTs connecting all
+gained attention [28–31], also using a variational ansatz                  qubits in pairwise fashion is applied, followed by the set
+as a sum of unitaries [32]. State-of-the-art strategies with               of single-qubit rotations (generated by X̂ and Ẑ Pauli
+compressed pools of variational operators were success-                    operators) with variable angles. The procedure continues
+fully applied to improve variation [33–36]. Finally, re-                   by growing the number of layers (depth p), and typically
+inforcement learning was employed to enhance quantum                       a large value of p (of the order or larger than number of
+eigensolver workflow in a semi-automated fashion [37].                     qubits) is required to reach chemical precision of complex
+  In this paper we tackle the problem of finding an op-                    molecules.
+timal variational ansatz for chemistry problems using a                       In this work we adopt a different approach which as-
+system-agnostic and hardware-efficient ansatz, pushing it                  sumes that not all qubits shall be equally correlated,
+to the ultimate limit. The proposed Multiobjective Ge-                     and excessive entangling operations may make optimiza-
+netic Variational Quantum Eigensolver (MoG-VQE) per-                       tion inefficient. This is also in line with recent results
+forms multiobjective optimization of the ansatz circuit,                   showing the connection between entanglement produc-
+where an original block-based ansatz circuit is geneti-                    tion and efficiency of convergence [38]. We propose to
+                                                                                                                                                                        3
+
+    R z ( θ1 )   R y ( θ2 ) •   R y ( − θ2 )   R z ( − θ1 )   R z ( θ1 )   R y ( θ2 ) •                                        •      R y ( − θ2 )       R z ( − θ1 )
+
+    R z ( θ3 )   R y ( θ4 )     R y ( − θ4 )   R z ( − θ3 )   R z ( θ3 )   R y ( θ4 )     R y ( − θ4 )   R z ( − θ23 − θ25 )       R z ( − θ23 + θ25 )
+
+
+FIG. 2: Circuit blocks. (a) Generalized CNOT block, where a CNOT gate is sandwiched between single-qubit rotations to
+choose an optimal basis. The   middle gate
+                                          represents a 
+                                                         standard  CNOT controlled
+                                                                                      bythe top qubit, and single-qubit rotation
+gates are defined as Rz (θ) = exp −i θ2 Ẑ , Ry (θ) = exp −i θ2 Ŷ , Rx (θ) = exp −i θ2 X̂ . (b) Generalized two-qubit gate block,
+which uses two CNOTs and rotations defined by five angles.
+
+
+prepare the unitary Û(θ) as a variable scheme composed                         ated to one or two qubits depending on its type. Instead
+of blocks, with topology being decided in the process of                        of letting the GA to compose circuits from elementary
+multiobjective genetic search. From one side, the block                         quantum gates, we make it operate at the level of gate
+structure resembles the previously described hardware-                          blocks composed of one or several CNOTs and several
+efficient ansatz (HEA), where only parts from each layer                        rotation operators (see Fig. 2 and the discussion below).
+are utilized. From the other side, the similar block struc-                        Gate blocks design. To ensure the convergence to the
+ture can be shown to represent a matrix product state                           ground state, gate blocks shall be chosen such that effec-
+ansatz. The high-level description of the approach is                           tively each state in the Hilbert space can be reached. For
+presented in Fig. 1. This corresponds to sequential opti-                       this, various strategies can be employed. First, let us con-
+mization of both energy of the system and the variational                       sider the CNOT gate, where each qubit can be rotated by
+ansatz itself.                                                                  an arbitrary angle. The corresponding operation can be
+   For optimization of the VQE circuit topology in this                         found in [41] representing a generalized CNOT, shown as
+work we propose to use a (multiobjective) genetic al-                           a circuit in Fig. 2(a). This circuit implements a CNOT in
+gorithm (GA) [39] from the family of evolutionary al-                           both directions efficiently (by effectively changing control
+gorithms – general-purpose heuristics based on princi-                          and target qubits), and also allows conversion of a CNOT
+ples of biological evolution used for optimizing arbitrary                      to a CZ gate. The decomposition requires 4 variational
+functions. The optimization problem solved by GA is                             angles (initially set randomly, though may be initialized
+described by one or several optimization functions called                       using an intelligent guess), and can simplify the varia-
+fitness functions. Genetic algorithms operate with a pop-                       tional procedure. However, it cannot be reduced to an
+ulation (set) of one or several individuals – representa-                       identity matrix.
+tions for solutions of the optimization problem. On each                           Second, we can use a more general block that includes
+iteration (also called generation) a GA performs varia-                         two CNOT gates. The idea comes from the arbitrary
+tion and selection on the current population to determine                       control operation [42]. Additionally, we consider an ar-
+the individuals that will advance to the next generation.                       bitrary rotation for the top qubit, such that we are not
+During variation individuals from the current population                        restricted to a certain control state. The resulting cir-
+are modified with mutation and/or crossover operators.                          cuit is shown in Fig. 2(b). It has 5 variational angles
+A mutation operator acts on one individual and intro-                           and 9 single-qubit gates √ total. For instance, it should
+duces a relatively small change to it. A crossover opera-                       allow generation of a SWAP gate from CNOTs. Im-
+tor typically acts on two parent individuals and produces                       portantly, we can choose a non-trivial set of angles as
+also two individuals, which have parts of parent indi-                          θ4 = π, θ5 = 2π − θ3 , and assign θ1,2,3 randomly from
+viduals. The selection procedure determines individuals                         the (−π, π] interval. In this case, the circuit turns into
+which form the next population.                                                 an identity matrix, and thus will utilize the previously
+   In MoG-VQE we use GAs for two purposes: 1) opti-                             optimized state [43]. We envisage there are many other
+mizing the VQE circuit topology, and 2) optimizing an-                          choices that can improve performance, and few ideas are
+gles for single-qubit gates for a fixed circuit topology.                       mentioned in the Discussion section.
+When optimizing the VQE scheme topology we consider                                Circuit initialization. For the zeroth population of
+two objective (fitness) functions, namely, the energy and                       NSGA-II we initialize each circuit in the following way.
+the number of two-qubit gates (CNOTs), both to be                               With a probability of 1/2, a circuit is constructed as a
+minimized. To do it in the most efficient way we use                            check-board of blocks on odd/even sublattices. This aims
+the multiobjective genetic algorithm NSGA-II [40] that                          to correlate and entangle all qubits in the lattice. The
+allows optimizing several objective functions simultane-                        procedure thus adds Ninit = N − 1 blocks, where N is
+ously. As a result, NSGA-II tries to approximate the                            the number of qubits. Alternatively, also with probability
+set of Pareto-optimal solutions, i.e. such solutions that                       1/2, we use the following circuit initialization procedure.
+no fitness function can be improved without degrading                           We select the number of blocks Ninit to be added uni-
+some other fitness functions. Each circuit (individual of                       formly at random from the interval [N, 4N ], and then add
+the GA) is described as a list of gates, each gate associ-                      Ninit blocks targeting randomly selected pairs of qubits.
+                                                                                                                              4
+
+   This combined strategy provides necessary diversity of         we launch CMA-ES to optimize angles of single-qubit ro-
+the initial population of the GA, and also deals with the         tation gates. During a single run, CMA-ES starts from
+issue of the a priori unknown complexity of the prob-             random angles for single-qubit gates and varies them to
+lem. Indeed, different circuit sizes are needed for differ-       optimize the energy. For each valuation of angles the
+ent Hamiltonians, and, for example, if initialized with an        energy is calculated using a Hamiltonian averaging pro-
+insufficient circuit size, MoG-VQE will require many it-          cedure implemented on a quantum processor (or its sim-
+erations to reach the needed size. By providing a diverse         ulator). The energy found by a single run of CMA-ES is
+(in terms of size and structure) set of circuits in initializa-   taken as the optimal energy for the circuit. This is, of
+tion we facilitate faster convergence to the ground state.        course, a heuristic, since due to the stochastic nature of
+   Circuit variation. To vary the circuit topology we use         CMA-ES, different optimization runs may result in differ-
+a simple mutation operator. It uses two basic opera-              ent minimal energy values. For a trade-off between evalu-
+tions: insertion of a block at a random position in the           ation time and accuracy, we can also select the number of
+circuit, and deletion of a block from a random position           independent optimization runs of CMA-ES: the minimal
+in a circuit. The mutation operator selects one of three          energy found in these runs will be taken as the optimal
+operations to perform according to a random weighted              energy for the circuit.
+choice (the larger the weight, the larger the probability):          A pseudocode of the proposed MoG-VQE approach is
+1) insert a block with weight winsert = 2.0; 2) delete a          shown in Algorithm 1. The algorithm starts with ini-
+block with weight wdelete = 1.0; 3) “large-scale” mu-             tializing the population of potential solutions (circuits)
+tation with weight wbig = 0.25, performing 10 inser-              P according to the procedure described above. Then,
+tions/deletions. The latter operation is selected with            in each generation a new population P 0 of solutions is
+low probability and is intended for escaping from local           formed by mutating each individual and optimizing ro-
+minima. As for crossover, initial experiments demon-              tation angles of each circuit using CMA-ES. Note that
+strated that simple one-point and two-point crossover op-         the innter for-loop is executed in parallel. The algorithm
+erations [39] for lists of circuit blocks are inefficient, so     terminates if some termination criterion (e.g., solution
+we omit using this operator in the current version of the         with chemical precision is found, or a given number of
+algorithm. For selection we use the tournament selection          generations is reached) is satisfied.
+operator proposed in [40] for multiobjective evolution-
+ary optimization, which is based on non-dominance of               Algorithm 1 Pseudocode of the proposed MoG-VQE
+solutions and crowding distance. We note that so far no                              approach.
+physical topology for a quantum hardware is specified,            Require: number of qubits N
+and new blocks are inserted to act on chosen qubits i             Require: population size n
+and k. Later, this can be rewritten in the optimal form           Require: Hamiltonian Ĥ
+                                                                   P ← initPopulation(n, N )
+targeting a specific device, or encoding actual topology           for gen ← 0 to ∞ do
+already when performing NSGA-II.                                     P 0 ← {}
+   Objective functions evaluation. As mentioned above,               for c ∈ P do
+we use two objective functions – the energy of the sys-                 m ← mutate(c)
+tem and the number of CNOTs in the circuit. Calcu-                      m.energy ← CMA-ES(m, Ĥ)
+lation of the second objective function is trivial. How-                m.NCNOT ← countCNOTs(m)
+ever, to calculate the first objective function (expected               P 0 ← P 0 ∪ {m}
+                                                                     end for
+value of energy), we need to optimize variational an-
+                                                                     P ← NSGAselection(P, P 0 )
+gles for the respective gates in the circuit. Traditionally,         if terminate(P, gen) then
+optimization of angles is done using classical methods                  return P
+based on numerical differentiation such as the BFGS al-              end if
+gorithm [44] (suffers from noise when run on physical de-          end for
+vices) or gradient-free methods that include the Nelder-
+Mead simplex method [45] and COBYLA [10]. Recent                     Software implementation. Circuit topology optimiza-
+advances include use of stochastic gradient descent op-           tion is implemented in Python using the DEAP library [49]
+timization and, in particular, Adam [46] being widely             for NSGA-II implementation. Optimization of angles for
+popular in machine learning (see comparison in [47]).             rotations is implemented in C++ language using libc-
+In this work we propose to use an evolutionary algo-              maes [50] library for CMA-ES. To simulate quantum cir-
+rithm, namely the Covariance-Matrix Adaptation Evolu-             cuits efficiently it is crucial to choose a fast software sim-
+tionary Strategy (CMA-ES) [48]. CMA-ES is a heuristic             ulator of a quantum processor. We have benchmarked
+derivative-free method for non-linear or non-convex con-          several packages for this task, including the statevec-
+tinuous optimization problems that has been shown to be           tor simulators in QuTiP [51] and Qiskit [52] packages for
+effective for hard problem instances. Each time we need           Python, and the high-performance Quantum Exact Sim-
+to evaluate the energy for a particular circuit topology,         ulation Toolkit (QueST) [53] written in C++. We find
+                                                                                                                                       5
+
+                                                                                                      # layers
+(a) -15.558                                                     (b) -15.558       5        10    15   20     25     30     35     40
+                                           gen=3                                                      Chemical precision reached
+          -15.56                           gen=7                         -15.56                       Chemical precision not reached
+                                           gen=21                                                     Chemical precision
+      -15.562                              gen=42                    -15.562                          Ground state
+                                           Chemical precision
+      -15.564                              Ground state              -15.564
+ Energy                                                         Energy
+      -15.566                                                        -15.566
+
+      -15.568                                                        -15.568
+
+          -15.57                                                         -15.57
+
+      -15.572                                                        -15.572
+                   8        10        12        14         16                         50        100     150       200      250
+                                  NCNOT                                                                 NCNOT
+
+
+FIG. 3: MoG-VQE vs. HEA for BeH2 . Results of numerical simulations are shown for beryllium hydride molecule BeH2 at
+the equilibrium bond distance of 1.33 Ångstrom. (a) Pareto fronts generated by the proposed MoG-VQE approach for different
+generations of NSGA-II optimization. Here each Pareto front corresponds to a quasi-optimal trade-off solution in coordinates
+of CNOT number and energy, where both objectives cannot be simultaneously improved. The blue solid line corresponds
+to the ground state energy from exact diagonalization of the BeH2 Hamiltonian, and the blue dotted line shows a minimal
+chemically accurate solution. Chemical precision can be reached with a minimal number of 9 CNOTs. (b) We compare results
+of MoG-VQE with genetically modified ansatz to the hardware-efficient strategy with fixed number of layers. Energies reached
+by HEA are shown for increasing numbers of layers (top scale), and corresponding numbers of CNOT gates are shown at the
+bottom. Chemical precision can be reached for the minimal number of 70 CNOTs.
+
+
+QueST to have better performance, in many ways due to             parallel for batches of 16 circuits. For all plotted results
+efficient C++-based operations and thus use it for MoG-           blocks of the first type [Fig. 2(a)] are used, while we com-
+VQE, with Python bindings to interact with the circuit            ment on second block choice in the text. In each case the
+topology optimizer. Circuits are visualized and compiled          initial state is chosen as a Hartee-Fock state, that for rel-
+in a .qasm files using Qiskit package from IBM Quantum            atively small molecules corresponds to the product state
+Experience [52].                                                  having the largest overlap with the genuine many-body
+                                                                  Hamiltonian ground state.
+
+                        RESULTS                                      We compare the developed MoG-VQE approach with
+                                                                  HEA [13] with different number of layers p. In the latter
+                                                                  the circuit topology is fixed during VQE and represents
+   We apply the developed multiobjective genetic VQE
+                                                                  layers of CNOTs placed on neighbouring qubits followed
+to various problems in quantum chemistry. For this, we
+                                                                  by rotations, repeated p times. To make a valid compari-
+consider a set of molecular Hamiltonians as generated
+                                                                  son, when optimizing rotation angles for HEA we initially
+by Psi4 quantum chemistry package [54], and mapped
+                                                                  used the same algorithm as in our approach, namely,
+into qubit Hamiltonian via Jordan-Wigner transforma-
+                                                                  CMA-ES. However, since the depth of resulting circuits
+tion using OpenFermion package [55]. We also use the
+                                                                  (and thus the number of optimization parameters) for
+problem set from QunaSys competition [56] (generated
+                                                                  HEA is much larger than for our approach, the original
+with PySCF package [57]). In this set Hamiltonians for
+                                                                  CMA-ES performs poorly. This is mostly due to the use
+Hn (n = 4, 6) and LiH molecules in various geometries
+                                                                  of operations that have a quadratic time complexity de-
+are considered at different bond distances. In each case
+                                                                  pendence from the number of optimization parameters.
+the STO-3G minimal basis set for spin singlets was used.
+                                                                  Therefore, below we report results in which HEA param-
+   In all computational experiments with the proposed
+                                                                  eters were optimized using a variation of CMA-ES called
+approach we used the following settings. For NSGA-II we
+                                                                  sep-CMA-ES [58], in which each iteration has linear time
+used a population size of 64 and mutation probability of
+                                                                  complexity.
+1.00. The basic CMA-ES version implemented in [50] was
+used with parameters: tolerance = 10−5 , σ = 0.5. Exper-            Beryllium hydride BeH2 (8 qubits). As a first example,
+iments were run using 16 cores of a 64-core AMD Opteron           we consider BeH2 at the bond distance of 1.33 Ångstrom,
+6380 processor @ 2.5 GHz: after each circuit variation            being a stable configuration. The Hamiltonian is ob-
+step in NSGA-II, energy is optimized with CMA-ES in               tained using different active space parameters, and is
+                                                                                                                                               6
+
+      (a) −0.6                                                           (b)
+                                            Fo(nd eigen)a (e
+                                            Gro(nd state
+               −0.8                                                      40
+                                            Chemica precision
+               −1.0
+                                                                         30
+               −1.2
+       Energy                                                        NCNOT
+                                                                         20
+               −1.4
+
+               −1.6
+                                                                         10
+               −1.8                                                                                            Chemica precision reached
+                                                                                                               Chemica precision not reached
+                                                                             0                                 Mean NCNOT
+               −2.0
+                      0.6 0.8 1.0 1.2 1.4 1.6 1.8 2.0                                 0.6        0.8     1.0    1.2 1.4 1.6        1.8   2.0
+                                    d                                                                              d
+                                                                                                               # ayers
+                                                                                 10         15     20        25 30 35 40            45    50
+      (c) −1.90                                                 (d) −1.88
+                                                    gen=1                                                      Chemica precisi#n reached
+           −1.91                                    gen=15                                                     Chemica precisi#n n#t reached
+                                                    gen=19                                                     Chemica precisi#n
+                                                    gen=47           −1.90                                     Gr#(nd state
+           −1.92                                    Chemica                                                    Mean eigen)a (e
+                                                    precision
+           −1.93                                    Gro(nd
+                                                    state            −1.92
+      Energy                                                    Energy
+           −1.94
+                                                                     −1.94
+           −1.95
+
+           −1.96                                                     −1.96
+           −1.97
+                       10    15     20      25     30      35                          100             150      200    250       300     350
+                                    NCNOT                                                                        NCNOT
+
+
+FIG. 4: MoG-VQE vs. HEA for hydrogen chains. We consider the H4 molecule in the open chain (line) geometry,
+where the bond distance d (measured in Å) between atoms is uniform. (a) Potential energy curve for H4 molecule shown as a
+function of bond distance d. Results of MoG-VQE are depicted by blue dots, and are shown to recover genuine ground state
+energies obtained from exact diagonalization. (b) Two-qubit gate counts for MoG-VQE circuits needed to prepare approximate
+ground states at different d. Circuits for runs that did not provide chemical accuracy are shown by crosses. The dashed curve
+represents the mean CNOT number for different runs, and serves as a guide to an eye. (c) Pareto fronts plotted for energy
+and NCNOT objective functions, and displayed for different generations. Here, we consider H4 at bond distance of d = 1.20
+Ångstrom. (d) Results for the HEA VQE simulations of H4 (d = 1.20 Å). Minimal energy shown as a function of numbers of
+layers (top), and corresponding number of CNOT operations.
+
+
+encoded with N = 8 qubits [28]. We perform multi-                   mal obtained energy as a function of NCNOT obtained
+objective VQE, and compare it to the hardware efficient             by MoG-VQE, and provide the comparison to HEA.
+ansatz proposed in [13]. The results are shown in Fig. 3.           Fig. 3(a) shows Pareto fronts of solutions that account
+                                                                    for the trade-off between energy minimization and num-
+   Here and below, the bottom solid line corresponds to             ber of CNOTs (circuit depth). Progressing from ineffi-
+the full configurational interaction (FCI) ground state             cient ansatz circuits of early generations, we see that at
+energy from exact diagonalization, and the top dashed               the 21st generation the GA reaches chemical precision
+line depicts FCI energy within chemical accuracy, which             with 14 CNOTs. As we continue to optimize variational
+allows for 10−3 Hartree error at room temperature. The              circuits, Pareto fronts are bettered, with both energy pre-
+number of CNOT operations comes directly from the                   cision and circuit depth being improved (gen=42 curve),
+number of blocks, where single-qubit operations supple-             shifting to the left bottom corner. The circuit containing
+ment each two-qubit gate. In Fig. 3 we plot the mini-               as low as 9 CNOTs can be constructed in the way that
+                                                                                                                                      7
+
+                                                                                                    # layer#
+         (a)                                                               (b) 0      5        10      15      20         25     30
+     −7.850                                  gen=15                    −7.4        Chemical preci#i n reached
+                                             gen=30                                Chemical preci#i n n t reached
+     −7.852                                  gen=45                                Chemical preci#i n
+                                             gen=60                    −7.5        Gr und #tate
+                                             Chemical precisi n
+     −7.854                                  Gr und state
+Energy                                                            Energy
+                                                                       −7.6
+     −7.856
+                                                                       −7.7
+     −7.858
+
+     −7.860                                                            −7.8
+
+               12    14    16     18    20     22     24    26                 0          50         100            150        200
+                                  NCNOT                                                              NCNOT
+
+
+FIG. 5: MoG-VQE vs. HEA for LiH. (a) Energy-NCNOT Pareto fronts for multiobjective VQE for lithium hydride at bond
+distance d = 2.00 Å. After sufficient optimization (for gen > 30) shallow circuits with NCNOT = 16 are found. (b) Comparison
+of the proposed approach with the hardware-efficient ansatz.
+
+
+a chemically-accurate ground state of 8-qubit BeH2 can              mance, and corresponds to our top choice for MoG-VQE.
+be prepared. Generally we observe that forty to sixty               The reason is its versatility, as several blocks put in a
+generations are required to obtain quasi-optimal circuits           series can represent other circuits at the same cost as a
+that allow preparing low-energy states and are resource-            single two-qubit operation. On the contrary, we find that
+efficient.                                                          VQE with blocks of the second type [Fig. 2(b)] has weaker
+   Additionally, we test the quality of obtained solutions          performance (not shown). While being rather general,
+tracking the total magnetization and parity of prepared             training of the circuit network with 5-parameter blocks
+states. As the system corresponds to interacting fermions           becomes challenging while also restricted by NCNOT set
+in the absence of a magnetic field, both charge conserva-           as one of the objective functions.
+tion and time-reversal symmetry must be satisfied. This,               Hydrogen chain H4 in a line geometry (8 qubits). Next,
+for instance, is captured by the ansatz choice that by              we consider a highly correlated molecule corresponding
+construction does not change magnetization and parity               to the hydrogen chain H4 (line geometry), where equal
+for any physical state [23]. While our ansatz does not              bond distance d and open boundary are taken [56]. This
+obey required symmetries explicitly, we find that magne-            corresponds to N = 8 qubit Hamiltonian in STO-3G ba-
+tization and parity of variationally prepared states differ         sis. Bond distances from 0.50 Å to 2.00 Å are considered.
+from the initial ones only in the third digit after the dec-        Note that for bond distances of 1.3 Å and more, the ini-
+imal point. This allows us to confirm that MoG-VQE                  tial energy (Hartree-Fock solution) and FCI energy are
+indeed prepares physical ground state solutions. We also            largely separated, making it a difficult molecule to study.
+note that for some cases symmetries can be encoded in                  Results of MoG-VQE experiments for the hydrogen
+additional fitness functions, enjoying the power of multi-          chain are shown in Fig. 4. In panel Fig. 4(a) we present
+objective optimization.                                             a potential energy curve, showing that MoG-VQE allows
+   Next, we perform calculations for the hardware-                  accurate reproduction of the FCI ground state obtained
+efficient ansatz described above. For HEA we repeat nu-             by exact diagonalization of the molecular Hamiltonian.
+merical experiments 5 times for each circuit depth. In              In Fig. 4(b) we present two-qubit gate counts NCNOT for
+Fig. 3(b) we show minimal HEA VQE energy as a func-                 circuits used to prepare approximate ground states with
+tion of the number of layers, or equivalently the number            energies shown in Fig. 4(a). For each bond distance, we
+of CNOTs (each point for the same NCNOT corresponds                 repeat independent numerical experiments for 10 times.
+to a separate computational experiment). We find that               Round points depict experimental runs in which chemical
+the minimal number of layers for attaining chemical pre-            precision was reached, and crosses – runs in which it was
+cision is 10 (70 CNOTs), while to reach chemical preci-             not reached. We observe that multiobjective search can
+sion with larger probability 30 layers (210 CNOTs) are              find compressed circuits with thirty to forty two-qubit
+needed.                                                             gates for the majority of bond distances. Overall we note
+   Studying the efficiency of different blocks we discover          the gradual increase of required circuit size as d grows.
+that the block of first type [Fig. 2(a)] has better perfor-         This aligns well with the fact that at large bonds hydro-
+                                                                                                                        8
+
+gen chains exhibit strong correlations, as evidenced by         tual quantum processor topology. For instance, trapped
+large discrepancy between Hartree-Fock energy and FCI           ion processors and transmon-based processors in the star
+energy [34, 56]. Additionally, we observe a noticeable op-      topology allow implementation with zero overhead [59],
+timization glitch at around 0.90 Å, which hinders efficient    while modern two-dimensional square grid processors [60]
+parameter research. While the origin of this phenomenon         can lower it significantly. In particular, when optimiza-
+remains unclear, we narrowed down the area and revealed         tion for specific hardware is considered, a separate qubit
+numerically that observed behavior resembles a compu-           routing procedure can be implemented via existing com-
+tational phase transition.                                      pilers [63] such that the overhead for non-neighbouring
+   The progress of variational optimization of circuit          two-qubit gates is kept at minimal value.
+topology is demonstrated in Fig. 4(c), where Pareto
+fronts for several generations are shown (we choose d =
+1.20 Å). While circuits of NCNOT = 35 for reaching chem-                            DISCUSSION
+ical accuracy can be prepared already at 19th generation,
+systematic lowering of two-qubit gate count is difficult,          To highlight the potential yield of the designed multi-
+driven by strong interparticle correlations present in the      objective genetic VQE we can take a simple noise model,
+system.                                                         where each single- and two-qubit operation is associated
+   Fig. 4(d) shows a comparison of the proposed approach        to an error (e.g. bit flip), and errors are uncorrelated.
+to HEA VQE for the bond distance of 1.20 Ångstrom,             Notably, this holds even for large-scale quantum com-
+which was run until convergence for increasing number           putation, as shown in the quantum supremacy experi-
+of layers. We observe that the hardware-efficient ansatz        ment [60]. The representative circuit for LiH contains
+requires a minimum of 30 layers (210 CNOTs) to reach            NCNOT = 12 CNOTs and Nrot = 84 non-zero single-axis
+chemical precision (and at least 40 layers to reach it with     rotations, that can be contracted into Nrot = 32 general
+high probability), while the proposed MoG-VQE method            gates. This is associated to noise levels εCNOT ∼ 10−2
+produces accurate circuits with as low as 31 CNOTs as           and εrot ∼ 10−3 , correspondingly [12, 60]. Fidelity for
+seen from Fig. 4(c).                                            the ground state preparation of 12-qubit molecule can be
+   Lithium hydride LiH (12 qubits). Another consid-             estimated as F = (1 − εrot )Nrot (1 − εCNOT )NCNOT and is
+ered large molecule corresponds to LiH decomposed into          over 85%, making ground state estimation reliable.
+qubit form without simplifications [56] and mapped onto            To conclude, we proposed the multiobjective genetic
+N = 12 qubits. The bond distance of 2.00 Å is consid-          variational quantum eigensolver based on evolutionary
+ered. Results of experimental runs are shown in Fig. 5.         algorithms. It utilizes the genetic algorithm NSGA-II to
+In Fig. 5(a) we present Pareto fronts for several gener-        optimize the variational ansatz topology guided by the
+ations produced by MoG-VQE. Starting from compact               requirement to minimize the two-qubit gate count. For
+circuits at early generations, the optimizer can efficiently    each scheme we optimize variational angles using CMA-
+lower both the energy and the gate count. Overall this          ES evolutionary strategy that proves to work well for
+corresponds to rather weak correlations for LiH, as was         black-box functions. The strategy points to the ultimate
+also noted before [34]. We compare results to HEA VQE           limit where even usual hardware-efficient layered ansatz
+simulation [Fig. 5(b)] where several independent runs of        is expensive and excessive, as in certain cases only tar-
+sep-CMA-ES are performed, yet we do not observe con-            geted entanglement between qubits might suffice to pre-
+vergence to the chemically precise energy. We observe           pare ground state approximation. The approach is par-
+that at shallow depth circuits suffer from weak express-        ticularly useful for problems where two-qubit operations
+ibility and simply cannot prepare the ground state of           are noisy and their use needs to be minimized. We tested
+the 12-qubit Hamiltonian, while at large circuit depth          the approach for different molecular Hamiltonians en-
+(p ≥ 25) training becomes inefficient, leading to energy        coded in 8 and 12 qubits, and found compact schemes
+increase. This is ultimately linked to increased number         which can readily prepare ground state approximations.
+of optimization parameters and scaling for the CMA-ES              Recently, we became aware of two conceptually simi-
+optimizer.                                                      lar approaches (Rotoselect [61] and Evolutionary Varia-
+   As an example of a high-performing circuit for prepar-       tional Quantum Eigensolver (EVQE) [62]) having sim-
+ing LiH ground state, we provide the discovered circuit         ilar workflows with ansatz modification. In Rotoselect
+scheme with only 12 CNOTs from another experimental             the distinct method for choosing generators of rotations
+run. The circuit is visualized with Qiskit [52] and explic-     was used, thus allowing to reach better energy accu-
+itly shown in Supplementary Figure S1. We note that             racy with smaller number of layers compared to standard
+this circuit is not optimized, nor it is transpiled to a spe-   HEA VQE. EVQE uses a different genetic heuristic to
+cific geometry. These steps are however important when          modify variational ansatz operating at the level of layers
+considered for real hardware implementation. While two-         (add/remove), and exploits a single objective function.
+qubit operations in Fig. S1 may appear long-range inter-        In the current work we go beyond this approach by us-
+acting in some geometries, this is highly dependent on ac-      ing block-structured ansatz and employing multiobjec-
+                                                                                                                          9
+
+tive approach that allows searching for Pareto-optimal         [8] A. Peruzzo, J. McClean, P. Shadbolt, M.-H. Yung, X.-Q.
+solutions.                                                         Zhou, P. J. Love, A. Aspuru-Guzik, and J. L. O’Brien,
+   We shall stress that the proposed algorithm can be              A variational eigenvalue solver on a photonic quantum
+                                                                   processor, Nature Comm. 5, 4213 (2014).
+further improved. First, the question of optimal gate
+                                                               [9] J. McClean, J. Romero, R. Babbush, and A. Aspuru-
+block choice remains open, and better parametrization              Guzik, The theory of variational hybrid quantum-classical
+can largely yield the performance of the algorithm. The            algorithms, New J. Phys. 18, 023023 (2016).
+promising approach (yet to be implemented) is building        [10] J. Romero, R. Babbush, J. R. McClean, C. Hempel, P.
+an ansatz from blocks that respect symmetries of molec-            Love, and A. Aspuru-Guzik, Strategies for quantum com-
+ular systems (for instance, charge conservation) [23].             puting molecular energies using the unitary coupled clus-
+For instance, by choosing a less “powerful” block with             ter ansatz, Quantum Sci. Technol. 4, 014008 (2019).
+                                                              [11] P. J. J. O’Malley et al., Scalable Quantum Simulation of
+only single Ŷ rotation we can largely facilitate the
+                                                                   Molecular Energies, Phys. Rev. X 6, 031007 (2016).
+optimization process, reducing its wall-time, though at       [12] Y. Nam, J.-S. Chen, N. C. Pisenti, K. Wright, C. De-
+the expense of larger circuit depth. Also, recent results          laney, D. Maslov, K. R. Brown, S. Allen, J. M. Amini,
+suggest that introduced correlation may largely help               J. Apisdorf, K. M. Beck, A. Blinov, V. Chaplin, Mika
+when searching for optimal VQE parameters [64]. Next,              Chmielewski, C.Collins, S. Debnath, A. M. Ducore, K.
+different initialization schemes will be considered in the         M. Hudek, M. Keesan, S. M. Kreikemeier, J. Mizrahi,
+future to further facilitate the convergence. Currently we         P. Solomon, M. Williams, J. D. Wong-Campos, C. Mon-
+                                                                   roe, J. Kim, Ground-state energy estimation of the water
+do not reuse data when optimizing circuits, and continue           molecule on a trapped ion quantum computer, npj Quan-
+to optimize all angles in the circuit. One improved                tum Information 6, 33 (2020).
+strategy may account for quasi-optimal preparatory se-        [13] A. Kandala, A. Mezzacapo, K. Temme, M. Takita, M.
+quences, and “freezing” them to yield further fine-tuned           Brink, J. M. Chow, and J. M. Gambetta, Hardware-
+optimization.      Finally, while multiobjective genetic           efficient variational quantum eigensolver for small
+nature of the algorithm is important for changing ansatz           molecules and quantum magnets, Nature (London) 549,
+topology, the intermediate variation for optimal angles            242 (2017).
+                                                              [14] M. Ganzhorn, D. J. Egger, P. Kl. Barkoutsos, P. Olli-
+can be performed by using gradient-based methods with              trault, G. Salis, N. Moll, A. Fuhrer, P. Mueller, S. Wo-
+automatic differentiation in the forward mode [25], likely         erner, I. Tavernelli, and S. Filipp, Gate-efficient simu-
+improving the convergence.                                         lation of molecular eigenstates on a quantum computer,
+                                                                   Phys. Rev. Applied 11, 044092 (2019).
+   Acknowledgements. The authors acknowledge the sup-         [15] C. Hempel, C. Maier, J. Romero, J. McClean, T. Monz,
+port from the mega-grant No. 14.Y26.31.0015 of the Min-            H. Shen, P. Jurcevic, B. P. Lanyon, P. Love, R. Bab-
+                                                                   bush, A. Aspuru-Guzik, R. Blatt, and C. F. Roos, Quan-
+istry of Education and Science of the Russian Federation,
+                                                                   tum Chemistry Calculations on a Trapped-Ion Quantum
+the Government of Russian Federation (Grant 08-08),                Simulator, Phys. Rev. X 8, 031022 (2018).
+and ITMO Fellowship and Professorship Program.                [16] F. Arute et al., Hartree-Fock on a superconducting qubit
+                                                                   quantum computer, arXiv:2004.04174 (2020).
+                                                              [17] S. McArdle, T. Jones, S. Endo, Ying Li, S. Benjamin, and
+                                                                   Xiao Yuan, Variational ansatz-based quantum simulation
+                                                                   of imaginary time evolution, npj Quantum Information
+ [1] S. McArdle, S. Endo, A. Aspuru-Guzik, S. Benjamin,            5, 75 (2019).
+     and Xiao Yuan, Quantum computational chemistry, Rev.     [18] S. Endo, T. Jones, S. McArdle, Xiao Yuan, and S. Ben-
+     Mod. Phys. 92, 15003 (2020).                                  jamin, Variational quantum algorithms for discovering
+ [2] Y. Cao, J. Romero, J. P. Olson, M. Degroote, P. D.            Hamiltonian spectra, arXiv:1806.05707 (2018).
+     Johnson, M. Kieferová, I. D. Kivlichan, T. Menke, B.    [19] J. Stokes, J. Izaac, N. Killoran, and G. Carleo, Quantum
+     Peropadre, N. P. D. Sawaya, Sukin Sim, L. Veis, and A.        Natural Gradient, Quantum 4, 269 (2020).
+     Aspuru-Guzik, Quantum Chemistry in the Age of Quan-      [20] N. Yamamoto, On the natural gradient for variational
+     tum Computing, Chem. Rev. 119, 10856-10915 (2019);            quantum eigensolver, arXiv:1909.05074 (2019).
+     arXiv:1812.09976.                                        [21] B. Koczor and S. C. Benjamin, Quantum natural gradi-
+ [3] M. Reiher, N. Wiebe, K. M Svore, D. Wecker, and M.            ent generalised to non-unitary circuits, arXiv:1912.08660
+     Troyer, Elucidating Reaction Mechanisms on Quantum            (2019).
+     Computers, PNAS 114, 7555 (2017).                        [22] I. G. Ryabinkin, S. N. Genin, and A. F. Izmaylov,
+ [4] R. Babbush, D. W. Berry, J. R. McClean, and H. Neven,         Constrained Variational Quantum Eigensolver: Quan-
+     Quantum simulation of chemistry with sublinear scaling        tum Computer Search Engine in the Fock Space, J. Chem.
+     in basis size, npj Quantum Information 5, 92 (2019).          Theory. Comput. 15, 249 (2019).
+ [5] S. Lloyd, Universal Quantum Simulators, Science 273,     [23] B. T. Gard, L. Zhu, G. S. Barron, N. J. Mayhall, S.
+     1073-1078 (1996).                                             E. Economou, E. Barnes, Efficient symmetry-preserving
+ [6] A. Aspuru-Guzik, A. D. Dutoi, P. J. Love, M. Head-            state preparation circuits for the variational quantum
+     Gordon, Simulated Quantum Computation of Molecular            eigensolver algorithm, npj Quantum Information 6, 10
+     Energies, Science 309, 1704 (2005).                           (2020).
+ [7] J. Preskill, Quantum Computing in the NISQ era and       [24] D. Wang, O. Higgott, and S. Brierley, Accelerated Vari-
+     beyond, Quantum 2, 79 (2018); arXiv:1801.00862.               ational Quantum Eigensolver, Phys. Rev. Lett. 122,
+                                                                                                                            10
+
+     140504 (2019).                                                   tion and Quantum Information, (Cambridge Univ. Press,
+[25] K. Mitarai, Y. O. Nakagawa, W. Mizukami, Theory of               2010).
+     analytical energy derivatives for the variational quantum   [43] E. Grant, L. Wossnig, M. Ostaszewski, and M. Benedetti,
+     eigensolver, Phys. Rev. Research 2, 013129 (2020).               An initialization strategy for addressing barren plateaus
+[26] T. E. OBrien, B. Senjean, R. Sagastizabal, X. Bonet-             in parametrized quantum circuits, Quantum 3, 214
+     Monroig, A. Dutkiewicz, F. Buda, L. DiCarlo, and                 (2019).
+     L. Visscher, Calculating energy derivatives for quantum     [44] R. Fletcher, Practical methods of optimization (2nd ed.),
+     chemistry on a quantum computer, npj Quantum Infor-              New York: John Wiley & Sons (1987).
+     mation 5, 113 (2019).                                       [45] J. A. Nelder and R. Mead, A Simplex Method for Func-
+[27] M. Cerezo, A. Sone, T. Volkoff, L. Cincio, and P.                tion Minimization, The Computer Journal, 7, 308 (1965).
+     J. Coles, Cost-Function-Dependent Barren Plateaus in        [46] D. P. Kingma and J. Ba, Adam: A method for stochas-
+     Shallow Quantum Neural Networks, arXiv:2001.00550                tic optimization, in Proceedings of the 3rd International
+     (2020).                                                          Conference on Learning Representations (ICLR) (2015);
+[28] O. Kyriienko, Quantum inverse iteration algorithm for            arXiv:1412.6980.
+     programmable quantum simulators, npj Quantum Infor-         [47] J. M. Kübler, A. Arrasmith, L. Cincio, P. J. Coles, An
+     mation 6, 7 (2020).                                              Adaptive Optimizer for Measurement-Frugal Variational
+[29] N. H. Stair, R. Huang, and F. A. Evangelista, A Mul-             Algorithms, Quantum 4, 263 (2020).
+     tireference Quantum Krylov Algorithm for Strongly Cor-      [48] N. Hansen, S. D. Müller, P. Koumoutsakos, Evolutionary
+     related Electrons, J. Chem. Theory Comput. 16, 2236              computation 11, 1-18, (2003).
+     (2020).                                                     [49] F.-A. Fortin, F.-M. De Rainville, M.-A. Gardner, M.
+[30] R. M. Parrish and P. L. McMahon, Quantum Filter Diag-            Parizeau and C. Gagné, DEAP: Evolutionary Algorithms
+     onalization: Quantum Eigendecomposition without Full             Made Easy, Journal of Machine Learning Research 13,
+     Quantum Phase Estimation, arXiv:1909.08925 (2019).               2171-2175, (2012).
+[31] S. Wei, H. Li, and G. Long, A Full Quantum Eigen-           [50] See online at https://github.com/beniz/libcmaes
+     solver for Quantum Chemistry Simulations, Research          [51] J. R. Johansson, P. D. Nation, and F. Nori, QuTiP 2:
+     2020, 1486935 (2020).                                            A Python framework for the dynamics of open quantum
+[32] W. J. Huggins, J. Lee, U. Baek, B. O’Gorman,                     systems, Comp. Phys. Comm. 184, 1234 (2013) [DOI:
+     and K. B. Whaley, A Non-Orthogonal Variational                   10.1016/j.cpc.2012.11.019].
+     Quantum Eigensolver, New J. Phys. in press (2020);          [52] H. Abraham et al., Qiskit: An Open-source Framework
+     https://doi.org/10.1088/1367-2630/ab867b.                        for Quantum Computing, (2019); https://github.com/
+[33] H. R. Grimsley, S. E. Economou, E. Barnes, N. J. May-            Qiskit/qiskit; doi:10.5281/zenodo.2562110.
+     hall, An adaptive variational algorithm for exact molec-    [53] T. Jones, A. Brown, I. Bush, and S. C. Benjamin,
+     ular simulations on a quantum computer, Nature Com-              QuEST and High Performance Simulation of Quantum
+     mun. 10, 3007 (2019).                                            Computers, Sci. Rep. 9, 10736 (2019); https://quest.
+[34] H. L. Tang, V. O. Shkolnikov, G. S. Barron, H. R. Grim-          qtechtheory.org/.
+     sley, N. J. Mayhall, E. Barnes, S. E. Economou, qubit-      [54] R. M. Parrish et al., Psi4 1.1: An Open-Source Elec-
+     ADAPT-VQE: An adaptive algorithm for construct-                  tronic Structure Program Emphasizing Automation, Ad-
+     ing hardware-efficient ansatze on a quantum processor,           vanced Libraries, and Interoperability, J. Chem. Theory
+     arXiv:1911.10205 (2019).                                         Comput. 13, 3185 (2017).
+[35] I. G. Ryabinkin, T.-C. Yen, S. N. Genin, and A. F. Iz-      [55] J. R. McClean et al., OpenFermion: the electronic struc-
+     maylov, Qubit Coupled Cluster Method: A Systematic               ture package for quantum computers, Quantum Sci. Tech-
+     Approach to Quantum Chemistry on a Quantum Com-                  nol. 5, 034014 (2020).
+     puter, J. Chem. Theory Comput. 14, 6317 (2019).             [56] See online at https://quantaggle.com/competitions/
+[36] Y. Herasymenko and T. E. O’Brien, A diagrammatic                 gs-pes/ and https://github.com/qulacs/Quantaggle_
+     approach to variational quantum ansatz construction,             dataset/tree/master/datasets/Small_Molecules_1.
+     arXiv:1907.08157 (2019).                                    [57] Q. Sun, T. C. Berkelbach, N. S. Blunt, G. H. Booth,
+[37] F. Albarrán-Arriagada, J. C. Retamal, E. Solano, and            S. Guo, Z. Li, J. Liu, J. McClain, E. R. Sayfut-
+     L. Lamata, Reinforcement learning for semi-autonomous            yarova, S. Sharma, S. Wouters, and G. K.-L. Chan,
+     approximate quantum eigensolver, Mach. Learn.: Sci.              PySCF: the Pythonbased simulations of chemistry frame-
+     Technol. 1, 015002 (2020).                                       work, WIREs Comput. Mol. Sci. 8, e1340 (2018);
+[38] A. J. C. Woitzik, P. Kl. Barkoutsos, F. Wudarski,                doi:10.1002/wcms.1340
+     A.Buchleitner, and I. Tavernelli, Entanglement Pro-         [58] R. Ros and N. Hansen, A Simple Modification in CMA-
+     duction and Convergence Properties of the Variational            ES Achieving Linear Time and Space Complexity, Paral-
+     Quantum Eigensolver, arXiv:2003.12490 (2020).                    lel Problem Solving from Nature, Lecture Notes in Com-
+[39] M. Mitchell, An Introduction to Genetic Algorithms               puter Science 5199, 296-305 (2008).
+     (MIT Press, 1996).                                          [59] C. Song, K. Xu, W. Liu, C. Yang, S.-B. Zheng, H. Deng,
+[40] K. Deb, A. Pratap, S. Agarwal and T. Meyarivan, A fast           Q. Xie, K. Huang, Q. Guo, L. Zhang, P. Zhang, D. Xu,
+     and elitist multiobjective genetic algorithm: NSGA-II,           D. Zheng, X. Zhu, H. Wang, Y.-A. Chen, C.-Y. Lu, S.
+     IEEE Transactions on Evolutionary Computation 6(2),              Han, and J.-W. Pan, 10-Qubit Entanglement and Parallel
+     182-197, (2002).                                                 Logic Operations with a Superconducting Circuit, Phys.
+[41] R. Iten, R. Colbeck, I. Kukuljan, J. Home, and M. Chris-         Rev. Lett. 119, 180511 (2017).
+     tandl, Quantum circuits for isometries, Phys. Rev. A 93,    [60] F. Arute et al., Quantum supremacy using a pro-
+     032318 (2016).                                                   grammable superconducting processor, Nature 574, 505-
+[42] M. A. Nielsen and I. L. Chuang, Quantum Computa-                 510 (2019).
+                                                               11
+
+[61] M. Ostaszewski, E. Grant, and M. Benedetti, Quantum
+     circuit structure learning, arXiv:1905.09692 (2019).
+[62] A. G. Rattew, S. Hu, M. Pistoia, R. Chen, and S.
+     Wood, A Domain-agnostic, Noise-resistant, Hardware-
+     efficient Evolutionary Variational Quantum Eigensolver,
+     arXiv:1910.09694 (2019).
+[63] A. Cowtan, S. Dilkes, R. Duncan, A. Krajenbrink,
+     W. Simmons, S. Sivarajah, On the qubit routing
+     problem, Leibniz International Proceedings in Infor-
+     matics (LIPIcs), doi:10.4230/LIPIcs.TQC.2019.5 (2019);
+     arXiv:1902.08091.
+[64] T. Volkoff and P. J. Coles, Large gradients via cor-
+     relation in random parameterized quantum circuits,
+     arXiv:2005.12200 (2020).
+                                                                                                                                                                                                             12
+
+                                              Supplementary Circuit: Ground state preparation for LiH
+q0      X        Rz        Ry        Ry        Rz
+                (1.21)    (3.13)    ( 3.13)   ( 1.21)
+
+
+
+q1      X        Rx        Ry        Ry        Rx        Rz        Ry
+                ( 3.08)   (1.62)    ( 1.62)   (3.08)    (3.06)    ( 3.14)
+
+
+
+q2      X        Rx        Ry        Ry        Rx        Rz        Ry        Ry        Rz        Rx        Ry
+                ( 2.14)   (2.77)    ( 2.77)   (2.14)    ( 2.82)   ( 3.12)   (3.12)    (2.82)      (0)     (1.57)
+
+
+
+q3      X        Rx        Ry                                                Ry        Rx        Rz        Ry                                                Ry        Rz
+                (1.57)    (1.68)                                            ( 1.68)   ( 1.57)   (2.39)      (0)                                               (0)     ( 2.39)
+
+
+
+q4     Rx        Ry                                                          Ry        Rx        Rz        Ry        Ry        Rz        Rx        Ry        Ry        Rx        Rz        Ry       Ry
+      (3.11)    (0.87)                                                      ( 0.87)   ( 3.11)   ( 1.97)     (0)       (0)     (1.97)      (0)     (1.02)    ( 1.02)     (0)     ( 3.13)   (2.12)   ( 2.12)
+
+
+
+q5     Rx        Ry                                                                                                  Ry        Rx        Rz        Ry        Ry        Rz
+      (0.57)    (2.17)                                                                                              ( 2.17)   ( 0.57)   ( 0.37)   ( 3.14)   (3.14)    (0.37)
+
+
+
+q6     Rx        Ry                                                                                                                                                                                 Ry
+        (0)     ( 1.57)                                                                                                                                                                            (1.57)
+
+
+
+q7
+
+q8
+
+q9
+
+q10    Rz        Ry                                                                                                                                                                                 Ry
+      ( 3.08)   ( 3.14)                                                                                                                                                                            (3.14)
+
+
+
+q11    Rz        Ry                  Ry        Rz        Rz        Ry        Ry        Rz        Rx        Ry                                                Ry        Rx        Rx        Ry       Ry
+      (1.46)    ( 0.41)             (0.41)    ( 1.46)   (1.45)    ( 0.33)   (0.33)    ( 1.45)   ( 1.86)   ( 0.95)                                           (0.95)    (1.86)    ( 1.73)   (1.43)   ( 1.43)
+
+
+
+
+q0
+
+q1                                                                                                                   Ry        Rz
+                                                                                                                    (3.14)    ( 3.06)
+
+
+
+q2                                                                           Ry        Rx        Rx        Ry        Ry        Rx
+                                                                            ( 1.57)     (0)     ( 2.24)   (2.37)    ( 2.37)   (2.24)
+
+
+
+q3
+
+q4     Rz        Rz        Ry        Ry        Rz        Rz        Ry        Ry        Rz
+      (3.13)    (1.28)    ( 3.12)   (3.12)    ( 1.28)   (1.22)    ( 1.56)   (1.56)    ( 1.22)
+
+
+
+q5
+
+q6     Rx
+        (0)
+
+
+
+q7
+
+q8
+
+q9
+
+q10    Rz        Rx        Ry        Ry        Rx
+      (3.08)    ( 1.6)      (0)       (0)      (1.6)
+
+
+
+q11    Rx
+      (1.73)
+
+
+
+
+FIG. S1: Ground state preparation circuit for LiH molecule described by N = 12 qubits, found by the developed MoG-VQE
+algorithm. Here an unoptimized platform-agnostic version is shown, which can be further compressed to reduce the single-qubit
+gate count when more rotations are considered. Blue gates are CNOTs, and purple blocks are rotations generated by X̂, Ŷ , Ẑ.
+

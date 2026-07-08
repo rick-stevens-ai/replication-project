@@ -1,0 +1,1417 @@
+QASMTrans: A QASM based Quantum Transpiler
+Framework for NISQ Devices
+Fei Hua∗† , Meng Wang∗¶ , Gushu Li‡ , Bo Peng∗ , Chenxu Liu∗ , Muqing Zheng∗ ,
+Samuel Stein∗ , Yufei Ding§ , Eddy Z. Zhang† , Travis S. Humble∥ , Ang Li∗
+∗ Pacific Northwest National Laboratory, † Rutgers University,
+‡ University of Pennsylvania, § University of California San Diego,
+
+arXiv:2308.07581v1 [quant-ph] 15 Aug 2023
+
+¶ The University of British Columbia, ∥ Oak Ridge National Laboratory
+
+transpilers such as those embedded in Qiskit [36] and Cirq [1]
+provide comprehensive functionalities, but are typically slow,
+especially for those deep circuits arising in practical quantum
+applications such as chemistry [4], [18], optimization [11],
+[48] and nuclear physics [14], [44]. Additionally, the slow
+transpilation speed limits their capability to explore larger
+design space and integrate more advanced but expensive
+optimizations. This is especially the case when dynamic circuit
+generation and transpilation is needed, such as in variational
+quantum algorithms (VQAs) [5], [42] and when optimized to
+mitigate state-dependent bias at runtime [46].
+
+Abstract—The success of a quantum algorithm hinges on the
+ability to orchestrate a successful application induction. Detrimental overheads in mapping general quantum circuits to physically implementable routines can be the deciding factor between
+a successful and erroneous circuit induction. In QASMTrans, we
+focus on the problem of rapid circuit transpilation. Transpilation
+plays a crucial role in converting high-level, machine-agnostic
+circuits into machine-specific circuits constrained by physical
+topology and supported gate sets. The efficiency of transpilation
+continues to be a substantial bottleneck, especially when dealing
+with larger circuits requiring high degrees of inter-qubit interaction. QASMTrans is a high-performance C++ quantum transpiler
+framework that demonstrates 10-369× speedups compared to
+the commonly used Qiskit transpiler. We observe speedups on
+large dense circuits such as ‘uccsd n24’ and ‘qft n320’ which
+require O(106 ) gates. QASMTrans successfully transpiles the
+aforementioned circuits in 69s and 31s, whilst Qiskit exceeded
+an hour of transpilation time. With QASMTrans providing
+transpiled circuits in a fraction of the time of prior transpilers,
+potential design space exploration, and heuristic-based transpiler
+design becomes substantially more tractable. QASMTrans is
+released at http://github.com/pnnl/qasmtrans.
+
+On the other hand, most of the research studies in academia
+have focused on specific transpilation techniques, such as
+gate decomposition, circuit optimization, mapping and routing, etc. [24] [53] [52]. These approaches lack end-to-end
+demonstrations and are often implemented and validated by
+embedding into or replacing part of the Python-based commercial frameworks such as Qiskit and Cirq. Consequently,
+they are also constrained by the limitations of the underlying
+frameworks, such as slow speed, difficulties in launching large
+circuits, binding to certain device features, lack of flexibility,
+and frequent interface upgrades, etc.
+
+I. I NTRODUCTION
+The past decade has witnessed tremendous development
+in Noisy Intermediate-Scale Quantum (NISQ) computers [9],
+[39], where a few hundred physical qubits are available with
+relatively limited coherence times and high error rates. These
+NISQ machines, while offering great potential, are constrained
+by various factors such as non-trivial noise [27] [45], limited
+connectivity [6] and machine-specific basis gate sets [26]. Due
+to the limited qubit number and short coherence time, effectively mapping application circuits to the constrained NISQ
+machine poses a considerable challenge and can significantly
+impact the fidelity of the execution results.
+Transpilation is the specific terminology referring to the
+compilation process of transforming a high-level quantum
+circuit into an equivalent circuit that is compatible with the
+specifications of a quantum device, including: basis gate set,
+topology of the quantum chip, timing constraints, fidelity of
+operations, etc. The goal of a transpiler is to perform this transformation while minimizing the impact on the functionality of
+the circuit and optimizing its performance delivery.
+Several attempts on quantum transpilation have already been
+made by the community (see a summary in Section V), but
+there are still technical gaps. On the one hand, commercial
+
+Challenging Circuits
+Simple Circuits
+
+Fig. 1: QASMTrans is designed to transpile challenging deep
+circuits from QASMBench [22], while broadly used tools such
+as Qiskit cannot finish within an hour.
+
+1
+
+In this paper, we present QASMTrans, an end-to-end, selfcontained, light-weight quantum transpiler entirely realized
+in C++ for effectively parsing and compiling large QASM
+circuits. QASMTrans comprises four major components:
+1) An IO module that uses a QASM Paser for parsing an
+input OpenQASM file, and translating it into a structure
+acting as the internal intermediate representation (IR).
+The output will export the transpiled QASM circuits
+for a particular NISQ device, such as those provided
+by IBMQ, Rigetti, IonQ, Quantinuum, etc.
+2) A Configuration module for preparing the coupling
+graph of the device, generating the DAG for the circuit,
+and decomposing the 3-qubit gates into 1-qubit and 2qubit gates.
+3) An Optimization module for the various optimization
+passes. This includes decomposition into basis gates,
+routing, and mapping. These passes are made with respect to the topology, basis gate set, fidelity, and features
+of the circuit. The goal of the backend optimization is to
+allow the circuits to run more efficiently on the targeted
+NISQ devices or simulators.
+4) A main Transpiler component to do the routing and
+mapping and also decompose into basis gates based on
+specific NISQ devices.
+
+Fig. 2: NISQ device topology: IBMQ-Guadalupe (left),
+Rigetti-Aspen (middle) and IonQ-QPU (right).
+
+II. BACKGROUND
+A. Noisy Intermediate-Scale Quantum (NISQ)
+NISQ systems refer to near-term quantum platforms featuring fifty to less than a thousand physical qubits [35]. These
+qubits are fabricated based on various technologies, such as
+superconducting [9], [39], trapped-ion [8], [20], photonic [2],
+[32], spin qubits [28], [34], neutral atoms [3], [13], etc. To
+accomplish the execution of a circuit, the physical qubits need
+to stay coherent for a sufficiently long time. However, before
+all the circuits can be executed on the real quantum machine,
+it must 1) fit the basis gates of the quantum machine and 2)
+meet the coupling constraints of the machine topology.
+1) Basis Gates: Each NISQ device has its own basis gate
+set [16], [17], [30], [37], known as the quantum instruction
+set architecture (QISA). It defines the basic operations that
+are physically supported by the underlying platform. During
+quantum transpilation, all the logic gates will be decomposed
+and transpiled into gate sequences purely formed by basis
+gates. Table II shows the basis gate set for IBMQ, Rigetti,
+IonQ and Quantinuum devices. Typically, quantum device
+vendors only provide profiling or calibration data for the basis
+gates (per qubit or system-wide average), including T1, T2,
+duration, fidelity, etc. These basis gates also represent the
+operations to be implemented by a classical simulator.
+2) Topology: Physical qubits in a quantum processor are
+interconnected. In a quantum device, the 1-qubit gates are
+directly performed on individual qubits. The 2-qubit gates,
+however, have to be performed on a qubit-pair that is interconnected. This is especially the case for superconducting
+devices (e.g., IBMQ and Rigetti), where the connectivity of
+qubits follow a certain topology, as shown in Figure 2. The
+topology thus limits the sites where two-qubit gates can be
+performed: if a two-qubit gate is desired for remote qubits, a
+series of SWAP gates are required to physically move the two
+qubits to a connected tuple following the path defined by the
+topology, known as routing. SWAP gates are costly, usually
+achieved through three CNOT or CX gates.
+These extra SWAPs are one of the major factors contributing
+to deep circuits and considerable noise for superconducting
+devices, as compared to contemporary small-scale trappedion devices practicing all-to-all connectivity (see Figure 2).
+Our previous study [43] shows that, for a 17-gate variational
+circuit, from the 5-qubit IBMQ Cairo to the 5-qubit IonQ QPU,
+a fidelity increase from 72% to 80% (ideally 97.8%) has been
+observed. This is mainly due to the 7 extra SWAP gates when
+transpiling to comply with the topology of IBMQ Cairo.
+
+QASMTrans is primarily designed as an open-source transpiler infrastructure serving as a baseline for implementing
+and validating advanced transpilation technologies while supporting novel devices and computation models. We evaluate
+QASMTrans using diverging circuits with some of them being
+quite challenging (from 4 to 420 qubits, and from 10 to 2.2M
+gates, see Figure 1) from QASMBench [22]. Remarkably, most
+of the benchmarks can be completed within a few seconds.
+Even the largest and most demanding benchmark that Qiskit
+cannot finish within an hour, can be transpiled by QASMTrans
+in 69s. This work thus makes the following main contributions:
+We propose an end-to-end, self-contained, light-weighted
+opensource quantum compiler in C++ that can significantly reduce the transpilation time for a wide range
+of applications, improving the efficiency of quantum
+computations on NISQ devices.
+• QASMTrans is equipped with optimization techniques for
+generating specific basis gates towards different target
+machines or classical simulators.
+• Through comprehensive experiments and analysis over
+multiple quantum platforms, we show that QASMTrans
+can transpile circuits with comparable fidelity on real
+NISQ devices from Rigetti, IBMQ, IonQ and Quantinuum, but at a much faster speed compared to existing
+transpilers such as Qiskit and MQT-Qmap [49].
+•
+
+The remainder of this paper is structured as follows: Section II provides background information. Section III presents
+the QASMTrans transpiler. Section IV shows the evaluation
+results. Section V summarizes related work about quantum
+transpilation. Section VI concludes.
+
+2
+
+TABLE I: OpenQASM gate definition (5 basic gates + 11 standard gates + 18 composition gates).
+Gates
+U3
+U2
+U1
+CX
+ID
+X
+Y
+Z
+H
+S
+SDG
+T
+
+Meaning
+3 parameter 2 pulse 1-qubit
+2 parameter 1 pulse 1-qubit
+1 parameter 0 pulse 1-qubit
+Controlled-NOT
+Idle gate or identity
+Pauli-X bit flip
+Pauli-Y bit and phase flip
+Pauli-Z phase flip
+Hadamard
+sqrt(Z) phase
+conjugate of sqrt(Z)
+sqrt(S) phase
+
+Gates
+TDG
+RX
+RY
+RZ
+CZ
+CY
+SWAP
+CH
+CCX
+CSWAP
+CRX
+CRY
+
+Meaning
+conjugate of sqrt(S)
+X-axis rotation
+Y-axis rotation
+Z-axis rotation
+Controlled phase
+Controlled Y
+Swap
+Controlled H
+Toffoli
+Fredkin
+Controlled RX rotation
+Controlled RY rotation
+
+TABLE II: Basis gates for IBM-Q, Rigetti, IonQ and Quantinuum NISQ devices.
+NISQ
+Technology
+IBMQ
+Superconducting
+Rigetti
+Superconducting
+IonQ
+Trapped-Ion
+Quantinuum
+Trapped-Ion
+
+1-qubit basis
+ID, RZ, SX, X
+RX, RZ
+GPI, GPI2, GZ
+RX, RZ
+
+Gates
+CRZ
+CU1
+CU3
+RXX
+RZZ
+RCCX
+RC3X
+C3X
+C3XSQRTX
+C4X
+
+Meaning
+Controlled RZ rotation
+Controlled phase rotation
+Controlled U3
+2-qubit XX rotation
+2-qubit ZZ rotation
+Relative-phase CXX
+Relative-phase 3-controlled X
+3-controlled X
+3-controlled sqrt(X)
+4-controlled X
+
+describes the backend device. We plan to support
+other input formats such as QIR [31] and Quil [41].
+• Output: Once the transpilation is complete, the
+circuit is saved to a new QASM file, primed for
+execution on real quantum hardware. QIR [31] is
+another format to be supported.
+
+2-qubit basis
+CX/ECR
+CZ (XY)
+MS
+ZZ
+
+2) QASMTrans Configuration:
+Gate Decomposition: In this phase, gates with three
+qubits are methodically broken down into combinations of one- and two-qubit gates. For example, the
+CCX gate will be decomposed into CX and T gates.
+• Directed Acyclic Graph (DAG): A DAG will be
+generated for the gates describing the dependency.
+In the DAG, every vertex represents a physical
+qubit, whereas each edge represents a coupling link.
+• Coupling Graph: We generate the coupling graph
+based on the input hardware JSON file, each vertex
+represents a physical qubit, and each edge represents
+the link between qubits. The coupling graph is
+essential for routing/mapping.
+•
+
+B. QASM
+OpenQASM (Open Quantum Assembly Language, we particularly refer to OpenQASM 2.0 in this work) [10], also
+known colloquially as QASM, is an intermediate representation (IR) of quantum instructions. QASM acts as a unified
+low-level assembly language for IBMQ and other quantum
+machines. Many of these NISQ devices, accessible through the
+IBMQ network [16], have been widely explored by existing
+works.
+Table I lists the types of gates that are defined in the
+QASM specification (i.e., the ”qelib1.inc” header file)
+[10]. Within these gates, the first five, i.e., U3, U2, U1, CX,
+and ID, are basic gates that are expected to be supported
+by the quantum backend. From X to RZ are standard gates
+defined atomically in OpenQASM. The remaining gates from
+CZ to C4X are composition gates that are constructed by
+standard gates. These gates are frequently used gates defined
+in qelib1.inc.
+OpenQASM 2.0 is a low-level IR, which is executed sequentially without any loops, branches, or jumps, making it
+very convenient for static analysis and simulating in a classical
+simulator [21], [23]. A QASM code can be directly launched in
+IBMQ or through Qiskit. With all these benefits, QASMTrans
+uses QASM as the primary format for input and output.
+
+3) QASMTrans Process:
+Routing and Mapping: This involves aligning the
+given quantum circuit to the specific topology of
+different quantum machines. To achieve this, we introduce SWAP gates where necessary. As a startingpoint, we implement the Sabre algorithm [24] that
+is also widely used in frameworks such as Qiskit
+and XACC [29].
+• Basis Gate Decomposition: Depending on the desired quantum machines, like Rigetti or Quantinuum, the circuit is further decomposed into the
+directly executable basis gates of the specific hardware.
+
+•
+
+III. QASMT RANS T RANSPILER
+
+4) Simulation-Oriented Optimization:
+We elaborate on the QASMTrans transpiler framework
+in this section, The main structure is shown in Figure 3.
+QASMTrans contains the following main components:
+
+•
+
+1) Input/Output (IO):
+• Input: QASMTrans starts with a QASM parser. The
+parser reads the QASM file, translates it into a
+gate IR. Meanwhile, the input module also extracts
+pertinent hardware details from a JSON file that
+
+3
+
+Simulation-Aware Constrained Routing: To date,
+many quantum circuits and algorithms are still evaluated in classical simulators. Given the exponential
+cost of having more qubits to simulate, in QASMTrans, we introduce a method that can limit the
+number and index of qubits used for the transpilation. This can significantly reduce the transpilation
+time as well as simulation time.
+
+•
+
+Qubit Priority Rescheduling: Based on userspecified qubit priorities, QASMTrans can optimize
+and realign the qubit mapping. This is especially
+useful for distributive classical simulation, as the
+number of gates over globally shared qubits can be
+minimized.
+
+Input
+QASMTrans Parser
+
+QASMTrans
+Con guration
+
+Quantum Circuit Machine Hardware
+(from qasm)
+Information (json)
+qasm
+
+A. QASM Parser
+The QASM parser is responsible for parsing the input
+OpenQASM to the internal gate IR, which will be discussed
+in more detail below.
+1) Tokenization using Lexertk: The parser begins its operation by tokenizing the QASM text, a process that involves breaking down the text into smaller chunks known
+as tokens. This is achieved by incorporating Lexertk [33], a
+high-performance lexer tool written in C++ and distributed
+through a single C++ header file. The parser of QASMTrans
+uses Lexertk to scan through the QASM code and breaks it
+down into various tokens. Each token is a string of characters
+that conforms to the Backus–Naur Form (BNF), an important
+notation technique for context-free grammars, defining a set
+of syntax rules for valid tokens.
+2) Qubit/Classical Register Management: The QASM
+parser automatically flattens the qubit register indices, and
+translates them into a singular range of qubit indices. This
+process significantly enhances the system’s proficiency for
+transpilation and simulation by replacing the typically used
+REG NAME[INDEX] qubit addressing, seen in QASM, with
+a more streamlined one-dimensional qubit range.
+Classical registers are used to store the outcomes of measurements from qubit registers, typically achieved through
+commands such as:
+
+CX q[0], q[1];
+H q[0];
+…
+
+json
+
+QIR
+
+Quil
+
+CX_coupling :
+[0_1,1_0…]
+…
+…
+
+Simulation
+Oriented
+Optimization
+
+Decompose
+Generate Coupling Graph
+3-qubit gates
+Generate
+DAG
+
+Coupling Graph
+
+Simulation-aware
+constraint Routing
+
+User- Guide
+Qubit Priority
+Q2 < Q1 < Q0
+
+Output
+cx, rz, id, sx, x
+
+rx, ry, cz
+
+u( ,Φ), rz, zz
+
+gpi, gpi2, gz, ms
+
+QASMTrans
+Transpile
+
+Mapping
+and Routing
+
+Decompose into
+basis gates
+H
+
+S
+
+Rz π/2
+
+sx
+
+T
+Rz -3π/4
+
+Fig. 3: QASMTrans framework, which includes four major
+components: 1) Input/Output: the Input is the parser that reads
+in QASM and stores them internally as gate IRs. The Output
+saves the transpiled circuit in the QASM format. 2) Configuration: perform pre-transpilation work such as generating the
+coupling graph, gate DAG, and 3-qubit gates decomposition.
+3) Simulation-oriented Optimization. 4) Transpilation, including mapping, routing, and decomposition into basis gates of
+the target device.
+𝜃
+
+fi
+
+Gate Parameters: Contains the parameters relevant to
+certain quantum gates.
+• Gate Matrix: Encapsulates the matrix representation of
+quantum gate, stored as two arrays — one for the real
+and the other for the imaginary components.
+•
+
+B. Transpile configuration
+Before the transpilation process, we need to perform some
+preliminary configuration.
+a) Generation Coupling Graph (full/limited): Based on
+the topology of the hardware device, we generate a coupling
+graph that embeds essential elements such as a distance
+matrix and an adjacent edge list. According to the size of the
+topology, there are two potential approaches: (i) Build the full
+graph for all the qubits and links. This, however, introduces
+excessive overhead towards large devices (e.g., the 433-qubit
+IBM Seattle). (ii) Alternatively, and in most cases, the qubit
+number of a circuit is smaller than that of the device. Thus
+we can limit the qubits and links of the device (through a
+partial coupling graph) that are taken into the transpilation
+consideration, drastically shrinking the search space.
+b) Directed Acyclic Graph (DAG) Generation: From the
+input circuit, a DAG can be constructed to indicate the gate
+dependency. For example, nodes with an in-degree of zero can
+be executed immediately without any dependency. Otherwise,
+any nodes with non-zero in-degree require all of their parent
+nodes to be executed beforehand to satisfy the dependency.
+Considering the efficiency, we only maintain two lists: one is
+the front list which contains executable gates; the other is the
+future list comprises gates for future execution.
+c) Decompose three-qubit gates: In our transpiler, we
+first decompose all the 3-qubit gates into 1-qubit and 2-qubit
+gates, given most of the quantum devices use 1-qubit and 2-
+
+measure q[0] → c[0];
+In this example, ‘q’ denotes a qubit register, and ‘c’ denotes
+a classical register. The QASM parser keeps track of the qubit
+register remapping, ensuring accurate measurement operations.
+3) Gate Sets and Abstraction: In the rapidly evolving
+field of quantum computing, it is crucial to have a robust
+and flexible system capable of accommodating an extensive
+range of quantum gates, from the most common to the more
+advanced. QASMTrans currently supports all the gates (except
+C4X) defined by the OpenQASM 2 specification, see Table I.
+The parser supports standard gates such as Pauli-X,
+Pauli-Y, Pauli-Z, Hadamard, CNOT, and Toffoli, as
+well as parameterized gates like RX, RY, RZ, and U gates. It
+also accommodates more complex gates like the SWAP gate
+and the controlled versions of various gates. These are by no
+means an exhaustive list, and the parser’s design allows for
+easy extension to incorporate additional or newer gate types.
+Key to the flexibility and functionality of the QASMTrans
+is the Gate IR. It is a custom C++ class that encapsulates four
+crucial aspects of each quantum gate:
+• Gate Name: Represents the type of quantum gate.
+• Target Qubits: Specifies the individual qubits upon
+which the quantum gate operation is performed.
+
+4
+
+qubit gates as the basis gate set. For example, the widely used
+Toffoli gate, or CCX gate, will be decomposed into 6 CX
+gates and 9 one-qubit gates.
+
+E. Statistics
+Based on the circuits, QASMTrans can print out the following circuit metrics based on statistics of the quantum gates in
+the circuit. The detailed definition can be found in [22].
+• Circuit Depth represents the minimum count of timeevolution steps needed to complete a quantum circuit,
+calculated based on standard QASM gates.
+• Gate Density indicates the utilization of gate slots during
+the time evolution of a quantum circuit, similar to pipeline
+occupancy in classical processors.
+• Retention Lifespan quantifies the maximum longevity
+of a qubit within a system. Its relationship with the T1
+and T2 time of the device dictates the feasibility of the
+circuit execution on the targeted device.
+• Measurement Density evaluates the importance of measurement operations in a circuit, with respect to the
+overall induction fidelity.
+• Entanglement Variance measures the balance of entanglement across the qubits for a circuit. It indicates the
+level of connectivity and the potential error reduction
+through an advanced transpiler.
+
+C. Routing and mapping
+After the initial decomposition of 3-qubit gates, the next
+step is to map the logical qubits to the physical qubits. Various
+strategies exist for performing this mapping and routing, with
+each method optimized for different targets. For instance,
+Sabre is designed to minimize the number of swaps required
+[24]. Time-optimal qubit mapping emphasizes minimizing the
+circuit depth [52]. The Noise-Adaptive approach is geared
+towards minimizing the error of the transpiled circuit [47].
+In QASMTrans, we use Sabre as the primary approach, due
+to its significant advantages in compilation time compared to
+the others. The major remaining overhead in Sabre routing and
+mapping includes:
+1) After the execution of each gate, we need to update the
+DAG and regenerate the new front list of gates with in-degree
+equals to 0 in the DAG (if the gate is in the execution list, its
+dependency must have already been satisfied and it is ready
+for execution). The original Sabre method traverses the entire
+circuit (i.e., all DAG nodes) and identifies the gates that are
+ready to be executed. As QASMTrans is designed to address
+very deep circuits, this cost of traversing can be huge. To
+accelerate this process, we propose to keep the same front layer
+for each step, but only delete the nodes that are just executed,
+and fetch any new gates whose dependencies are just resolved
+through the step. Given that in each time step, only n gates
+can be simultaneously executed, our proposed optimization
+can essentially reduce the searching cost of Sabre from O(G)
+where G is the total number of gates, to O(n) where n is the
+number of qubits. When the gate number is huge, the benefit
+of this improvement can be tremendous.
+2) When a SWAP operation is required, selecting the appropriate SWAP requires the calculation of all possible swaps,
+creating a large search space and significant overhead. This is
+particularly the case for large machine targets. Consequently,
+we propose a new method that prunes the pool of SWAP
+candidates by constraining the physical qubit area. This will
+be discussed in Section III-F.
+
+F. Simulation-oriented Optimization
+As mentioned, most of the contemporary circuit inductions are still performed through classical simulations. In
+QASMTrans, we propose two classical simulation-oriented
+optimizations during transpilation to generate circuits that can
+be simulated more efficiently.
+a) Constrained qubit routing/mapping: During the routing and mapping phase, instead of considering all the physical
+qubits of the device, we limit the number and coupling of
+qubits that will be considered during the transpilation, based
+on the number of logical qubits used in the circuit. This
+is achieved by first adopting the isomorphic algorithm to
+find the most relevant connected graph from the hardware
+architecture, using the number of logical qubits as input. The
+qubits of the obtained graph should contain equal or more
+qubits than the circuit logical qubits, but less or equal to the
+number of physical qubits in the device. We then refer to
+the routing algorithm as normal. Although constrained routing
+and mapping with partial graphs can lead to more swaps, the
+benefit of simulating fewer qubits can extraordinarily speed
+up the transpilation process.
+b) User-guided qubit prioritization: Another simulationoriented optimization is to enforce user-defined qubit prioritization. Users can specify a priority order such as q3 < q1 <
+q0 < q2, then for classical simulation, we can perform a qubit
+remapping with respect to this partial order. This is achieved
+by counting the number of gates performed on each qubit,
+sorting, and then re-indexing the qubits to assign high-priority
+qubits to perform more gates. For example, if q2 shows the
+best performance or least error rate, which is set to have the
+highest priority, the qubit with the most number of gates can be
+remapped to it. On the other hand, if the coefficients of q3 are
+distributed across multiple nodes for large-scale distributive
+simulation (i.e., a global qubit), because of the overwhelming
+
+D. Decompose to basis gates
+Here we perform the final decomposition towards the basis
+gates of the device after routing and mapping. The main
+consideration is efficiency and simplicity, as decomposing into
+basis gates before routing and mapping can drastically enlarge
+the search space during routing and mapping.
+The decomposition here is a translation from general gates
+to the targeted basis gates. The basis gate set for IBMQ,
+Rigetti, Quantinuum and IonQ can be found in Figure 3. The
+detailed translation rules can be found in the open-source code
+of QASMTrans.
+
+5
+
+Transpilation time (ms)
+
+cost from inter-node communication, it is set to the lowest
+priority, we would want the least number of gates to be mapped
+to q3.
+IV. E VALUATION
+A. Experimental setup
+We mainly use the NERSC Perlmutter HPC system for the
+evaluation. Perlmutter is built by HPE. Each of the Cray EX
+systems is equipped with an AMD EPYC 7763 CPU and
+four NVIDIA A100 GPUs. The other platforms used for the
+transpilation are listed in Table V. We compare QASMTrans
+to two state-of-the-art and most relevant quantum transpilers
+for comparison: Qiskit [36] (with Sabre algorithm [24]) and
+MQT-Qmap [49]. We focus on transpilation efficiency, quality,
+and fidelity. The efficiency is measured by transpilation time.
+The quality is measured by the depth, total number of gates,
+and number of CX gates of the transpiled circuit. The fidelity is
+measured by calculating the fidelity of execution for the transpiled circuit over five real quantum devices: IBM-Brisbane,
+Rigetti-AspenM2, IonQ-Aria1 and Quantinuum-H1-1). We test
+on different benchmark circuits varying from 10 qubits to 400
+qubits from QASMBench [22].
+
+106
+105
+
+QASMTrans
+Qiskit
+Qmap
+
+104
+103
+102
+101
+102
+
+103
+
+104
+
+105
+
+Gate Number
+
+106
+
+Fig. 4: Transpilation time with respect to the number of gates
+of the input circuits. The advantage of QASMTrans over
+Qiskit and Qmap is consistent. The last two points are for
+vqe uccsd n24 and qft where Qiskit and Qmap cannot finish
+transpilation in 1 hour, see Table IV.
+
+these input circuits, despite having already been transpiled,
+may go through another round of internal transpilation or
+optimization within the backend processing of the NISQ
+device. This is not under our control. However, we argue that
+this will not significantly impact the fidelity results since both
+input circuits go through the same backend processes.
+As can be seen in Figure 5, the fidelity with Qiskit result is
+quite consistent across input circuits and underlying hardware,
+with < 1% deviation. This underscores the robustness and
+stability of QASMTrans.
+
+B. Transpilation Efficiency and Quality
+The evaluation results are listed in Table IV. We use IBMQ
+devices as the transpilation target so that: (i) the basis gate set
+is X, SX, CX, and RZ; (ii) for topology, when the number of
+qubits of the circuit is less than 27, we use the topology of
+IBMQ Toronto. When it is larger than 27, we use the topology
+of the latest 433-qubit IBM Seattle as the objective device.
+Quality: Overall, QASMTrans can generate transpiled circuits
+with comparable depth, gates and 2-qubit gates as Qiskit and
+Qmap. The slight difference is due to the fact that as the initial effort, QASMTrans hasn’t yet implemented or integrated
+advanced front-end gate transformation & cancellation passes.
+
+IBM-QiskitTrans
+IBM-QASMTrans
+Rigetti-QiskitTrans
+Rigetti-QASMTrans
+
+Efficiency: As listed, QASMTrans shows a tremendous performance advantage over Qiskit and Qmap for the 16 benchmark
+circuits. The speedup can be as much as 369× over Qiskit and
+61× over Qmap. In particular, for some challenging circuits,
+such as the vqe uccsd n24 with 2.2M gates, and qft n320
+with 255K gates, neither Qiskit nor Qmap can produce transpiled circuits within a reasonable time (i.e., 1 hour), while
+QASM can accomplish in 69s and 31s, respectively.
+
+IonQ-QiskitTrans
+IonQ-QASMtrans
+Quantinuum-QiskitTrans
+Quantinuum-QASMtrans
+
+Fidelity
+
+0.8
+
+Scalability: We further look at the performance scalability.
+Figure 4 shows the scaling of the transpilation time with
+respect to the number of gates of the input circuits for
+the various benchmarks. As can be seen, the performance
+advantage over Qiskit and Qmap is quite consistent.
+
+0.6
+0.4
+0.2
+0.0
+
+C. Transpilation Fidelity
+
+W-state_n3
+
+Adder_n10
+
+BV_n10
+
+Tofolli_n3
+
+Fig. 5: QASMTrans fidelity analysis compared with Qiskit
+transpiler on different machines, the X-axis shows the benchmarks, and Y-axis shows the fidelity obtained on real NISQ
+machines (IBM ibm brisbane, Rigetti Aspen-M2, IonQ Aria1, and Quantinuum H2) with respect to the Qiskit results.
+
+To evaluate the correctness of transpilation, we use the
+transpiled circuits generated by Qiskit and QASMTrans as the
+inputs, and launch them onto four real NISQ devices (IBMQ,
+Rigetti, Quantinuum, and IonQ) to assess the difference in
+their induction results, shown in Figure 5. Please be aware that
+
+6
+
+TABLE IV: Evaluation of QASMTrans compared to Qiskit and Qmap in terms of transpilation quality and efficiency. ”X”
+implies no results obtained with an hour of transpilation time.
+Benchmarks
+square root
+vqe uccsd
+vqe uccsd
+sat
+bwt
+gcm
+hhl
+qaoa
+qec
+adder
+adder
+adder
+bv
+ghz
+qft
+ising
+
+Input Circuit Information
+Qubits 2q Gate Total Gates Depth
+18
+898
+2300
+1268
+8
+5488
+10808
+7252
+24
+1.5M
+2.2M
+1M
+11
+252
+679
+409
+21
+174K
+470K
+222K
+13
+762
+3148
+2447
+10
+72K
+186K
+147K
+6
+54
+270
+109
+5
+10
+25
+22
+4
+10
+23
+11
+10
+65
+142
+99
+64
+455
+988
+369
+140
+72
+352
+75
+255
+254
+255
+255
+320
+102K
+255K
+2549
+420
+838
+3614
+16
+
+Quality: Transpiled by Qiskit/Qmap/QASMTrans
+2q Basis Gates
+Total Basis Gates Transpiled Depth
+2663/2742/2911
+4079/4300/5665
+2663/2892/3112
+5975/5975/6070
+12K/19K/26K
+9K/10K/11K
+X/X/2.7M
+X/X/7.7M
+X/X/2.8M
+739/710/739
+1118/877/1229
+879/712/879
+648K/619K/640K 885K/812K/998K 598K/564K/601K
+1376/1168/1422
+3706/3554/3808
+2955/2654/2962
+95K/93K/103K
+241K/236K/312K 213K/211K/258K
+96/96/96
+887/906/1032
+205/257/243
+22/22/22
+48/37/49
+25/22/25
+16/16/16
+33/33/33
+18/18/18
+146/110/146
+278/219/287
+243/205/249
+2660/2198/2660
+3494/3255/3641
+2550/1958/2584
+444/434/496
+1281/1192/1468
+307/298/412
+797/797/813
+802/768/818
+802/798/818
+X/X/767K
+X/X/1.5M
+X/X/806K
+1382/1320/1672
+5062/5012/5089
+36/36/36
+
+47584149
+
+D. Optimization for Classical Simulation
+
+Average Simulation Time
+
+Both the constrained qubit routing/mapping and user-guided
+qubit prioritization presented in Section III-F can harvest
+performance gain for classical simulation. Constrained qubit
+routing/mapping limits the number of qubits for the simulation, for which the performance gain is quite obvious. Here,
+we mainly focus on demonstrating the benefit of user-guided
+qubit prioritization.
+We have already discussed why minimizing the number of
+gates over the global qubits can reduce the overhead from
+communication. Here, we use SV-Sim [21] as the classical simulator. We use all the 8 GPUs from 2 Perlmutter
+nodes for the distributive circuit simulation. Consequently, 3
+qubits are sharing their corresponding coefficients across the
+8 GPUs. Figure 6 shows the difference in simulation time
+for the transpiled circuits with and without user-guided qubit
+prioritization. As can be seen, the performance gain can be
+quite significant given the log-scale of the Y-axis. This benefit
+mainly comes from switching some expensive gates over the
+three global qubits to local qubits through the final remapping
+of qubit prioritization.
+
+Efficiency: Transpilation Time
+Qiskit
+Qmap
+QASMTrans
+1210 ms 392 ms
+39 ms
+4620 ms 2125 ms
+154 ms
+X
+X
+69 s
+715 ms 102 ms
+8 ms
+2544 s
+299 s
+6.9 s
+5.2 s
+652 ms
+40 ms
+782 s
+291 s
+2.4 s
+648 ms 148 ms
+4.2 ms
+193 ms
+61 ms
+5 ms
+203 ms
+98 ms
+4.9 ms
+396 ms 155 ms
+6.6 ms
+13.2 s
+6.7 s
+932 ms
+8.9 s
+2.5 s
+496 ms
+7.9 s
+2.1 s
+955 ms
+X
+X
+31 s
+1910 ms 491 ms
+59 ms
+
+Baseline
+Qubit-priority-optimization
+864
+
+103
+
+334
+169
+102
+
+88
+
+57
+20
+
+adder_n28 bv_n14
+
+sat_n11 adder_n10
+
+Fig. 6: Performance gain in classical simulation through userguided qubit prioritization using SV-Sim for the transpiled circuits on 8 GPUs of Perlmutter. Note, the Y-axis of simulation
+time is in log-scale.
+
+of a real quantum system or testbed, such as LBNL AQT.
+(ii) The transpilation speed across applications circuits and
+platforms is consistent. (iii) The majority (nearly 90%) of the
+transpilation time are devoted to routing and mapping for the
+current implementation of QASMTrans.
+
+E. Platform Portability
+We evaluate QASMTrans across different computing platforms, from various HPC systems, including NERSC Perlmutter, OLCF Frontier, Crusher, and Summit, ALCF Theta,
+to a desktop and laptop (Intel P8168 and Apple M2), to an
+embedded device (JetsonTX2 with ARM8). The platforms are
+listed in Table V. The results are shown in Figure 7. The
+transpilation on all the platforms can be finished within 100s
+and most of them below 1s.
+With these results, we have three observations: (i) QASMTrans can be portable on various platforms, given its efficient
+C++ based implementation and non-external library dependency (the json and lexertk are included as header files). In
+particular, the successful and efficient running on an ARM8
+CPU shows the potential of practical deployment on an FPGA
+
+V. R ELATED W ORK
+A. Quantum Intermediate Representation
+In quantum computing, gate IR provides an essential abstraction layer, offering a structured, machine-agnostic representation of quantum circuits. Among the existing quantum
+IRs, the Microsoft QIR [31] is an LLVM-based IR that
+defines a set of rules for representing quantum constructs.
+QIR attempts to serve as a common interface between various
+quantum languages (e.g., Q#) and platforms. QASM [10] is
+a widely recognized quantum assembly language developed
+
+7
+
+Single CPU Single Core Compilation Result
+Compilation Time (ms)
+
+bwt_n21
+
+gcm_h6
+
+hhl_n7
+
+qaoa_n6
+
+qram_n20
+
+sat_n11
+
+square_root_n18
+
+vqe_n24
+
+vqe_uccsd_n8
+
+Theta_Phi
+
+Apple_M2
+
+Summit
+
+Perlmutter
+
+105
+104
+103
+102
+101
+100
+
+Crusher
+
+Frontier
+
+Jetson_TX2
+
+DGX2
+
+Fig. 7: Compilation time on various platforms. The X-axis shows the name of different platforms, while the Y-axis is the
+compilation time using a single core of a CPU of the system. The empty bars indicate the condition that the compilation time
+is less than 1ms. The breakdown of each bar implies the time of (upper) routing & mapping, and (lower) decomposition. Please
+be aware that the Y-axis is in the log scale.
+TABLE V: Platforms for Portability Evaluation
+Platform
+MacBook
+Pro
+
+CPU
+
+Vendor
+
+Core
+
+Mem
+
+Apple M2
+
+Apple
+
+12
+
+16GB
+
+128
+
+256GB
+
+Authentic
+Perlmutter
+AMD
+AMD
+JetsonTX2
+ARMV8
+NVIDIA
+Authentic
+Crusher
+AMD
+AMD
+Authentic
+Frontier
+AMD
+AMD
+Summit
+POWER9
+IBM
+Tonga
+Intel P8168
+Intel
+Intel Phi
+Theta
+Intel
+7230 (KNL)
+
+opportunities from qubit reset [15]. Pulse transpilers delve into
+the nuances of low-level pulse scheduling, optimizing quantum
+operations at the physical layer [7], [12], [40]. AutoComm [51]
+and QuComm [50] present transpiler optimization techniques
+for distributive quantum devices. 3) Optimization for mapping/routing: there are a bunch of works aiming at improving
+general transpilation performance, like Sabre [24] and Zulhner
+[53] attempt to minimize the number of additional gates in
+mapping/routing. TOQM [52] aims at shrinking the depth of
+the transpiled circuit. Shi et al. [40] presents the complete
+transpilation and optimization flow, including gate aggregation
+and cancellation. QASMTrans falls into the third category,
+aiming at improving the transpilation performance of large
+and deep QASM circuits.
+
+Compiler
+AppleClang
+14.0.3
+g++ 11.2.0
+
+4
+
+8GB
+
+g++ 5.4.0
+
+128
+
+512GB
+
+g++ 12.2.0
+
+128
+
+512GB
+
+g++ 12.2.0
+
+176
+96
+
+512GB
+128GB
+
+g++ 9.1.0
+g++ 11.2.0
+
+256
+
+192GB
+
+intel 19.1.0
+
+by IBM for its hardware platforms and software tool-chain.
+Quil [38] is a portable quantum instruction language developed
+by Rigetti. Lastly, XACC (eXtreme-scale ACCelerator) [29] is
+a compilation framework for hybrid quantum-classical computing architectures developed at ORNL, supporting IBM,
+Rigetti, D-Wave QPUs and various classical simulators such
+as SV-Sim [21] and DM-Sim [23].
+
+VI. C ONCLUSION
+In this paper, we present QASMTrans, a C++ based quantum transpiler framework for NISQ devices. It outperforms
+prevalent counterparts, notably achieving up to more than
+300× speedups over the Qiskit transpiler. We demonstrate
+the quality, efficiency, and fidelity of QASMTrans across
+various classical and quantum platforms. Future work includes
+continuously improving QASMtrans by adding new passes
+such as gate cancellation, new platform support such as for
+distributed quantum computing and cavity-based systems, as
+well as the support of new input/output formats such as QIR.
+
+B. Quantum Transpilation
+Quantum transpiler plays a crucial role in quantum computing by translating high-level quantum algorithms into a series
+of low-level hardware-specific instructions that quantum hardware can execute. Qiskit is a widely used quantum software
+development package developed by IBM. The Qiskit transpiler
+provides a flexible and extensible framework, offering a wide
+array of compilation passes that can be combined in different
+ways to create customized and hardware-tailored transpilation
+pipelines.
+In addition to Qiskit, there are various transpilers aiming
+at different purposes: 1) application-oriented transpilation:
+These transpilers focus on specific domain applications. For
+example, Paulihedral [25] focuses on VQE, Twoqan [19]
+concentrates on QAOA circuits. 2) hardware-oriented transpilation: These transpilers focus on supporting the new features of a particular quantum platform. For instance, CaQR
+emphasizes the support for dynamic circuit generation and the
+
+ACKNOWLEDGEMENT
+This material is mainly based upon work supported by the
+U.S. Department of Energy, Office of Science, National Quantum Information Science Research Centers, Co-design Center
+for Quantum Advantage (C2QA) under contract number DESC0012704. The contribution from Meng Wang, Yufei Ding,
+and Travis Humble are supported by the U.S. Department
+of Energy, Office of Science, National Quantum Information
+Science Research Centers, Quantum Science Center (QSC).
+This research used resources of the Oak Ridge Leadership
+Computing Facility, which is a DOE Office of Science User
+Facility supported under Contract DE-AC05-00OR22725. This
+research used resources of the National Energy Research
+
+8
+
+Scientific Computing Center (NERSC), a U.S. Department of
+Energy Office of Science User Facility located at Lawrence
+Berkeley National Laboratory, operated under Contract No.
+DE-AC02-05CH11231. We acknowledge support from Microsoft’s Azure Quantum for providing credits and access
+to the ion-trap quantum hardware. The Pacific Northwest
+National Laboratory is operated by Battelle for the U.S.
+Department of Energy under Contract DE-AC05-76RL01830.
+
+[21] A. Li, B. Fang, C. Granade, G. Prawiroatmodjo, B. Heim, M. Roetteler, and S. Krishnamoorthy, “Sv-sim: Scalable pgas-based state vector
+simulation of quantum circuits,” in Proceedings of the International
+Conference for High Performance Computing, Networking, Storage and
+Analysis, 2021, pp. 1–14.
+[22] A. Li, S. Stein, S. Krishnamoorthy, and J. Ang, “Qasmbench: A lowlevel quantum benchmark suite for nisq evaluation and simulation,” ACM
+Transactions on Quantum Computing, vol. 4, no. 2, pp. 1–26, 2023.
+[23] A. Li, O. Subasi, X. Yang, and S. Krishnamoorthy, “Density matrix
+quantum circuit simulation via the bsp machine on modern gpu clusters,”
+in Sc20: international conference for high performance computing,
+networking, storage and analysis. IEEE, 2020, pp. 1–15.
+[24] G. Li, Y. Ding, and Y. Xie, “Tackling the qubit mapping problem
+for nisq-era quantum devices,” in Proceedings of the Twenty-Fourth
+International Conference on Architectural Support for Programming
+Languages and Operating Systems. ACM, 2019, pp. 1001–1014.
+[25] G. Li, A. Wu, Y. Shi, A. Javadi-Abhari, Y. Ding, and Y. Xie, “Paulihedral: a generalized block-wise compiler optimization framework for
+quantum simulation kernels,” in Proceedings of the 27th ACM International Conference on Architectural Support for Programming Languages
+and Operating Systems, 2022, pp. 554–569.
+[26] S. F. Lin, S. Sussman, C. Duckering, P. S. Mundada, J. M. Baker, R. S.
+Kumar, A. A. Houck, and F. T. Chong, “Let each quantum bit choose
+its basis gates,” in 2022 55th IEEE/ACM International Symposium on
+Microarchitecture (MICRO). IEEE, 2022, pp. 1042–1058.
+[27] F. B. Maciejewski, Z. Zimborás, and M. Oszmaniec, “Mitigation of
+readout noise in near-term quantum devices by classical post-processing
+based on detector tomography,” Quantum, vol. 4, p. 257, 2020.
+[28] R. Maurand, X. Jehl, D. Kotekar-Patil, A. Corna, H. Bohuslavskyi,
+R. Laviéville, L. Hutin, S. Barraud, M. Vinet, M. Sanquer et al., “A
+cmos silicon spin qubit,” Nature communications, vol. 7, no. 1, pp. 1–6,
+2016.
+[29] A. J. McCaskey, D. I. Lyakh, E. F. Dumitrescu, S. S. Powers, and T. S.
+Humble, “XACC: a system-level software infrastructure for heterogeneous quantum–classical computing,” Quantum Science and Technology,
+vol. 5, no. 2, p. 024002, 2020.
+[30] Microsoft,
+“Azure
+honeywell
+provider,”
+uRL:
+https://docs.microsoft.com/en-us/azure/quantum/provider-honeywell.
+[31] Microsoft, “Quantum intermediate representation,” 2023. [Online].
+Available: https://learn.microsoft.com/en-us/azure/quantum/concepts-qir
+[32] J. L. O’Brien, A. Furusawa, and J. Vučković, “Photonic quantum
+technologies,” Nature Photonics, vol. 3, no. 12, p. 687, 2009.
+[33] A. Partow, “Simple c++ lexer toolkit library,” https://github.com/
+ArashPartow/lexertk.
+[34] J. J. Pla, K. Y. Tan, J. P. Dehollain, W. H. Lim, J. J. Morton, D. N.
+Jamieson, A. S. Dzurak, and A. Morello, “A single-atom electron spin
+qubit in silicon,” Nature, vol. 489, no. 7417, pp. 541–545, 2012.
+[35] J. Preskill, “Quantum computing in the nisq era and beyond,” Quantum,
+vol. 2, p. 79, 2018.
+[36] QISKit: Open Source Quantum Information Science Kit, https://https:
+//qiskit.org/.
+[37] Rigetti, “Native gates for rigetti qpus,” uRL: https://pyquildocs.rigetti.com/en/v2.7.0/apidocs/gates.html.
+[38] Rigetti, “Quil: A portable quantum instruction language,” uRL:
+https://github.com/quil-lang/quil.
+[39] C. Rigetti, J. M. Gambetta, S. Poletto, B. Plourde, J. M. Chow,
+A. Córcoles, J. A. Smolin, S. T. Merkel, J. Rozen, G. A. Keefe et al.,
+“Superconducting qubit in a waveguide cavity with a coherence time
+approaching 0.1 ms,” Physical Review B, vol. 86, no. 10, p. 100506,
+2012.
+[40] Y. Shi, N. Leung, P. Gokhale, Z. Rossi, D. I. Schuster, H. Hoffmann,
+and F. T. Chong, “Optimized compilation of aggregated instructions
+for realistic quantum computers,” in Proceedings of the Twenty-Fourth
+International Conference on Architectural Support for Programming
+Languages and Operating Systems, ser. ASPLOS ’19. New York,
+NY, USA: ACM, 2019, pp. 1031–1044. [Online]. Available: http:
+//doi.acm.org/10.1145/3297858.3304018
+[41] R. S. Smith, M. J. Curtis, and W. J. Zeng, “A practical quantum
+instruction set architecture,” arXiv preprint arXiv:1608.03355, 2016.
+[42] S. Stein, N. Wiebe, Y. Ding, P. Bo, K. Kowalski, N. Baker, J. Ang,
+and A. Li, “Eqc: ensembled quantum computing for variational quantum
+algorithms,” in Proceedings of the 49th Annual International Symposium
+on Computer Architecture, 2022, pp. 59–71.
+
+R EFERENCES
+[1] “Cirq, a python framework for creating, editing, and
+invoking noisy intermediate scale quantum (nisq) circuits,”
+urlhttps://github.com/quantumlib/Cirq.
+[2] A. Aspuru-Guzik and P. Walther, “Photonic quantum simulators,” Nature
+physics, vol. 8, no. 4, pp. 285–291, 2012.
+[3] H.-J. Briegel, T. Calarco, D. Jaksch, J. I. Cirac, and P. Zoller, “Quantum
+computing with neutral atoms,” Journal of modern optics, vol. 47, no.
+2-3, pp. 415–451, 2000.
+[4] Y. Cao, J. Romero, J. P. Olson, M. Degroote, P. D. Johnson,
+M. Kieferová, I. D. Kivlichan, T. Menke, B. Peropadre, N. P. Sawaya
+et al., “Quantum chemistry in the age of quantum computing,” Chemical
+reviews, vol. 119, no. 19, pp. 10 856–10 915, 2019.
+[5] M. Cerezo, A. Arrasmith, R. Babbush, S. C. Benjamin, S. Endo, K. Fujii,
+J. R. McClean, K. Mitarai, X. Yuan, L. Cincio et al., “Variational
+quantum algorithms,” Nature Reviews Physics, vol. 3, no. 9, pp. 625–
+644, 2021.
+[6] C. Chamberland, G. Zhu, T. J. Yoder, J. B. Hertzberg, and A. W.
+Cross, “Topological and subsystem codes on low-degree graphs with
+flag qubits,” Physical Review X, vol. 10, no. 1, p. 011022, 2020.
+[7] Y. Chen, Y. Jin, F. Hua, A. Hayes, A. Li, Y. Shi, and E. Z. Zhang,
+“A pulse generation framework with augmented program-aware basis
+gates and criticality analysis,” in 2023 IEEE International Symposium
+on High-Performance Computer Architecture (HPCA). IEEE, 2023, pp.
+773–786.
+[8] J. I. Cirac and P. Zoller, “Quantum computations with cold trapped ions,”
+Physical review letters, vol. 74, no. 20, p. 4091, 1995.
+[9] J. Clarke and F. K. Wilhelm, “Superconducting quantum bits,” Nature,
+vol. 453, no. 7198, pp. 1031–1042, 2008.
+[10] A. W. Cross, L. S. Bishop, J. A. Smolin, and J. M. Gambetta, “Open
+quantum assembly language,” arXiv preprint arXiv:1707.03429, 2017.
+[11] V. Dunjko and H. J. Briegel, “Machine learning & artificial intelligence
+in the quantum domain: a review of recent progress,” Reports on
+Progress in Physics, vol. 81, no. 7, p. 074001, 2018.
+[12] P. Gokhale, A. Javadi-Abhari, N. Earnest, Y. Shi, and F. T. Chong,
+“Optimized quantum compilation for near-term algorithms with openpulse,” in 2020 53rd Annual IEEE/ACM International Symposium on
+Microarchitecture (MICRO). IEEE, 2020, pp. 186–200.
+[13] L. Henriet, L. Beguin, A. Signoles, T. Lahaye, A. Browaeys, G.-O.
+Reymond, and C. Jurczak, “Quantum computing with neutral atoms,”
+Quantum, vol. 4, p. 327, 2020.
+[14] Z. Holmes, G. Muraleedharan, R. D. Somma, Y. Subasi, and
+B. Şahinoğlu, “Quantum algorithms from fluctuation theorems: Thermalstate preparation,” Quantum, vol. 6, p. 825, 2022.
+[15] F. Hua, Y. Jin, Y. Chen, S. Vittal, K. Krsulich, L. S. Bishop, J. Lapeyre,
+A. Javadi-Abhari, and E. Z. Zhang, “Caqr: A compiler-assisted approach
+for qubit reuse through dynamic circuit,” in Proceedings of the 28th ACM
+International Conference on Architectural Support for Programming
+Languages and Operating Systems, Volume 3, 2023, pp. 59–71.
+[16] IBM, “IBM Quantum,” uRL: https://quantum-computing.ibm.com/.
+[17] IonQ, “Best practices for using ionq hardware,” uRL:
+https://ionq.com/best-practices.
+[18] W. Kauzmann, Quantum chemistry: an introduction. Elsevier, 2013.
+[19] L. Lao and D. E. Browne, “2qan: A quantum compiler for 2-local
+qubit hamiltonian simulation algorithms,” 2021. [Online]. Available:
+https://arxiv.org/abs/2108.02099
+[20] D. Leibfried, R. Blatt, C. Monroe, and D. Wineland, “Quantum dynamics
+of single trapped ions,” Reviews of Modern Physics, vol. 75, no. 1, p.
+281, 2003.
+
+9
+
+[43] S. A. Stein, B. Baheri, D. Chen, Y. Mao, Q. Guan, A. Li, S. Xu, and
+C. Ding, “Quclassi: A hybrid deep neural network architecture based on
+quantum state fidelity,” Proceedings of Machine Learning and Systems,
+vol. 4, pp. 251–264, 2022.
+[44] I. Stetcu, A. Baroni, and J. Carlson, “Projection algorithm for state
+preparation on quantum computers,” arXiv preprint arXiv:2211.10545,
+2022.
+[45] S. S. Tannu and M. Qureshi, “Ensemble of diverse mappings:
+Improving reliability of quantum computers by orchestrating dissimilar
+mistakes,” in Proceedings of the 52nd Annual IEEE/ACM International
+Symposium on Microarchitecture, ser. MICRO ’52. New York, NY,
+USA: Association for Computing Machinery, 2019, p. 253–265.
+[Online]. Available: https://doi.org/10.1145/3352460.3358257
+[46] S. S. Tannu and M. K. Qureshi, “Mitigating measurement errors in quantum computers by exploiting state-dependent bias,” in Proceedings of the
+52nd annual IEEE/ACM international symposium on microarchitecture,
+2019, pp. 279–290.
+[47] S. S. Tannu and M. K. Qureshi, “Not all qubits are created equal:
+A case for variability-aware policies for nisq-era quantum computers,”
+in Proceedings of the Twenty-Fourth International Conference on
+Architectural Support for Programming Languages and Operating
+Systems, ser. ASPLOS ’19. New York, NY, USA: ACM, 2019, pp. 987–
+999. [Online]. Available: http://doi.acm.org/10.1145/3297858.3304007
+[48] A. Wichert, Principles of quantum artificial intelligence: quantum
+problem solving and machine learning. World Scientific, 2020.
+[49] R. Wille and L. Burgholzer, “Mqt qmap: efficient quantum circuit
+mapping,” in Proceedings of the 2023 International Symposium on
+Physical Design, 2023, pp. 198–204.
+[50] A. Wu, Y. Ding, and A. Li, “Collcomm: Enabling efficient collective quantum communication based on epr buffering,” arXiv preprint
+arXiv:2208.06724, 2022.
+[51] A. Wu, H. Zhang, G. Li, A. Shabani, Y. Xie, and Y. Ding, “Autocomm:
+A framework for enabling efficient communication in distributed quantum programs,” in 2022 55th IEEE/ACM International Symposium on
+Microarchitecture (MICRO). IEEE, 2022, pp. 1027–1041.
+[52] C. Zhang, A. Hayes, L. Qiu, Y. Jin, Y. Chen, and E. Z. Zhang,
+“Time-optimal qubit mapping,” in Proceedings of the Twenty-Sixth
+International Conference on Architectural Support for Programming
+Languages and Operating Systems, ser. ASPLOS ’21. Virtual: ACM,
+2021.
+[53] A. Zulehner, A. Paler, and R. Wille, “Efficient mapping of quantum
+circuits to the ibm qx architectures,” in 2018 Design, Automation &
+Test in Europe Conference & Exhibition (DATE). IEEE, 2018, pp.
+1135–1138.
+
+10
+
+

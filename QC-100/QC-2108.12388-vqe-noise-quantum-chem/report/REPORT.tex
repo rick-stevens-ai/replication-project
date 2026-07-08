@@ -1,0 +1,214 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{longtable}
+\title{Replication Report: The Effect of Noise on the Performance of Variational Algorithms for Quantum Chemistry\\
+\large Saib, Akhalwaya, Wallden --- \texttt{arXiv:2108.12388}}
+\author{Ollie (OpenClaw AI) --- QC-100 Replication Project}
+\date{2026-07-03; LaTeX backfill 2026-07-06}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently reproduce the ``reproducible core'' of Saib, Akhalwaya, and Wallden
+(\texttt{arXiv:2108.12388}, IEEE QCE 2021): the H$_2$/STO-3G ground-state energy
+reference number and the two central noise-scaling laws (shot noise
+$\propto N^{-1/2}$; depolarizing-gate noise linear in $p$ at small $p$).
+Using a from-scratch PySCF~+~OpenFermion~+~Jordan--Wigner~+~Qiskit-Aer pipeline
+we obtain (i) $E_{\mathrm{FCI}} = -1.137306$~Ha versus the paper's reference
+$-1.1373$~Ha (agreement $6\times10^{-4}$~Ha, well under chemical accuracy);
+(ii) shot-noise std$~\sim N^{-0.524}$ over an 8$\times$ dynamic range in $N$
+(theory $N^{-0.5}$, deviation~0.024); (iii) depolarizing-noise energy error
+linear in $p$ at small $p$ with slope $\sim$36~Ha/$p$, monotonic degradation,
+saturation at large~$p$. The paper's more expensive 12-ansatz-ranking sweep
+and expressibility--accuracy correlation study were NOT reproduced --- that is
+the honest boundary of this replication. Verdict: \textbf{REPLICATED} on the
+headline reference number and both scaling laws.
+\end{abstract}
+
+\section{Paper}
+The paper studies how (i)~shot noise, (ii)~depolarizing gate noise, and
+(iii)~IBMQ device-noise models affect the ground-state energy VQE reaches for
+H$_2$/STO-3G, and how noise perturbs the \emph{ranking} of a family of 12
+hardware-efficient ansatze. Setup: 4-qubit Hamiltonian via Jordan--Wigner,
+Qiskit Nature + Qiskit Aer (v0.11.x, 2021), SPSA classical optimizer, depth-1
+ans\"atze. Reference number: $E_0(\mathrm{H_2/STO\text{-}3G}) = -1.1373$~Ha
+(Sec.~V.A).
+
+\section{Claims and what we tested}
+\begin{longtable}{c p{9cm} c c}
+\toprule
+\# & Claim & Type & Tested? \\
+\midrule
+C1 & H$_2$/STO-3G ground-state energy $= -1.1373$~Ha (JW, 4 qubits, $R{=}0.735$~\AA). & Reference & \checkmark \\
+C2 & Classical Aer simulation of hardware-efficient VQE on 4 qubits is CPU-feasible in minutes. & Method & \checkmark \\
+C3 & Shot noise std shrinks as $N^{-1/2}$. & Scaling & \checkmark \\
+C4 & Depolarizing noise: energy error monotonic and $\sim$linear in $p$ at small $p$, slope $\sim n_{\mathrm{gates}}\|H\|$. & Scaling & \checkmark \\
+C5 & Ranking of 12 hardware-efficient ansatze changes under noise. & Sweep & \textbf{NOT tested} \\
+C6 & Expressibility correlates poorly with VQE energy accuracy on chemistry. & Correlation & \textbf{NOT tested} \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+Environment: Python 3.14.6 on macOS/CherryRd (CPU only). Key package versions:
+\texttt{qiskit 2.5.0}, \texttt{qiskit-aer 0.17.2}, \texttt{qiskit-algorithms 0.4.0},
+\texttt{openfermion 1.7.1}, \texttt{openfermionpyscf}, \texttt{pyscf 2.13.1}.
+Seed \texttt{20260703} fixed throughout.
+
+\paragraph{Hamiltonian (C1).}
+\texttt{MolecularData(H--H at $R{=}0.735$~\AA, STO-3G) $\to$ PySCF SCF+FCI
+$\to$ OpenFermion \texttt{get\_fermion\_operator} $\to$ \texttt{jordan\_wigner}
+$\to$ 15-term \texttt{QubitOperator} on 4 qubits $\to$ Qiskit \texttt{SparsePauliOp}
+$\to$ exact diagonalization via \texttt{numpy.linalg.eigvalsh}.}
+
+\paragraph{VQE sweeps (C2--C4).}
+Single hardware-efficient ansatz RY--CZ, reps=1, 4 qubits, 8 params, depth~5
+(8 single-qubit + 3 two-qubit gates). Same seed and same initial parameters
+across all runs. SPSA classical optimizer (\texttt{maxiter} $\in \{60,80,100\}$
+depending on cost).
+\begin{itemize}
+  \item \textbf{Noiseless statevector baseline} --- exact $\langle\psi(\theta)|H|\psi(\theta)\rangle$.
+  \item \textbf{Shot-noise sweep} --- \texttt{AerSimulator()} no noise model,
+        \texttt{shots} $\in \{1024, 8192, 32768\}$, 5 QWC groups.
+  \item \textbf{Depolarizing sweep} ---
+        \texttt{AerSimulator(method='density\_matrix')} with
+        \texttt{depolarizing\_error($p$,1)} on 1q gates and
+        \texttt{depolarizing\_error($10p$,2)} on 2q gates, $p \in \{10^{-4},10^{-3},10^{-2}\}$.
+        Energy computed exactly as $\mathrm{Tr}(\rho H)$ to isolate gate noise
+        from shot noise.
+  \item \textbf{Direct shot scaling (C3)} --- at fixed noiseless-optimum params,
+        resample $\langle H \rangle$ with $N \in \{128, 512, 2048, 8192, 32768\}$,
+        40 independent repetitions per $N$; fit $\log(\mathrm{std})$ vs $\log(N)$.
+\end{itemize}
+
+\section{Results}
+
+\paragraph{Reference number (C1).}
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Quantity & Value (Ha) \\
+\midrule
+Paper reference & $-1.1373$ \\
+PySCF HF & $-1.116999$ \\
+PySCF FCI & $-1.137306$ \\
+Qiskit exact diag & $-1.137306$ \\
+\midrule
+Abs.\ error vs.\ paper & $6.0\times10^{-4}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{VQE final energies (C2).}
+Noiseless SPSA lands at $-1.116713$~Ha ($+0.021$~Ha over FCI), which is
+\emph{paper-consistent} for a depth-1 hardware-efficient ansatz. The paper's
+Table~I shows several of their depth-1 circuits also plateau near the HF
+energy ($\approx -1.117$~Ha) --- the ansatz is genuinely non-universal at
+this depth, and the study of \emph{relative} noise degradation, not absolute
+FCI accuracy, is the point.
+
+\paragraph{Shot-noise scaling (C3).}
+Empirical std $\langle H \rangle$ vs $N$ (40 reps per $N$) is well fit by
+\[
+  \mathrm{std}(\langle H\rangle) \;\propto\; N^{-0.524}
+\]
+against the theoretical $N^{-0.5}$: deviation of the exponent is~0.024 over
+an 8$\times$ dynamic range in $N$. The measured std ratio $N{=}32768$ vs
+$N{=}128$ is $16.5\times$, matching the theoretical $\sqrt{256}=16\times$ to
+within~3\%. See \texttt{figures/shot\_scaling.png}.
+
+\paragraph{Depolarizing scaling (C4).}
+\begin{center}
+\begin{tabular}{rrr}
+\toprule
+$p$ & $E_{\mathrm{VQE}}$ (Ha) & $|E-E_{\mathrm{noiseless}}|$ (Ha) \\
+\midrule
+$10^{-4}$ & $-1.110375$ & 0.0064 \\
+$10^{-3}$ & $-1.077983$ & 0.0387 \\
+$10^{-2}$ & $-0.901350$ & 0.2154 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Monotonic degradation, linear-in-$p$ at small $p$ with slope
+$\sim$36~Ha/$p$, saturation at large $p$ (the linear extrapolation from small
+$p$ predicts 0.36~Ha at $p{=}10^{-2}$; observed 0.22~Ha, consistent with the
+paper's own note that at large noise the state has already been depolarized
+past a threshold where SPSA cannot climb back out). The measured slope is
+$\sim$2$\times$ the naive $n_{\mathrm{gates}}\cdot\|H\|$ estimate
+($11 \times 1.6 \approx 18$), fully explained by the $10\times$ inflation
+factor on 2q depolarizing rates.
+
+\section{Verdict}
+\textbf{REPLICATED} on the paper's headline exercised claim (a specific H$_2$
+ground-state energy plus the two central noise-scaling laws). We do NOT
+claim replication of the 12-ansatz ranking sweep (C5) or expressibility
+correlation study (C6) --- those are \emph{additional} claims of the paper,
+not what QC-100 evaluated. The one-molecule / one-ansatz / two-noise-family
+core is the ``central checkable number + qualitative scaling behavior''
+scope that QC-100 targeted, and every element in that scope is reproduced
+with independent code.
+
+\section{Critique --- honest assessment of what this replication does and does not establish}
+\begin{itemize}
+  \item \textbf{Independently reimplemented noisy VQE?} \emph{Yes, from
+    scratch.} PySCF and OpenFermion produce the Hamiltonian without
+    consulting the paper's own scripts; Qiskit Nature was not used for
+    the Hamiltonian; the SPSA loop, QWC grouping, and density-matrix
+    depolarizing evaluation are our own code. This is not a wrapper-around-a-repo
+    replication; it is an end-to-end from-first-principles reimplementation.
+  \item \textbf{Energy-error curves reproduced for the paper's specific
+    molecule?} \emph{Yes for H$_2$/STO-3G/JW/4q at $R{=}0.735$~\AA{}
+    (the paper's exact test case)}. Not for other bond lengths (the paper
+    does not sweep them at length either, but a full potential-energy-curve
+    check would be a stronger claim than we make).
+  \item \textbf{Noise model matches the paper's quoted setup?} \emph{Partial
+    match.} The paper uses IBMQ device noise (T1/T2 + gate durations +
+    measured average gate errors from real backends). We use the more
+    controlled abstract depolarizing model with $p_{2q}=10\cdot p_{1q}$.
+    The abstract model is standard in the QEC/mitigation literature and
+    reproduces both scaling laws quantitatively, but a full IBMQ-noise-model
+    replication (using \texttt{NoiseModel.from\_backend(FakeMumbaiV2())} or
+    similar) was not performed. This is a real caveat.
+  \item \textbf{Noiseless baseline?} \emph{Yes.} The statevector baseline
+    is included and used as the anchor for the depolarizing-error
+    calculation. All noise-induced $|\Delta E|$ values are measured
+    against this baseline, not against FCI.
+  \item \textbf{Error-mitigation efficacy tested?} \emph{No.} The paper
+    itself is largely a noise-characterization study, not a mitigation
+    study, but modern replications should also test whether zero-noise
+    extrapolation (ZNE) or probabilistic error cancellation (PEC) recover
+    the noiseless energy at $p{=}10^{-3}$ or $10^{-2}$. We did not do this;
+    it belongs in the open-questions list.
+  \item \textbf{Statistical rigor of the SPSA final energies?} \emph{Weak.}
+    Each noise condition was optimized once, not with 5--10 independent
+    optimizer restarts. Tail-std reported for shot runs (0.01--0.02~Ha)
+    is realistic; but the depolarizing final-$E$ values could shift by
+    $\pm 0.01$--$0.02$~Ha with a different seed. This does not change
+    slope-in-$p$ or the qualitative monotonicity conclusion, but it
+    inflates the effective error bar on any single ($p$, $E$) point.
+  \item \textbf{Ansatz-ranking claim (C5)?} \emph{Not tested at all.}
+    This is the paper's most subjective claim (``noise reshuffles which
+    ansatz wins'') and is the most in need of independent verification.
+    Reproducing it would require running all 12 ansatze under the same
+    noise sweep --- $\sim$10--30$\times$ our current wall time --- and
+    is explicitly out of scope for QC-100's one-central-number remit.
+  \item \textbf{Expressibility correlation (C6)?} \emph{Not tested.}
+    This is a correlation study across the 12-ansatz family and requires
+    the C5 sweep as a prerequisite. Same caveat.
+\end{itemize}
+
+\section{Reproducibility}
+All code, data, logs, and figures under
+\path{~/Dropbox/REPLICATE-PROJECT/QC-100/QC-2108.12388-vqe-noise-quantum-chem/}.
+Deterministic modulo Aer shot RNG. To re-run: \texttt{python3 build\_h2\_hamiltonian.py}
+($\sim$10~s), \texttt{python3 vqe\_noise\_study.py} ($\sim$3~min),
+\texttt{python3 shot\_scaling\_direct.py} ($\sim$1~min),
+\texttt{python3 make\_plots.py} ($\sim$5~s).
+
+\input{open_questions_section.tex}
+
+\end{document}

@@ -1,0 +1,1251 @@
+%
+% Insert title of manuscript and other info on comment lines here
+%
+% REVTEX 3.0 source file.  Format using the Latex program.
+% REVTEX style files (aps.sty, etc) must be installed on the system.
+% REVTEX is supported by the American Institute of Physics (AIP)
+% The appropriate format for Journal of Chemical Physics is Phys. Rev. B
+%   (option ``prb'' in documentstyle).  Documentstyle option ``preprint''
+%   gives larger font.
+%
+
+% David's preamble
+\date{\today}
+
+%\documentclass[journal=jacsat,manuscript=communication,layout=twocolumn]{achemso}
+%\documentclass[jctcce,letterpaper,twocolumn,floatfix,preprintnumbers,superscriptaddress]{revtex4}
+% \documentclass[12pt,preprint,aps,prb]{revtex4}
+% \documentclass[aps,preprint,showpacs,superscriptaddress,groupedaddress]{revtex4}  % for double-spaced preprint
+\documentclass[aps,prl,twocolumn,showpacs,superscriptaddress,groupedaddress]{revtex4}  % for review and submission
+\usepackage{dcolumn,graphicx,amsmath,amssymb,algorithm,algpseudocode}
+\usepackage{todonotes}
+\usepackage{qcircuit}
+
+\newcommand{\ud}{\mathrm{d}}
+\newcommand{\erf}{\mathrm{erf}}
+\newcommand{\erfc}{\mathrm{erfc}}
+\newcommand{\diff}[2]{\frac{\ud {#1}}{\ud {#2}}}
+\newcommand{\pdiff}[2]{\frac{\partial #1}{\partial #2}}
+
+\begin{document}
+
+
+\title{
+Quantum Computation of Electronic Transitions using a Variational Quantum
+Eigensolver
+}
+
+\author{Robert M. Parrish}
+\email{rob.parrish@qcware.com}
+\affiliation{
+Department of Chemistry and the PULSE Institute, Stanford University, Stanford, CA 94305
+    }
+\affiliation{
+SLAC National Accelerator Laboratory, Menlo Park, CA 94025
+}
+\affiliation{
+QC Ware Corporation, Palo Alto, CA 94301
+}
+
+\author{Edward G. Hohenstein}
+\affiliation{
+Department of Chemistry and the PULSE Institute, Stanford University, Stanford, CA 94305
+    }
+\affiliation{
+SLAC National Accelerator Laboratory, Menlo Park, CA 94025
+}
+
+\author{Peter L. McMahon}
+\affiliation{
+E.\,L.~Ginzton Laboratory, Stanford University, Stanford, CA 94305
+    }
+\affiliation{
+QC Ware Corporation, Palo Alto, CA 94301
+}
+
+\author{Todd J. Mart\'inez}
+\affiliation{
+Department of Chemistry and the PULSE Institute, Stanford University, Stanford, CA 94305
+    }
+\affiliation{
+SLAC National Accelerator Laboratory, Menlo Park, CA 94025
+}
+\email{Todd.Martinez@gmail.com}
+
+\begin{abstract} 
+We develop an extension of the variational quantum eigensolver (VQE) algorithm
+-- multistate, contracted VQE (MC-VQE) -- that allows for the efficient
+computation of the transition energies between the ground state and several
+low-lying excited states of a molecule, as well as the oscillator strengths
+associated with these transitions. We numerically simulate MC-VQE by computing
+the absorption spectrum of an \emph{ab initio} exciton model of an
+18-chromophore light-harvesting complex from purple photosynthetic bacteria. 
+\end{abstract}
+
+% 03.67.Ac	Quantum algorithms, protocols, and simulations
+% 31.10.+z	Theory of electronic structure, electronic transitions, and chemical binding
+% 31.15.-p	Calculations and mathematical techniques in atomic and molecular physics 
+% 03.65.-w	Quantum mechanics
+\pacs{03.67.Ac,31.10.+z,31.15.-p}
+
+\maketitle
+
+The accurate modeling of the many-body interactions in the ground and
+excited-state solutions of the electronic Schr\"odinger equation is a
+prerequisite for the quantitative prediction of molecular physical phenomena such
+as light harvesting. Using classical computers, this problem scales formally as
+the factorial of the number of involved electrons \cite{PurpleBook}, via the
+solution of the full configuration interaction (FCI) equations, though many
+polynomial-scaling approximations such as density functional theory \cite{
+Hohenberg:1964:B864,
+Kohn:1965:A1133,
+Runge:1984:997,
+Koch:2001:DFT}
+(DFT), coupled cluster theory \cite{
+Cizek:1966:4256,
+Purvis:1982,
+Crawford:2007:33,
+Bartlett}
+(CC), density matrix renormalization group \cite{
+White:1992:2863,
+Chan:2011:465}
+(DMRG),
+adaptive and/or stochastic configuration interation methods \cite{
+bender1969studies,
+huron1973iterative,
+booth2009fermion,
+cleland2010communications,
+holmes2016heat,
+Schriber:2016:161106,
+schriber2017adaptive}
+(CIPSI and variants),
+and semistochastic coupled cluster methods \cite{
+deustua2017converging,
+deustua2018communication},
+have been developed to combat this problem. Recently, there has been a
+surge of interest in using quantum computers to naturally solve the many-body
+electronic structure problem through methods such as the iterative phase
+estimation algorithm \cite{
+Abrams:1997:2586,
+Abrams:1999:5162,
+Aspuru:2005:1704,
+Lanyon:2010:106,
+Wecker:2014:022305,
+Tubman:2018:X}
+(IPEA) or the variational quantum eigensolver \cite{ 
+Peruzzo:2014:4213,
+McClean:2016:023023,
+OMalley:2016:031007,
+Kandala:2017:242,
+McClean:2017:X,
+Romero:2018:104008}
+(VQE), However, the quartic-scaling complexity in number of molecular orbitals
+of the second-quantized electronic Hamiltonian, coupled with the overhead of
+encoding the fermionic antisymmetry of the electrons through the Jordan-Wigner
+\cite{Jordan:1928:631,Ortiz:2001:022319} (JW), Bravyi-Kitaev
+\cite{Bravyi:2002:210,Seeley:2012:224109} (KB), or superfast Bravyi-Kitaev
+\cite{Setia:2017:X,Setia:2018:X} (SFKB) transformations, implies that rather
+long circuit depths will be required to directly model the electronic structure
+problem. We also point out a recent approach \cite{Babbush:2017:X,
+Kivlichan:2018:110501,Motta:2018:X} that might formally reduce this complexity
+to quadratic or linear via a tensor hypercontraction representation
+\cite{Hohenstein:2012:044103,Parrish:2012:224106,Parrish:2013:132505} of the
+potential. In the present work, we explore a domain- and problem-specific means
+to reduce the complexity of the representation of the electronic structure
+problem in quantum computing: an \emph{ab initio} exciton model \cite{
+Sisto:2014:2857,
+Sisto:2017:14924,
+Li:2017:3493,
+Morrison:2014:5366,
+Morrison:2015:4390}. For large-scale photoactive complexes consisting of a
+number of nonbonded chromophore units, the \emph{ab initio} exciton model
+compresses the details of the electronic structure on each chromophore into a
+handful of monomer electronic states. The determination of the full
+configuration interaction wavefunctions describing the mixing of monomer
+electronic states in the full complex remains a formidable task - here we show
+that this might be a natural computational task for a near-term quantum
+computer.
+
+Another area that deserves exploration is the development of efficient quantum
+algorithms for the even-handed treatment of ground- and excited-state energies
+and transition properties, e.g., for the computation of absorption spectra.
+There exist IPEA-type algorithms for excited states, such as the WAVES protocol
+\cite{Santagati:2018:eaap9646} or the variational swap test \cite{Endo:2018:X},
+but we focus on VQE-type methods here. Most existing VQE-type quantum algorithms
+are ``state specific,'' meaning that they optimize the VQE parameters for one
+state at a time. Examples include the folded spectrum (FS) method
+\cite{Peruzzo:2014:4213}, which requires the observation of the square of the
+Hamiltonian, or the orthogonality-constrained VQE (OC-VQE) method
+\cite{Higgott:2018:X,Lee:2018:JCTC} which applies a penalty term to remove
+contaminants from lower-lying states. Another, more-global approach is the
+quantum subspace expansion (QSE-VQE)
+\cite{McClean:2017:042308,Colless:2018:011021}, which first performs VQE to
+determine the ground state, and then determines the excited states by classical
+diagonalization in a basis of response states.  QSE-VQE treats all the excited
+states on a similar footing, but by construction favors the ground state, and
+requires the determination of three- and four-particle density matrices through
+high-order Pauli measurements.
+
+\textit{MC-VQE} - Inspired by the mixed quantum/classical strategy of QSE-VQE
+(particularly the final classical diagonalization step), we have developed a new
+multistate, contracted variant of VQE (MC-VQE), which aims to (1) treat the
+ground and a handful of excited states on the same footing (2) minimize the size
+of the classical subspace that must be diagonalized and (3) provide for the
+straightforward computation of transition properties such as oscillator
+strengths. MC-VQE takes the following ansatz for a number ($N_{\Theta}$) of
+eigenstates of interest,
+\begin{equation}
+\label{eq:vqe}
+|\Psi_{\Theta} \rangle
+\equiv
+\hat U 
+\sum_{\Theta'}
+| \Phi_{\Theta'} \rangle
+V_{\Theta' \Theta}
+.
+\end{equation}
+Here $| \Phi_{\Theta} \rangle$ are a set of contracted, orthonormal
+``reference'' states, which are obtained by solving a classical electronic
+structure problem such as configuration interaction singles (CIS). By
+contracted, we mean that these reference states are generally taken to be a
+linear combination of Hilbert-space configurations - ideally this will allow the
+reference states to be reasonably accurate approximations to the exact
+eigenstates. As will be seen, all that we will require is that we have an
+efficient quantum circuit to prepare the ``diagonal'' state $|\Phi_{\Theta}
+\rangle$ and the ``interfering'' state $(|\Phi_{\Theta} \rangle \pm
+|\Phi_{\Theta'} \rangle) / \sqrt{2}$. For CIS reference states, this is possible
+- see the Supplemental Material for a detailed circuit \cite{SuppNote} which
+  generalizes a previously known circuit for $|W_N\rangle$ states
+\cite{Diker:2016:W}.
+
+The operator $\hat U (\{ \eta \})$ is the VQE entangler matrix, an orthogonal
+Hilbert-space matrix constructed from a set of two-qubit entangling operators
+whose set of parameters $\{ \eta \}$ will be chosen to maximally decouple $\{ |
+\Phi_{\Theta'} \rangle \}$ from the rest of the Hilbert space, i.e., to
+approximately block diagonalize the Hamiltonian.  The matrix $V_{\Theta'
+\Theta}$ is an $N_{\Theta} \times N_{\Theta}$ orthogonal matrix that describes
+the rotation of the entangled contracted states $ \{ | \chi_{\Theta'} \rangle
+\equiv \hat U |\Phi_{\Theta'} \rangle \} $ to the approximate eigenbasis $\{ |
+\Psi_{\Theta} \rangle \}$. This matrix can be determined by classical
+diagonalization of the entangled contracted Hamiltonian,
+\begin{equation}
+H_{\Theta'' \Theta'}
+V_{\Theta' \Theta}
+=
+V_{\Theta'' \Theta}
+E_{\Theta}
+\ : \
+V_{\Theta' \Theta}
+V_{\Theta' \Theta''}
+=
+\delta_{\Theta \Theta''}
+.
+\end{equation}
+The eigenvalues $E_{\Theta}$ are the Ritz approximations to the exact
+eigenvalues. The entangled contracted Hamiltonian is,
+\begin{equation}
+H_{\Theta \Theta'}
+\equiv
+\langle \Phi_{\Theta} | \hat U^{\dagger} \hat H \hat U | \Phi_{\Theta'} \rangle
+.
+\end{equation}
+The diagonal matrix elements can be evaluated by partial tomography measurements
+in a quantum computer, as is done in standard VQE:
+\begin{equation}
+\label{eq:Heff}
+H_{\Theta \Theta}
+=
+\langle \Phi_{\Theta} | \hat U^{\dagger} \hat H \hat U | \Phi_{\Theta} \rangle
+.
+\end{equation}
+The (real) off-diagonal matrix elements can also be obtained from observable
+quantities:
+\[
+2 H_{\Theta \neq \Theta'}
+=
+\left (
+\langle \Phi_{\Theta} |
++
+\langle \Phi_{\Theta'} |
+\right )
+\hat U^{\dagger}
+\hat H
+\hat U
+\left (
+| \Phi_{\Theta} \rangle
++
+| \Phi_{\Theta'} \rangle
+\right ) / 2
+\]
+\begin{equation}
+\label{eq:Htrans}
+-
+\left (
+\langle \Phi_{\Theta} |
+-
+\langle \Phi_{\Theta'} |
+\right )
+\hat U^{\dagger}
+\hat H
+\hat U
+\left (
+| \Phi_{\Theta} \rangle
+-
+| \Phi_{\Theta'} \rangle
+\right ) / 2
+.
+\end{equation}
+This highlights the need for quantum circuits to prepare the ``interfering''
+state $(|\Phi_{\Theta} \rangle \pm |\Phi_{\Theta'} \rangle) / \sqrt{2}$. 
+
+The parameters of the MC-VQE entanglement circuit should be chosen to maximally
+decouple the full set of approximate eigenstates $\{ | \Psi_{\Theta} \rangle
+\}$ from the rest of the Hilbert space. This can be accomplished in a 2-norm
+sense in the Hamiltonian by optimizing the parameters of the VQE entangler
+operator to minimize the state-averaged energy,
+\begin{equation}
+\bar{E}
+=
+\frac{1}{N_{\Theta}}
+\sum_{\Theta}
+E_{\Theta}
+=
+\frac{1}{N_{\Theta}}
+\sum_{\Theta}
+H_{\Theta \Theta}
+.
+\end{equation}
+The second equality follows from the definition of the trace, and shows that the
+minimization of the state-averaged energy is equivalent to the minimization of
+the sum of diagonal contracted Hamiltonian matrix elements.
+
+\begin{figure}[h!]
+\begin{center}
+\includegraphics[width=3.2in]{circuit.pdf}
+% \begin{tabular}{r}
+% \Qcircuit @R=0.1em @C=0.3em {
+% \lstick{|0_A\rangle}
+%  & \gate{R_{y}}
+%  & \ctrl{1}
+%  & \qw
+%  & \qw
+%  & \qw
+%  & \qw
+%  & \qw
+%  & \targ
+%  & \targ
+%  & \targ
+%  & \qw
+%  & \multigate{1}{U_{2}^{AB}}
+%  & \qw
+%  & \qw \\
+% \lstick{|0_B\rangle}
+%  & \qw
+%  & \gate{F_{y}}
+%  & \ctrl{1}
+%  & \qw
+%  & \qw
+%  & \targ
+%  & \targ
+%  & \qw
+%  & \qw
+%  & \ctrl{-1}
+%  & \qw
+%  & \ghost{U_{2}^{AB}}
+%  & \multigate{1}{U_{2}^{BC}}
+%  & \qw \\
+% \lstick{|0_C\rangle}
+%  & \qw
+%  & \qw
+%  & \gate{F_{y}}
+%  & \ctrl{1}
+%  & \targ
+%  & \qw
+%  & \ctrl{-1}
+%  & \qw
+%  & \ctrl{-2}
+%  & \qw
+%  & \qw
+%  & \multigate{1}{U_{2}^{CD}}
+%  & \ghost{U_{2}^{BC}}
+%  & \qw \\
+% \lstick{|0_D\rangle}
+%  & \qw
+%  & \qw
+%  & \qw
+%  & \gate{F_{y}}
+%  & \ctrl{-1}
+%  & \ctrl{-2}
+%  & \qw
+%  & \ctrl{-3}
+%  & \qw
+%  & \qw
+%  & \qw
+%  & \ghost{U_{2}^{CD}}
+%  & \qw
+% % \gategroup{1}{2}{4}{11}{2.0em}{_\}}
+% % \gategroup{1}{13}{4}{15}{1.0em}{_\}}
+%  & \qw \\
+% \\
+% }
+% \end{tabular}
+\caption{Example MC-VQE quantum circuit for $N=4$ linear exciton model. The
+first stage prepares contracted CIS reference states $|\Phi_{\Theta} \rangle$
+[or interference variations $(|\Phi_{\Theta} \rangle \pm | \Phi_{\Theta'}
+\rangle) / \sqrt{2}$ thereof] specified by rotation angles in the $R_y$ and
+$F_y$ gates. The second stage applies the many-body VQE entangler $\hat U$
+specified through a polynomial number of rotation angles 2-body $U_2$ entangler
+gates. 1- and 2-body Pauli measurements of this circuit then determine the
+entangled contracted Hamiltonian matrix elements $H_{\Theta \Theta'}$.}
+\label{fig:vqe}
+\end{center}
+\end{figure}
+
+Overall the MC-VQE algorithm has four stages:
+\begin{enumerate}
+\item Classically solve CIS or some other polynomial-scaling
+electronic structure problem to ``sketch out'' the shapes of the relevant states by
+determining the contracted reference states $\{ | \Phi_{\Theta} \rangle \}$.
+\item Vary the parameters of the VQE entangler operator to optimize the
+state-averaged energy $\bar E = (1/N_{\Theta}) \sum_{\Theta} H_{\Theta \Theta}$.
+\item For the converged VQE entangler operator, observe the reference-state
+Hamiltonian $H_{\Theta \Theta'}$ using sums and differences of Hamiltonian
+expectations of interference states.
+\item Classically diagonalize $H_{\Theta \Theta'}$ to obtain the Ritz estimates
+of the eigenstates and eigenvalues.
+\end{enumerate}
+A schematic of the quantum circuit needed to prepare a CIS state
+$|\Phi_{\Theta}\rangle$ and apply the VQE entangler $\hat U$ is shown in Figure
+\ref{fig:vqe} - details of this circuit are available in the Supplemental
+Material \cite{SuppNote}. Overall, the MC-VQE approach has a number of unique
+features relative to established excited-state VQE approaches such as quantum
+subspace expansion (QSE-VQE) \cite{McClean:2017:042308}:
+\begin{itemize}
+\item The VQE entangler $\hat U$ is optimized in a state-averaged manner,
+providing a balanced treatment of ground and excited states, i.e., all states
+are computed to approximately equal accuracy.
+\item The optimization of the VQE entangler $\hat U$ requires only the
+measurement of $N_{\Theta}$
+diagonal matrix elements $H_{\Theta \Theta}$. The determination of the
+$N_{\Theta}^2$ off-diagonal matrix elements $H_{\Theta \neq \Theta'}$ can be
+done separately, after the VQE entangler parameters have been optimized.
+\item Higher-order density matrices are not required. 
+% \item The reference states $\{ | \Phi_{\Theta} \rangle \}$ are chosen to be
+% orthonormal and are externally contracted after entanglement to form the
+% approximate eigenstates, so no metric matrices are required.
+\end{itemize}
+
+Note that the eigenstates can be reexpressed as
+$
+| \Psi_{\Theta} \rangle
+\equiv
+\hat U
+| \Gamma_{\Theta} \rangle
+$
+where $\{ |\Gamma_{\Theta} \rangle \equiv \sum_{\Theta'} | \Phi_{\Theta'}
+\rangle V_{\Theta' \Theta}  \}$ are rotated reference states.  The algorithm
+above is quite general - we present a demonstration below for the case of the
+\emph{ab initio} exciton model, but it is clear that this approach might be
+immediately applicable to the efficient computation of excited states in
+fermionic electronic structure computations.  Transition properties (such as the
+transition dipole moment, needed for computing the absorption spectrum) can also
+be computed by substituting the desired operator $\hat O$ in place of $\hat H$
+in Equation \ref{eq:Htrans}.
+
+It is worth noting that MC-VQE can be roughly pictured either as a generator
+of the wavefunction ansatz of Equation \ref{eq:vqe} or as a means to observe
+the elements of the unitarily-transformed effective Hamiltonian of Equation
+\ref{eq:Heff}, wherein the VQE entangler operator $\hat U$ acts as a
+wave operator \cite{durand1983direct,maynau1983direct}. 
+
+% Transition properties (such as the transition
+% dipole moment, needed for the absorption spectrum) can also be computed as,
+% \[
+% 2 \langle \Psi_{\Theta} | \hat O | \Psi_{\Theta'} \rangle
+% =
+% \left (
+% \langle \Gamma_{\Theta} |
+% +
+% \langle \Gamma_{\Theta'} |
+% \right )
+% \hat U^\dagger
+% \hat O
+% \hat U
+% \left (
+% | \Gamma_{\Theta} \rangle
+% +
+% | \Gamma_{\Theta'} \rangle
+% \right ) / 2
+% \]
+% \begin{equation}
+% -
+% \left (
+% \langle \Gamma_{\Theta} |
+% -
+% \langle \Gamma_{\Theta'} |
+% \right )
+% \hat U^\dagger
+% \hat O
+% \hat U
+% \left (
+% | \Gamma_{\Theta} \rangle
+% -
+% | \Gamma_{\Theta'} \rangle
+% \right ) / 2
+% \end{equation}
+
+% In the present work, we develop a multistate, contracted variant of VQE (MC-VQE)
+% which is specifically designed to treat the ground and (several) excited states
+% on an even footing and to provide easy access to transition properties such as
+% dipole oscillator strengths. MC-VQE works by first solving a classical
+% electronic structure problem such as configuration interaction singles (CIS) to
+% determine a handful of contracted reference states which sketch the shapes of
+% the desired electronic states. VQE is then performed to minimize the
+% state-averaged energy of the VQE-entangled versions of these reference states, e.g.,
+% to maximally decouple these states from the rest of the Hilbert space. Finally,
+% another classical diagonalization is performed in the basis of the VQE-entangled
+% reference states to determine the Ritz estimates of the final MC-VQE states.
+% Off-diagonal matrix elements of the Hamiltonian and other operators are
+% formulated as difference observables of sums and differences of VQE-entangled
+% reference states. 
+
+% In the present work, we explore a hybrid classical/quantum approach that might
+% produce a supremacy-ready application in a much shorter timeframe: a quantum
+% exciton model \cite{
+% Sisto:2014:2857,
+% Sisto:2017:14924,
+% Li:2017:3493,
+% Morrison:2014:5366,
+% Morrison:2015:4390}.
+% This model is applicable to large-scale photoactive complexes such as
+% photosynthetic light harvesting complexes, which are composed of a number of
+% nonbonded chromophoric units. Classical electronic structure methods such as
+% time-dependent density functional theory \cite{Runge:1984:997} (TD-DFT) are
+% known to provide an accurate description of the isolated chromophores, but are
+% costly and/or inaccurate for direct simulation of the full complex. In the
+% \emph{ab initio} exciton model, the photoactive electronic states of the full complex are
+% modeled as a configuration interaction of a handful (often 2 per monomer) of
+% contracted monomer eigenstates. The full configuration interaction step of the
+% \emph{ab initio} exciton model is usually classically eschewed due to the $2^N$ scaling
+% \cite{
+% Sisto:2014:2857,
+% Sisto:2017:14924,
+% Li:2017:3493},
+% but here we show that this step may be succinctly encoded into a near-term
+% quantum computer through an isomorphism with a spin-lattice model. 
+% 
+% \textit{Ab Initio Exciton Model} - Consider an \emph{ab initio} exciton model of $N$
+% chromophoric monomers labelled by index $A$, each with two monomer electronic
+% states labeled $|0_A\rangle$ and $|1_A\rangle$. The \emph{ab initio} exciton
+% Hamiltonian is \cite{Sisto:2014:2857,Li:2017:3493},
+% \begin{equation}
+% \label{eq:H}
+% \hat H
+% \equiv
+% \sum_{A}
+% \sum_{p,q \in 0,1}
+% (p_{A} | \hat h | q_{A})
+% | p_{A} \rangle
+% \langle q_{A} |
+% \end{equation}
+% \[
+% +
+% \sum_{A>B}
+% \sum_{p,q,r,s \in 0,1}
+% (p_{A} q_{A} | \hat v | r_{B} s_{B})
+% |p_{A} \rangle
+% \langle q_{A} |
+% \otimes
+% |r_{B} \rangle
+% \langle s_{B} |
+% \]
+% The real one-body matrix elements $(p_A|\hat h|q_A)$ are usually the 
+% (diagonal) adiabatic energy levels of the ground and first excited state of the
+% isolated monomers, while the real two-body matrix elements $(p_A q_A|\hat v|r_B
+% s_B)$ are the electrostatic interactions between the one-body densities (e.g.,
+% for $p = q$) or one-body transition densities (e.g., for $p \neq q$) of monomers
+% $A$ and $B$.  These matrix elements can be computed accurately in polynomial
+% cost (albeit expensive and requiring extensive efforts to accelerate) by
+% \emph{ab initio} electronic structure computations performed on classical
+% computers, for monomers with at least several hundred atoms. Overall, the
+% \emph{ab initio} exciton model is an extension of the phenomenological Frenkel-Davydov
+% exciton model \cite{Frenkel:1931:17,Davydov:1964:145} to the case where the
+% matrix elements are computed by high-level electronic structure computations.
+% In recent years, we have extended the \emph{ab initio} exciton model to treat full
+% non-adiabatic dynamics through the development of analytical gradients and
+% coupling vectors \cite{Li:2017:3493,Sisto:2017:14924} and have increased the
+% basis set to include both local (Frenkel) and charge-transfer excitations
+% \cite{Li:2017:3493}.  For the present work, we will restrict the discussion to a
+% minimal \emph{ab initio} exciton model with two local monomer basis states per site (to
+% maximize the ease of mapping to qubits).  Additionally, for much of the
+% discussion we will also work within the dipole/transition-dipole approximation
+% for the two-body matrix elements (computed from \emph{ab initio} dipoles and
+% transition dipoles of the monomers) and will also often restrict the discussion
+% to linear or cyclic monomer arrangements with only nearest-neighbor two-body
+% interactions included. 
+% 
+% The exact adiabatic electronic eigenstates and energies for this system are
+% obtained by diagonalizing the Hilbert-space Hamiltonian to obtain,
+% \begin{equation}
+% | \Psi_{\Theta} \rangle
+% =
+% C_{p_{0} q_{1} \ldots r_{N-1}}^{\Theta}
+% |p_{0}\rangle
+% \otimes
+% |q_{1}\rangle
+% \otimes
+% \ldots
+% \otimes
+% |r_{N-1}\rangle
+% \end{equation}
+% Typically, we wish to find these adiabatic electronic states, e.g., to determine
+% the energy gaps in the system. Accomplishing this, even for a model of this
+% simplicity, is extraordinarily difficult classically due to the $2^N$ dimension
+% of the Hilbert space $
+% |p_{0}\rangle
+% \otimes
+% |q_{1}\rangle
+% \otimes
+% \ldots
+% \otimes
+% |r_{N-1}\rangle$.
+% To highlight this, we point out that we usually solve this part of the problem
+% classically in a highly restricted Hilbert space where only single excitations are
+% allowed \cite{
+% Sisto:2014:2857,
+% Sisto:2017:14924,
+% Li:2017:3493}:
+% for many energy transfer applications this may be reasonable, but will be
+% incapable of describing the conical intersection between the ground and
+% lowest-excited states \cite{Levine:2006:1039}. However, (and notably unlike
+% fermionic electronic structure problems) there are no formal symmetry
+% restrictions on the solutions. I.e., there is no correspondence of the
+% Jordan-Wigner transform to embed fermionic antisymmetry or other considerations
+% like particle or spin quantum number constraints. Moreover, the Hamiltonian is a
+% very sparse quadratic-scaling operator, in contrast to the quartic-scaling
+% Hamiltonian of electronic structure.  Therefore, this is an exceedingly
+% compelling model to map directly onto a quantum computer. Even more compelling,
+% the set of significant two-body $A\leftrightarrow B$ connections may be highly
+% restricted in many chemical systems of interest \cite{Sisto:2014:2857},
+% facilitating mapping onto quantum computing hardware with limited gate depth
+% and/or connectivity. 
+% 
+\textit{Ab Initio Exciton Model} - Consider a set of $N$ chromophoric monomers,
+each
+labeled by index $A$, which are arranged in a particular nuclear geometry in a
+photoactive complex. In isolation, the chromophores are usually characterized by a
+constant number of photoactive electronic states, regardless of the number of
+electrons in the monomer (often between two and four states are photoactive in
+the visible spectrum in the monomer: the ground and the first few singlet excited
+states). If the monomers are sufficiently far apart in the full photoactive
+complex (e.g., if they are at noncovalent separations due to embedding in a
+protein scaffold), the strict considerations of fermionic antisymmetry can be
+relaxed without loss of accuracy, and the full complex electronic eigenstates
+can be computed as a configuration interaction of direct products of monomer
+states. I.e., for electronic state $\Theta$ in a system where each chomophoric
+monomer is characterized by the ground state $|0_A\rangle$ and the first excited
+state $|1_A\rangle$ (a restriction we make from here onward to facilitate ease
+of mapping to qubits), the electronic states are,
+\begin{equation}
+| \Psi_{\Theta} \rangle
+=
+\sum_{p_{0}, q_{1} \ldots \in [0,1]}
+C_{p_{0} q_{1} \ldots r_{N-1}}^{\Theta}
+|p_{0}\rangle
+\otimes
+|q_{1}\rangle
+\otimes
+\ldots
+\otimes
+|r_{N-1}\rangle
+.
+\end{equation}
+Typically, we wish to find these adiabatic electronic states, e.g., to determine
+the energy gaps and oscillator strengths in the system as a proxy for the
+electronic absorption spectrum. Formally, this requires diagonalization of the
+exciton Hamiltonian, which can straightforwardly be written in Pauli matrix
+notation for the special case considered here of a photoactive system with two
+electronic states per monomer,
+\begin{equation}
+\label{eq:Hpauli}
+\hat H
+=
+\mathcal{E}
++
+\mathcal{H}^{(1)}
++
+\mathcal{H}^{(2)}
+=
+\mathcal{E} \hat I 
++ 
+\sum_{A}
+\mathcal{Z}_{A}
+\hat Z_{A}
++ 
+\mathcal{X}_{A}
+\hat X_{A}
+\end{equation}
+\[
++
+\sum_{A > B}
+\mathcal{XX}_{AB}
+\hat X_{A} \otimes \hat X_{B}
++
+\mathcal{XZ}_{AB}
+\hat X_{A} \otimes \hat Z_{B}
+\]
+\[
++
+\mathcal{ZX}_{AB}
+\hat Z_{A} \otimes \hat X_{B}
++
+\mathcal{ZZ}_{AB}
+\hat Z_{A} \otimes \hat Z_{B}
+.
+\]
+The choice of Hamiltonian matrix elements $\{ \mathcal{Z}_{A}, \mathcal{X}_{A},
+\mathcal{ZZ}_{AB}, \mathcal{ZX}_{AB}, \mathcal{XZ}_{AB}, \mathcal{XX}_{AB} \}$
+for a given photoactive complex is an interesting art. Choosing these parameters
+empirically to match experiment or other reference data is the crux of the
+phenomonological Frenkel-Davydov exciton model
+\cite{Frenkel:1931:17,Davydov:1964:145}. Recently, we introduced a new \emph{ab
+initio} exciton model approach 
+\cite{
+Sisto:2014:2857,
+Sisto:2017:14924,
+Li:2017:3493,
+Morrison:2014:5366,
+Morrison:2015:4390}, 
+in which the parameters of the exciton model are determined explicitly by
+high-level \emph{ab initio} computations on the isolated monomers, under the
+assumption of sufficient monomer separations to relax the fermionic antisymmetry
+constraint. We have extended the \emph{ab initio} exciton model to treat full
+non-adiabatic dynamics through the development of analytical gradients/coupling
+vectors \cite{Li:2017:3493,Sisto:2017:14924} and have increased the basis set to
+include both local and charge-transfer excitations \cite{Li:2017:3493}.  
+
+In this \emph{ab initio} exciton model the Hamiltonian matrix elements in
+Equation \ref{eq:Hpauli} all have distinct physical origins: $\mathcal{E}$ is
+the mean-field energy, $\mathcal{Z}_{A}$ is roughly (half) of the difference
+between the ground and excited state energy of monomer $A$, $\mathcal{XX}_{AB}$
+is the transition-dipole--transition-dipole interaction and $\mathcal{ZZ}_{AB}$
+is the difference-dipole--difference-dipole interaction between monomers $A$ and
+$B$, and $\mathcal{XZ}_{AB}$ and $\mathcal{ZX}_{AB}$ are
+transition-dipole--difference-dipole interaction cross terms. $\mathcal{Z}_{A}$
+and $\mathcal{X}_{A}$ carry Fock-matrix like dressings from the mean-field
+electrostatic environment of the system. A full definition of the matrix
+elements is available in the Supplemental Material \cite{SuppNote}.
+
+Diagonalizing this Hamiltonian to obtain the eigenstates $\{ | \Psi_{\Theta}
+\rangle \}$, even for a model of this simplicity, is difficult
+classically due to the $2^N$ dimension of the Hilbert space $
+|p_{0}\rangle
+\otimes
+|q_{1}\rangle
+\otimes
+\ldots
+\otimes
+|r_{N-1}\rangle$.
+To highlight this, we point out that this part of the problem is usually solved
+classically in a highly restricted Hilbert space where only single excitations
+are allowed \cite{
+Sisto:2014:2857,
+Sisto:2017:14924,
+Li:2017:3493}:
+for many energy-transfer applications this may be reasonable, but will be
+incapable of describing the conical intersection between the ground and
+lowest-excited states \cite{Levine:2006:1039}. However, it is apparent that the
+\emph{ab initio} exciton Hamiltonian is entirely isomorphic to an extended
+spin-lattice Hamiltonian. Therefore, existing technologies for the quantum
+simulation of spin-lattice Hamiltonians should provide utility for this problem.
+Below, we demonstrate the potential for this mapping by simulating the quantum
+computation of the absorption spectrum of a large photoactive complex using
+MC-VQE. Note that we are not the first to propose a crossover between exciton
+models for photoactive complexes and spin-lattice models in qubits: there have
+been myriad prior studies using phenomenological exciton models to theoretically
+characterize \cite{
+Plenio:2008:113019,
+Caruso:2009:09B612,
+Caruso:2010:062346}
+or physically simulate \cite{
+Mostame:2012:105013,
+Mostame:2017:44,
+Potovcknik:2018:904,
+Wang:2018}
+the exciton energy transfer (EET) process in open systems such as the
+Fenna-Matthews-Olsen (FMO) complex. However, the emphasis in the prior
+literature has been on the modeling of the disappative non-adiabatic dynamics of
+EET through coupling with the protein/solvent environment in an effective way
+(via effective phonon coupling approaches such as the Holstein model). In our
+approach, we emphasize the accurate \emph{ab initio} computation of the
+electronic absorption spectrum at a given nuclear configuration, as a
+prerequisite for direct non-adiabatic dynamics simulations.
+
+\textit{Demonstration} - MC-VQE circuits were implemented in our in-house quantum
+simulator package, \textsc{Quasar}. All aspects of state preparation, VQE
+entanglement, and casting of transition matrix elements as difference
+observables were performed in the simulator, though 1- and 2-body Pauli
+expectation values were evaluated through contractions of wavefunction
+amplitudes (equivalent to infinite averaging of discrete Pauli measurements),
+and noise/error channels were not modeled. CIS is solved classically in the
+basis of the reference and all singly-excited configurations.  We avoid the
+``barren plateaus'' issue of locating optimized VQE parameters
+\cite{McClean:2018:X} by finding a tightly converged and near-global-optimal
+solution for the 108 MC-VQE parameters which is directly downhill from a
+zero-entanglement guess in 14 L-BFGS iterations, using finite-difference
+gradients \cite{SuppNote}.
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=3.2in]{abs.pdf}
+\caption{(color online). Top - Simulated absorption spectrum of $N=18$ cyclical
+LH2 B850 ring complex (geometry depicted in inset), computed from the excitation
+energies and oscillator strengths of the lowest 18 electronic transitions,
+depicted as vertical sticks.  The envelope of the absorption spectrum is
+sketched by broadening the contribution from each transition with a Lorentzian
+with width of $\delta=0.05$ eV. The simulated MC-VQE and reference FCI results
+are visually indistinguishable. Middle
+- errors in excitation energies. Bottom - errors in oscillator strengths. Middle
+  and bottom - thin lines are a guide for the eye.
+}
+\label{fig:abs}
+\end{center}
+\end{figure}
+
+For a practical test case, an \emph{ab initio} exciton
+model was constructed for the $N=18$ cyclical LH2
+B850 ring complex of the purple photosynthetic bacteria - the specific geometry
+is provided in the Supplemental Material \cite{SuppNote}.
+Monomer Hamiltonian matrix elements were computed in
+the GPU-accelerated \textsc{TeraChem} program
+\cite{Ufimtzsev:2009:2619,Luehr:2011:949,Isborn:2012:5092} for classical
+electronic structure theory, using TDA-TD-DFT \cite{Runge:1984:997} at
+$\omega$PBE($\omega=0.3$)/6-31G* \cite{Tawada:2004:8425,Vydrov:2006:234109}.
+Dimer Hamiltonian matrix elements were approximated by the
+dipole/transition-dipole model. Dimer Hamiltonian matrix elements were truncated
+after cyclical nearest-neighbor contacts due to the $r_{AB}^{-3}$ decay of the
+interactions.  Figure \ref{fig:abs} depicts the simulated absorption spectrum of
+this \emph{ab initio} exciton model computed from the excitation energies and
+oscillator strengths of the lowest 18 electronic transitions with MC-VQE and
+CIS, and compared to the ``full configuration interaction'' (FCI) reference
+computed in the space of all possible $2^N$ monomer excitation configurations.
+The CIS absorption shows a noticeable blue shift of a few hundredths of an eV
+relative to FCI, and, more noticeably, the CIS oscillator strengths may deviate
+by $10\%$ or more, particularly for the brightest states. By contrast, MC-VQE
+with a single entangler layer is visually indistinguishable from FCI - the
+maximum deviations of excitation energies are on the order of tens of $\mu$eV,
+while the oscillator strengths generally deviate by $\ll1\%$. 
+% RMP: Revision-1 new edit
+At the request of a reviewer, we have also considered a test case where CIS
+produces qualitatively incorrect results relative to FCI: an $N=8$ linear stack
+of BChl-a chromophores. MC-VQE has no trouble with this system, and again
+produces results which are essentially visually indistinguishable from FCI: see
+the Supplemental Material for full details \cite{SuppNote}.
+
+\textit{Outlook } - In this Letter, we have demonstrated a hybrid
+quantum/classical approach for the modeling of electronic absorption spectra in
+large-scale photoactive complexes by using a multistate, contracted variant of
+VQE (MC-VQE) in the context of an \emph{ab initio} exciton model.  We simulated
+MC-VQE for an $N=18$ LH2 B850 complex (a Hilbert space
+dimension of $2^{18}=262144$).
+% That we were
+% able to tractably simulate MC-VQE for $19\times$ electronic states of an $N=18$
+% LH2 B850 complex (a Hilbert space dimension of $2^{18}=262144$) using a simple
+% \textsc{Python}-based quantum simulation environment is indicative of the
+% efficiency of both MC-VQE and the \emph{ab initio} exciton Hamiltonian - we are
+% not aware of corresponding simulations with this many qubits/quasiparticles for
+% direct electronic structure computations of fermionic systems. 
+The MC-VQE
+absorption spectrum matches FCI quantitatively with only a single layer of VQE
+two-body entanglers with a connectivity matching that of the exciton
+Hamiltonian. With a qubit count equivalent to the number of monomers $N$, a
+circuit depth that is linear in $N$, a gate count that is quadratic in $N$, and
+a requirement of only 1- and a sparse set of 2-body Pauli measurements, MC-VQE
+applied to an \emph{ab initio} exciton model with local Hamiltonian connectivity is a
+compelling application for deployment to near-term quantum hardware.
+
+This Letter is intended to sketch the salient features of the MC-VQE algorithm
+and its potential application to the \emph{ab initio} exciton model. Future work
+will investigate robustness of the algorithm on realistic hardware including the
+influence of gate/measurement errors. \emph{Ab initio} exciton Hamiltonians with
+more-complicated local connectivity that are unlikely to be addressable with
+classical methods such as DMRG should also be investigated.  Beyond this, effort
+should be devoted to direct implementation on real hardware, where circuit
+locality and simplification/sparsification will be of key importance. Finally,
+MC-VQE should be explored in the context of direct simulation of fermionic
+electronic structure problems - it seems highly likely that this algorithm will
+be easily adaptable to the study of multiple excited states in many types of
+Hamiltonians beyond the \emph{ab initio} exciton model.
+
+\textbf{Note added during revision:} After the first revision of our paper was
+released, we learned of the ``subspace search'' VQE (SS-VQE) approach developed
+by Nakanishi, Mitarai, and Fujii in a recent preprint \cite{Nakanishi:2018:X}.
+Both SS-VQE and MC-VQE use a state-averaged VQE entangler $\hat U$, and both
+describe how to compute transition properties. The methods have several key
+differences: SS-VQE uses hybrid quantum-classical optimization to determine the
+minimal and maximal eigenvectors in the subspace matrix, while MC-VQE uses
+classical diagonalization of the subspace Hamiltonian to determine all subspace
+eigenstates simultaneously. Additionally, MC-VQE uses contracted reference
+states (e.g., from CIS) while SS-VQE uses Hilbert-space configurations.
+
+\textbf{Acknowledgements:} This material is based on work partially supported by
+the U.S. Department of Energy, Office of Science, Office of Advanced Scientific
+Computing Research, Scientific Discovery through Advanced Computing (SciDAC)
+program.
+
+\textbf{Financial Disclosure:} TJM is a cofounder of \textsc{PetaChem LLC}.
+RMP and PLM own stock/options in \textsc{QC Ware Corp.}
+
+% \textbf{Author Contributions:} RMP derived the mapping from \emph{ab initio}
+% exciton model to spin-lattice Hamiltonian, developed and implemented quantum
+% circuits for the simulation of this Hamiltonian, and computed the observables
+% using quantum simulators. EGH developed the classical code for obtaining
+% matrix elements, provided assistance with derivations in second quantization,
+% and performed the reference observables computations. PLM provided advice on
+% quantum circuit design and quantum simulator use. TJM supervised the project,
+% and provided advice on mixed quantum-classical simulations. 
+
+% \bibliography{jrncodes.bib,refs.bib}
+% \bibliographystyle{aip}
+\begin{thebibliography}{10}
+
+\bibitem{PurpleBook}
+T.~Helgaker, P.~J\o{}rgensen, and J.~Olsen,
+\newblock {\em Molecular Electronic Structure Theory},
+\newblock Wiley, New York, 2000.
+
+\bibitem{Hohenberg:1964:B864}
+P.~Hohenberg and W.~Kohn,
+\newblock Phys. Rev. {\bf 136}, B864 (1964).
+
+\bibitem{Kohn:1965:A1133}
+W.~Kohn and L.~J. Sham,
+\newblock Phys. Rev. {\bf 140}, A1133 (1965).
+
+\bibitem{Runge:1984:997}
+E.~Runge and E.~K. Gross,
+\newblock Phys. Rev. Lett. {\bf 52}, 997 (1984).
+
+\bibitem{Koch:2001:DFT}
+W.~Koch and M.~C. Holthausen,
+\newblock {\em A Chemist's Guide to Density Functional Theory},
+\newblock Wiley-VCH, New York, 2001.
+
+\bibitem{Cizek:1966:4256}
+J.~C\'i\v{z}ek,
+\newblock J. Chem. Phys. {\bf 45}, 4256 (1966).
+
+\bibitem{Purvis:1982}
+G.~D. Purvis and R.~J. Bartlett,
+\newblock J. Chem. Phys. {\bf 76}, 1910 (1982).
+
+\bibitem{Crawford:2007:33}
+T.~D. Crawford and H.~F. Schaefer,
+\newblock {\em An Introduction to Coupled Cluster Theory for Computational
+  Chemists}, pages 33--136,
+\newblock Wiley-Blackwell, 2007.
+
+\bibitem{Bartlett}
+I.~Shavitt and R.~Bartlett,
+\newblock {\em Many-Body Methods in Chemistry and Physics: {MBPT} and
+  Coupled-Cluster Theory},
+\newblock Cambridge Molecular Science, Cambridge University Press, 2009.
+
+\bibitem{White:1992:2863}
+S.~R. White,
+\newblock Phys. Rev. Lett. {\bf 69}, 2863 (1992).
+
+\bibitem{Chan:2011:465}
+G.~K.-L. Chan and S.~Sharma,
+\newblock Ann. Rev. Phys. Chem. {\bf 62}, 465 (2011).
+
+\bibitem{bender1969studies}
+C.~F. Bender and E.~R. Davidson,
+\newblock Phys. Rev. {\bf 183}, 23 (1969).
+
+\bibitem{huron1973iterative}
+B.~Huron, J.~Malrieu, and P.~Rancurel,
+\newblock J. Chem. Phys. {\bf 58}, 5745 (1973).
+
+\bibitem{booth2009fermion}
+G.~H. Booth, A.~J. Thom, and A.~Alavi,
+\newblock J. Chem. Phys. {\bf 131}, 054106 (2009).
+
+\bibitem{cleland2010communications}
+D.~Cleland, G.~Booth, and A.~Alavi,
+\newblock J. Chem. Phys. {\bf 132}, 041103 (2010).
+
+\bibitem{holmes2016heat}
+A.~A. Holmes, N.~M. Tubman, and C.~Umrigar,
+\newblock J. Chem. Theory Comput. {\bf 12}, 3674 (2016).
+
+\bibitem{Schriber:2016:161106}
+J.~B. Schriber and F.~A. Evangelista,
+\newblock J. Chem. Phys. {\bf 144}, 161106 (2016).
+
+\bibitem{schriber2017adaptive}
+J.~B. Schriber and F.~A. Evangelista,
+\newblock J. Chem. Theory Comput. {\bf 13}, 5354 (2017).
+
+\bibitem{deustua2017converging}
+J.~E. Deustua, J.~Shen, and P.~Piecuch,
+\newblock Phys. Rev. Lett. {\bf 119}, 223003 (2017).
+
+\bibitem{deustua2018communication}
+J.~E. Deustua, I.~Magoulas, J.~Shen, and P.~Piecuch,
+\newblock J. Chem. Phys. {\bf 149}, 151101 (2018).
+
+\bibitem{Abrams:1997:2586}
+D.~S. Abrams and S.~Lloyd,
+\newblock Phys. Rev. Lett. {\bf 79}, 2586 (1997).
+
+\bibitem{Abrams:1999:5162}
+D.~S. Abrams and S.~Lloyd,
+\newblock Phys. Rev. Lett. {\bf 83}, 5162 (1999).
+
+\bibitem{Aspuru:2005:1704}
+A.~Aspuru-Guzik, A.~D. Dutoi, P.~J. Love, and M.~Head-Gordon,
+\newblock Science {\bf 309}, 1704 (2005).
+
+\bibitem{Lanyon:2010:106}
+B.~P. Lanyon et~al.,
+\newblock Nat. Chem. {\bf 2}, 106 (2010).
+
+\bibitem{Wecker:2014:022305}
+D.~Wecker, B.~Bauer, B.~K. Clark, M.~B. Hastings, and M.~Troyer,
+\newblock Phys. Rev. A. {\bf 90}, 022305 (2014).
+
+\bibitem{Tubman:2018:X}
+N.~M. Tubman et~al.,
+\newblock arXiv preprint arXiv:1809.05523  (2018).
+
+\bibitem{Peruzzo:2014:4213}
+A.~Peruzzo et~al.,
+\newblock Nat. Comm. {\bf 5}, 4213 (2014).
+
+\bibitem{McClean:2016:023023}
+J.~R. McClean, J.~Romero, R.~Babbush, and A.~Aspuru-Guzik,
+\newblock New J. Phys. {\bf 18}, 023023 (2016).
+
+\bibitem{OMalley:2016:031007}
+P.~O’Malley et~al.,
+\newblock Phys. Rev. X {\bf 6}, 031007 (2016).
+
+\bibitem{Kandala:2017:242}
+A.~Kandala et~al.,
+\newblock Nature {\bf 549}, 242 (2017).
+
+\bibitem{McClean:2017:X}
+J.~R. McClean et~al.,
+\newblock arXiv preprint arXiv:1710.07629  (2017).
+
+\bibitem{Romero:2018:104008}
+J.~Romero et~al.,
+\newblock Quant. Sci. Tech. {\bf 4}, 014008 (2018).
+
+\bibitem{Jordan:1928:631}
+P.~Jordan and E.~Wigner,
+\newblock Z. Phys. {\bf 47}, 631 (1928).
+
+\bibitem{Ortiz:2001:022319}
+G.~Ortiz, J.~E. Gubernatis, E.~Knill, and R.~Laflamme,
+\newblock Phys. Rev. A {\bf 64}, 022319 (2001).
+
+\bibitem{Bravyi:2002:210}
+S.~B. Bravyi and A.~Y. Kitaev,
+\newblock Ann. Phys. {\bf 298}, 210  (2002).
+
+\bibitem{Seeley:2012:224109}
+J.~T. Seeley, M.~J. Richard, and P.~J. Love,
+\newblock J. Chem. Phys. {\bf 137}, 224109 (2012).
+
+\bibitem{Setia:2017:X}
+K.~Setia and J.~D. Whitfield,
+\newblock arXiv preprint arXiv:1712.00446  (2017).
+
+\bibitem{Setia:2018:X}
+K.~Setia, S.~Bravyi, A.~Mezzacapo, and J.~D. Whitfield,
+\newblock arXiv preprint arXiv:1810.05274  (2018).
+
+\bibitem{Babbush:2017:X}
+R.~Babbush et~al.,
+\newblock arXiv preprint arXiv:1706.00023  (2017).
+
+\bibitem{Kivlichan:2018:110501}
+I.~D. Kivlichan et~al.,
+\newblock Phys. Rev. Lett. {\bf 120}, 110501 (2018).
+
+\bibitem{Motta:2018:X}
+M.~Motta et~al.,
+\newblock arXiv preprint arXiv:1808.02625  (2018).
+
+\bibitem{Hohenstein:2012:044103}
+E.~G. Hohenstein, R.~M. Parrish, and T.~J. Mart\'{\i}nez,
+\newblock J. Chem. Phys. {\bf 137}, 044103 (2012).
+
+\bibitem{Parrish:2012:224106}
+R.~M. Parrish, E.~G. Hohenstein, T.~J. Mart\'{\i}nez, and C.~D. Sherrill,
+\newblock J. Chem. Phys. {\bf 137}, 224106 (2012).
+
+\bibitem{Parrish:2013:132505}
+R.~M. Parrish, E.~G. Hohenstein, N.~F. Schunck, C.~D. Sherrill, and T.~J.
+  Mart{\'\i}nez,
+\newblock Phys. Rev. Lett. {\bf 111}, 132505 (2013).
+
+\bibitem{Sisto:2014:2857}
+A.~Sisto, D.~R. Glowacki, and T.~J. Martinez,
+\newblock Acc. Chem. Res. {\bf 47}, 2857 (2014).
+
+\bibitem{Sisto:2017:14924}
+A.~Sisto et~al.,
+\newblock Phys. Chem. Chem. Phys. {\bf 19}, 14924 (2017).
+
+\bibitem{Li:2017:3493}
+X.~Li, R.~M. Parrish, F.~Liu, S.~I. Kokkila~Schumacher, and T.~J.
+  Mart{\'\i}nez,
+\newblock J. Chem. Theory Comput. {\bf 13}, 3493 (2017).
+
+\bibitem{Morrison:2014:5366}
+A.~F. Morrison, Z.-Q. You, and J.~M. Herbert,
+\newblock J. Chem. Theory Comput. {\bf 10}, 5366 (2014).
+
+\bibitem{Morrison:2015:4390}
+A.~F. Morrison and J.~M. Herbert,
+\newblock J. Phys. Chem. Lett. {\bf 6}, 4390 (2015).
+
+\bibitem{Santagati:2018:eaap9646}
+R.~Santagati et~al.,
+\newblock Sci. Adv. {\bf 4}, eaap9646 (2018).
+
+\bibitem{Endo:2018:X}
+S.~Endo, T.~Jones, S.~McArdle, X.~Yuan, and S.~Benjamin,
+\newblock arXiv preprint arXiv:1806.05707  (2018).
+
+\bibitem{Higgott:2018:X}
+O.~Higgott, D.~Wang, and S.~Brierley,
+\newblock arXiv preprint arXiv:1805.08138  (2018).
+
+\bibitem{Lee:2018:JCTC}
+J.~Lee, W.~J. Huggins, M.~Head-Gordon, and K.~B. Whaley,
+\newblock J. Chem. Theory Comput.  (2018).
+
+\bibitem{McClean:2017:042308}
+J.~R. McClean, M.~E. Kimchi-Schwartz, J.~Carter, and W.~A. de~Jong,
+\newblock Phys. Rev. A {\bf 95}, 042308 (2017).
+
+\bibitem{Colless:2018:011021}
+J.~I. Colless et~al.,
+\newblock Phys. Rev. X {\bf 8}, 011021 (2018).
+
+\bibitem{SuppNote}
+See Supplemental Material at doi:XX.XXXX/XX for detailed derivation/definition
+  of the Hamiltonian matrix elements, for technical details of the CIS state
+  preparation, MC-VQE entangler circuits, and output of the MC-VQE optimization
+  profile, and for an additional case study with increased multi-excitonic
+  character.
+
+\bibitem{Diker:2016:W}
+F.~Diker,
+\newblock arXiv preprint arXiv:1606.09290  (2016).
+
+\bibitem{durand1983direct}
+P.~Durand,
+\newblock Phys. Rev. A {\bf 28}, 3184 (1983).
+
+\bibitem{maynau1983direct}
+D.~Maynau, P.~Durand, J.~Daudey, and J.~Malrieu,
+\newblock Phys. Rev. A {\bf 28}, 3193 (1983).
+
+\bibitem{Frenkel:1931:17}
+J.~Frenkel,
+\newblock Phys. Rev. {\bf 37}, 17 (1931).
+
+\bibitem{Davydov:1964:145}
+A.~S. Davydov,
+\newblock Physics-Uspekhi {\bf 7}, 145 (1964).
+
+\bibitem{Levine:2006:1039}
+B.~G. Levine, C.~Ko, J.~Quenneville, and T.~J. Mart{\'I}nez,
+\newblock Mol. Phys. {\bf 104}, 1039 (2006).
+
+\bibitem{Plenio:2008:113019}
+M.~B. Plenio and S.~F. Huelga,
+\newblock New J. Phys. {\bf 10}, 113019 (2008).
+
+\bibitem{Caruso:2009:09B612}
+F.~Caruso, A.~W. Chin, A.~Datta, S.~F. Huelga, and M.~B. Plenio,
+\newblock J. Chem. Phys. {\bf 131}, 09B612 (2009).
+
+\bibitem{Caruso:2010:062346}
+F.~Caruso, A.~W. Chin, A.~Datta, S.~F. Huelga, and M.~B. Plenio,
+\newblock Phys. Rev. A {\bf 81}, 062346 (2010).
+
+\bibitem{Mostame:2012:105013}
+S.~Mostame et~al.,
+\newblock New J. Phys. {\bf 14}, 105013 (2012).
+
+\bibitem{Mostame:2017:44}
+S.~Mostame et~al.,
+\newblock Quantum Information Processing {\bf 16}, 44 (2017).
+
+\bibitem{Potovcknik:2018:904}
+A.~Poto{\v{c}}nik et~al.,
+\newblock Nat. Comm. {\bf 9}, 904 (2018).
+
+\bibitem{Wang:2018}
+B.-X. Wang et~al.,
+\newblock arXiv preprint arXiv:1801.09475  (2018).
+
+\bibitem{McClean:2018:X}
+J.~R. McClean, S.~Boixo, V.~N. Smelyanskiy, R.~Babbush, and H.~Neven,
+\newblock arXiv preprint arXiv:1803.11173  (2018).
+
+\bibitem{Ufimtzsev:2009:2619}
+I.~S. Ufimtsev and T.~J. Martinez,
+\newblock J. Chem. Theory Comput. {\bf 5}, 2619 (2009).
+
+\bibitem{Luehr:2011:949}
+N.~Luehr, I.~S. Ufimtsev, and T.~J. Mart{\'\i}nez,
+\newblock J. Chem. Theory Comput. {\bf 7}, 949 (2011).
+
+\bibitem{Isborn:2012:5092}
+C.~M. Isborn, A.~W. Gotz, M.~A. Clark, R.~C. Walker, and T.~J. Mart{\'\i}nez,
+\newblock J. Chem. Theory Comput. {\bf 8}, 5092 (2012).
+
+\bibitem{Tawada:2004:8425}
+Y.~Tawada, T.~Tsuneda, S.~Yanagisawa, T.~Yanai, and K.~Hirao,
+\newblock J. Chem. Phys. {\bf 120}, 8425 (2004).
+
+\bibitem{Vydrov:2006:234109}
+O.~A. Vydrov and G.~E. Scuseria,
+\newblock J. Chem. Phys. {\bf 125}, 234109 (2006).
+
+\bibitem{Nakanishi:2018:X}
+K.~M. Nakanishi, K.~Mitarai, and K.~Fujii,
+\newblock arXiv preprint arXiv:1810.09434  (2018).
+
+\bibitem{Zhang:2003:027903}
+J.~Zhang, J.~Vala, S.~Sastry, and K.~B. Whaley,
+\newblock Physical review letters {\bf 91}, 027903 (2003).
+
+\bibitem{Shende:2004:062321}
+V.~V. Shende, I.~L. Markov, and S.~S. Bullock,
+\newblock Physical Review A {\bf 69}, 062321 (2004).
+
+\bibitem{Vatan:2004:032315}
+F.~Vatan and C.~Williams,
+\newblock Phys. Rev. A. {\bf 69}, 032315 (2004).
+
+\bibitem{Wei:2012:X}
+H.-R. Wei and Y.-M. Di,
+\newblock arXiv preprint arXiv:1203.0722  (2012).
+
+\end{thebibliography}
+
+\include{qem-supp}
+
+% ***** Figures and Tables *****
+
+\end{document}
+%
+% ****** End of file template.aps ******

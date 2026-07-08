@@ -1,0 +1,894 @@
+Parallelizing quantum circuit synthesis
+Olivia Di Matteo1,2 and Michele Mosca2,3,4,5
+
+arXiv:1606.07413v2 [quant-ph] 14 Oct 2016
+
+1
+
+Department of Physics and Astronomy, University of Waterloo, Waterloo, Canada
+Institute for Quantum Computing, Waterloo, Canada
+3
+Department of Combinatorics and Optimization, University of Waterloo, Waterloo,
+Canada
+4
+Perimeter Institute for Theoretical Physics, Waterloo, Canada
+5
+Canadian Institute for Advanced Research, Toronto, Canada
+2
+
+E-mail: odimatte@uwaterloo.ca, mmosca@uwaterloo.ca
+
+Abstract. Quantum circuit synthesis is the process in which an arbitrary unitary
+operation is decomposed into a sequence of gates from a universal set, typically one
+which a quantum computer can implement both efficiently and fault-tolerantly. As
+physical implementations of quantum computers improve, the need is growing for tools
+which can effectively synthesize components of the circuits and algorithms they will
+run. Existing algorithms for exact, multi-qubit circuit synthesis scale exponentially
+in the number of qubits and circuit depth, leaving synthesis intractable for circuits
+on more than a handful of qubits. Even modest improvements in circuit synthesis
+procedures may lead to significant advances, pushing forward the boundaries of not
+only the size of solvable circuit synthesis problems, but also in what can be realized
+physically as a result of having more efficient circuits.
+We present a method for quantum circuit synthesis using deterministic walks. Also
+termed pseudorandom walks, these are walks in which once a starting point is chosen,
+its path is completely determined. We apply our method to construct a parallel
+framework for circuit synthesis, and implement one such version performing optimal T count synthesis over the Clifford+T gate set. We use our software to present examples
+where parallelization offers a significant speedup on the runtime, as well as directly
+confirm that the 4-qubit 1-bit full adder has optimal T -count 7 and T -depth 3.
+
+Keywords: Quantum information, quantum circuits, high-performance computing,
+parallel computing
+1. Introduction
+Quantum computers, like their classical counterparts, will require a compiler which can
+translate from a human-readable input or programming language into operations which
+can be executed directly on quantum hardware. Circuit synthesis is an integral part of
+
+Parallelizing quantum circuit synthesis
+
+2
+
+the compilation process. Given an arbitrary quantum circuit C and a universal gate set
+G, one seeks to find a decomposition
+Uk Uk−1 · · · U2 U1 = C,
+
+Ui ∈ G,
+
+(1)
+
+where k represents the depth of the circuit. A myriad of algorithms currently exist to
+find such a decomposition [1–15]. They are generally divided into two classes, those
+which synthesize approximately (i.e. ||Uk · · · U1 − C|| < ) and others which synthesize
+exactly. Some procedures work for a single qubit, whereas others have been generalized
+to multiple qubits. Most of these algorithms were designed to work over the Clifford+T
+universal gate set, though other gate sets such as the V -basis have also been studied
+[5, 6].
+Many of the algorithms which perform exact synthesis fall victim to the fact that
+the time and space used depend exponentially on both the number of qubits and the
+depth of the circuit in question. Even on a reasonably fast machine, synthesis of circuits
+with more than a handful of qubits and layers of depth becomes intractable.
+In this work, we propose a method of circuit synthesis based on a heuristic search
+technique commonly used in cryptanalysis: collision finding based on deterministic, or
+pseudorandom walks. These are walks through a search space such that once a starting
+point is chosen, the path is completely determined. More generally, we show how we can
+use deterministic walks to traverse the space of possible circuits of a given depth and find
+solutions to the synthesis problem. A key ingredient in our method is a mapping from the
+unitary operators constructed from the gate set G to binary strings of a constant length,
+and a suitable mapping back to the set of unitary operators. When such mappings are
+defined, we can synthesize circuits over any universal gate set, on any number of qubits,
+by applying any existing walk method which can search the space.
+The structure of this article is as follows. We begin in Section 2 with a discussion
+of deterministic walks, and how we can map quantum circuit synthesis to these types
+of problems. The subsequent sections pertain to our choice of implementation of one
+such method, namely parallel circuit synthesis. In Section 3 we briefly lay out the
+procedure for parallel synthesis and provide a runtime complexity estimate, detailing
+the important parameters which affect the scaling of our algorithm. Section 4 introduces
+our software implementation, pQCS, which performs optimal T -count synthesis using
+parallel search. Section 5 contains the numerical results of large-scale experiments run
+on a Blue Gene/Q supercomputer. Here we showcase the significant advantages afforded
+to us by parallelization. We conclude in Section 6 and suggest avenues of future research
+on this topic.
+2. Walking through circuits
+Consider a hash function h : D → R, typically considered to operate over binary strings.
+If h is a good hash function, then for an arbitrary input x ∈ D, the value h(x) = y ∈ R
+will be in practice indistinguishable from a random output. Suppose there exists another
+
+Parallelizing quantum circuit synthesis
+
+3
+
+function r : R → D, unrelated to h, which maps elements of its range back to the domain
+(such a function is commonly termed a reduction function). Repeatedly applying r ◦ h
+to an input will produce a trail of points scattered throughout D. However, once the
+initial input is chosen, the progression of the trail is completely determined, hence we
+favour the term deterministic rather than pseudorandom walk even though the path of
+the walk appears random due to the natures of h and r.
+Such determinism has led to a set of algorithms with a variety of applications. One
+well-known variation is rainbow tables [16], which are used for finding pre-images of hash
+functions (conventionally with the intention of cracking passwords). Collision finding in
+one hash function, or claw finding between two functions has also been accomplished in
+parallel using deterministic walks [17], and was used to find collisions in double DES
+[18].
+Deterministic walks are advantageous due to their low storage requirement: one
+need only store the starting point of a walk, its ending point, and the number of
+intermediate steps, whereas conventional search techniques would store the value of
+every point computed throughout.
+
+011100101010101011011101101...
+
+1001101110111011000111...
+
+Figure 1. A schematic diagram showing the process of walking over circuits. Binary
+strings are mapped to products of unitary matrices over the gate set G via some
+correspondence µ. The product of these matrices is then mapped via ν back to a
+binary string, which is then passed through a hash function h. Repeated application
+of h ◦ ν ◦ µ allows us to traverse the set of possible circuits in a pseudorandom fashion.
+
+With this in mind, we show how one can map the problem of circuit synthesis to
+a problem that can be solved using an algorithm based on deterministic walks. We
+have, as per (1), a product constructed from the universal gate set G. It is possible to
+specify a unique way of encoding the information about {U1 , . . . , Uk } into binary strings
+{b1 , . . . , bk } of equal length ` (where we assume ` is sufficiently long as to encompass
+all the information described in what follows). Suppose G contains a number of singleand two-qubit gates. If we enumerate all the gates in G, then for each Ui we might use
+a few bits to identify all the constituent gates, and maybe a few more to specify if we
+
+Parallelizing quantum circuit synthesis
+
+4
+
+should use their Hermitian conjugates. We will also need to indicate on which qubit(s)
+they act. Furthermore, there must be some space to indicate controls and targets where
+appropriate. Given any gate set, we can find a way of doing this such that every possible
+Ui can be represented by a unique string bi . Then, the concatenation (bk | · · · |b1 ) will
+be a unique string of length k` representing the product of unitaries Uk · · · U1 .
+We can perform a deterministic walk over unitary matrices as follows; this process is
+displayed graphically in Figure 1. Let us define a function µ which maps a binary string
+of length k` to a unitary matrix over a specified gate set G. Then define a mapping ν
+from the unitaries over G back to binary strings {0, 1}∗ . Finally, choose a good hash
+function h from {0, 1}∗ to strings of length k` (this may be a simple hash function, or
+a combination of hash and reduction-type functions). Repeatedly applying h ◦ ν ◦ µ
+to a randomly chosen binary string of length k` will allow us to traverse products of
+unitaries in a pseudorandom fashion; we can then use this to search the space of possible
+solutions to (1).
+3. Parallel circuit synthesis
+Once we have mappings as proposed in Section 2, we can reformulate the circuit synthesis
+problem as a problem which can be solved using search algorithms based on deterministic
+walks. We specifically implemented one which performs parallel claw finding. Let
+h1 : D1 → R and h2 : D2 → R be two hash functions. A claw between h1 and h2 is a
+pair of inputs x1 ∈ D1 , x2 ∈ D2 such that
+h1 (x1 ) = h2 (x2 ).
+
+(2)
+
+This is, in a sense, a collision search between two functions.
+Our interest in claw finding stems from recent work on circuit synthesis using a
+meet-in-the-middle (MITM) approach [12]. The motivation for that work is as follows.
+One can of course find a decomposition of (1) by brute force, computing all possible
+combinations starting from depth 1 up until a solution is found. Let ξ represent the
+number of unitaries having depth 1. Typically ξ will depend exponentially on the
+number of qubits, n. Then, the runtime for brute force synthesis of a circuit with depth
+k takes time O(ξ k ). A MITM approach achieves a roughly square-root speedup over
+this, accomplished by dividing the synthesis equation in half:
+Ud k e · · · U1 = Ud†k e+1 · · · Uk† C,
+2
+
+Ui ∈ G.
+
+(3)
+
+2
+
+Databases of unitaries having the form of each side of (3) are sequentially constructed
+(starting from depth 1), stored in binary trees, and then searched through until a suitable
+decomposition is found.
+ k Thisreduces
+ the size of the search space by a square root factor,
+d2e
+d k2 e
+yielding runtime O ξ log ξ
+, where the log factor is picked up due to the binary
+search.
+To parallelize circuit synthesis, we build on the principles of the MITM algorithm.
+Rather than searching through static binary trees, we search the space in parallel,
+
+Parallelizing quantum circuit synthesis
+
+5
+
+adapting a search technique originally developed for cryptanalysis [17]. Though our
+runtime will retain the exponential dependence on n and dk/2e, it scales inversely with
+the number of processors, allowing us to tackle larger problems which were infeasible
+using previous methods, as well as speed up the synthesis of some known circuits. We
+provide a brief description of the algorithm here as it pertains specifically to circuit
+synthesis. For a more detailed description, the reader is referred to [17] or [19].
+Recall (3), and for simplicity, let us define
+V := Ud k e · · · U1 ,
+
+(4)
+
+W := Ud†k e+1 · · · Uk† C,
+
+(5)
+
+2
+
+2
+
+as representing the left and right sides of this equation. Define a suitable mapping
+between unitary matrices and binary strings of length k` as in Section 2. Then let V 0
+represent the set of binary strings that are of the form V , and likewise W those of the
+form W . When k is odd, V 0 and W may differ in size by a factor of ξ. In this case, we
+0
+, and consider V = Vi0 independently
+partition V 0 into equal sized chunks V00 , . . . , Vξ−1
+(a search can then be executed with each Vi0 sequentially or in parallel, adding another
+layer of parallelism to the implementation). When k is even, we simply let V = V 0 .
+Let N = {0, 1}k` . Define functions z1 : N → N and z2 : N → N . One way these
+functions might be implemented is by converting the input string into a sequence of
+unitary matrices (in V for z1 and W for z2 ), computing their product, deriving a new
+binary string with the information about each of the matrix elements, and then running
+that string through a known hash function so that the outputs of both functions are in
+the same space and in practice appear to be random.
+Let us define a ‘super’ function f : N ×{1, 2} → N ×{1, 2} such that one application
+of f is a single step in the deterministic walk, i.e. f (x, b) = zb (x). Finding a claw between
+z1 and z2 is now equivalent to finding a collision in f with distinct values for b, i.e. we
+must find two inputs x1 and x2 such that
+f (x1 , 1) = f (x2 , 2).
+
+(6)
+
+Consider m processors all having access to a shared memory. We will denote some
+fraction θ of points in N as marked, or distinguished. Every processor chooses a random
+starting pair (n0 , b0 ) in N × {1, 2}. Repeatedly applying f produces a trail through the
+space of possible circuits, which roughly half the time will produce a part of (3) which
+is an element of V, and the other half of the time will produce an element of W. The
+trail continues until the next input, say xd , is a distinguished point. The trail is then
+terminated.
+The collection of found distinguished points is stored in the shared memory.
+Distinguished points are stored as a triple consisting of the first pair (n0 , b0 ), the last pair
+(nd , bd ), and the value d, which is the number of steps taken to reach the distinguished
+point. When a processor finishes its trail, it will attempt to add its distinguished point
+to the shared memory. If it sees that a trail ending at the given point is not present
+in this shared memory, it will insert it and then begin a new trail. However, if it sees
+
+Parallelizing quantum circuit synthesis
+
+6
+
+...
+
+...
+
+...
+
+...
+
+...
+
+...
+
+that there is already a triple in storage which ended at the same distinguished point but
+had a different starting point, it means that somewhere along the way these two trails
+must have merged. The processor then takes the starting points of these two trails, and
+traces back through them to locate the merge point.
+
+Figure 2. Possible ways two trails can merge. Let f and g be two functions between
+which we want to find a claw. (Left) One trail starts before the other. (Centre) The two
+trails merge after performing the same function, i.e. a collision f (x1 ) = f (y3 ). (Right)
+The two trails merge after performing a different function, i.e. a claw f (x1 ) = g(y3 ).
+
+There are a number of possibilities here, as depicted in Figure 2. First, it could
+be that one trail started “before” the other, i.e. the merge point was at the beginning
+of the shorter trail. Another possibility is that when the trails merged, both had just
+performed z1 , or both had just performed z2 . Even if the inputs were different, this
+case does not provide us with a solution to the problem at hand. The final case is that
+immediately before they merged, one trail performed z1 and one performed z2 ; it is only
+in this final case that we have found a solution. With the information about the inputs
+in the step just before the collision, we can extract the unitary matrices from the binary
+string, and have fully synthesized our circuit.
+The runtime complexity of this algorithm can be estimated by applying the
+parameters of our problem directly to that in [17]. The size of the spaces V 0 and
+W are
+k
+k
+N 0 = ξd 2 e, N = ξb 2 c.
+(7)
+V
+
+W
+
+Our algorithm then scales as
+1 k
+k
+1 1
+TQCS ∝ ξ d 2 e+ 2 b 2 c √
+τ,
+wm
+
+(8)
+
+where w is the number of distinguished points that can be held in memory. The
+parameter τ is the execution time for a single iteration of z1 or z2 , the bulk of which
+will likely be spent performing matrix multiplication. Let us assume in the worst case
+that we are taking the product of d k2 e 2n × 2n unitaries using a multiplication algorithm
+which scales as (2n )α , where α is some constant, typically 2 < α ≤ 3. Thus, we obtain
+
+Parallelizing quantum circuit synthesis
+
+7
+
+our final estimate
+ 
+k
+1 k
+1
+k
+1
++
+(d
+e
+b
+c)
+.
+TQCS ∝ 2 ξ 2 2 2 √
+wm 2
+αn
+
+(9)
+
+As previously mentioned, this time is still exponential in the number of qubits as well as
+the depth of the circuit. We also note that it is often the case that matrix multiplication
+can be parallelized, or that some specific properties of the implementation at hand (such
+as sparsity) can be leveraged so as to improve the scaling. What is key here is that the
+runtime benefits from being inversely proportional to the number of processors and
+available memory.
+4. Implementation details
+4.1. Optimal T -count synthesis
+The synthesis algorithm we chose to apply our approach to is the optimal T -count
+algorithm presented in [13]. Such an algorithm is relevant as in many state-of-the-art
+methods for fault-tolerant quantum computation, T gates are considered to be expensive
+to implement due to the need to distill magic states (see, for example, [20]).
+Let Pn represent the n-qubit Pauli group.
+We reshuffle and rewrite the
+decomposition of a circuit C as
+eiφ R(Pt ) · · · R(P1 )D = C,
+
+(10)
+
+where t is the T -count, D is a Clifford, Pj ∈ Pn , and
+
+
+iπ
+iπ
+1
+1
+1 + e 4 I2n +
+1 − e 4 Pj .
+(11)
+R(Pj ) =
+2
+2
+It thus suffices to find a set of t Paulis and a Clifford which will satisfy (10) up to a
+global phase. The dependence on the global phase can also be removed by using the
+channel representation of every matrix in the above equation:
+\
+\b
+b
+R(P
+t ) · · · R(P1 )D = C,
+
+(12)
+
+where the channel representation of some matrix U is the matrix with coefficients
+
+bij = 1 Tr Pi U Pj U † , Pi , Pj ∈ Pn .
+U
+(13)
+n
+2
+The channel representation of an n-qubit unitary has dimension 4n × 4n , with each row
+and column being indexed by a Pauli operator.
+Using the optimal T -count algorithm has afforded us with a number of advantages.
+First of all, the T -count formulation allows us to represent each unitary matrix in the
+sequence as a list of n-qubit Paulis. With binary symplectic representation we can
+then represent each Pauli directly as a binary string, which leads to a very simple
+mapping with which we can perform our deterministic walks. Another strong point
+of the algorithm is that the channel representations of R(P ) for P ∈ Pn are sparse
+matrices. Thus, we were able to implement a sparse matrix multiplication algorithm
+
+Parallelizing quantum circuit synthesis
+
+8
+
+which allows us to very quickly compute most matrix products, despite the channel
+representations having dimension 4n × 4n .
+We can apply (8) and (9) to the optimal T -count synthesis to obtain a runtime
+estimate. Each R(P ) contributes a single T gate to the circuit, and can be considered
+as a single layer of depth in this implementation. Thus, we have that ξ = 4n − 1, as all
+Paulis save for the identity are valid choices. Our estimate for the runtime is thus
+ 
+t
+n(2α+2d 2t e+b 2t c) 1 1
+√
+.
+(14)
+TQCS−T ∝ 2
+wm 2
+4.2. Computer specifications
+We implemented the optimal T -count version of the parallel algorithm in C++11. It
+is called pQCS (parallel quantum circuit synthesis), and is available for download
+and research use at https://qsoft.iqc.uwaterloo.ca/#software. Parallelization was
+accomplished using the Boost.MPI compiled library [21]. A scaled down version of
+pQCS which uses only OpenMP for parallelization (and can be run on a standard
+multi-core personal computer) is also available in the above package.
+pQCS was extensively tested on two large-scale machines. The OpenMP-only
+version was tested on SHARCNET’s Orca using a single node with up to 16 processors
+at 2.2GHz speed. The MPI version was tested on Scinet’s Blue Gene/Q (BG/Q)
+supercomputer, which has 65536 processors at 1.6GHz speed. The largest test we have
+run to date involved a total of 8192 cores. All results below are from trials on the BG/Q.
+A flowchart and description of the distribution of work in the MPI version is presented
+in Figure 3.
+5. Results
+5.1. Determining effective simulation parameters
+pQCS has a number of tunable parameters. In what follows we will synthesize a known
+circuit, the Toffoli gate, and explore the scaling of our algorithm.
+In the original description of the parallel collision finding algorithm [17], each
+processor was responsible for performing not only the search for a distinguished point,
+but also storing it and subsequently checking the validity of any possible solutions; it is
+from this setup that the heuristic runtimes are derived. In pQCS, however, processors
+are divided into three categories (as per Figure 3) which communicate via MPI. Worker
+processors perform deterministic walks and generate distinguished points. Distinguished
+points are collected and stored in-core on collector processes. Each collector has access
+to a number of verifier processors, to which pairs of walks are sent for verification when
+the possibility of a claw occurs. The parameters m and w may not necessarily depend
+then on the total number of processors, but rather on the number of processors in one
+or more of the different classes. For example, w will depend solely on the number of
+
+Collectors
+Veriﬁers
+
+Figure 3. A flowchart of work distribution for the version of pQCS run on the Blue Gene/Q. Worker processors perform walks and
+generate distinguished points. These are funneled through a head worker to a head collector processor, which then distributes the points
+amongst all the collectors for processing and storage. Each collector has access to a number of verifiers. Collectors which find pairs of
+walks ending at the same distinguished point distribute the pairs to their verifiers to check for a claw.
+
+Workers
+
+Inputs:
+Parallelizing quantum circuit synthesis
+9
+
+Parallelizing quantum circuit synthesis
+
+10
+
+collectors, whereas we expect m to be a function of the number of workers, assuming a
+sufficient number of collectors and verifiers are in place.
+Average synthesis time for Toffoli gate on BGQ (100 trials)
+Average synthesis time (s)
+
+1024 cores
+
+2048 cores
+
+325
+300
+275
+250
+225
+200
+175
+150
+125
+100
+75
+50
+
+V=C
+V = 2C
+
+0.0625
+
+0.125
+
+0.1875
+
+0.25
+
+0.0625
+
+0.125
+
+0.1875
+
+0.25
+
+Proportion of collector nodes
+
+Figure 4. Variation of the number of collectors and verifiers when synthesizing the
+Toffoli gate. The fraction of distinguished points was set at 1/4. The legend V = C
+indicates equal amounts of collectors and verifiers, whereas V = 2C indicates two
+verifiers per collector. We find that the optimal number of collectors seems to be
+about 1/8 the total number of processors, and the number of verifiers to be twice that,
+at 1/4 the total number.
+
+First, we focus on how many collectors and verifiers we should use. We chose two
+values for the total number of cores, 1024 and 2048. We then varied the fraction of nodes
+designated as collectors in increments of 1/16, from 1/16 to 1/4 the total (values outside
+this range clearly yielded inferior results). For each fraction of collectors, we either used
+the same, or double the number of verifiers. The results of these trial runs are shown
+in Figure 4. In all these trials we let 1/4 of the points in the space be designated as
+distinguished (later we will fine-tune this parameter as well). Each point is the average of
+100 independent trials. We find that for both total quantities of processors, the optimal
+number of collectors is 1/8 the total number, and for verifiers 1/4 the total. When
+more than 3/8 of the total processes are being used on storage and verification, there
+are not enough workers to perform the deterministic walks. On the other hand, when
+there are too many workers, each collector must store and process a larger collection of
+distinguished points each time. Furthermore, more time will be spent by the workers
+gathering and sending the increased quantity of distinguished points.
+With this knowledge, we then tested the Toffoli with varying number of cores.
+Again, we let 1/4 of the points be distinguished and take the average of 100 independent
+trials. The results are shown in Figure 5. We see clearly here the expected inverse
+dependence on the number of processors as predicted by (8). We do note that there is
+significant deviation from the expected trend when we reach 8192 cores. We suspect
+that for a problem of this size, the parallel overhead and communication costs outweigh
+the potential benefits of using this many cores.
+Finally, we investigate how the runtime varies with the fraction of distinguished
+
+Parallelizing quantum circuit synthesis
+
+11
+
+Average synthesis time for Toffoli gate on BGQ (100 trials)
+Average synthesis time (s)
+
+500
+450
+400
+350
+300
+250
+200
+150
+100
+50
+256 512
+
+1024
+
+2048
+
+4096
+
+8192
+
+Cores
+
+Figure 5. Varying the total number of cores when synthesizing the Toffoli gate. We
+used 512 collectors and 1024 verifiers with 1/4 of the points distinguished. Data follows
+the inverse trend line quite closely until around the 4096 core mark. After this point,
+it is likely that the overhead and communication costs are too large for a problem of
+this size.
+
+points, θ. In the case of the Toffoli, the amount of available memory using the above
+number of processors on the BG/Q is significantly greater than that required to store
+even the entire space. Variation of this parameter is thus somewhat contrived for such a
+(relatively) small problem. In this case we would expect an inverse dependence on θ (see
+the Appendix for more details). We ran 100 trials on 4096 processors (512 collectors and
+1024 verifiers) using fractions of distinguished points {1/2, 1/4, 1/8, 1/16, 1/32}.
+The results are displayed in Figure 6, where we see the expected inverse dependence.
+We also report here our best synthesis times for the Toffoli gate, clocking in at roughly
+26s on average. To fully explore the effects of this parameter (and more importantly the
+dependence on the available memory w), we would need to use a much larger circuit.
+
+Average synthesis time (s)
+
+Average synthesis time for Toffoli gate on BGQ (100 trials)
+300
+260
+220
+180
+140
+100
+60
+20
+1/32
+
+1/16
+
+1/8
+
+1/4
+
+1/2
+
+Fraction of distinguished points
+
+Figure 6. Varying the fraction of distinguished points while synthesizing the Toffoli
+gate. As the size of the search space is much less than the available memory, we see
+roughly the expected inverse dependence on the fraction of distinguished points.
+
+Parallelizing quantum circuit synthesis
+
+12
+
+5.2. Benchmarking known circuits
+Some of the largest circuits which were directly synthesizable by both the original MITM
+algorithm and optimal T -count algorithm were those with T -count 7 on 3 qubits [12,13].
+There are a number of such circuits, shown in Figure 7. Using our knowledge from
+optimization of parameters in the previous section (4096 cores, 1/2 points distinguished,
+512 collectors and 1024 verifiers), we obtain the synthesis times reported in Table 1. We
+note that at roughly 25s, these times are a marked improvement over those reported
+in [19], which were greater than 4 minutes. This highlights the advantage of using many
+processors, and is a promising sign that we will be able to synthesize circuits which are
+much larger in a reasonable amount of time.
+Toffoli
+
+Peres
+
+Fredkin
+
+Quantum OR
+
+Negated Toffoli
+
+X
+X
+X
+
+X
+
+X
+X
+
+X
+
+Figure 7. Circuit diagrams for the five 3-qubit circuits with T -count 7 which we
+synthesized.
+
+Circuit
+Average time (s) Std. dev. (s)
+Toffoli
+25.9870
+11.0733
+Fredkin
+25.0031
+9.4869
+Peres
+25.4931
+11.1753
+Quantum OR
+24.1854
+9.1417
+Negated Toffoli
+26.9162
+11.1561
+Table 1. Synthesis of a known set of 3-qubit circuits all having optimal T -count 7.
+All results come from 100 independent trials using 4096 cores (512 collectors, 1024
+verifiers), and 1/2 of points distinguished as per the results of Section 5.1.
+
+5.3. Pushing the boundaries
+The largest circuit synthesized to date using pQCS is the 4-qubit 1-bit full adder, shown
+in Figure 8. A synthesized version of this adder appeared in [12] with T -count 8, where
+it was accomplished using peephole optimization techniques. It was suspected that it
+has T -count 7 [22], which we confirm.
+
+Parallelizing quantum circuit synthesis
+
+13
+
+Figure 8. The 4-qubit adder. We find directly that it has T -count 7 and T -depth 3,
+and that these results are optimal.
+
+The first successful synthesis of the adder took 12.5 hours using 4096 cores (512
+collectors, 1024 verifiers) and 1/2 points distinguished. We note that a circuit as large as
+the adder would likely benefit from a larger number of processors, and so more testing is
+in progress. A full version of the circuit is shown in Figure 9. The initial output of pQCS
+is a sequence of Paulis and a unitary corresponding to a Clifford gate as per (10). The
+Pauli portion of the circuit (R(P7 ) · · · R(P1 )) was generated using the algorithm given
+in the appendix of [13], and the Clifford component was generated using the algorithm
+in [23]. The resultant sequence of gates was then optimized for T -depth using T -par
+[24]. Interestingly, this new synthesis of the adder led to the observation that it requires
+identical resources as the Toffoli gate, i.e. T -count 7, T -depth 3, and to the question of
+whether this is a coincidence. In fact, it was subsequently pointed out to us that this
+adder is affine equivalent to the Toffoli (i.e. unitarily equivalent up to application of
+CNOTs) [25].
+
+Figure 9. A decomposition of the 4-qubit adder over Clifford+T , optimized for T depth. The X gates indicate swaps.
+
+6. Concluding remarks
+We have presented a framework for quantum circuit synthesis based on deterministic
+walks, as well as an algorithm and software for parallel quantum circuit synthesis.
+We have observed a clear advantage over existing techniques using a relatively modest
+number of processors, and were able to directly synthesize a 4-qubit circuit which would
+have been intractable using previous methods.
+Ongoing and future work on pQCS includes improvements to the application
+structure and parallelization routines, extensions for synthesis in general over a specified
+gate set, and the implementation of approximate circuit synthesis. Furthermore, we seek
+to push the application to its limits in order to fully characterize the scaling, in particular
+
+Parallelizing quantum circuit synthesis
+
+14
+
+with respect to the available memory once the circuit search spaces become sufficiently
+large.
+Acknowledgments
+We thank SHARCNET and Scinet for use of their computing resources. Computations
+were performed on the SOSCIP Consortium’s Blue Gene/Q computing platform. We are
+grateful to Barbara Collignon from IBM for support with BG/Q development. We also
+thank Matt Amy, Vadym Kliuchnikov, and Tom Draper for helpful discussions. Funding
+was provided by NSERC, CIFAR, and SOSCIP. IQC and the Perimeter Institute are
+supported in part by the Government of Canada and the Province of Ontario. SOSCIP is
+funded by the Federal Economic Development Agency of Southern Ontario, the Province
+of Ontario, IBM Canada Ltd., Ontario Centres of Excellence, Mitacs and 15 Ontario
+academic member institutions. A portion of this work was completed while attending
+the Quantum Computer Science workshop at the Banff International Research Station
+(17-22 April 2016).
+References
+[1] Christopher M. Dawson and Michael A. Nielsen 2006 The Solovay-Kitaev algorithm. Quantum
+Info. Comput. 6 (1) 81–95
+[2] Vadym Kliuchnikov, Dmitri Maslov, and Michele Mosca 2013 Asymptotically optimal
+approximation of single qubit unitaries by Clifford and T circuits using a constant number
+of ancillary qubits. Phys. Rev. Lett. 110 190502
+[3] Peter Selinger 2015 Efficient Clifford+T approximation of single-qubit operators.Quantum Info.
+Comput. 15 (1-2) 159–180
+[4] Vadym Kliuchnikov, Dmitri Maslov, and Michele Mosca 2016 Practical approximation of singlequbit unitaries by single-qubit quantum Clifford and T circuits. IEEE Transactions on
+Computers 65 (1) 161–172
+[5] Alex Bocharov, Yuri Gurevich, and Krysta M. Svore 2013 Efficient decomposition of single-qubit
+gates into V basis circuits. Phys. Rev. A 88 012313
+[6] Neil J. Ross 2015 Optimal ancilla-free Clifford+V approximation of Z-rotations. Quantum Info.
+Comput. 15 932–950
+[7] Alex Bocharov, Martin Roetteler, and Krysta M. Svore 2015 Efficient synthesis of universal repeatuntil-success circuits. Phys. Rev. Lett. 114 080502
+[8] Nathan Wiebe and Martin Roetteler 2016 Quantum arithmetic and numerical analysis using
+repeat-until-success circuits. Quantum Info. Comput. 16 134–178
+[9] Jonathan Welch, Alex Bocharov, and Krysta M. Svore 2016 Efficient approximation of diagonal
+unitaries over the Clifford+T basis. Quantum Info. Comput. 16 (1-2) 87–104
+[10] Vadym Kliuchnikov, Dmitri Maslov, and Michele Mosca 2013 Fast and efficient exact synthesis
+of single-qubit unitaries generated by Clifford and T gates. Quantum Info. Comput. 13 (7-8)
+607–630
+[11] Brett Giles and Peter Selinger 2013 Exact synthesis of multiqubit Clifford+T circuits Phys. Rev.
+A 87 032332
+[12] Matthew Amy, Dmitri Maslov, Michele Mosca, and Martin Roetteler 2013 A meet-in-the-middle
+algorithm for fast synthesis of depth-optimal quantum circuits. IEEE Transactions on ComputerAided Design of Integrated Circuits and Systems 32 (6) 818–830
+
+Parallelizing quantum circuit synthesis
+
+15
+
+[13] David Gosset, Vadym Kliuchnikov, Michele Mosca, and Vincent Russo 2014 An algorithm for the
+T -count. Quantum Info. Comput. 14 (15-16) 1261–1276
+[14] Vadym Kliuchnikov and Jon Yard 2015 A framework for exact synthesis.
+http://arxiv.org/abs/1504.04350
+[15] Simon Forest, David Gosset, Vadym Kliuchnikov, and David McKinnon 2015 Exact synthesis of
+single-qubit unitaries over Clifford-cyclotomic gate sets. J. Math. Phys. 56 (8) 082201
+[16] Philippe Oechslin. Making a faster cryptanalytic time-memory trade-off. Advances in Cryptology –
+CRYPTO 2003, 23rd Annual International Cryptology Conference, Santa Barbara, California,
+USA, August 17–21, 2003, Proceedings, vol 2729 of Lecture Notes in Computer Science, pp
+617–630. Springer, 2003.
+[17] Paul C. van Oorschot and Michael J. Wiener 1999 Parallel collision search with cryptanalytic
+applications. J. Cryptol. 12 (1) 1–28
+[18] Paul C. van Oorschot and Michael J. Wiener 1996 Improving Implementable Meet-in-the-Middle
+Attacks by Orders of Magnitude. Advances in Cryptology – CRYPTO ’96, 16th Annual
+International Cryptology Conference, Santa Barbara, California, USA August 18–22, 1996
+Proceedings, vol 1109 pp 229-36. Springer Berlin Heidelberg, Berlin, Heidelberg, 1996.
+[19] Olivia Di Matteo 2015 Parallelizing quantum circuit synthesis. Master’s thesis, University of
+Waterloo, Waterloo ON.
+[20] Austin G. Fowler, Matteo Mariantoni, John M. Martinis, and Andrew N. Cleland 2012 Surface
+codes: Towards practical large-scale quantum computation. Phys. Rev. A 86 032324
+[21] Boost C++ Libraries. http://www.boost.org/.
+[22] Matthew Amy.
+Personal communication, 2016.
+Established using techniques in
+http://arxiv.org/abs/1601.07363.
+[23] Scott Aaronson and Daniel Gottesman 2014 Improved simulation of stabilizer circuits. Phys. Rev.
+A 70 052328
+[24] Matthew Amy, Dmitri Maslov, and Michele Mosca 2014 Polynomial-time T -depth optimization of
+Clifford+T circuits via matroid partitioning. IEEE Transactions on Computer-Aided Design of
+Integrated Circuits and Systems 33 (10) 1476–1489
+[25] Thomas G. Draper. Personal communication, 2016.
+
+Appendix
+The runtimes presented in (8) and (9) stem from a so-called ‘flawed’ runtime analysis
+originally presented in [17]. Suppose we are searching for a collision in a space of size
+N , and that the available memory is full with w distinguished points. The number of
+steps required to find a single collision in this case is
+Nθ 2
++ ,
+w
+θ
+
+(A.1)
+
+where θ is the fraction of points which are distinguished. The first term comes from the
+fact that to fill the memory with w distinguished points, w/θ elements in the space will
+be traversed on average, and any given point in a new trail has a 1/N probability of
+landing on a previously seen point; the second term comes from the need to trace back
+through both trails to locate the collision, and each trail has length 1/θ on average.
+The assumption is made that there is a single ‘golden’ collision. In this case N/2
+‘bad’ collisions will be found on average before the golden one is found. If we parallelize
+using m processors and assume each step in a trail takes time τ , then we obtain a
+
+Parallelizing quantum circuit synthesis
+
+16
+
+runtime
+1
+T ∝
+m
+
+
+
+N 2θ N
++
+2w
+θ
+
+
+τ
+
+(A.2)
+
+The next step taken in [17] is to differentiate and find θ such that (A.1) is optimized,
+which is what results in the inverse-square-root dependence on w. They then performed
+computational experiments for a range of w and N in order to find optimal prefactors.
+However, the optimal θ is expressed in terms of w/N , which when w >> N
+(as is the case when we synthesize the Toffoli on the BG/Q) would not result in a
+fractional θ. So let us continue a hypothetical analysis of this form without finding
+the optimal θ. Consider the case where we are optimizing for T -count. In the most
+general case, the two halves of the MITM equation will be different sizes N1 and N2
+t
+t
+where N1 = 4nd 2 e and N2 = 4nb 2 c (t being the T -count). Since when we have an odd
+depth we partition the larger space and search sequentially (in theory this could also
+be done in parallel), we must add a prefactor of N1 /N2 in front of the runtime, and the
+N becomes 2N2 , because the full space we’re searching is that of N2 × {1, 2}. As for
+τ , let’s assume τ = d 2t e4αn where α is a constant which reflects the complexity of the
+matrix multiplication algorithm. Then we have that
+t
+
+t
+
+t
+t
+1
+42nb 2 c+1 θ 2 · 4nb 2 c
+T ∝ 4n(d 2 e−b 2 c)
++
+m
+2w
+θ
+!
+ 
+t
+t 1 n(α+1+d 2t e) 4nb 2 c θ 1
+4
++
+=
+2 2m
+w
+θ
+
+! 
+t αn
+4
+2
+
+When w >> N2 , the first term disappears and the expression reduces to
+  n(α+1+d t e)
+2
+t 4
+,
+T ∝
+2
+mθ
+
+(A.3)
+(A.4)
+
+(A.5)
+
+which is exponential in both n and t, and inversely proportional to both m and θ,
+precisely what we have observed in practice.
+
+

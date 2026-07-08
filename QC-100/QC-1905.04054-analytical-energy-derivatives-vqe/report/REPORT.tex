@@ -1,0 +1,180 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,siunitx,array,microtype}
+\usepackage{xcolor}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue}
+\title{Replication Report: Analytical Energy Derivatives for the Variational Quantum Eigensolver}
+\author{Ollie (OpenClaw AI) \\ QC-100 Replication Project}
+\date{2026-07-03}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently replicate the central proof-of-principle numerical experiment of
+Mitarai, Nakagawa \& Mizukami (\emph{Phys.\ Rev.\ Research} \textbf{2}, 013129, 2020;
+arXiv:1905.04054v2), which introduces analytical expressions and low-depth quantum circuits
+for VQE energy derivatives (forces, Hessians, response tensors). Using an open-source stack
+(PennyLane 0.45 + NumPy) on a laptop CPU, we reproduce the paper's own H$_2$/STO-3G/$r=0.735$~\AA{}
+test system with a 2-layer hardware-efficient ansatz. Analytical force $=+2.005\times10^{-4}$~Ha/\AA{}
+agrees with the exact full-diagonalization force $+2.295\times10^{-4}$~Ha/\AA{} to
+$|\Delta|=2.9\times10^{-5}$~Ha/\AA{}, while the naive VQE reoptimize-at-$r\pm\delta$ finite-difference
+force is $-9.26\times10^{-3}$~Ha/\AA{} --- $\sim 330\times$ worse and even wrong-signed at this precision.
+\textbf{Verdict: REPLICATED.} The paper's headline claim --- analytical derivatives beat numerical
+differences on the paper's own benchmark --- is directly exercised on the paper's own test system.
+\end{abstract}
+
+\section{Paper Summary}
+The paper derives analytical expressions and quantum circuits for energy derivatives within VQE, for
+both ground and excited states. The key first-order result reduces at the variational optimum
+$\theta^{*}(R)$ to the Hellmann--Feynman form
+\begin{equation}
+\left.\frac{dE}{dR}\right|_{\theta=\theta^{*}} = \left\langle \psi(\theta^{*}) \right| \frac{\partial H(R)}{\partial R} \left| \psi(\theta^{*}) \right\rangle ,
+\end{equation}
+sidestepping the need to re-optimize the ansatz at $R\pm\delta R$. Higher-order derivatives require
+response equations for $\partial\theta^{*}/\partial R$ (their Eq.~10). The proof-of-principle
+experiment in Sec.~7 is H$_2$/STO-3G at $r=0.735$~\AA{} built via PySCF+OpenFermion, simulated on
+Qulacs with a 2-layer hardware-efficient ansatz.
+
+\section{Claims Tested}
+\begin{center}
+\small
+\begin{tabular}{@{}clllc@{}}
+\toprule
+\# & Claim & Type & Verdict & Tested \\
+\midrule
+C1 & H$_2$/STO-3G FCI = $-1.1373$~Ha (accepted literature)      & Reference    & PASS   & yes \\
+C2 & 2-layer HW-efficient VQE reaches FCI $\ll$ chem.\ accuracy & Algorithmic  & PASS   & yes \\
+C3 (headline) & Analytical $dE/dR$ reproduces exact force        & Algorithmic  & PASS   & yes \\
+C4 & Numerical-difference VQE force is much worse (motivation)  & Algorithmic  & PASS ($\sim$330$\times$) & yes \\
+C5 & $r=0.735$~\AA{} is at equilibrium (force $\approx 0$)      & Physical     & PASS   & yes \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Method}
+Environment: macOS 25.3.0, Python 3.12.13, PennyLane 0.45.1, NumPy 2.5.0, SciPy 1.18.0. All simulation
+is state-vector (\texttt{default.qubit}), no shot / gate noise. Molecule: H$_2$, STO-3G, $r=0.735$~\AA{},
+symbols/coords in Bohr, Hamiltonian via \texttt{qml.qchem.molecular\_hamiltonian(\ldots,\allowbreak method="dhf")}
+$\rightarrow$ 4-qubit, 15-Pauli-term operator (matches the standard PySCF/OpenFermion result).
+
+\paragraph{Reference (FCI).} 16$\times$16 matrix $=$ \texttt{qml.matrix(H)}; smallest eigenvalue via
+\texttt{numpy.linalg.eigvalsh} is the exact ground state in the STO-3G basis.
+
+\paragraph{VQE.} HF reference $|1100\rangle$ via \texttt{BasisState}, then $L{=}2$ layers of
+$R_x(\theta)R_y(\theta)$ on each of 4 wires followed by a CNOT chain (paper's Fig.~3 with the small
+practical variant of splitting $R_x, R_y$). Optimizer: Adam ($\eta=0.3$, seed 42, $\sigma_{\text{init}}=0.1$),
+diff method = parameter-shift, $\leq 250$ iterations.
+
+\paragraph{Analytical force (paper's central object).} At converged $\theta^{*}$:
+\[
+\frac{dE}{dR}\bigg|_{\theta^{*}} \approx \frac{\langle\psi(\theta^{*})|H(R{+}\delta)|\psi(\theta^{*})\rangle - \langle\psi(\theta^{*})|H(R{-}\delta)|\psi(\theta^{*})\rangle}{2\delta}, \quad \delta = 10^{-3}\ \text{\AA}.
+\]
+This is a two-point FD \emph{of the Hamiltonian coefficients} with the wavefunction held fixed --- no
+VQE reoptimization noise leaks in.
+
+\paragraph{Numerical-difference baseline.} Fully re-run VQE at $r\pm\delta$ with $\delta=5\times10^{-3}$~\AA{}
+(larger, so the true $\Delta E$ isn't drowned below VQE convergence noise), then centered FD.
+
+\paragraph{Exact reference force.} Full-diag energy at $r\pm10^{-4}$~\AA{}, centered FD.
+
+\paragraph{PES scan.} $r\in\{0.4,0.5,\ldots,1.5\}$~\AA{} at 0.1~\AA{} spacing, FCI at each point.
+
+\section{Results}
+\begin{center}
+\small
+\begin{tabular}{lrl}
+\toprule
+Quantity & Value (Ha) & Note \\
+\midrule
+$E_{\text{FCI}}$              & $-1.1373060360$ & matches accepted literature \\
+$E_{\text{VQE}}$              & $-1.1372484918$ & 250 Adam iters \\
+$|E_{\text{VQE}}-E_{\text{FCI}}|$ & $5.75\times10^{-5}$ & $\sim 28\times$ below chem.\ accuracy \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\small
+\begin{tabular}{lrr}
+\toprule
+Quantity & Value (Ha/\AA) & $|\Delta|$ vs exact (Ha/\AA) \\
+\midrule
+$dE/dR$ analytical (HF on fixed VQE state)             & $+2.005\times10^{-4}$ & $2.9\times10^{-5}$ \checkmark \\
+$dE/dR$ exact (full-diag FD, $\delta{=}10^{-4}$)       & $+2.295\times10^{-4}$ & 0 (ref) \\
+$dE/dR$ numerical (VQE reopt at $r\pm 5\times10^{-3}$) & $-9.264\times10^{-3}$ & $9.5\times10^{-3}$ (wrong sign) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The analytical force is $\sim 330\times$ closer to the exact reference than the numerical-difference
+force and does so from a single optimized VQE run with two extra expectation-value evaluations. This
+is exactly the failure mode of finite differences the paper motivates its formalism to avoid.
+PES scan minimum sits between $r=0.70$ and $0.80$~\AA{} at $E\approx-1.1373$~Ha, consistent with
+Fig.~4.
+
+\section{Verdict}
+\textbf{REPLICATED.} The headline claim --- analytical VQE derivatives reproduce the exact derivative
+to well below the numerical-difference noise floor --- is directly and quantitatively reproduced on
+the paper's own H$_2$/STO-3G/$r=0.735$~\AA{} benchmark using an open-source stack on a laptop CPU
+($\sim 5.5$~min wall time).
+
+\section{Critique and Failure Analysis}
+\label{sec:critique}
+This replication is honest about the following limits, and readers should not overstate what was
+demonstrated here:
+
+\begin{itemize}
+\item \textbf{Only first-order was independently re-derived.} We reproduced $dE/dR$ at the variational
+optimum. The paper's second- and third-order derivative circuits (their Eq.~10 response equations for
+$\partial\theta^{*}/\partial R$, and the cubic PES fit in Fig.~4) were \emph{not} independently
+reimplemented here. Their consistency with the framework is inherited, not re-verified.
+\item \textbf{No independent implementation of the parameter-shift derivative circuits themselves.}
+We used PennyLane's built-in \texttt{diff\_method="parameter-shift"} on the ansatz parameters. This
+is functionally the same rule the paper derives (their Sec.~2), but we did not reimplement the
+$R\pm\pi/2$-shifted expectation-value circuits from scratch and cross-check them against a direct
+symbolic gradient of $\langle H\rangle_{\theta}$. That would be the true "independent re-derivation."
+\item \textbf{No geometry optimization or vibrational-analysis application demonstrated.} The paper
+motivates analytical derivatives partly by enabling geometry optimization (BFGS with analytical
+gradients) and vibrational analysis (harmonic frequencies from the Hessian). We did not close the
+loop by running an actual VQE geometry optimizer or extracting an H$_2$ harmonic frequency from a
+second derivative. This is a genuine gap: our replication proves the first-derivative arithmetic is
+right, but does not prove the paper's downstream chemistry application works end-to-end from our
+implementation.
+\item \textbf{Measurement-overhead analysis is qualitative, not quantitative.} The paper is careful
+about circuit counts and shot budgets for the analytical vs numerical routes. Our replication is on
+a noiseless state-vector simulator and does \emph{not} quantify measurement-overhead per gradient
+call (e.g., number of Pauli-group measurements, shot budget for a target gradient-noise level).
+Our C4 comparison shows analytical $\gg$ numerical in \emph{accuracy per VQE run}, but not in
+\emph{shots per Ha/\AA{} of gradient precision on hardware}. On real NISQ hardware, the analytical
+approach's advantage could be smaller (or larger --- unclear from our data).
+\item \textbf{Noiseless comparison overstates the analytical advantage's mechanism, but not its
+existence.} The paper's strongest statement --- analytical $\gg$ numerical \emph{under shot noise} ---
+we cannot test on \texttt{default.qubit}. However, our numerical-difference approach still fails on
+the noiseless simulator, because the true $\Delta E$ at $r=0.735$~\AA{} is $\sim 10^{-6}$~Ha, below
+VQE convergence noise $\sim 5\times10^{-5}$~Ha. So the failure mode we observe (finite-step vs
+VQE-convergence tension) is closely related to but not identical to the paper's motivating regime
+(finite-step vs shot noise). Both flavors of noise dominate the gradient signal; ours is the
+easier-to-simulate stand-in.
+\item \textbf{Only one molecule, one geometry, one basis, one ansatz.} We tested exactly the paper's
+own test point. This is by design (replication, not generalization), but it means the replication
+does not certify robustness to (a) other molecules (LiH, BeH$_2$, H$_2$O), (b) larger basis sets,
+(c) non-equilibrium geometries where the analytical formula's Hellmann--Feynman simplification is
+weaker because the VQE state is a less faithful eigenstate approximation, or (d) other ansatz
+families (UCCSD, hardware-efficient with different topologies).
+\item \textbf{Ansatz variant.} We used $R_x R_y$ per wire per layer instead of the paper's precise
+single-parameter rotation choice in Fig.~3; this is a small variant used because it works with
+PennyLane's parameter-shift out of the box, and it still reaches FCI to $5.8\times10^{-5}$~Ha. But
+it is not bit-for-bit the paper's ansatz.
+\item \textbf{No comparison against classical analytical gradients (PySCF energy derivatives).}
+For H$_2$/STO-3G, PySCF can compute the analytical HF/FCI energy gradient directly. We compared to
+a full-diag finite-difference "exact" reference, not to a classical \emph{analytical} gradient. The
+two should agree to numerical precision, but the direct cross-check was not performed.
+\end{itemize}
+
+The core claim --- analytical VQE derivatives reproduce the exact answer to $2.9\times10^{-5}$~Ha/\AA{}
+on the paper's own test system --- is nonetheless directly demonstrated, and the qualitative
+advantage over the naive numerical approach ($\sim 330\times$ tighter here) is unambiguous.
+
+\input{open_questions_section.tex}
+
+\end{document}

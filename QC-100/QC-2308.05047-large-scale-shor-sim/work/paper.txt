@@ -1,0 +1,3920 @@
+Large-Scale Simulation of Shor’s Quantum Factoring Algorithm
+Dennis Willsch,1, ∗ Madita Willsch,1, 2 Fengping Jin,1 Hans De Raedt,1, 3 and Kristel Michielsen1, 2, 4
+1
+
+arXiv:2308.05047v2 [quant-ph] 9 Oct 2023
+
+Jülich Supercomputing Centre, Institute for Advanced Simulation,
+Forschungszentrum Jülich, 52425 Jülich, Germany
+2
+AIDAS, 52425 Jülich, Germany
+3
+Zernike Institute for Advanced Materials, University of Groningen,
+Nijenborgh 4, 9747 AG Groningen, The Netherlands
+4
+Department of Physics, RWTH Aachen University, 52056 Aachen, Germany
+(Dated: October 10, 2023)
+Abstract: Shor’s factoring algorithm is one of the most anticipated applications of quantum
+computing. However, the limited capabilities of today’s quantum computers only permit a study of
+Shor’s algorithm for very small numbers. Here we show how large GPU-based supercomputers can
+be used to assess the performance of Shor’s algorithm for numbers that are out of reach for current and near-term quantum hardware. First, we study Shor’s original factoring algorithm. While
+theoretical bounds suggest success probabilities of only 3–4 %, we find average success probabilities
+above 50 %, due to a high frequency of “lucky” cases, defined as successful factorizations despite
+unmet sufficient conditions. Second, we investigate a powerful post-processing procedure, by which
+the success probability can be brought arbitrarily close to one, with only a single run of Shor’s quantum algorithm. Finally, we study the effectiveness of this post-processing procedure in the presence
+of typical errors in quantum processing hardware. We find that the quantum factoring algorithm
+exhibits a particular form of universality and resilience against the different types of errors. The
+largest semiprime that we have factored by executing Shor’s algorithm on a GPU-based supercomputer, without exploiting prior knowledge of the solution, is 549755813701 = 712321 × 771781. We
+put forward the challenge of factoring, without oversimplification, a non-trivial semiprime larger
+than this number on any quantum computing device.
+Keywords: Quantum Computing, Quantum Algorithms, Shor’s Factoring Algorithm, High Performance
+Computing, Computer Simulation, Parallelization
+
+I.
+
+INTRODUCTION
+
+The challenge of factoring integers is one of the oldest
+problems in mathematics [1, 2]. Famous mathematicians
+such as Fermat, Euler, and Gauss have made substantial contributions to the problem, and even algorithms
+discovered by the ancient Greeks—the Euclidean algorithm and the sieve of Eratosthenes—are still in use today. The state-of-the-art algorithms are based on the
+general number field sieve [3] and have recently achieved
+the factorization of RSA-250 from the famous RSA factoring challenge [4]. Still, all known algorithms exhibit
+at best subexponential time and space complexity [4, 5].
+The difficulty of solving this type of problem on classical computers is an integral aspect of modern data and
+communication security [6, 7].
+In 1994, Peter Shor proposed an algorithm to factor integers on quantum computers with an exponential
+speedup [8–10] over the best known classical algorithms.
+Factoring an L-bit integer N with the conventional Shor
+algorithm [10] requires at least 3L qubits: L = ⌊log2 N ⌋+
+1 qubits to represent N , and t = ⌈2 log2 N ⌉ ≈ 2L qubits
+for the Quantum Fourier Transform (QFT), plus O(L)
+qubits for the modular exponentiation [6, 11]. Kitaev,
+Griffiths, and Niu realized that by replacing the QFT
+with a semiclassical Fourier transform, only a single qubit
+
+∗ Corresponding author: Dennis Willsch; d.willsch@fz-juelich.de
+
+can be reused t times to obtain the same result [12, 13]
+(also known as qubit recycling [14, 15] or dynamic quantum computing [16]). It is thus possible to run Shor’s
+algorithm with only L + 1 qubits to factor L-bit integers
+(which is less than required by the best adiabatic algorithm [17, 18]). We refer to this variant as the iterative
+Shor algorithm.
+The iterative Shor algorithm has been executed on
+real quantum computing devices to factor 15, 21, and
+35 [15, 19, 20], without relying on oversimplification [21].
+Implementing the algorithm for integers beyond 35 continues to pose substantial experimental challenges [6, 22].
+To study the performance of Shor’s algorithm for much
+larger integers than what can be tested on real quantum
+devices, we have developed a massively parallel simulator called shorgpu [26], specifically designed to execute
+the iterative Shor algorithm on multiple GPUs. Using
+shorgpu, we have examined over 60000 factoring scenarios for integers up to Nmax = 549755813701, significantly
+surpassing previous achievements using statevector simulators [27–29], matrix product states [30, 31] (in [31], the
+authors simulated 60 qubits to factor N = 961307), and
+tensor networks [32, 33]. Note that Nmax is still “small”
+for cryptographic purposes. In order to handle integers
+of the size of Nmax , shorgpu uses a new technique (see
+Section II) to perform the distributed memory communications.
+To factor Nmax , the conventional Shor algorithm would
+need 117 qubits. The iterative Shor algorithm, however,
+
+2
+Iterative Shor algorithm
+
+select
+problem
+
+shorgpu simulating a 40-qubit quantum computer on 2048 GPUs
+
+GPU #0
+
+GPU #1
+
+GPU #2047
+
+find
+factors
+
+produces bitstring with t bits
+extract
+order
+
+FIG. 1. Scheme to test Shor’s algorithm. After selecting an L-bit semiprime N = p × q to factor and a random integer
+1 < a < N coprime to N (blue), a quantum computer or quantum computer simulator with n = L + 1 qubits runs the iterative
+Shor algorithm (red) and produces several bitstrings j with t bits (green). Here, “iterative” means that one qubit is measured
+and reused t times to produce the t classical bits of each j. Every bitstring j is analyzed using either Shor’s [8–10, 23] or
+Ekerå’s [24, 25] post-processing method (yellow), independent of whether certain algorithmic requirements on j are satisfied
+or not. Here, k (r) denotes the numerator (denominator) obtained from a continued fraction expansion of j/2t . Note that the
+expression for the factors in the yellow section is specific to Shor’s post-processing; for Ekerå’s post-processing, gcd(a⌊r/2⌋ ±1, N )
+has to be replaced by gcd(xri i − 1, N ), where xi ̸= a is a random element of Z∗N and ri is usually a multiple of the largest odd
+divisor of r (see below). We remark that conceptually, it does not matter whether the green section is performed by a quantum
+computer simulator or a real quantum computing device.
+
+needs only 40 qubits. It is important to note that the
+resulting quantum algorithm is still an honest implementation of Shor’s algorithm: It produces the same results,
+does not require exponentially large classical resources
+(given a large enough quantum computer) and, most importantly, does not exploit a-priori knowledge of the factors [21].
+We emphasize that for all our simulations, we do not
+require the solution of the factoring problem to be known.
+If one presumes knowledge of the solution, and one is not
+interested in simulating the effect of quantum errors, it is
+possible to study even larger, cryptographically relevant
+cases using Qunundrum [34].
+The procedure used to factor integers is shown in
+Fig. 1: First, a factoring problem is selected, consisting
+of a semiprime N = p × q to factor and a random integer
+1 < a < N comprime to N (i.e., gcd(a, N ) = 1). Using
+this as input, shorgpu executes the iterative Shor algorithm with n = L+1 qubits to produce several bitstrings.
+Each bitstring j is processed using either Shor’s [8–10, 23]
+or Ekerå’s [24, 25] post-processing method, which may or
+
+may not produce a factor of N (see the yellow section in
+Fig. 1). An important step on the way is to extract a
+candidate r for the order r̂ = ordN (a). Here ordN (a)
+denotes the order of a modulo N , defined as the smallest
+exponent r̂ > 0 such that ar̂ mod N = 1.
+Note that “success” is not guaranteed by Shor’s algorithm; in particular, the sampled bitstring might produce
+an r ̸= r̂ that is not the order, or r might be odd, in which
+case Shor’s post-processing method is not guaranteed to
+work. However, if the blind application of Shor’s factoring procedure still yields at least one factor, we count this
+execution as a “lucky” case. As shown below, a “lucky”
+factor is found much more often than expected.
+In principle, the green section in Fig. 1 representing
+shorgpu can be completely replaced by a sufficiently
+large, error-corrected quantum computing device. With
+this in mind, we put forward the challenge of indirect quantum supremacy [35] (a.k.a. limited quantum
+speedup [36]) for a future quantum computer. Here, “indirect” means that the simulator (running on a conventional computer) is required to simulate an ideal quan-
+
+3
+tum computational model that executes the same quantum algorithm as the quantum computer, without using
+any prior knowledge of the solution. More specifically,
+the challenge for a gate-based quantum computer would
+be to factor, using Shor’s algorithm without oversimplification [21], an “interesting” semiprime—where “interesting” means that the two distinct prime factors shall
+have the same number of digits—that is larger than the
+largest semiprime that can be factored by the quantum
+computer simulator.
+
+A.
+
+Related work
+
+There is a large body of literature on Shor’s quantum
+factoring algorithm. They can be roughly classified into
+five main categories. In this section, we give a survey of
+their main goals and discuss several individual results.
+1. Theory: The first class of articles focuses on theoretical perspectives such as algorithmic modifications and improved lower bounds on the success
+probability [11, 14, 37–60], many of which consider
+the case that some parameters of Shor’s algorithm
+are modified and certain trade offs are made. To
+this class belongs work that estimates the number
+of resources required when using different levels of
+quantum computer technology [6, 22]. This line
+of work culminates in Ekerå’s post-processing algorithms [25], by which the success probability for
+a single run of the quantum part can be brought
+arbitrarily close to one (see below).
+2. Simulation: Second, Shor’s algorithm has been
+studied by using simulators running on conventional computers. Some use universal quantum
+computer simulators [27–29, 61], sometimes also
+called Schrödinger simulators since they propagate
+the full quantum statevector. Another approach
+is to use so-called Feynman simulators, which can
+only access certain amplitudes from the full statevector, but may require less computational resources; they are often based on tensor networks
+or matrix product states [30–33]. Finally, there is
+software designed to directly sample from the probability distributions generated by Shor’s algorithm
+(cf. Eq. (26) below) and various extensions thereof.
+To this class belongs the suite of programs called
+Qunundrum [34, 62], which can simulate distributions for large, cryptographically relevant cases.
+Note, however, that the solution to the factoring
+problem (i.e., the order or the discrete logarithm)
+must be known in advance, and the effect of errors
+in the quantum part cannot be simulated.
+3. Alternative Algorithms: A third line of work
+studies alternative ways to use gate-based quantum computers to solve the factoring problem.
+
+Some of them use Shor’s discrete logarithm quantum algorithm [62–64], which is also an instance of
+the hidden subgroup problem [65]. In the EkeråHåstad scheme [63], the idea to factor a semiprime
+N = pq is to pick a random g ∈ Z∗N , compute
+y = g N +1 mod N with unknown order r, and then
+obtain d ≡ logg y ≡ pq + 1 ≡ pq + 1 − ϕ(N ) ≡ p +
+q (mod r) (using that r | ϕ(N ) = (p−1)(q−1) [66]).
+If r > p + q (which is the case for many g), we have
+d = p + q, and additionally knowing N = pq allows
+one to compute p and q. Another alternative way
+to solve the factoring problem is given in [67] and
+is based on the classical number field sieve [3]. In
+particular, Bernstein et al. propose to use Grover’s
+quantum search algorithm [68] (and/or Shor’s algorithm for a much smaller subproblem) to accelerate the number field sieve. This proposal is
+asymptotically worse in time complexity than using
+Shor’s algorithm directly, but it needs less qubits
+and is therefore possibly easier to realize in nearterm physical devices. Finally, Li et. al. [69] presented an algorithm with an exponential speedup
+(beyond the framework of the hidden subgroup
+problem [65]) that solves the square-free decomposition problem—a problem related to factoring in
+which the task is to find, for any integer N > 0,
+the unique integers Nr and Ns2 of the square-free
+decomposition N = Nr Ns2 .
+4. Gate-Based Experiments: Fourth, there have
+been several experimental efforts to implement
+Shor’s factoring algorithm on existing gate-based
+quantum computer devices [15, 19, 20, 70–76].
+However, many of these have made use of prior
+knowledge about the factors to simplify the experimental setup [21]. In the extreme case (namely
+when a base a ∈ Z∗N with order ordN (a) = 2
+is used), this brings the computational problem
+down to flipping coins. Experiments that have not
+used such a kind of oversimplification can be found
+in [15, 19, 20].
+5. Other Experiments: Finally, quantum annealers
+and adiabatic quantum computers have been used
+to study alternative factoring algorithms [17, 77–
+82]. The quantum annealing approach requires
+at most O(L2 ) qubits to factor an L-bit number. Quantum annealing and adiabatic quantum
+computation are technologically significantly ahead
+of gate-based quantum computing, in that larger
+quantum processing units with more than 5000
+qubits exist and that they can solve much larger
+problems [83, 84]. In particular, numbers up to
+and above 200000 have been factored on the DWave 2000Q [78, 79] and 1005973 has been factored using D-Wave hybrid [80]. Although significantly larger than the numbers factored on gatebased quantum computers (without oversimplification), these numbers are still much smaller than
+
+4
+Nmax = 549755813701 factored in this work using
+shorgpu.
+
+B.
+
+Outline
+
+This paper is structured as follows. In Section II, we
+describe the algorithmic details of shorgpu. In particular, we explain how to implement the modular multiplication as a systematic communication scheme between
+the compute nodes. In Section III, we present our results
+from over 60000 quantum computer simulations using up
+to 2048 GPUs. Section IV contains our conclusions.
+
+II.
+
+SIMULATION
+
+For almost all results reported in this work, we use
+shorgpu to simulate the iterative Shor algorithm (the
+source code is available online [26]). It propagates an
+n = L + 1-qubit statevector |ψ⟩ consisting of 2L+1 complex numbers through the quantum circuit for factoring
+an L-bit number shown in Fig. 2. Each step in the quantum circuit corresponds to an operation on |ψ⟩. In this
+section, we describe each of these operations in a linear algebra context. The probability distribution generated by
+Shor’s algorithm is derived and visualized in Appendix A.
+As the total memory is the bottleneck of such statevector simulations, the 2L+1 complex numbers |ψ⟩ are distributed over the memory of up to 2048 GPUs (cf. Fig. 1).
+Communication between the GPUs is managed using the
+Message Passing Interface (MPI) [85].
+We use the Jülich Universal Quantum Computer Simulator (JUQCS) [27, 28, 86] for verification. JUQCS was
+previously used to simulate the conventional Shor algorithm for N ≤ 65531 with up to n = 48 qubits on the
+Sunway TaihuLight and the K computer [28]. A few
+features had to be added to JUQCS to be able to also
+simulate the iterative Shor algorithm. The latter made
+it possible to simulate one bitstring for N = 4194293
+with n = 23 qubits in about 720 seconds (using 4 A100
+GPUs). However, our JUQCS implementation of the oracle which performs the modular exponentiation becomes
+highly inefficient as the number n of qubits increases
+because it does not distribute well over many cores or
+GPUs. In contrast, the new, dedicated algorithm described below generates a bitstring in about 0.4 seconds
+for the same problem and the same number of GPUs. For
+the largest problem simulated (N = 549755813701 with
+n = 40 qubits), shorgpu generates a bitstring in about
+200 seconds using 2048 GPUs. We verified that the iterative Shor algorithm simulated with shorgpu produces
+the same results as JUQCS for problems of the size that
+can be simulated with JUQCS.
+
+A.
+
+Initialization
+
+To simulate the iterative Shor algorithm for factoring
+an L-bit semiprime N , shorgpu simulates the full quantum circuit with n = L+1 qubits shown in Fig. 2. This is
+done by computing all complex coefficients of the statevector
+
+
+ψ0···00
+ψ0···01 
+X
+
+
+|ψ⟩ =
+ψkL ···k0 |kL · · · k0 ⟩ =  .  . (1)
+ .. 
+kL ···k0 =0,1
+
+ψ1···11
+
+These 2L+1 complex double-precision numbers ψkL ···k0
+are distributed over NGPU ∈ {2, 4, 8, . . . , 2048} GPUs.
+The distributed memory communication between the
+GPUs uses CUDA-aware MPI. In our approach, each
+GPU is identified by its MPI rank, i.e., an nglobal bit integer called mpi rank = 0, . . . , NGPU − 1. Here,
+nglobal denotes the number of so-called global qubits
+(see [27, 28, 86]). We have NGPU = 2nglobal GPUs. The
+other nlocal = n − nglobal qubits are called local qubits,
+since each GPU holds in its local memory all 2nlocal complex coefficients
+
+
+ψbin(mpi rank)0···00
+ψbin(mpi rank)0···01 
+
+
+(2)
+.
+
+..
+
+
+.
+ψbin(mpi rank)1···11
+The GPUs (i.e., the MPI processes) are further divided
+into two separate groups, identified by the most significant bit of the MPI rank,
+bin(mpi rank) = mpi x bin(mpi xrank).
+
+(3)
+
+Here, mpi x = 0, 1 identifies the group and 0 ≤
+mpi xrank < NGPU /2 identifies the GPU within each
+group. Thus, shorgpu requires at least two GPUs to
+work (unless a single GPU is used with 2 MPI processes in
+overscheduling mode). The reason for the separation into
+two groups is that the implementation of the controlled
+modular multiplication gate (see below) requires an allto-all communication between all GPUs with mpi x = 1.
+At the start of the simulation, the statevector |ψ⟩ is
+initialized
+in the state |+⟩ |0 · · · 01⟩, where |+⟩ = (|0⟩ +
+√
+|1⟩)/ 2. This means that we set
+1
+ψ00···01 = √ ,
+2
+1
+ψ10···01 = √ ,
+2
+
+(4)
+(5)
+
+and all other coefficients to zero. This type of initialization is always used unless shorgpu is used to assess the
+effect of quantum initialization errors (for information on
+this mode, see Section II F below).
+
+5
+
+j
+
+t
+/
+
+|+⟩
+
+1
+/
+
+•
+
+|+⟩
+
+H
+
+•
+
+jt−2
+
+···
+
+j0
+
+•
+
+•
+
+•
+
+•
+
+R2
+
+···
+
+Rt
+
+R2
+
+H
+
+j0
+|0 · · · 01⟩
+
+L
+/ ×a2t−1
+
+j = jt−1 · · · j0
+
+j0
+
+···
+
+|+⟩
+
+•
+
+H
+jt−1
+
+j1
+×a2
+
+t−2
+
+×a2
+
+0
+
+FIG. 2. Quantum circuit of the iterative Shor algorithm. The circuit consists of L + 1 qubits that undergo t separate
+stages cbit = 0, . . . , t − 1, in which the classical bit jcbit is measured. Each stage starts with the first qubit in the initial state
+|+⟩ and ends with this qubit being measured (middle row). Between initialization and measurement, each stage consists of
+a controlled modular multiplication (bottom row) with some power of a (see Eq. (6)), then a rotation gate controlled by all
+previously measured classical bits (see Eq. (8)), and finally a Hadamard gate. The resulting bit jcbit is used to assemble the
+classical bitstring j = jt−1 · · · j0 (top row).
+
+B.
+
+Controlled Modular Multiplication Gate
+
+The first gate in each of the t stages in Fig. 2 is the
+controlled modular multiplication gate (also called oracle
+gate), controlled by the first qubit. Mathematically, its
+operation is defined by
+
+
+(x = 0)
+|0⟩ |y⟩
+CUa |x⟩ |y⟩ = |1⟩ |ay mod N ⟩ (x = 1 and 0 ≤ y < N ) ,
+
+|1⟩ |y⟩
+(x = 1 and N ≤ y)
+(6)
+where x denotes the first qubit,
+y
+=
+0, . . . , NGPU /2 denotes the other qubits,
+and
+t−1
+t−2
+a ∈ {a2 mod N, a2 mod N, . . . , a} stands for one of
+the powers of a in Fig. 2. Note that each individual
+modular exponentiation is always precomputed for any
+realization of this circuit (we use the shift-and-multiply
+algorithm). This is independent of whether the circuit
+is executed by a quantum computer simulator or a real
+quantum computer (see also [6, 19, 20]).
+Looking at Eq. (6), we see that the oracle gate performs a permutation of all complex coefficients among
+the GPUs in the mpi x = 1 group. shorgpu implements
+this unitary operation by computing, on each GPU, all
+indices of the coefficients that are sent to other GPUs
+(stored in a GPU buffer oracle idxsend) and those that
+are received from other GPUs (stored in a GPU buffer
+oracle idxrecv) using the precomputed modular inverse ainv = a−1 mod N , which is efficiently computable
+using the extended Euclidean algorithm. The MPI communication scheme for an example with 16 GPUs is
+shown in Fig. 3.
+The complexity of the permutation depends on the
+value of a. For instance, in the special case that the
+order of a is a small power of 2, we have a = 1 in many
+of the early stages, so the oracle gate would not require
+MPI communication between different GPUs. In general the communication scheme can be very complicated.
+
+Figure 3 shows a typical instance where each GPU sends
+(red arrows) and receives (blue arrows) some coefficients
+from other GPUs.
+To implement this communication scheme between the
+GPUs, shorgpu uses non-blocking point-to-point communication in a circular fashion using MPI Isend and
+MPI Irecv. Additionally, before the send operations,
+each GPU first arranges all coefficients that are sent to a
+particular other GPU in a contiguous block of memory,
+schematically denoted by ψ (cont) . This is imperative since
+for large N , this part of the simulation takes a significant
+fraction of the total run time. Alternative implementations using one-sided communication such as MPI Put,
+collective communication using MPI Alltoallv, or communication based on custom MPI data types (see [85]
+for more information) performed significantly worse in
+our experiments.
+
+C.
+
+Rotation Gate
+
+After the oracle gate, each stage (except the first stage)
+of the quantum circuit in Fig. 2 contains a sequence of
+rotation gates defined by
+
+Rl =
+
+1
+0
+2πi/2l
+0 e
+
+
+.
+
+(7)
+
+These are controlled by bits resulting from previous measurements. Specifically, at the stage cbit = 0, . . . , t − 1,
+in which the classical bit jcbit is being measured, the
+sequence of these controlled rotation gates reads
+1+cbit
+Y
+l=2
+
+CRl =
+
+1+cbit
+Y 
+l=2
+
+1
+0
+l
+0 e2πij1+cbit−l /2
+
+
+
+
+=
+
+1
+0
+0 eiφcbit
+
+
+,
+(8)
+
+6
+GPU#8
+mpi rank=8
+mpi xrank=0
+
+GPU#9
+mpi rank=9
+mpi xrank=1
+
+GPU#10
+mpi rank=10
+mpi xrank=2
+
+GPU#11
+mpi rank=11
+mpi xrank=3
+
+GPU#12
+mpi rank=12
+mpi xrank=4
+
+GPU#13
+mpi rank=13
+mpi xrank=5
+
+GPU#14
+mpi rank=14
+mpi xrank=6
+
+GPU#15
+mpi rank=15
+mpi xrank=7
+
+ψ1,0
+
+ψ1,8
+
+ψ1,16
+
+ψ1,24
+
+ψ1,32
+
+ψ1,40
+
+ψ1,48
+
+ψ1,56
+
+ψ1,1
+
+ψ1,9
+
+ψ1,17
+
+ψ1,25
+
+ψ1,33
+
+ψ1,41
+
+ψ1,49
+
+ψ1,57
+
+ψ1,2
+
+ψ1,10
+
+ψ1,18
+
+ψ1,26
+
+ψ1,34
+
+ψ1,42
+
+ψ1,50
+
+ψ1,58
+
+ψ1,3
+
+ψ1,11
+
+ψ1,19
+
+ψ1,27
+
+ψ1,35
+
+ψ1,43
+
+ψ1,51
+
+ψ1,59
+
+ψ1,4
+
+ψ1,12
+
+ψ1,20
+
+ψ1,28
+
+ψ1,36
+
+ψ1,44
+
+ψ1,52
+
+ψ1,60
+
+ψ1,5
+
+ψ1,13
+
+ψ1,21
+
+ψ1,29
+
+ψ1,37
+
+ψ1,45
+
+ψ1,53
+
+ψ1,61
+
+ψ1,6
+
+ψ1,14
+
+ψ1,22
+
+ψ1,30
+
+ψ1,38
+
+ψ1,46
+
+ψ1,54
+
+ψ1,62
+
+ψ1,7
+
+ψ1,15
+
+ψ1,23
+
+ψ1,31
+
+ψ1,39
+
+ψ1,47
+
+ψ1,55
+
+ψ1,63
+
+FIG. 3. Illustration of the MPI communication scheme for the implementation of the controlled modular
+multiplication gate given by Eq. (6) for the quantum circuit to factor N = 55 = 5 × 11 with a = 16. This circuit
+needs n = 7 qubits, i.e., the first qubit for the measurement (middle line in Fig. 2) and L = 6 qubits to represent N . There
+are NGPU = 16 GPUs in this example, so we have nglobal = 4 global and nlocal = 3 local qubits (note that this is only for
+illustration purposes; in practice one would use much fewer GPUs for 7 qubits). Shown is the implementation of the last oracle
+0
+gate in Fig. 2 (the controlled modular multiplication with a = a2 = 16) from the perspective of GPU#11. ψx,y denotes, in
+the notation of Eq. (1), the statevector coefficient ψx bin(y) . Red arrows represent coefficients that are sent from GPU#11 to
+another GPU (whose index is computed from ay mod N .) Blue arrows represent coefficients that are sent to GPU#11 from
+another GPU (whose index is computed from a−1 y mod N ). Purple arrows represent coefficients that stay on GPU#11. Note
+that GPU#15 is not involved in the communication because N ≤ y for all ψx,y of GPU#15, so the oracle gate does not permute
+these coefficients (the last case in Eq. (6)).
+
+where the phase φcbit at stage cbit amounts to
+
+φcbit = 2π
+
+1+cbit
+X
+l=2
+
+j1+cbit−l
+πj (cbit)
+= cbit ,
+l
+2
+2
+
+D.
+
+The implementation of the Hadamard gate on the first
+qubit transforms the statevector coefficients as
+(9)
+
+and j (cbit) = jcbit−1 jcbit−2 · · · j1 j0 is the integer assembled from all classical bits measured up to this point.
+As the phase gate given by Eq. (8) only affects coefficients ψkL ···k0 where the first qubit index kL = 1, this
+operation only needs to be implemented by the GPUs
+in the mpi x = 1 group. This is done directly after the
+implementation of the oracle gate, when moving all coefficients out of the contiguous memory blocks ψ (cont) ,
+according to
+
+(cont)
+
+← cos(φcbit )Re(ψ1 bin(mpi xrank) ∗···∗ )
+(cont)
+
+(10)
+
+Im(ψ1 bin(mpi xrank) ∗···∗ )
+(cont)
+← cos(φcbit )Im(ψ1 bin(mpi xrank) ∗···∗ )
+(cont)
+
++ sin(φcbit )Re(ψ1 bin(mpi xrank) ∗···∗ ).
+
+ψ0 bin(mpi xrank) ∗···∗
+ψ0 bin(mpi xrank) ∗···∗ + ψ1 bin(mpi xrank) ∗···∗
+√
+←
+,
+2
+ψ1 bin(mpi xrank) ∗···∗
+ψ0 bin(mpi xrank) ∗···∗ − ψ1 bin(mpi xrank) ∗···∗
+√
+←
+.
+2
+
+(12)
+
+(13)
+
+For every GPU in the mpi x = 0 group, this requires twosided MPI communication with exactly one GPU in the
+mpi x = 1 group.
+
+E.
+
+Measurement Operation
+
+At the end of each stage in Fig. 2, the classical bit jcbit
+is measured, where cbit = 0, . . . , t − 1 enumerates the
+stage. This amounts to adding up the probabilities
+X
+p1 =
+|ψ1 kL−1 ···k0 |2 ,
+(14)
+
+Re(ψ1 bin(mpi xrank) ∗···∗ )
+
+− sin(φcbit )Im(ψ1 bin(mpi xrank) ∗···∗ ),
+
+Hadamard Gate
+
+(11)
+
+kL−1 ···k0 =0,1
+
+which is an MPI reduction over all GPUs belonging to
+the mpi x = 1 group. The probability to measure 1 (0) is
+then given by p1 (p0 = 1 − p1 ). This probability can be
+used to sample jcbit , which is done by drawing a uniform
+
+7
+random number R ∈ [0, 1), and assigning jcbit = 1 if this
+R < p1 and jcbit = 0 otherwise.
+F.
+
+noise processes in qubit systems is a decay from |1⟩ to
+|0⟩, a so-called T1 relaxation process [88–90].
+
+Reset Operation
+
+2.
+
+Phase Initialization Error
+
+The reset operation performs both the von-Neumann
+projection of the statevector to the result of the measurement and the reinitialization of the first qubit in |+⟩ at
+the same time. If the result of the measurement is given
+by jcbit = 0, 1, this operation is done by transforming all
+coefficients according to
+p
+
+
+
+
+ψjcbit 0···0 / 2pjcbit
+ψ00···0
+
+ . 
+
+..
+
+ .. 
+
+.p
+
+
+
+
+ψjcbit 1···1 / 2pjcbit 
+ψ01···1 
+←
+
+
+p
+(15)
+ψj 0···0 / 2pj  .
+ψ10···0 
+cbit 
+ cbit
+
+
+
+ .. 
+
+..
+
+ . 
+
+.p
+ψ11···1
+ψjcbit 1···1 / 2pjcbit
+
+As a second type of initialization error, we consider a
+phase initialization error defined as
+
+Of course, in the case of quantum errors, the coefficients have to be replaced accordingly (cf. Eqs. (25a) and
+(25b)).
+This operation requires an MPI transfer of all coefficients from the GPUs in the group mpi x = jcbit to the
+GPUs in the group mpi x = 1 − jcbit .
+
+For both initialization errors, the error parameter δ ∈
+[0, 1] can be related to an effective, single-qubit error
+probability, defined as the probability that the erroneous
+state would correctly be observed as a |+⟩ state when
+measured along the x axis:
+√
+1 − 1 − δ2
+error
+′
+2
+pampl (δ) = 1 − | ⟨+| +ampl (δ)⟩ | =
+, (18)
+2
+1 − cos(πδ)
+′
+2
+perror
+. (19)
+phase (δ) = 1 − | ⟨+| +phase (δ)⟩ | =
+2
+
+G.
+
+Initialization Errors
+
+There are two different types of initialization errors
+that shorgpu can simulate, namely an amplitude initialization error and a phase initialization error. In both
+cases, a slightly different initial state |+′ ⟩ is used instead
+of |+⟩ for the first qubit in all stages cbit = 0, . . . , t − 1
+of the circuit in Fig. 2. The slightly erroneous state
+|+′ ⟩ is parameterized in terms of an error parameter
+δ ∈ [0, 1]. Our motivation to prioritize the recycled qubit
+for a study of initialization errors instead of the other
+“internal” qubits is that this qubit is measured and reinitialized successively in every stage of the iterative Shor
+algorithm.
+1.
+
+Amplitude Initialization Error
+
+We define an amplitude initialization error as the case
+in which, at the beginning of each stage in Fig. 2, the
+quantum state is not initialized in the equal superposition
+|+⟩ but the slightly unequal superposition
+r
+r
+1+δ
+1−δ
+′
+|+ampl (δ)⟩ =
+|0⟩ +
+|1⟩ .
+(16)
+2
+2
+This expression is motivated by the observation that
+quantum computer prototypes from the NISQ era sometimes tend to prefer |0⟩ over |1⟩ when brought to a uniform superposition by multiple quantum gates [87]. Furthermore, one of the most prominent decoherence and
+
+1
+eiπδ
+|+′phase (δ)⟩ = √ |0⟩ + √ |1⟩ .
+2
+2
+
+(17)
+
+This expression is motivated by the fact that besides T1
+relaxation, dephasing processes are another prominent
+consequence of decoherence and noise in quantum systems [88, 89, 91].
+
+3.
+
+Effective Single-Qubit Error Probability
+
+Note, however, that this interpretation is not unique; depending on the particular realization of the quantum circuit, there may be more reasonable, alternative interpretations of δ in relation to an effective error probability.
+
+H.
+
+Measurement Errors
+
+For quantum processors, a measurement is often a slow
+and susceptible process by which destructive influences
+from the environment can enter the quantum system [92–
+96]. Moreover, it is particularly challenging to implement
+quantum non-demolition readout required for midcircuit
+measurements [16, 97]. We distinguish between two different types of measurement errors, namely a classical
+error corresponding to a misclassification of the quantum measurement result, and a quantum error that may
+occur during or before each measurement.
+
+1.
+
+Classical Measurement Error
+
+We define a classical measurement error as a misclassification that occurs right after the quantum measurement process with a given, constant error probability δ.
+It is defined by flipping only the resulting bit jcbit , while
+leaving the internal quantum state unchanged.
+
+8
+Simulating a classical measurement error requires a
+second sampling step, by drawing another uniform random number R2 ∈ [0, 1) and flipping the bit if R2 <
+δ. In case of a misclassification error, we simply use
+(observed)
+jcbit
+= 1 − jcbit for the classical bitstring in Fig. 2.
+The quantum state, however, is left in its original state
+with the first qubit projected on |jcbit ⟩.
+Note that even such a single misclassification error can
+have non-trivial consequences, since this error affects the
+angles of all subsequent rotation gates (see Fig. 2). This
+has an influence on the measurements of the following
+bits cbit + 1, . . . , t − 1. Therefore, a single bit flip error
+can induce a change in more than one classical bit of the
+output bitstring j.
+
+2.
+
+P
+2
+where pjcbit =
+k̄ |ψjcbit k̄ | is computed according to
+Eq. (14). A calculation of the post-measurement state
+ρ′jcbit yields
+ρ′jcbit =
+
+Edep (ρ̃) = (1 − px − py − pz )ρ
++ px σ x ρ̃σ x + py σ y ρ̃σ y + pz σ z ρ̃σ z ,
+
+(20)
+
+where ρ̃ is a single-qubit density matrix, (σ x , σ y , σ z ) are
+the Pauli matrices, and (px , py , pz ) represent the error
+probabilities for the respective Pauli errors. After the
+application of Edep to the first qubit, the density matrix
+that describes the state of the full quantum computer
+reads
+ρ = (Edep ⊗ I)(|ψ⟩⟨ψ|)
+
+X
+=
+Edep ψ0k̄ ψ0∗k̄′ |0⟩⟨0| + ψ0k̄ ψ1∗k̄′ |0⟩⟨1|
+k̄k̄′
+
+
++ ψ1k̄ ψ0∗k̄′ |1⟩⟨0| + ψ1k̄ ψ1∗k̄′ |1⟩⟨1| ⊗ |k̄⟩⟨k̄ ′ | , (21)
+where I is an identity operation on the remaining L
+qubits, and k̄, k̄ ′ = kL−1 · · · k0 enumerate their 2L different indices.
+A measurement of the first qubit is quantummechanically described by the measurement operators
+M0 = |0⟩⟨0| ⊗ I and M1 = |1⟩⟨1| ⊗ I. Using Eq. (20),
+we find the probability to measure jcbit = 0, 1 as
+p′jcbit = Tr Mjcbit ρM†jcbit
+= (1 − px − py )pjcbit + (px + py )p1−jcbit ,
+
+(22)
+
+Tr Mjcbit ρM†jcbit
+(correct)
+
+|ψjcbit
+
+(error)
+
+(error)
+
+= pjcbit
++ pjcbit
+
+(correct)
+
+|ψjcbit
+
+(correct)
+
+⟩⟨ψjcbit
+
+(error)
+
+⟩⟨ψjcbit
+
+|,
+
+|
+(23)
+
+where
+(1 − px − py )pjcbit
+,
+(1 − px − py )pjcbit + (px + py )p1−jcbit
+(24a)
+(px + py )p1−jcbit
+(error)
+pjcbit =
+,
+(1 − px − py )pjcbit + (px + py )p1−jcbit
+(24b)
+
+(correct)
+
+pjcbit
+
+Quantum Measurement Error
+
+Quantum errors are conventionally modeled as operations ρ 7→ E(ρ) on the system’s density matrix ρ =
+|ψ⟩⟨ψ|. If such an operation is a completely positive,
+trace-preserving map, it is called a quantum channel or
+error channel (see [23, 98, 99] for more information).
+We model a quantum measurement error by applying a
+depolarizing error channel in every measurement process
+(which, on quantum computer hardware, is a time evolution that can take a significant amount of time [96]).
+The depolarizing error channel is defined by the quantum
+operation
+
+Mjcbit ρM†jcbit
+
+=
+
+and
+(correct)
+
+|ψjcbit
+
+⟩=
+
+X ψj k̄
+cbit
+|jcbit k̄⟩ ,
+√
+pjcbit
+
+(25a)
+
+X ψ(1−jcbit )k̄
+|jcbit k̄⟩ .
+√
+p1−jcbit
+
+(25b)
+
+k̄
+
+(error)
+|ψjcbit ⟩ =
+
+k̄
+
+Here, the superscript “correct” (“error”) refers to the
+probability and the state in the case that no error (an
+error) has occurred. Furthermore, the expressions show
+that both Pauli x and y errors only occur in combination,
+so we define the joint quantum error probability δ = px +
+py , by analogy with the classical case.
+As in the classical case, a simulation of the quantum
+error process requires two sampling operations: First, a
+random number R ∈ [0, 1) is sampled to assign the measurement result with probability p′jcbit given by Eq. (22),
+i.e., we assign jcbit = 1 if this R < p′1 and jcbit = 0
+otherwise.
+Second, a random number R2 ∈ [0, 1) is sampled to
+determine whether an error has happened or not. If R2 <
+(error)
+pjcbit , an error has happened while measuring jcbit , and
+(error)
+the simulation continues with the state |ψjcbit ⟩ given by
+Eq. (25b). Otherwise, the simulation continues with the
+(correct)
+state |ψjcbit
+⟩.
+Note that the quantum error has a more direct influence on the quantum state than the classical error, since
+(correct)
+(error)
+the projection to either |ψjcbit
+⟩ or |ψjcbit ⟩ directly
+affects the quantum state, not only implicitly through
+the angles of subsequent rotation gates.
+I.
+
+Details on Memory and Computing Time
+
+The largest part of the memory needed by shorgpu
+is taken by the coefficients of the statevector |ψ⟩ (see
+Eq. (1)). For a 40-qubit iterative Shor circuit, which can
+be used to factor 39-bit integers, the statevector needs
+
+9
+a
+
+Success probability
+
+100 %
+
+success
+success + lucky
+
+75 %
+50 %
+25 %
+0%
+
+b
+100 %
+Success probability
+
+Semiprime N
+15 35
+123
+511
+2047 8189 32765 131069 524283 2097149
+33554429
+536870861
+8589933181
+137438953319
+21 57
+253
+1011 4087 16379 65531 262141 1048561
+8388607
+134217721
+2147483551
+34359737977 549755813701
+
+5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40
+[12] [15] [18] [21] [24] [27] [30] [33] [36] [39] [42] [45] [48] [51] [54] [57] [60] [63] [66] [69] [72] [75] [78] [81] [84] [87] [90] [93] [96] [99][102][105][108][111][114][117]
+Number of qubits n required for iterative Shor [conventional Shor]
+15
+
+21
+
+57
+
+123 253 511 1011 2047 4087 8189
+
+16379
+
+Semiprime N
+65531
+262141
+1048561
+4194293 16777207 67108849 268435451
+32765
+131069
+524283
+2097149
+8388607 33554429 134217721
+
+75 %
+50 %
+25 %
+0%
+
+success
+success + lucky
+success after order
+theory
+5
+6
+7
+8
+9
+10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29
+[12] [15] [18] [21] [24] [27] [30] [33] [36] [39] [42] [45] [48] [51] [54] [57] [60] [63] [66] [69] [72] [75] [78] [81] [84]
+Number of qubits n required for iterative Shor [conventional Shor]
+
+FIG. 4. Success probabilities for Shor’s factoring algorithm. For each factoring problem (N, a), the success probabilities
+are given by the ratio of all M bitstrings (sampled from Shor’s algorithm) that yield a factor. If a bitstring satisfies all conditions
+of Shor’s (original) algorithm, it is counted as “success” (green circles). If the bitstring yields a factor, even if these conditions
+are not met, it is counted as “success+lucky” (yellow squares). a Individual success probabilities for each of the 61362 factoring
+problems (N, a). The markers are placed at the positions of the factored semiprime according to the top axis. The number
+of qubits required using both the iterative and the conventional Shor algorithm is indicated on the bottom axis. b Average
+success probabilities for the 52077 uniform factoring problems, averaged over all problems (N, a) for a given number of qubits
+n (see text). Error bars indicate the root-mean-square deviations of the averages of a across different semiprimes N for the
+same n. Blue triangles represent the success probabilities for all factoring problems (N, a) that can be solved after a bitstring
+has yielded the order of a modulo N (which always happened within the first 33 bitstrings, see Fig 5b). The red line represents
+the theoretical bound for Shor’s post-processing, given by 2e−γ /π 2 log log N (see Appendix A 2). Lines are guides to the eye.
+
+240 complex double-precision floating point numbers, so
+16 × 240 B = 16 TiB. For performance reasons, two statevector buffers are used in the implementation of the oracle gate and the following single-qubit gates. In addition
+to the two statevector buffers, shorgpu requires two 32bit integer buffers for the implementation of the oracle
+gate, called oracle idxrecv and oracle idxsend (see
+above). Each of these takes another 4 × 240 B = 4 TiB.
+The total GPU memory required is thus slightly larger
+than 40 TiB. When using NGPU = 2048 GPUs, the required memory per GPU is slightly larger than 20 GiB.
+We performed all simulations on JUWELS
+Booster [100, 101], a GPU cluster with 3744 NVIDIA
+A100 Tensor Core GPUs [102], each of which has 40 GiB
+of GPU memory. Note that the implementation of the
+algorithm requires the number of GPUs to be a power
+of two (cf. Section II A), so the maximum number of
+NVIDIA A100 GPUs that we can use on JUWELS
+Booster is 2048. The total computing time used to
+perform the simulations amounts to 594 core years
+(corresponding to 49.5 GPU years since each node
+contains 4 A100 GPUs and 48 physical CPU cores).
+
+We note that the total computing time is 22 % of the
+2700 core years used for the recent factoring record of
+RSA-250—a number with 829 binary digits from the
+famous RSA factoring challenge [4].
+
+III.
+
+RESULTS
+
+In this section, we describe and interpret the results
+obtained from simulating Shor’s algorithm according to
+Fig. 1. For our analysis, we generated 61362 factoring
+problems (N, a), 52077 of which were chosen to have
+uniformly distributed prime factors to ensure unbiased
+results, and the rest comprise individual factoring problems for large semiprimes (see Appendix B). We consider Shor’s original post-processing in Section III A and
+Ekerå’s post-processing in Section III B.
+
+10
+
+b
+
+60%
+50%
+
+n = 13
+
+10 1
+10 2
+
+Relative frequency
+
+40%
+
+0
+
+30%
+
+5
+
+10
+
+n = 26
+
+15 0
+
+5
+
+10
+
+50%
+15
+
+no factor found: 7.7%
+
+20%
+
+60%
+n = 13
+
+10 1
+10 2
+
+40%
+
+Relative frequency
+
+a
+
+0
+
+30%
+
+10
+
+15 0
+
+5
+
+10
+
+15
+
+order always found
+after 33 bitstrings
+
+20%
+
+10%
+
+5
+
+n = 26
+
+10%
+
+0%
+
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+Number of bitstrings after which a factor was found
+
+0%
+
+1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+Number of bitstrings after which the order was found
+
+FIG. 5. Statistical analysis of how often Shor’s algorithm has to be executed to solve a factoring problem.
+Shown is the number of bitstrings that had to be generated until a, a factor of N , or b, the order of a modulo N could be
+found. The main plots show the statistics extracted from all 52077 uniformly distributed factoring problems (N, a), for which
+the total number of sampled bitstrings is M = 1024. Insets show the same information (on a logarithmic scale) for subsets of
+2500 problems that all require the same number of qubits n = 13 and n = 26 for the iterative Shor algorithm (corresponding
+to n = 36 and n = 75 for the conventional Shor algorithm, respectively).
+
+100%
+80%
+60%
+40%
+20%
+0%
+
+success N = 15707, a = 831 (order: 1104)
+lucky
+fail
+
+Sampled bitstrings
+
+a
+
+100%
+80%
+60%
+40%
+20%
+0%
+
+100%
+80%
+60%
+40%
+20%
+0%
+
+1
+
+3
+
+4
+
+5
+
+6
+
+7
+
+8
+
+9
+
+10
+
+11
+
+12
+
+13 14 15 16 17
+Number of classical bits t
+
+18
+
+19
+
+20
+
+21
+
+22
+
+23
+
+24
+
+25
+
+26
+
+27
+
+28
+
+2
+
+3
+
+4
+
+5
+
+6
+
+7
+
+8
+
+9
+
+10
+
+11
+
+12
+
+13 14 15 16 17
+Number of classical bits t
+
+18
+
+19
+
+20
+
+21
+
+22
+
+23
+
+24
+
+25
+
+26
+
+27
+
+28
+
+10
+
+11
+
+12
+
+13 14 15 16 17
+Number of classical bits t
+
+18
+
+19
+
+20
+
+21
+
+22
+
+23
+
+24
+
+25
+
+26
+
+27
+
+28
+
+success N = 15707, a = 833 (order: 16)
+lucky
+fail
+
+Sampled bitstrings
+
+c
+
+2
+
+success N = 15707, a = 832 (order: 3864)
+lucky
+fail
+
+Sampled bitstrings
+
+b
+
+1
+
+1
+
+2
+
+3
+
+4
+
+5
+
+6
+
+7
+
+8
+
+9
+
+FIG. 6. Success probabilities of Shor’s algorithm when less than the recommended t = ⌈2 log2 N ⌉ classical bits are
+extracted from the QFT. Every bar represents the fraction of 1 million sampled bitstrings classified as “success” (green),
+“lucky” (yellow), and “fail” (blue). The factored semiprime is N = 15707 (such that t = 28) with a a = 831, b a = 832, and c
+a = 833. The corresponding orders of a modulo N are indicated at the top. Increasing t beyond 28 does not further improve
+the success probabilities.
+
+11
+A.
+
+Using Shor’s Post-Processing
+
+A given factoring problem for Shor’s algorithm consists of a semiprime N and a random integer 1 < a < N
+coprime to N . For each such factoring problem (N, a),
+Shor’s algorithm produces a sample of M bitstrings (we
+typically consider M = 1024 samples). Each bitstring j
+is analyzed using the so-called standard procedure (see
+Appendix C). If all checks on j from the standard procedure pass, the algorithm was successful and we count
+the bitstring j as “success”. However, if certain checks
+on j fail, we still evaluate j and test if it yields a factor of N . If it does, we count this factoring attempt as
+“lucky”. Figure 4a shows a scatter plot of all “success”
+and “success+lucky” probabilities for all uniformly distributed problems (n < 30 qubits) and the individual
+large problems (30 ≤ n ≤ 40 qubits).
+Surprisingly, “lucky” occurs much more often than expected. In Fig. 4b, we see that on average only 25 % of
+all bitstrings yield “success”. Including the “lucky” cases,
+however, a factor of the semiprime N can be extracted
+from over 50 % of all bitstrings on average. Additionally,
+all average success probabilities are significantly larger
+than the theoretical bound of 3–4 % (see Appendix A 2).
+We conjecture that asymptotically, the average success
+probability for “success+lucky” approaches 50 % from
+above (further evidence is given in Section III A 1 below, where we give a classification of the different “lucky”
+scenarios and show that the main contribution saturates
+around 25 %). This observation is remarkable, as it shows
+that factoring a semiprime with Shor’s algorithm is often successful, even though the order-finding procedure
+actually fails.
+Simulating Shor’s algorithm for semiprimes N between
+536870861 and 549755813701 requires substantial computational resources. Therefore, only individual cases
+are shown in Fig. 4a. These cases correspond to the
+largest “interesting” semiprimes for a given number of
+qubits n = 30, . . . , 40. A noteworthy case is the factoring
+problem for (N, a) = (8589933181, 3974323683) (n = 34
+qubits). Here, the “lucky” cases raise the success probability from 56.25 % to 100 % (yellow square) among all
+M bitstrings. Furthermore, the factoring problem for
+(N, a) = (274877906893, 226009433972) (n = 39 qubits,
+second from the right) has a success probability of 0 %
+when the sufficient conditions for Shor’s algorithm are
+presupposed (green circle). However, when ignoring the
+violations of these conditions, we find that Shor’s algorithm can indeed factor N with a “lucky” success probability of 12.5 % (yellow squares).
+The unexpectedly large success probabilities when the
+lucky cases are included prompt the question “how many
+bitstrings do we need to sample until a factor is found?”
+This is a relevant question, since for large problems, computing time on both classical and quantum computers is
+an essential resource. Figure 5a demonstrates that, for
+more than half of all factoring problems examined, the
+first sampled bitstring already yields a factor of N . Fur-
+
+thermore, in only 7.7 % of all factoring problems (N, a),
+none of the 1024 bitstrings produced a factor. In this
+case, the reason is usually that the choice of a was bad,
+which can be estimated to happen with probability 50 %
+(see proposition C in Appendix A 2). Clearly, the failure
+probability of 7.7 % is much smaller than the theoretical
+estimate would suggest.
+Figure 5b further reveals that, even when the orderfinding procedure in Shor’s algorithm fails, the first bitstring often still produces a factor. In 38 % of all cases,
+the first bitstring yields the order of a modulo N (leftmost bar). From Fig. 4b, we know that on average, 75 %
+of all factoring problems can be solved after the order is
+known (blue triangles). Thus we expect approximately
+38 % × 75 % ≈ 29 % of all factoring problems to be solved
+by the correct order after the first bitstring. However,
+in Fig. 5a, we see that 56 % of all problems are solved
+by processing the first bitstring. This percentage obviously is much larger than 29 %, implying that it is easier
+to find a factor with Shor’s algorithm than to solve the
+underlying order-finding problem.
+Another interesting result is observed when reducing
+the number of bits t in the sampled bitstring below the
+recommended ⌈2 log2 N ⌉ (cf. Appendix C). This saves resources in both versions of Shor’s algorithm. For the conventional Shor algorithm, it reduces the required number
+of qubits and gates required for the QFT. For the iterative Shor algorithm, it linearly reduces the number of
+quantum gates and thus the execution time.
+Surprisingly, in almost all cases, reducing the number
+of bits t still allows for a successful factorization. Three
+representative cases are shown in Fig. 6. First, Fig. 6a
+shows that reducing t may even increase the frequency of
+“lucky” factorizations to over 99 %, as it does for 10 ≤
+t ≤ 13 in this case. Second, in Fig. 6b, we see that
+even though the success probabilities decrease with t, at
+half of the recommended number of classical bits, that
+is at t = 14, there are still “lucky” cases, allowing for
+successful factorization. Finally, in the case shown in
+Fig. 6c, the success and lucky probabilities are essentially
+constant for 4 ≤ t ≤ 28.
+Although it is known that reducing t may still allow for
+non-zero success probabilities [39, 44, 46, 61], the surprising robustness (or even increase) of the “lucky” success
+probabilities has not been appreciated. In conclusion,
+Shor’s algorithm can still be successful (sometimes even
+more successful) if much less classical bits t are sampled
+than the recommended t = ⌈2 log2 N ⌉.
+
+1.
+
+Classification of the “Lucky” Scenarios
+
+If a sampled bitstring j does not pass the standard
+tests required by Shor’s algorithm, but still produces a
+factor with the procedure shown in Fig. 1, we call this a
+“lucky” case. As shown above, this happens much more
+often than expected. In this section, we explain and classify the different scenarios that can happen.
+
+12
+
+Success probability
+
+100 %
+
+15
+
+21
+
+57
+
+Largest factorable semiprime N
+16379
+65531
+262141
+1048561
+4194293 16777207 67108849 268435451
+123 253 511 1011 2047 4087 8189
+32765
+131069
+524283
+2097149
+8388607 33554429 134217721
+success + lucky
+success cases
+lucky (n, e) cases
+lucky (n, o) cases
+lucky (o, o) cases
+
+75 %
+50 %
+25 %
+0%
+
+5
+6
+7
+8
+9
+10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29
+[12] [15] [18] [21] [24] [27] [30] [33] [36] [39] [42] [45] [48] [51] [54] [57] [60] [63] [66] [69] [72] [75] [78] [81] [84]
+Number of qubits n required for iterative Shor [conventional Shor]
+
+FIG. 7. Breakdown of the average success probabilities for successful factoring scenarios. The contributions to the
+average “success+lucky” probability (yellow squares) from Fig. 4b are divided into the “success” cases (gray), the lucky (n,e)
+cases (green), the lucky (n,o) cases (red), and the lucky (o,o) cases (blue). Note that an L-bit semiprime requires n = L + 1
+qubits for the iterative Shor algorithm and roughly 3L qubits using the conventional Shor algorithm, as indicated on the bottom
+axis. The largest odd semiprime that can be factored with a given number of qubits is shown on the top axis. Lines are guides
+to the eye.
+
+a
+
+(n, e) cases
+600
+500
+400
+300
+200
+100
+0
+30
+25
+20
+
+P0erce 20
+15 L
+ntage 40
+10
+yield of bit60
+5
+a factsotring80
+r s that100
+
+b
+
+P0erce 20
+ntage 40
+10
+yield of bit60
+5
+a factsotring80
+s
+100
+t
+h
+a
+t
+r
+
+(n, o) cases
+1200
+1000
+800
+600
+400
+200
+0
+30
+25
+20
+15 L
+
+c
+
+(o, o) cases
+70
+60
+50
+40
+30
+20
+10
+0
+30
+25
+20
+
+P0erce 20
+15 L
+ntage 40
+10
+yield of bit60
+5
+a factsotring80
+r s that100
+
+FIG. 8. Classification of the different “lucky” scenarios. Shown is the absolute number of a (n,e) cases, b (n,o) cases,
+and c (o,o) cases, which yield a factor even though the sufficient conditions for Shor’s algorithm are not met. For each bit
+length L = 9, . . . , 29, the total number of cases is given by 2500 uniformly distributed factoring problems (for smaller L, the
+total number is smaller than 2500 because all possibilities for factoring problems (N, a) are exhausted, see Appendix B). Every
+bar represents a 10 %-wide half-open interval (P − 10 %, P ] with P = 10 %, 20 %, . . . , 100 % for the percentage of all M = 1024
+bitstrings that yield a factor in this case. For instance, the large leftmost red bar at L = 11 and P = 10 % in panel b means
+that in 1197 out of 2500 cases, up to 10 % of all sampled bitstrings yield a factor even though they represent an (n,o) case,
+i.e., they produce an odd number r that is not the order. Similarly, the large rightmost blue bar at L = 9 in panel c means
+that in 68 out of 2500 cases, more than 90 % of all sampled bitstrings yield a factor even though the correctly extracted order
+r = r̂ is odd.
+
+13
+For a given factoring problem with an L-bit semiprime
+N and an integer a coprime to N , let r̂ be the multiplicative order of a modulo N . Furthermore, let r
+be the denominator and k be the numerator extracted
+from the convergent k/r to j/2t using the continued fractions algorithm from the standard procedure (i.e., the
+largest r < N such that k/r is a convergent to j/2t with
+|k/r − j/2t | ≤ 1/2r2 [10]). We distinguish between three
+scenarios in which the standard checks for Shor’s algorithm fail:
+(n,e) r ̸= r̂ is not the order but r is even,
+
+j ∈ {round(k̂ × 2t /r̂) : k̂ = 0, . . . , r̂ − 1},
+
+(n,o) r ̸= r̂ is not the order and r is odd,
+(o,o) r = r̂ is the order but the order is odd.
+In Fig. 7, we show a breakdown of the average success
+probability for these scenarios. We see that the (n,e)
+scenario makes up a large fraction of the successful factorizations and its relevance grows for larger integers. In
+contrast, the (n,o) and (o,o) scenarios, where the extracted r is odd, only matter for smaller integers. We
+explain the reasons for this in the discussions of each individual scenario below.
+Figure 8 shows the number of cases for each scenario
+among the 52077 uniformly drawn factoring problems.
+We see that the cases where bitstrings yield a factor in
+the (n,e) scenario are responsible for a significant fraction
+of all successful factorizations. Indeed, as Fig. 7 suggests,
+the relevance of this scenario also grows on average and
+tends to saturate above 25 % for larger L. We expect that
+this contribution persists for even larger semiprimes.
+Contributions from the (n,o) and (o,o) scenarios seem
+to be responsible only for a small number of successful
+factorizations, and mostly only for small semiprimes up
+to L = 10. It is remarkable, however, that for many
+factoring problems that can be factored in the (o,o)
+scenario, 50–100% of all bitstrings yield a factor (see
+Fig. 8c).
+To understand these effects, we discuss the different
+scenarios individually. The goal is to obtain an understanding for why the different scenarios occur. The
+number-theoretic ideas are similar to the algorithm used
+in [24], which goes back to Miller’s algorithm [103,
+Lemma 5].
+2.
+
+where ⌊2t /r̂⌋ denotes the integral number of times that
+r̂ fits into 2t . Note that for a given factoring problem
+(N, a) with t classical bits per bitstring, this distribution
+only depends on the order r̂ of a modulo N . This is a
+consequence of the fact that the QFT in Shor’s algorithm
+is used to determine the period of the function f (k) =
+ak mod N , which is exactly r̂.
+The distribution in Eq. (26) is shown for a few representative cases in Fig. 12 in Appendix A. It is strongly
+peaked at r̂ bitstrings (see also [51])
+
+The (n,e) Scenario
+
+From the quantum circuit of Shor’s algorithm, one can
+compute the probability distribution for the bitstrings
+j that are sampled at the measurement [104] (see Appendix A for the derivation),
+!2
+t
+sin(πr̂j⌊ 2r̂ ⌋/2t )
+r̂
+pr̂,t (j) = 2t
+2
+sin(πr̂j/2t )
+
+where k̂ enumerates the r̂ peaks. Given j, the continued fractions algorithm yields a convergent k/r = k̂/r̂
+to j/2t . However, if k̂ and r̂ have a common factor, the
+denominator r from the extracted convergent will not be
+equal to the order r̂. For instance, this is the reason that
+the “success” cases in Fig. 4a are typically below 50 %,
+since every second peak corresponds to an even k̂, and an
+even order r̂ is a sufficient condition for success; hence,
+at least a factor of two is lost in k̂/r̂. We note that with
+a very small probability, this procedure may also yield
+an r > r̂ if the sampled bitstring j is not at one of the r̂
+peaks of pr̂,t (j).
+To understand why r ̸= r̂ may still yield a factor of N ,
+we consider the case that the order r̂ yields a factor of N
+(as Fig. 4b shows, this case occurs with approximately
+75 % frequency). In this case, we have
+gcd(ar̂/2 − 1, N ) = p,
+r̂/2
+
+gcd(a
+
++ 1, N ) = q,
+
+(28)
+(29)
+
+where p and q are the two prime factors of N . Let 2d be
+the largest power of 2 in r̂ such that 2 ∤ r̂/2d (meaning 2
+does no divide r̂/2d ). Note that often, 2d ≥ 4 since the
+multiplicative order of the whole group Z∗N is ϕ(N ) =
+(p−1)(q−1), which is at least divisible by 4 (here, ϕ(N ) =
+∗
+| is Euler’s totient function). In this case, Eq. (28)
+|ZN
+can be written as
+gcd((ar̂/4 − 1)(ar̂/4 + 1), N ) = p,
+
+(30)
+
+so either (ar̂/4 − 1) or (ar̂/4 + 1) contain the prime factor
+p. Since every second k̂ in Eq. (27) is even, it is likely
+that r ∈ {r̂/2, r̂/4, . . . , r̂/2d−1 } (each case decreasing in
+likelihood). If r = r̂/2, Eq. (30) shows that by testing
+both gcd(ar/2 ± 1, N ), a factor will be found. If r = r̂/4,
+knowing that r is even, we can further write Eq. (30) as
+gcd((ar̂/8 − 1)(ar̂/8 + 1)(ar̂/4 + 1), N ) = p,
+
+(31)
+
+so if p does not happen to be in (ar̂/4 + 1), also a factor
+will be found. This reasoning can be iterated up to the
+unlikely case that r = r̂/2d−1 , where Eq. (28) becomes
+d
+
+t
+
+d
+
+gcd((ar̂/2 − 1)(ar̂/2 + 1)
+
+t
+
+2t − r̂⌊ 2r̂ ⌋ sin(πr̂j[2⌊ 2r̂ ⌋ + 1]/2t )
++
+,
+22t
+sin(πr̂j/2t )
+
+(27)
+
+(26)
+
+d−1
+
+× (ar̂/2
+
++ 1) · · · (ar̂/4 + 1), N ) = p.
+
+(32)
+
+14
+Similarly, if r = r̂/3, we can write Eq. (28) as
+gcd((ar/2 − 1)(ar + ar/2 + 1), N ) = p,
+
+(33)
+
+in which case we also find a factor if p happens to be
+in the first part of the product. Finally, if r = r̂/l with
+l > 4, we can write Eq. (28) as
+gcd((ar/2 − 1)
+× (ar/2×(l−1) + ar/2×(l−2) + · · · + ar/2 + 1), N ) = p.
+(34)
+Note that as l grows, this case becomes increasingly unlikely since l would need to be a factor of k̂ already. But
+also in this case, there is a small chance that when evaluating gcd(ar/2 − 1, N ), a factor can be found. We remark
+that when r/2 = r̂/2l is prime, the decomposition in
+Eq. (34) is irreducible [66], such that no further polynomial in ar/2 including p can be factored out.
+The distribution of the fractions r/r̂ (extracted from
+the data generated from the uniformly distributed factoring problems) is shown in Fig. 9a. Indeed, we see
+that very often a small multiple of r is equal to the order r̂. In particular, the significance of fractions up to
+r/r̂ = 1/11 seems to increase with L, i.e., with increasingly large semiprimes N . This observation agrees well
+with the argument given in [24].
+Interesting examples for the lucky (n,e) scenario are
+the individual problems for n = 34 and n = 39 discussed in Section III A. In particular, the n = 39 case
+with N = 274877906893 = 364303 × 754531, a =
+226009433972 and order r̂ = 45812798010 violates the
+condition ar̂/2 ̸≡ −1 (mod N ). As this is one of the sufficient conditions for Shor’s algorithm to guarantee successful factorization, the corresponding “success” probability is zero (green circle). However, 12.5 % of the sampled bitstrings yield even integers r ∈ {r̂/3, r̂/5, r̂/111},
+which still allow for a successful “lucky” factorization of
+N (the corresponding quadratic residues ar do not have
+a trivial square root, i.e., ar/2 ̸≡ −1 (mod N )).
+For large N , the (n,e) scenario makes up the majority
+of all “lucky” factorizations (see Fig. 7). We conjecture
+that on average, the probability of “success+lucky” factorizations asymptotically approaches 50 % due to the
+(n,e) scenario.
+
+occur for smaller semiprimes with up to 25 % frequency
+on average (see the red area in Fig. 7), so it is instructive
+to understand how a factor can be found in this case. In
+what follows, we exclude the irrelevant case r = 1 as it
+will never yield a factor.
+Let r = r̂/l where 2d | l and 2 ∤ r (note that d = 0 is
+possible if the order r̂ is odd, but we always have l ≥ 2
+since r ̸= r̂). In this case, using the procedure depicted
+in Fig. 1, we test
+gcd(a⌊r/2⌋ ± 1, N ) = gcd(a(r̂/l−1)/2 ± 1, N )
+
+to find a factor of N .
+Since Eq. (35) seems somewhat arbitrary from the perspective of the original theory behind Shor’s algorithm,
+one might think that a factor may only be found by coincidence. For instance, when N = p × q has a very small
+prime factor (say 3, 5, or 7), then whatever number is
+computed by Eq. (35) might have a chance of including
+the small prime factor.
+That this reasoning does not always hold is shown in
+Fig. 10a, where we list the percentage of bitstrings that
+yield a factor in the (n,o) scenario as a function of the
+smallest prime factor of N . Indeed, we see that also
+larger prime factors can be found in certain cases. The
+most important of these are the cases in which a has a
+small order with respect to either p or q (purple squares,
+black crosses, and red plusses in Fig. 10a). Indeed, one
+can prove that if
+min{ordp (a), ordq (a)} ∈ {1, 2},
+
+The (n,o) Scenario
+
+In the (n,o) scenario, the bitstring j yields an integer
+r that is neither the order r̂ nor even. Using the reasoning from the (n,e) scenario, this happens only if r | r̂/2d ,
+so all d powers of 2 must have been in k̂ from Eq. (27)
+already (or d = 0, in which case r̂ is odd). This is an unlikely scenario given that all k̂ ∈ {0, . . . , r̂ −1} occur with
+roughly the same probability, see Fig. 12 in Appendix A.
+Moreover, as Fig. 8 shows, the frequency of this scenario
+tends to zero for larger semiprimes N . However, it does
+
+(36)
+
+then gcd(a⌊r/2⌋ ± 1, N ) with r ̸= r̂ odd yields a factor of
+N.
+Proof:
+Without loss of generality, we assume
+ordp (a) ∈ {1, 2}. This implies that a ≡ ±1 (mod p)
+(because if ordp (a) = 1, we have a ≡ 1 (mod p), and if
+ordp (a) = 2, we have a ≡ −1 (mod p)). Hence,
+xp := a⌊r/2⌋ mod p = (±1)⌊r/2⌋ mod p = ±1.
+
+(37)
+
+Moreover, since r̂ = lcm(ordp (a), ordq (a)), where lcm denotes the least common multiple, ordp (a) ∈ {1, 2} implies
+that ordq (a) ∈ {r̂, r̂/2}.
+Thus we have ordq (a) ≥ r̂/2 ≥ r̂/l > r̂/l − 1 (where
+l ≥ 2 is defined above Eq. (35)), and therefore
+xq := a⌊r/2⌋ mod q = a(r̂/l−1)/2 mod q ̸= ±1
+
+3.
+
+(35)
+
+(38)
+
+(since otherwise r̂/l − 1 would be a multiple of the order
+of a modulo q). Applying the Chinese remainder theorem [66] to Eqs. (37) and (38), we obtain
+a⌊r/2⌋ ≡ xq ppq + xp qqp
+
+(mod N ),
+
+(39)
+
+where pq is the inverse of p (mod q) and qp is the inverse
+of q (mod p). Using that ppq + qqp ≡ 1 (mod N ), we
+finally have
+gcd(a⌊r/2⌋ ± 1, N ) = gcd((xq ± 1)ppq + (xp ± 1)qqp , N ).
+(40)
+
+15
+
+a
+
+b
+
+Percentage of lucky
+(n, e) bitstrings
+40%
+
+20
+
+>1 1 1
+
+2 3 1 1 1
+Frac4ti 5 6 17 1 1 1
+on r/r 8 9 10 1
+11
+
+5
+
+10
+
+25
+
+Percentage of lucky
+(n, o) bitstrings
+40%
+
+30%
+
+30%
+
+20%
+
+20%
+
+10%
+
+10%
+
+0%
+30
+
+0%
+30
+
+20
+
+>1 1 1
+
+15 L
+
+2 3 1 1 1
+Frac4ti 5 6 17 1 1 1
+on r/r 8 9 10 1
+11
+
+5
+
+10
+
+25
+
+15 L
+
+FIG. 9. Histograms of the fractions r/r̂ between the order r̂ and the denominator r extracted from the continued
+fractions algorithm. Shown is the percentage of bitstrings for L ≥ 5 (normalized by all “lucky” bitstrings) that yield a factor
+in the a (n,e) and b (n,o) scenario, respectively. Here, r is not the order but often a large divisor of it. Additionally, the bars
+at the very left for r/r̂ > 1 represent the number of cases where the extracted r is actually larger than the order r̂, which may
+occasionally happen when a bitstring j is sampled at a non-zero probability pr̂,t (j) that is not a peak (cf. Figs. 12b and c).
+
+a
+
+b
+
+75 %
+
+min{ordp (a), ordq (a)} = 1
+min{ordp (a), ordq (a)} = 2
+min{ordp (a), ordq (a)} = 3, , 10
+min{ordp (a), ordq (a)} > 10
+
+100 %
+Percentage of (o, o) bitstrings
+
+Percentage of (n, o) bitstrings
+
+100 %
+
+r= 4
+r= 2
+
+50 %
+25 %
+0%
+
+3 5 7 11
+
+101.5 102 102.5 103
+Smallest prime factor of N
+
+103.5
+
+104
+
+r prime
+
+75 %
+50 %
+25 %
+0%
+
+r is odd and 1 {a mod p, a mod q}
+
+otherwise
+3 5 7 11
+
+101.5 102 102.5 103
+Smallest prime factor of N
+
+103.5
+
+104
+
+FIG. 10. Classification of “lucky” factorizations for the case that the extracted integer r is odd, using ⌊r/2⌋ =
+(r − 1)/2 instead of r/2. Shown is the percentage of bitstrings that yield a factor as a function of the smallest prime factor
+of the semiprime N = p × q. a The lucky (n,o) probabilities, classified in terms of the minimum order of a modulo p and
+q (see legend; prioritized from top to bottom). b The lucky (o,o) probabilities, fully classified in terms of the cases where
+1 ∈ {a mod p, a mod q} and r̂ is odd (blue crosses) and the rest (green plusses). In both a and b, annotations indicate an
+additional condition that is satisfied by many (but not all) cases at this percentage level (σ denotes an odd integer). We use
+the notation ordp (a) to denote the order of a modulo p, i.e., the smallest integer m such that am ≡ 1 (mod p).
+
+Thus, since xq ̸= ±1, the case where xp ± 1 = 0 will
+yield the factor p.
+□
+One can estimate how often the situation given by
+Eq. (36) happens.
+Choosing a uniformly at ran-
+
+dom from {2, . . . , N − 1} with gcd(a, N ) = 1 is
+equivalent to choosing a mod p (a mod q) uniformly
+at random from {1, . . . , p − 1} ({1, . . . , q − 1}) with
+the exception of a mod p = a mod q = 1.
+Thus
+there are (p − 2)(q − 2) − 1 ∼ pq choices for a,
+
+16
+2p + 2q − 13 ∼ p + q of these satisfying either
+a mod p = ±1 or a mod q = ±1. Therefore, the contribution of cases with min{ordp (a), ordq (a)} = 1, 2 becomes
+negligible for large p and q. We remark that individual
+cases with min{ordp (a), ordq (a)} = 3, 4, . . . , may further
+contribute to lucky (n,o) factorizations, as Fig. 10a
+shows.
+
+4.
+
+but this is a contradiction because r was assumed to be
+odd.
+□
+Finally, we can show that it does not matter whether
+we round r/2 up or down, i.e., whether we take
+⌊r/2⌋ = (r − 1)/2 or ⌈r/2⌉ = (r + 1)/2 in Fig. 1, since
+one of them yields a factor whenever the other one also
+yields a factor:
+gcd(a⌊r/2⌋ − 1, N ) = gcd(a⌊r/2⌋ (a⌈r/2⌉ − 1), N )
+
+The (o,o) Scenario
+
+= gcd(a⌈r/2⌉ − 1, N ),
+In the (o,o) scenario, the bitstring j yields the order
+r = r̂ and the order is odd. Interestingly, as Fig. 10b
+suggests, this case can be fully classified, viz. we can
+prove that gcd(a⌊r/2⌋ − 1, N ) yields a factor if and only
+if 1 ∈ {a mod p, a mod q} (see also [15, 54–56]). Note
+that a > 1 by construction, so one of the two is larger
+than 1, and in particular r > 1.
+Proof: The “⇐” case is a special case of the proof in the
+(n,o) scenario. If a mod p = 1, we have xp = 1 in Eq. (37)
+and xq ̸= ±1 in Eq. (38), so gcd(a⌊r/2⌋ − 1, N ) = p by
+Eq. (40). We therefore only need to show the “⇒” case.
+Without loss of generality, let gcd(a⌊r/2⌋ − 1, N ) = p, so
+p | (a⌊r/2⌋ −1). From this follows that a⌊r/2⌋ ≡ 1 (mod p),
+so ordp (a) | ⌊r/2⌋ = (r − 1)/2. However, we also have
+ordp (a) | r because r = lcm(ordp (a), ordq (a)). Since
+gcd((r − 1)/2, r) = 1 (using the Euclidean algorithm),
+this is only possible if ordp (a) = 1, which means
+a mod p = 1.
+□
+Next we show that the “+” case, i.e. gcd(a⌊r/2⌋ + 1, N ),
+never gives a factor in the case r = ordN (a) odd.
+Proof: Assume gcd(a(r−1)/2 + 1, N ) = p. This means
+that a(r−1)/2 ≡ −1 (mod p), and thus ar−1 ≡ 1 (mod p).
+The former implies that ordp (a) ∤ (r − 1)/2 and the
+latter implies that ordp (a) | r − 1. Therefore, 2 | ordp (a).
+From r = lcm(ordp (a), ordq (a)) then follows that 2 | r,
+
+
+p(success | N ) ≥
+|
+
+1
+1− 2
+π
+
+
+
+2
+1
+1
++ 2+
+B
+B
+3B 2
+{z
+
+
+
+where we used that a⌊r/2⌋ a⌈r/2⌉ ≡ a(r−1)/2 a(r+1)/2 ≡
+ar ≡ 1 (mod N ) and furthermore that a⌊r/2⌋ cannot have
+a common factor with N (since a was chosen coprime to
+N ),
+A special, additional condition that yields a success
+probability of almost 100 % with the (o,o) scenario is
+when r̂ is prime, as indicated in Fig. 10b. In this case,
+almost all bitstrings j are sampled at the peaks of Shor’s
+bitstring distribution pr̂,t (j) given by Eq. (27) and directly yield the order r = r̂, because k̂ and r̂ are always
+coprime. The only exceptions are either when j belongs
+to the first peak corresponding to k̂ = 0, or when j lies in
+the neighborhood of one of the peaks of Eq. (26) where
+the probability is small.
+
+B.
+
+where L is the bit length of N , m + ℓ = t is the number
+of classical bits obtained from Shor’s algorithm, nF is
+the number of distinct prime factors of N (i.e., nF = 2
+for semiprimes), and B, c, k, ς ≥ 1 are constants of the
+post-processing algorithms that can be freely selected.
+We choose m = L and ℓ = t − L so that the results are
+in line with the analysis presented above. Note that the
+only technical requirement is 2m > r̂ and 2m+ℓ > r̂2 , so
+
+Using Ekerå’s Post-Processing
+
+In 2022, Ekerå has proven a lower bound for the success
+probability that takes into account additional, efficient
+classical post-processing procedures [25] (his implementation of the procedures can be found in [105]). While
+with Shor’s post-processing, a factor is found with more
+than 50 % probability on average after a single run (see
+Fig. 5a), with Ekerå’s post-processing, it is possible to
+increase this probability arbitrarily close to unity. The
+bound reads
+
+π 2 (2B + 1)
+− √
+2m+ℓ
+
+j sampled ±B bitstrings around peak
+
+(41)
+
+
+
+
+ 
+
+1
+1
+−k nF
+1−
+1−2
+− 2
+, (42)
+c log cm
+2
+2ς log2 ςL
+}|
+{z
+}|
+{z
+}
+peak yields order r̂
+
+order r̂ yields factors of N
+
+m = L−1 is possible [25]; this does not make a difference
+for the results that follow.
+We remark that the three factors in Eq. (42) are directly related to the three propositions A, B, and C discussed in Appendix A 2. We discuss each factor in turn.
+The first factor in Eq. (42) comes from the idea that
+whenever the bitstring j is not sampled at one of the r̂
+peaks (see Fig. 12 in Appendix A), it is often sampled
+
+17
+very close to a peak. Thus, one can try out all bitstrings
+in the range {j − B, . . . , j + B} for some small B. The
+probability to find the peak among these bitstrings can
+be estimated from the distribution pr̂,t (j) in Eq. (26).
+Instead of 4/π 2 (see Eq. (A20); this would correspond to
+B = 0), we then get a larger probability, given by the
+first factor. Here we choose B = L, i.e. the number of
+bits in N .
+The second factor in Eq. (42) stems from the idea that,
+when the continued fraction method does not yield the
+order r̂, it will often yield a large divisor r = r̂/D for
+some small D (see Fig. 9). Starting from r, Ekerå gives
+several classical algorithms in [25] to efficiently recover
+the real order r̂ = r × D. The corresponding success
+probability is given by 1 − 1/c log cm, where c ≥ 1 is a
+parameter that is free to choose. Its derivation is based
+on the probability that D is cm-smooth, meaning that
+D > 0 is not divisible by any prime power larger than
+cm. For our numerical work we choose c = 1.
+Finally, the third factor in Eq. (42) follows from the
+algorithm presented in [24] (see also [54]). This algorithm
+describes the factoring of an arbitrary composite integer
+N (with nF ≥ 2 distinct prime factors) given the order r̂
+of a single element a ∈ Z∗N selected uniformly at random.
+The corresponding success probability depends on two
+parameters k, ς ≥ 1 (ς is called c in [24]) that can be freely
+selected. For our numerical work we choose k = 100 and
+ς = 1.
+Probably the most important consequence of Ekerå’s
+result given by Eq. (42) is that, as the size of the factoring problem becomes very large, i.e. N, r̂ → ∞, the
+success probability approaches one. This trend can already be seen in Fig. 11a (gray line), which shows that
+the bound is increasing—even though it is already quite
+large for our modest choice of (B, c, k, ς) = (L, 1, 100, 1).
+Furthermore, the gray diamonds in Fig. 11a represent
+the actual success probabilities, obtained from applying
+Ekerå’s post-processing to the largest scenarios studied
+above. They are all larger than 93 % and thus even closer
+to unity than expected (this potential underestimation
+was noted in [25]).
+
+C.
+
+Errors During the Execution of Shor’s
+Algorithm
+
+With Ekerå’s post-processing [24, 25], the expected
+success probability using only a single run of the quantum part of the algorithm can be brought arbitrarily close
+to 100 % by properly selecting the constants (B, c, k, ς)
+(cf. Eq. (42)). However, these probabilistic estimates
+still require a successful execution of the quantum part
+of Shor’s algorithm. Since fully error-corrected, faulttolerant quantum computers will probably not become
+available for several years to come [106–108], it is an
+interesting, relevant question to study how the performance of the post-processing algorithms is affected by
+errors during the execution of the quantum algorithm.
+
+In this section, we consider five different models for
+errors arising in the quantum part of Shor’s algorithm.
+Each of these is shown in the inset of Fig. 11b, which
+schematically marks the places in the iterative Shor algorithm (cf. Fig. 2) at which the respective errors may
+occur.
+1. Classical measurement errors (blue squares) are
+defined as misclassifications occurring directly after each quantum measurement process with a
+constant error probability perror (δ) = δ (see Section II H 1).
+2. Quantum measurement errors (yellow circles) are
+modeled as depolarizing quantum noise during the
+measurement process with effective error probability perror (δ) = δ = px + py (see Section II H 2).
+3. Amplitude initialization errors (green upwardpointing triangles) are modeled by initializing the
+recycled qubit not√in the uniform superposition
+|+⟩ = (|0⟩ + |1⟩)/ 2, but by increasing the amplitude of |0⟩ as a function of δ.
+√ The effective error
+probability is perror (δ) = (1 − 1 − δ 2 )/2 (see Section II G 1).
+4. Phase initialization errors (red down-pointing triangles) are defined by introducing a relative phase
+eiπδ between the states |0⟩ and |1⟩ in the initialization. The effective error probability is perror (δ) =
+(1 − cos(πδ))/2 (see Section II G 2).
+5. Bit flip errors (purple stars) are defined by flipping
+each bit in the final bitstring j with probability
+perror (δ) = δ. This error model, in contrast to the
+others, does not affect the execution of the quantum part of the iterative Shor algorithm. While
+such an error (e.g., a fault in the classical computer
+memory) may be considered unlikely, it is still interesting to compare its consequences to the errors
+in the quantum part.
+We consider the case that for each of these errors, Ekerå’s
+post-processing algorithm is applied to the resulting bitstrings, without the user being aware that one or more
+errors may have occurred.
+Figure 11a shows the success probabilities for the different errors and problem sizes. We see that errors with
+δ = 0.01 (which corresponds to 1 % error probability for
+the blue squares, yellow circles, and purple stars) can decrease the success probability below the bound Eq. (42)
+indicated by the solid gray line. Furthermore, the success
+probabilities show a decrease as a function of problem size
+that rivals the increasing success probability from the
+bound Eq. (42). Nevertheless, Ekerå’s post-processing
+algorithm still produces correct factors even in the presence of errors.
+Figure 11b shows the scaling of the success probability
+as a function of the effective single-qubit error probability
+for the 30-qubit case N = 536870903. For all errors, we
+
+18
+536870861
+
+Success probability
+
+100 %
+75 %
+
+Semiprime N
+b
+8589933181
+137438953319
+2147483551
+34359737977
+549755813701
+
+50 %
+
+bound Eq. (42)
+
+50 %
+25 %
+0%
+
+100 %
+75 %
+
+Success probability
+
+a
+
+25 %
+
+10 %
+
+errors
+no error
+
+5%
+0.00
+
+30 31 32 33 34 35 36 37 38 39 40
+[87] [90] [93] [96] [99] [102] [105] [108] [111] [114] [117]
+Number of qubits n required for hybrid Shor [original Shor]
+
+classical error
+quantum error
+amplitude error
+phase error
+bit flip error
+destructive independent errors
+0.01
+
+0.02 0.03 0.04 0.05 0.06 0.07
+Effective single-qubit error probability perror ( )
+
+0.08
+
+FIG. 11. Performance of Shor’s algorithm using Ekerå’s post-processing in the presence of errors. a Success
+probability using Ekerå’s post-processing with (B, c, k, ς) = (L, 1, 100, 1) for the largest scenarios from Fig. 4a in the case
+of classical measurement errors with δ = 0.01 (blue squares), quantum measurement errors with δ = 0.01 (yellow circles),
+amplitude initialization errors with δ = 0.1 (green upward-pointing triangles), phase initialization errors with δ = 0.1 (red
+downward-pointing triangles), bit flip errors (purple stars) with δ = 0.01, or no errors (gray diamonds). Additionally, the
+solid gray line shows the bound Eq. (42) for semiprimes with nF = 2 prime factors, and the vertical dashed gray lines show
+by how much the bound underestimates the actual performance (cf. [25]). b Success probability as a function of the effective
+single-qubit error probability perror (δ) for the 30-qubit case N = 536870903 from panel a. The black dash-dotted line represents
+the success probability in the case of independent destructive errors, (1 − perror )t . The inset shows schematically in which parts
+of the quantum circuit in Fig. 2 each of the different errors happen.
+
+see that the performance of the factoring algorithm including Ekerå’s post-processing scales similarly, despite
+the fundamental differences in the error models. This
+type of universal behavior is an interesting and unexpected observation.
+It is also instructive to compare the simulation results
+to (1−perror )t (black dash-dotted line in Fig. 11b), which
+represents the probability to obtain a bitstring for which
+no error occurred (under the assumption that errors for
+individual bits are independent). Since we know from
+Fig. 11a that the considered 30-qubit case is solved with
+100 % success, (1−perror )t represents the assumption that
+errors are destructive, i.e., an error in one of the bits prevents a successful factorization. Hence, the systematic
+gap between the dash-dotted line and the other dashed
+lines in Fig. 11b shows that the quantum factoring problem can still be solved with Ekerå’s post-processing in
+the presence of errors. The fact that the success probability is systematically larger than the one for independent errors is encouraging, because an error at one stage
+in the iterative Shor algorithm affects the operation of all
+subsequent gates that depend on previous measurement
+results (see inset of Fig. 11b). Such an error can thus
+propagate through the quantum algorithm and induce
+further, correlated errors. Our simulation results reveal
+a certain resilience when using Ekerå’s post-processing in
+combination with the iterative Shor algorithm for factoring integers.
+
+D.
+
+Discussion of Limitations and Future Directions
+
+Some of our design choices, made to achieve a largescale simulation of Shor’s algorithm for many factoring
+scenarios, result in certain practical limitations to what
+we can simulate. In this section, we list these design
+choices, state the accompanying limitations, and discuss interesting future research directions that alternative choices could offer.
+1. In a practical realization of Shor’s quantum circuit
+shown in Figure 2, most of the work is expected
+to be in the implementation of the exponentiation
+in terms of the controlled modular multiplications
+(see Section II B). Our choice to simulate the multiplications using direct permutations with no extra
+qubits, while allowing the large-scale MPI scheme
+sketched in Figure 3, prevents the direct simulation of quantum errors during the multiplications
+(which is why, in Figure 11, essentially only initialization errors before and measurement errors after the multiplications are shown). The alternative
+would be to implement a general multiplication circuit using standard quantum gates and additional
+workspace qubits. To pursue this research direction to allow the study of errors during the multiplications, an informative exposition to start from
+is the construction by Gidney and Ekerå [6], which
+combines and optimizes many techniques discov-
+
+19
+ered over the past decades to implement the modular multiplications.
+2. Although Shor’s order-finding algorithm is the
+most prominent quantum algorithm for factoring, a
+practical solution of the factoring problem on gatebased quantum computers might rather use the
+Ekerå-Håstad factoring scheme [63] based on the
+discrete logarithm quantum algorithm (see point 3
+in Section I A). Instead of t ≈ 2L stages in the
+iterative quantum circuit (cf. Figure 2) using the
+semiclassical Fourier transform, this algorithm requires at most t ≈ 3L/2 stages, with a systematic option to reduce t further at the cost of reducing the success probability below 99% [64]. In the
+context of quantum circuit simulation, the EkeråHåstad scheme would save valuable execution time
+(cf. Section II I), allowing to gather more statistics
+for larger factoring scenarios.
+3. The shorgpu implementation used for this work
+maintains two full statevector buffers psi and
+psibuf, which reduces simulation time by enabling
+contiguous memory transfer through the MPI network (see [26]). However, the total amount of
+memory fixes the maximum number of qubits that
+can be simulated, which puts a limit on the size
+of simulatable factoring problems. An alternative
+choice would be to use only a single statevector
+buffer, thereby having to replace the contiguous
+memory transfer with interleaved communication
+and computation. This choice (potentially combined with reducing computing time by switching
+to the Ekerå-Håstad scheme, see previous item)
+would allow the simulation of yet another qubit, to
+push the boundary of simulatable factoring problems and the threshold of the proposed challenge
+one step further.
+
+IV.
+
+CONCLUSION
+
+In this paper, we have introduced a method to simulate the iterative Shor algorithm on supercomputers with
+thousands of GPUs. The simulation software [26] allowed
+us to push the size of factoring problems far beyond what
+has been achieved previously. We have used the simulation software to perform an in-depth analysis of the
+iterative Shor algorithm.
+Using Shor’s original post-processing [8–10, 23], we
+have shown that a significant amount of “lucky” factorizations raises the expected success probability from
+3–4 % to above 50 %. We have given number-theoretic
+arguments for the existence of the lucky cases, and we
+conjecture that they continue to contribute with approximately 25 % beyond the size of integer factoring problems
+investigated in this paper.
+Using Ekerå’s post-processing [24, 25], the success
+probability for a factoring scenario can be brought close
+
+to unity using only a single bitstring obtained by executing the iterative Shor algorithm. However, Ekerå’s
+post-processing method assumes that the quantum part
+has been executed without errors, an assumption which
+is unlikely to hold for quantum processors in the near
+future. Therefore, we have studied how additional classical and quantum errors, as present in today’s quantum
+information processing hardware [106], influence the performance of the post-processing procedure. Remarkably,
+we find that Ekerå’s post-processing procedure exhibits a
+particular form of universality and resilience. Here, “universality” means that the decrease of success probability
+is roughly independent of the particular type of error and
+“resilience” means that the success probability is systematically larger than the success probability expected from
+independent bit flip errors.
+Although these results might inspire confidence in the
+quantum factoring procedure, the first successful factorization of a cryptographically relevant number—say
+RSA-2048 from the famous RSA factoring challenge—
+is still out of reach [6, 22]. Therefore, a more modest
+challenge towards true quantum supremacy might be to
+demonstrate that a real quantum computing device can
+factorize an interesting semiprime which is larger than
+Nmax = 549755813701. In fact, since gate-based quantum computers might already require full error correction
+for this purpose, it is conceivable that this challenge is
+first met by a quantum annealer [17, 77–82].
+
+AUTHOR CONTRIBUTIONS
+
+Conceptualization, D.W., M.W., F.J., H.D.R. and
+K.M.; software, D.W. and H.D.R.; validation, D.W.,
+M.W. and H.D.R.; investigation, D.W., M.W., F.J.
+and H.D.R.; writing—original draft preparation, D.W.;
+writing—review and editing, D.W., M.W., F.J., H.D.R.
+and K.M.; visualization, D.W.; project administration,
+H.D.R. and K.M.; funding acquisition, K.M. All authors
+have read and agreed to the published version of the
+manuscript.
+
+FUNDING
+
+The authors gratefully acknowledge the Gauss Centre
+for Supercomputing e.V. (www.gauss-centre.eu) for funding this project by providing computing time on the GCS
+Supercomputer JUWELS [101] at Jülich Supercomputing Centre (JSC). D.W. and M.W. acknowledge support
+from the project Jülich UNified Infrastructure for Quantum computing (JUNIQ) that has received funding from
+the German Federal Ministry of Education and Research
+(BMBF) and the Ministry of Culture and Science of the
+State of North Rhine-Westphalia.
+
+20
+DATA AVAILABILITY STATEMENT
+
+The source code of the shorgpu simulator used to generate the data for this study is available at [26]. The
+data that supports the findings in this study including
+the generated bitstrings for the individual factoring scenarios as well as further statistics are available from the
+corresponding author upon reasonable request.
+
+ACKNOWLEDGMENTS
+
+D.W. thanks Martin Ekerå and Viv Kendon for helpful and stimulating discussions. D.W. and H.D.R. thank
+Andreas Herten, Markus Hrywniak, and Jiri Kraus for
+help in optimizing the GPU-based simulation, in particular the MPI communication scheme.
+
+CONFLICTS OF INTEREST
+
+The authors declare no conflict of interest. The funders
+had no role in the design of the study; in the collection,
+analyses, or interpretation of data; in the writing of the
+manuscript; or in the decision to publish the results.
+
+ABBREVIATIONS
+
+The following
+manuscript:
+
+abbreviations
+
+are
+
+used
+
+in
+
+this
+
+CPU
+Central Processing Unit
+CUDA
+Compute Unified Device Architecture
+GPU
+Graphics Processing Unit
+JSC
+Jülich Supercomputing Centre
+JUNIQ Jülich UNified Infrastructure for Quantum computing
+JUQCS Jülich Universal Quantum Computer Simulator
+JUWELS Jülich Wizard for European Leadership Science
+MPI
+Message Passing Interface
+NISQ
+Noisy Intermediate-Scale Quantum
+QFT
+Quantum Fourier Transform
+RSA
+Rivest Shamir Adleman
+gcd
+Greatest Common Divisor
+lcm
+Least Common Multiple
+
+21
+
+p22, 16 (j)
+
+16384
+
+32768 49152
+Bitstring j
+
+0
+
+16384
+
+32768 49152
+Bitstring j
+
+2r
+
+r
+
+0
+
+j
+
+r
+
+2r
+
+0.00
+
+3r
+
+g 1.0
+
+3r
+
+2r
+
+0
+
+r
+
+r
+
+j
+
+2r
+
+bj
+
+t
+
+3r
+
+2r
+
+32768 49152
+Bitstring j
+
+65536
+
+0
+
+r
+
+j
+
+r
+
+2r
+
+3r
+
+i
+
+0.0
+
+p63, 16 (bj )
+
+0.1
+
+p22, 16 (bj )
+
+p16, 16 (bj )
+
+sigbits(r) 0 sigbits(r)
+
+0.00
+
+3r
+
+0.1
+
+t
+
+16384
+
+0.01
+
+h
+
+0.5
+
+0
+
+f
+
+0.05
+
+3r
+
+0.00
+
+65536
+
+p22, 16 ( j )
+
+p16, 16 ( j )
+
+e
+
+0.5
+
+0.0
+
+0.00
+
+65536
+
+p63, 16 ( j )
+
+0
+
+d 1.0
+
+0.0
+
+0.01
+
+0.02
+
+0.025
+0.000
+
+c
+
+0.04
+
+p63, 16 (j)
+
+b
+
+0.050
+
+p16, 16 (j)
+
+a
+
+sigbits(r) 0 sigbits(r)
+
+t
+
+bj
+
+t
+
+0.0
+
+t
+
+sigbits(r) 0 sigbits(r)
+bj
+
+t
+
+FIG. 12. Representative bitstring distributions produced by Shor’s algorithm. Shown is the probability distribution
+pr̂,t (j) given by Eq. (A6) for t = 16 (such that the integer representation of the bitstrings j ranges from 0 to 2t − 1 = 65535) and
+multiplicative orders a r̂ = 16, b r̂ = 22, and c r̂ = 63. Each distribution has exactly r̂ peaks (solid circles) given by Eq. (A7).
+The peaks are approximately 2t /r̂ bitstrings apart. Note that in a, the peaks are equidistant, equally large with probability
+1/r̂, and all other probabilities are exactly zero. These properties are lost if r̂ does not divide 2t evenly, as can be seen in the
+presence of small but non-zero bars next to the peaks in b and c. d–f The corresponding distributions p′r̂,t (αj ) expressed in
+terms of αj = {r̂j}2t ∈ {−2t /2, . . . , 2t /2 − 1} (see Eq. (A10)). g–i The corresponding distributions p′′r̂,t (bj ) expressed in terms
+of bj = sigbits(αj ) (see Eq. (A12)).
+
+Appendix A: The Probability Distribution Generated by Shor’s Algorithm
+
+The construction of Shor’s algorithm starts by assuming that there are two quantum registers of size t and L,
+respectively, in the initial state |ψ0 ⟩ = |0⟩ |0⟩. The first step is to bring the first register in a uniform superposition
+using Hadamard gates such that the state becomes
+|ψ1 ⟩ =
+
+t
+2X
+−1
+
+1
+
+2t/2 k=0
+
+|k⟩ |0⟩ .
+
+(A1)
+
+Then, application of the oracle corresponding to the function f (k) = ak mod N brings the state to
+|ψ2 ⟩ =
+
+1
+
+t
+2X
+−1
+
+2t/2 k=0
+
+|k⟩ |f (k)⟩ .
+
+(A2)
+
+The next step is to apply the quantum Fourier transform to the first register, which yields
+2t −1 2t −1
+
+1 X X −2πikj/2t
+|ψ3 ⟩ = t
+e
+|j⟩ |f (k)⟩ .
+2
+j=0
+
+(A3)
+
+k=0
+
+Since f (k) is a periodic function with period r̂ (i.e., the multiplicative order of a modulo N ), the second register can
+only take r̂ different values. Combining all amplitudes with equal second register gives
+r̂−1 2t −1
+
+
+t
+t
+t
+t
+1 X X −2πikj/2t 
+|ψ3 ⟩ = t
+e
+1 + e−2πir̂j/2 + e−2πi2r̂j/2 + · · · + e−2πi(s−1)r̂j/2 + e−2πisr̂j/2 δ[k+sr̂<2t ] |j⟩ |f (k)⟩ ,
+2
+j=0
+k=0
+
+(A4)
+
+22
+where s = ⌊2t /r̂⌋, and δ[k+sr̂<2t ] indicates that the last term only contributes if k + sr̂ < 2t . Identifying a geometric
+sequence for the first s terms, we have
+!
+t
+r̂−1 2t −1
+1 X X −2πikj/2t 1 − e−2πisr̂j/2
+−2πisr̂j/2t
++e
+δ[k+sr̂<2t ] |j⟩ |f (k)⟩ .
+(A5)
+|ψ3 ⟩ = t
+e
+2
+1 − e−2πir̂j/2t
+k=0 j=0
+Finally, to obtain the probability pr̂,t (j) to measure the bitstring j in the first register, we trace out the second register,
+r̂−1
+
+t
+
+2
+
+1 X 1 − e−2πisr̂j/2
+−2πisr̂j/2t
+δ[k+sr̂<2t ]
+pr̂,t (j) = 2t
+t + e
+−2πir̂j/2
+2
+1−e
+k=0
+
+2
+r̂
+sin(πsr̂j/2t )
+2t − sr̂ sin(π[2s + 1]r̂j/2t )
+= 2t
++
+.
+t
+2
+sin(πr̂j/2 )
+22t
+sin(πr̂j/2t )
+
+(A6)
+
+This result is the same as in [104], correcting some misprints in [109] and [27]. Note that the singularities at
+sin(πr̂j/2t ) = 0 are removable singularities.
+The resulting bitstring distribution is shown for a few representative cases in Fig. 12a–c. It is strongly peaked at r̂
+bitstrings given by
+j ∈ {0, round(2t /r̂), round(2 × 2t /r̂), . . . , round((r̂ − 1) × 2t /r̂)} .
+
+(A7)
+
+Note that when r̂ ≥ 2t , the distribution becomes a uniform distribution that is “peaked” everywhere. Furthermore,
+when r̂ divides 2t (such that s = ⌊2t /r̂⌋ = 2t /r̂), only the first term in Eq. (26) contributes, with the same value of
+1/r̂ at all r̂ peaks; all other bitstrings then have probability zero (see Fig. 12a).
+1.
+
+Alternative Representations of the Probability Distribution
+
+A useful, alternative representation of the probability distribution pr̂,t (j) in Eq. (A6) can be obtained by identifying
+all bitstrings j that yield equivalent arguments of the sine functions. Due to the periodicity of the sine function, these
+arguments can be represented by
+αj = {r̂j}2t = (r̂j + 2t /2) mod 2t − 2t /2,
+
+(A8)
+
+where the notation {x}y denotes x mod y constrained to {−y/2, . . . , y/2 − 1}.
+All bitstrings j that yield the same αj can be enumerated by solving the equation αj ≡ r̂j (mod 2t ) for j ∈
+{0, . . . , 2t − 1}. To do that, let 2d denote the largest power of two dividing r̂. Then r̂/2d is coprime to 2t , so it has
+an inverse modulo 2t which we denote by (r̂/2d )−1 . Thus, we find αj (r̂/2d )−1 ≡ 2d j (mod 2t ). This means that there
+is an integer l ∈ Z such that 2d j = αj (r̂/2d )−1 + 2t l. From Eq. (A8), we furthermore see that 2d | αj . Dividing by
+2d (note that we require r̂ < 2t ; the other case has been discussed above) and using that j ∈ {0, . . . , 2t − 1}, we thus
+obtain
+!
+ −1
+αj r̂
+t−d
+j=
++ 2 l mod 2t .
+(A9)
+2d 2d
+Here, l = 0, . . . , 2d − 1 enumerates all 2d different bitstrings j.
+As each αj has multiplicity 2d according to Eq. (A9), and each admissible αj must be a multiple of 2d according
+to Eq. (A8), we can write the probability distribution for αj ∈ {−2t /2, . . . , 2t /2 − 1} ∩ 2d Z as
+!
+2
+
+r̂
+sin(πsαj /2t )
+2t − sr̂ sin(π[2s + 1]αj /2t )
+′
+d
+pr̂,t (αj ) = 2
++
+.
+(A10)
+22t sin(παj /2t )
+22t
+sin(παj /2t )
+This distribution is shown in Fig. 12d–f. The first term has the typical structure of a Fraunhofer diffraction pattern.
+Note in particular that all peaks given by Eq. (A7) correspond to the values of αj with −r̂/2 ≤ αj ≤ r̂/2 (see also [8–
+10]).
+The advantage of using this representation is that it is the basis of a viable method to sample from the distribution,
+even for cryptographically large bitstrings [24, 25, 34, 62, 64]). The key is that the distribution as a function of αj
+is quite regular and smooth, so it can be numerically integrated to obtain a cumulative distribution function.
+
+23
+More precisely, one groups αj into logarithmically spaced regions identified by
+(
+sign(αj )(⌊log2 |αj |⌋ + 1) (αj ̸= 0)
+bj = sigbits(αj ) =
+,
+0
+(αj = 0)
+
+(A11)
+
+which denotes the signed number of bits needed to represent the integer αj . This means that 2|bj |−1 ≤ |αj | < 2|bj |
+ν
+ν
+(note that for the numerical integration, one can use subregions of the form 2|bj |−1+ξ/2 ≤ |αj | < 2|bj |−1+(ξ+1)/2 [62],
+along with Simpson’s rule and Richardson extrapolation [110]).
+The corresponding distribution,
+X
+p′′r̂,t (bj ) =
+p′r̂,t (αj ),
+(A12)
+sigbits(αj )=bj
+
+is shown in Fig. 12g-i. The characteristic property for large t is that most of the probability mass is located around
+bj ≈ ±sigbits(r̂). In other words, most of the sampled bitstrings j have approximately as many bits as the order
+r̂. This is independent of the particular value of r̂ (unless r̂ contains an artificially large power of 2). This trend is
+already observable for t = 16 in Fig. 12i.
+In the terminology of information theory, this means that a sampled bitstring j provides approximately t−|sigbits(r̂)|
+bits of information on the order r̂. This interpretation provides another intuition for the success of Shor’s algorithm.
+For a typical factoring problem for an L-bit semiprime N = p × q, bitstrings with t ≈ 2L classical bits in the
+recommended setting (see main text) are sampled. The multiplicative order r̂ needs always less than L bits (the
+argument for this is that the largest possible order r̂ is the least common multiple lcm(p − 1, q − 1), which is at least
+divisible by two, so it requires less bits than N = p × q). Note that in [62], the “worst” case that |sigbits(r̂)| ≈ L is
+considered, and even then two runs of the order-finding algorithm are sufficient.
+The distribution pr̂,t (j) over bitstrings j with t = 16 bits is shown in Fig. 12. We used shorgpu to generate samples
+from the distributions pr̂,t (j) with up to t = 78 bits, without knowing the solution to the specified factoring problem.
+If, however, the solution to the factoring problem is known, one can use the trick explained above to generate samples
+of pr̂,t (j) with up to t = 16384 bits and beyond (see [62]).
+2.
+
+Probability Theory for Shor’s Factoring Procedure
+
+In this section, we relate the results extracted from the large data sets to relations and theorems about Shor’s
+algorithm found in the literature. We first reformulate the theoretical success probability for Shor’s original factoring
+procedure in terms of probabilities for the different conditions. Then we relate each contribution to known theorems
+from the literature. This framework can be seen as the basis to interpret the results of Ekerå’s post-processing stated
+in Section III B.
+Given an integer N to factor, Shor’s algorithm states that one should first pick a random a ∈ Z∗N and then run
+the quantum algorithm. Formally, the success probability for one run of the quantum algorithm (i.e., one sampled
+bitstring j) therefore reads
+X
+p(success | N ) =
+p(success | a, N ) p(a | N ).
+(A13)
+a∈Z∗
+N
+
+We pick a uniformly, so p(a | N ) = 1/|Z∗N | = 1/ϕ(N ), where ϕ(N ) is Euler’s totient function. Furthermore, the
+conditions for “success” stated in the literature [8–10, 23] are that the sampled bitstring j yields the order r̂ = ordN (a),
+r̂ is even, and ar̂/2 ̸≡ ±1 (mod N ). Thus,
+p(success | N ) =
+
+1 X
+p(j yields r̂ ∧ r̂ even ∧ ar̂/2 ̸≡N ±1 | a, N ).
+ϕ(N )
+∗
+
+(A14)
+
+a∈ZN
+
+We know that the bitstring j yields the order r̂ if j is sampled at one of the k̂ = 0, . . . , r̂ − 1 peaks of pr̂,t (j) given
+by Eqs. (A6) and (A7), and the peak enumerator k̂ is coprime to r̂ (so that the continued fraction method yields the
+convergent k/r = k̂/r̂ with r = r̂). Hence,
+p(success | N ) =
+
+1 X
+p(j sampled at a peak ∧ k̂ coprime to r̂ ∧ r̂ even ∧ ar̂/2 ̸≡N ±1 | a, N ),
+|
+{z
+} |
+{z
+} |
+{z
+}
+ϕ(N )
+∗
+a∈ZN
+
+A
+
+B
+
+C
+
+(A15)
+
+24
+1.0
+
+fraction of bitstrings that yield r
+(r)/r
+4/ 2 × (r)/r
+4/ 2 × e /loglogr
+4/ 2 × 1/(e loglogr + 5/2loglogr)
+
+0.8
+0.6
+0.4
+0.2
+0.0
+
+100
+
+101
+
+102
+
+103
+
+104
+
+105
+
+Order r
+
+106
+
+107
+
+108
+
+109
+
+1010
+
+1011
+
+FIG. 13. Comparison of the bounds for propositions A and B proven in the literature and the corresponding
+frequencies extracted from the simulations. The 52077 uniform factoring problems plus the 13 individual large cases from
+Fig. 4a are grouped as a function of increasing r̂ = ordN (a). Yellow circles represent the average fraction of sampled bitstrings
+(normalized by a total of 1024 for the uniform cases and 32 for the large cases) that yield the correct order r̂ (meaning that
+they satisfy propositions A and B in Eq. (A15)); error bars show the corresponding standard deviation for problems with the
+same r̂. Red crosses indicate the corresponding values of ϕ(r̂)/r̂. Green points, the solid blue line, and the dashed black line
+indicate the bounds in Eqs. (A21), (A22), and (A23), respectively, combined with the lower bound of 4/π 2 for proposition A
+in Eq. (A20).
+
+where we defined the propositions A, B, and C, the probabilities of each of which have known estimates (see below).
+Using the product rule [111], we have
+1 X
+p(j sampled at a peak | a, N )
+p(success | N ) =
+ϕ(N )
+∗
+a∈ZN
+
+× p(k̂ coprime to r̂ | A, a, N )
+× p(r̂ even ∧ ar̂/2 ̸≡N ±1 | B, A, a, N ).
+
+(A16)
+
+Substituting the expressions Eqs. (A20), (A24), and (A26) derived below, we arrive at the theoretical bound for the
+success probability,
+p(success | N ) ≳
+
+4
+e−γ
+1
+×
+× .
+π2
+log log N
+2
+
+(A17)
+
+Figure 13 shows the combined bounds from propositions A and B in comparison with the corresponding data
+extracted from the simulations. We see that when the bound of 4/π 2 for proposition A in Eq. (A20) is included, the
+estimate becomes very weak. If it is not included (red crosses), the values lie only slightly above the data points (at
+least for all uniform factoring problems with enough samples). In other words, the probability of sampling j at one
+of the peaks is much larger than 4/π 2 .
+The bound Eq. (A17) takes values between 3–4 % for semiprimes N between 220 and 240 . Since the actual
+performance of Shor’s algorithm shown in Fig. 4b is clearly much better, it would be interesting to obtain better
+estimates and, in particular, to find statements about the averages instead of lower bounds.
+Proposition A: j sampled at a peak
+A known lower bound for the probability pr̂,t (j) at one of the r̂ peaks is 4/π 2 [8–10]. This result can be obtained from the distribution pr̂,t (j) given by Eq. (A6): At a peak, we have by Eq. (A7) that the bitstring j satisfies
+j = round(2t k̂/r̂) = 2t k̂/r̂ + δ with |δ| ≤ 1/2. Using | sin x| ≥ |x|/(π/2) when |x| ≤ π/2, | sin x| ≤ |x| for all x, and
+the periodicity of | sin |, we have for the numerator and the denominator of the first term,
+⌊2t /r̂⌋
+≈ 2|δ|,
+2t /r̂
+r̂
+sin(πj r̂/2t ) ≤ π|δ| t .
+2
+
+sin(πj r̂⌊2t /r̂⌋/2t ) ≥ 2|δ|
+
+(A18)
+(A19)
+
+25
+We note that the second term of pr̂,t (j) in Eq. (A6) is usually neglected in the literature or simply assumed to be
+positive. Indeed, the signs of both numerator and denominator are often dominated by the sign of δ. However, it may
+become negative for certain values such as r̂ = 15, t = 5, and j = round(2t × 4/15). In any case, its contribution is
+negligible with respect to the first term. Hence, we have pr̂,t (j) ≳ 4/π 2 r̂. Since there are exactly r̂ peaks, we obtain
+p(j sampled at a peak | a, N ) ≳
+
+4
+≈ 40.5 %.
+π2
+
+(A20)
+
+We remark that considering bitstrings j that are only a few steps away from a peak may also work (see [48] and also
+Section III B).
+Proposition B: k̂ coprime to r̂
+The probability that an integer k̂ = 0, . . . , r̂ − 1 is coprime to r̂ is given by
+p(k̂ coprime to r̂ | A, a, N ) =
+
+ϕ(r̂)
+,
+r̂
+
+(A21)
+
+since there are exactly ϕ(r̂) elements in Zr̂ that are coprime to r̂. There are several estimates for this quantity in the
+literature. Shor [8, 10] uses an estimate of the form
+ϕ(r̂)
+e−γ
+≳
+,
+r̂
+log log r̂
+
+(A22)
+
+where γ is Euler’s constant such that e−γ ≈ 0.561. This estimate is based on the fact that lim(ϕ(r̂) log log r̂/r̂) =
+e−γ [66, Theorem 328]. However, this is only an infimum limit, and one can in fact show that there are infinitely
+many r̂ violating this bound [112]. Ekert and Jozsa [9] mostly argue with ϕ(r̂)/r̂ > 1/ log r̂ (using the prime number
+theorem), but this bound is only valid for r̂ ≳ 106 and then becomes a rather weak bound. A better, strict lower
+bound to ϕ(r̂)/r̂ has been proven by Rosser and Schoenfeld in [113],
+ϕ(r̂)
+1
+> γ
+,
+r̂
+e log log r̂ + 2 log5log r̂
+
+(A23)
+
+which is valid for all r̂ ≥ 2 except 223092870 (in which case 5/2 must be replaced with 2.50637).
+Due to the presence of log log r̂, both bounds in Eqs. (A22) and (A23) show an extremely weak dependence on
+r̂ (e.g., for r̂ ∈ {102 , 1011 , 24096 }, log log r̂ varies only between 1 and 8). Therefore, either bound is suitable for the
+present estimate. For the same reason, we may safely approximate log log r̂ ≈ log log ϕ(N ) ≈ log log N such that the
+bound becomes independent of r̂. Thus, we obtain
+p(k̂ coprime to r̂ | A, a, N ) ≳
+
+e−γ
+.
+log log N
+
+(A24)
+
+Proposition C: r̂ even ∧ ar̂/2 ̸≡ ±1 (mod N )
+Combining the results for propositions A and B (which are now independent of the particular a ∈ Z∗N ), the
+remaining part of Eq. (A16) is
+1 X
+p(r̂ even ∧ ar̂/2 ̸≡N ±1 | B, A, a, N ).
+ϕ(N )
+∗
+
+(A25)
+
+a∈ZN
+
+We note that an erroneous bound of 1 − 1/2nF was given for this probability in both Shor’s original paper [8] and in
+the book by Nielsen and Chuang [23]. The correct versions were given in Shor’s later paper [10] and in an errata list
+by Nielsen [114]. An extensive proof can be found in the review by Ekert and Jozsa [9], which state the result as follows.
+en
+
+Theorem: Let N be odd with prime factorization N = pe11 pe22 · · · pnFF .
+satisfying gcd(a, N ) = 1. Let r be the order of a mod N . Then
+prob(r is even and ar/2 ̸≡ ±1 (mod N )) ≥ 1 −
+
+Suppose a is chosen at random,
+1
+
+2nF −1
+
+,
+
+(A26)
+
+26
+where “prob” means the frequency when enumerating all a ∈ Z∗N , which directly corresponds to the sum present in
+Eq. (A25). We remark that the condition ar/2 ̸≡ +1 is actually superfluous since this case does not occur if r is the
+order (otherwise r/2 would already be the order).
+The idea of the proof is to study the converse, namely that r is odd or ar/2 ≡ −1. This only happens if all
+e
+multiplicative orders rj of aj = a mod pj j contain exactly the same power of 2 as r. In other words, r/2d and rj /2dj
+are odd integers with dj = d. Summing over all possible d (which may be different for different a) yields
+prob(r is odd or ar/2 ≡ −1 (mod N )) =
+
+X
+
+prob(d1 = d) · · · prob(dnF = d).
+
+(A27)
+
+d
+
+When enumerating all aj , the case dj = d occurs with frequency ≤ 1/2. Approximating the last nF − 1 factors ≤ 1/2
+and using the first factor prob(d1 = d) to remove the sum yields the bound 1/2nF −1 .
+As the blue triangles in Fig. 4 show, this statement is in agreement with the data, since the average of 75 % is
+above the bound of 50 % for nF = 2 (some error bars might extend to below 50 % which is due to the fact that we do
+not simulate the full set of all a ∈ Z∗N ). Furthermore, the theoretical bound in Eq. (A26) is also tight: For N = 21,
+we have exactly 50 % of all a ∈ Z∗21 that have either an odd order r or ar/2 ≡ −1. We do not know whether one can
+prove the observed average frequency of 75 % in Fig. 4b, using that N is generated by uniformly drawing the prime
+factors p and q from the integers.
+
+Appendix B: Generation of the Factoring Problems
+
+We have generated 61362 factoring problems (N, a). 52077 out of these are referred to as “uniform” factoring
+problems because they have been generated by a procedure, to be described next, to ensure a uniform distribution of
+prime factors that is not biased towards small primes. For√a given number of bits L, we sample the first prime factor
+from a uniformly distributed set of integers p ∈ {3, . . . , ⌊ 2L ⌋} until a primality test asserts that p is prime. The
+second prime is similarly sampled from q ∈ {⌈2L−1 /p⌉, . . . , ⌊2L /p⌋} until q > p and N = p × q is an L-bit semiprime.
+We remark that the reason to consider semiprimes is that they yield the hardest factoring problems when factoring
+is reduced to order finding. This is because many elements in Z∗N have large orders, but the largest order λ(N ) (i.e.,
+the Carmichael function [115]) is always less than N/2nF −1 , where nF ≥ 2 is the number of distinct prime factors in
+N [25, Claim 7]. Thus, if N has more than nF = 2 factors, the orders become smaller on average and thus easier to
+find.
+For each L = 4, . . . , 28, this procedure is done for 50 different N . For each N , we subsequently draw 50 different
+a ∈ {2, . . . , N − 1} coprime to N . This procedure exhausts all N for 4 ≤ N ≤ 8 and generates 2500 unique problems
+(N, a) for each L > 8. For each problem, shorgpu generated M = 1024 bitstrings.
+In addition to the uniform factoring problems, we generated 9285 individual problems relevant for Figs. 4a, 6, and
+11. In particular, these problems include the individual “large” cases with 30 ≤ n ≤ 40 qubits, for which we always
+choose the largest interesting semiprimes N (see Table I in Appendix D). The number of sampled bitstrings is M = 32
+(M = 128) for the results presented in Fig. 4a (Fig. 11a). In case none of these bitstrings yields a factor, we continue
+with a second random a. This is the reason that for n = 31 and n = 37, one pair of “success” and “success+lucky”
+markers is at 0 % and only the second pair is above 0 %.
+
+Appendix C: Standard Procedure: Shor’s Post-Processing
+
+Executing Shor’s algorithm for a given factoring problem (N, a) yields a bitstring j with t bits (the recommended
+number of bits is t = ⌈2 log2 N ⌉, which comes from the requirement that N 2 ≤ 2t < 2N 2 [10]; so we always have
+t ∈ {2L, 2L − 1} since N is no power of two). From the continued fraction expansion of j/2t (using the integer
+representation of the bitstring j), one takes the convergent k/r with the largest denominator r < N [8–10] (we remark
+that in principle, it is better to stop at the largest denominator r < 2t/2 , otherwise one can construct pathological
+examples for smaller t for which going up to N skips the order and yields an unrelated, larger integer; see also [25,
+Lemma 6]). The resulting r is often (cf. Fig. 5b) equal to the order r̂ of a modulo N , i.e., the smallest exponent such
+that ar̂ mod N = 1. The standard procedure dictates that if r is even, ar mod N = 1, and ar/2 mod N ̸= −1, then
+computing the greatest common divisors gcd(ar/2 ± 1, N ) has a high probability of yielding a factor of N . Recall that
+in this work, if one of these checks on r fails but gcd(a⌊r/2⌋ ± 1, N ) still produces a factor, the bitstring j is counted
+as “lucky”.
+
+27
+Appendix D: List of Semiprimes
+
+In Table I, we give a list of the largest interesting semiprimes with L < 50 bits, for which a factorization using the
+iterative Shor algorithm shown in Fig. 2 would need up to n = 50 qubits.
+
+28
+TABLE I. List of the largest interesting semiprimes (where “interesting” means that the two prime factors are distinct and
+have the same number of decimal digits) that can be factored using the iterative Shor algorithm for a given number of qubits
+n = L + 1, where L is the number of bits required to represent the semiprime. For each semiprime N = p × q, t = ⌈log2 N 2 ⌉ is
+the recommended minimum number of classical bits to read out (cf. Fig. 2).
+qubits n
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+
+semiprime N
+15
+21
+35
+35
+253
+493
+1007
+2047
+4087
+8051
+16241
+32743
+65509
+131029
+262099
+524137
+1048351
+2097101
+4194163
+8388563
+16777207
+33554089
+67108147
+134217449
+268435247
+536870861
+1073741687
+2147483551
+4294967213
+8589933181
+17179869131
+34359737977
+68719476733
+137438953319
+274877906893
+549755813701
+1099511623591
+2199023255179
+4398046510399
+8796093021439
+17592186044353
+35184372088787
+70368744177439
+140737488355141
+281474976708763
+562949953421083
+
+factor p
+3
+3
+5
+5
+11
+17
+19
+23
+61
+83
+109
+137
+109
+283
+349
+557
+1009
+1399
+1307
+2357
+4093
+3797
+8011
+11119
+12589
+22717
+27779
+32063
+57139
+89597
+125627
+117517
+242819
+189853
+364303
+712321
+1002817
+1286533
+2014013
+2217443
+2005519
+3769453
+8388593
+11150957
+15847327
+16619039
+
+factor q
+5
+7
+7
+7
+23
+29
+53
+89
+67
+97
+149
+239
+601
+463
+751
+941
+1039
+1499
+3209
+3559
+4099
+8837
+8377
+12071
+21323
+23633
+38653
+66977
+75167
+95873
+136753
+292381
+283007
+723923
+754531
+771781
+1096423
+1709263
+2183723
+3966773
+8771887
+9334079
+8388623
+12621113
+17761669
+33873797
+
+t
+8
+9
+11
+11
+16
+18
+20
+22
+24
+26
+28
+30
+32
+34
+36
+38
+40
+42
+44
+46
+48
+50
+52
+54
+56
+58
+60
+62
+64
+66
+68
+70
+72
+74
+76
+78
+80
+82
+84
+86
+88
+90
+92
+94
+96
+98
+
+29
+
+[1] D. M. Bressoud, Factorization and Primality Testing (Springer, New York, NY, USA, 1989).
+[2] R. S. Lehman, Factoring large integers, Math. Comput. 28, 637 (1974).
+[3] A. K. Lenstra and H. W. Lenstra, The development of the number field sieve, Lecture Notes in Mathematics (Springer,
+Berlin, Heidelberg, 1993).
+[4] F. Boudot, P. Gaudry, A. Guillevic, N. Heninger, E. Thomé, and P. Zimmermann, Comparing the Difficulty of Factorization and Discrete Logarithm: A 240-Digit Experiment, in Advances in Cryptology – CRYPTO 2020 , edited by
+D. Micciancio and T. Ristenpart (Springer International Publishing, Cham, 2020) pp. 62–91.
+[5] T. Kleinjung, K. Aoki, J. Franke, A. K. Lenstra, E. Thomé, J. W. Bos, P. Gaudry, A. Kruppa, P. L. Montgomery, D. A.
+Osvik, H. te Riele, A. Timofeev, and P. Zimmermann, Factorization of a 768-Bit RSA Modulus, in Advances in Cryptology
+– CRYPTO 2010 , edited by T. Rabin (Springer Berlin Heidelberg, Berlin, Heidelberg, 2010) pp. 333–350.
+[6] C. Gidney and M. Ekerå, How to factor 2048 bit RSA integers in 8 hours using 20 million noisy qubits, Quantum 5, 433
+(2021).
+[7] J.-F. Biasse, X. Bonnetain, E. Kirshanova, A. Schrottenloher, and F. Song, Quantum algorithms for attacking hardness
+assumptions in classical and post-quantum cryptography, IET Inf. Secur. 17, 171 (2023).
+[8] P. W. Shor, Algorithms for quantum computation: discrete logarithms and factoring, in Proceedings 35th Annual Symposium on Foundations of Computer Science (1994) pp. 124–134.
+[9] A. Ekert and R. Jozsa, Quantum computation and Shor’s factoring algorithm, Rev. Mod. Phys. 68, 733 (1996).
+[10] P. W. Shor, Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer,
+SIAM J. Comput. 26, 1484 (1997).
+[11] R. Van Meter and K. M. Itoh, Fast quantum modular exponentiation, Phys. Rev. A 71, 052320 (2005).
+[12] A. Y. Kitaev, Quantum measurements and the Abelian Stabilizer Problem, arXiv:quant-ph/9511026 (1995).
+[13] R. B. Griffiths and C.-S. Niu, Semiclassical Fourier Transform for Quantum Computation, Phys. Rev. Lett. 76, 3228
+(1996).
+[14] S. Parker and M. B. Plenio, Efficient Factorization with a Single Pure Qubit and logN Mixed Qubits, Phys. Rev. Lett.
+85, 3049 (2000).
+[15] E. Martı́n-López, A. Laing, T. Lawson, R. Alvarez, X.-Q. Zhou, and J. L. O'Brien, Experimental realization of Shor's
+quantum factoring algorithm using qubit recycling, Nat. Photonics 6, 773 (2012).
+[16] A. D. Córcoles, M. Takita, K. Inoue, S. Lekuch, Z. K. Minev, J. M. Chow, and J. M. Gambetta, Exploiting Dynamic
+Quantum Circuits in a Quantum Algorithm with Superconducting Qubits, Phys. Rev. Lett. 127, 100501 (2021).
+[17] X. Peng, Z. Liao, N. Xu, G. Qin, X. Zhou, D. Suter, and J. Du, Quantum Adiabatic Algorithm for Factorization and Its
+Experimental Implementation, Phys. Rev. Lett. 101, 220405 (2008).
+[18] N. N. Hegade, K. Paul, F. Albarrán-Arriagada, X. Chen, and E. Solano, Digitized adiabatic quantum factorization, Phys.
+Rev. A 104, L050403 (2021).
+[19] T. Monz, D. Nigg, E. A. Martinez, M. F. Brandl, P. Schindler, R. Rines, S. X. Wang, I. L. Chuang, and R. Blatt,
+Realization of a scalable Shor algorithm, Science 351, 1068 (2016).
+[20] M. Amico, Z. H. Saleem, and M. Kumph, Experimental study of Shor’s factoring algorithm using the IBM Q Experience,
+Phys. Rev. A 100, 012305 (2019).
+[21] J. A. Smolin, G. Smith, and A. Vargo, Oversimplifying quantum factoring, Nature 499, 163 (2013).
+[22] E. Gouzien and N. Sangouard, Factoring 2048-bit RSA Integers in 177 Days with 13 436 Qubits and a Multimode Memory,
+Phys. Rev. Lett. 127, 140503 (2021).
+[23] M. A. Nielsen and I. L. Chuang, Quantum Computation and Quantum Information: 10th Anniversary Edition (Cambridge
+University Press, New York, 2010).
+[24] M. Ekerå, On completely factoring any integer efficiently in a single run of an order-finding algorithm, Quantum Inf.
+Process. 20, 205 (2021).
+[25] M. Ekerå, On the success probability of quantum order finding, arXiv:2201.07791v2 (2022).
+[26] D. Willsch, shorgpu: Simulation of Shor’s algorithm with the semiclassical Fourier transform using multiple GPUs and
+MPI, https://jugit.fz-juelich.de/qip/shorgpu.git (2023), accessed on 18 September 2023.
+[27] K. De Raedt, K. Michielsen, H. De Raedt, B. Trieu, G. Arnold, M. Richter, Th. Lippert, H. Watanabe, and N. Ito,
+Massively parallel quantum computer simulator, Comput. Phys. Commun. 176, 121 (2007).
+[28] H. De Raedt, F. Jin, D. Willsch, M. Willsch, N. Yoshioka, N. Ito, S. Yuan, and K. Michielsen, Massively parallel quantum
+computer simulator, eleven years later, Comput. Phys. Commun. 237, 47 (2019).
+[29] A. Tankasala and H. Ilatikhameneh, Quantum-Kit: Simulating Shor’s Factorization of 24-Bit Number on Desktop,
+arXiv:1908.07187 [quant-ph] (2020).
+[30] D. S. Wang, C. D. Hill, and L. C. L. Hollenberg, Simulations of Shor’s algorithm using matrix product states, Quantum
+Inf. Process. 16, 176 (2017).
+[31] A. Dang, C. D. Hill, and L. C. L. Hollenberg, Optimising Matrix Product State Simulations of Shor’s Algorithm, Quantum
+3, 116 (2019).
+[32] E. Dumitrescu, Tree tensor network approach to simulating Shor’s algorithm, Phys. Rev. A 96, 062322 (2017).
+[33] Y.-Q. Zhao, R.-G. Li, J.-Z. Jiang, C. Li, H.-Z. Li, E.-D. Wang, W.-F. Gong, X. Zhang, and Z.-Q. Wei, Simulation of
+quantum computing on classical supercomputers with tensor-network edge cutting, Phys. Rev. A 104, 032603 (2021).
+[34] M. Ekerå, Qunundrum, https://github.com/ekera/qunundrum.git (2020).
+
+30
+[35] F. Arute, K. Arya, R. Babbush, D. Bacon, J. C. Bardin, R. Barends, R. Biswas, S. Boixo, F. G. S. L. Brandao, D. A.
+Buell, B. Burkett, Y. Chen, Z. Chen, B. Chiaro, R. Collins, W. Courtney, A. Dunsworth, E. Farhi, B. Foxen, A. Fowler,
+C. Gidney, M. Giustina, R. Graff, K. Guerin, S. Habegger, M. P. Harrigan, M. J. Hartmann, A. Ho, M. Hoffmann,
+T. Huang, T. S. Humble, S. V. Isakov, E. Jeffrey, Z. Jiang, D. Kafri, K. Kechedzhi, J. Kelly, P. V. Klimov, S. Knysh,
+A. Korotkov, F. Kostritsa, D. Landhuis, M. Lindmark, E. Lucero, D. Lyakh, S. Mandrà, J. R. McClean, M. McEwen,
+A. Megrant, X. Mi, K. Michielsen, M. Mohseni, J. Mutus, O. Naaman, M. Neeley, C. Neill, M. Y. Niu, E. Ostby,
+A. Petukhov, J. C. Platt, C. Quintana, E. G. Rieffel, P. Roushan, N. C. Rubin, D. Sank, K. J. Satzinger, V. Smelyanskiy,
+K. J. Sung, M. D. Trevithick, A. Vainsencher, B. Villalonga, T. White, Z. J. Yao, P. Yeh, A. Zalcman, H. Neven, and
+J. M. Martinis, Quantum supremacy using a programmable superconducting processor, Nature 574, 505 (2019).
+[36] T. F. Rønnow, Z. Wang, J. Job, S. Boixo, S. V. Isakov, D. Wecker, J. M. Martinis, D. A. Lidar, and M. Troyer, Defining
+and detecting quantum speedup, Science 345, 420 (2014).
+[37] E. Knill, On Shor’s Quantum Factor Finding Algorithm: Increasing the Probability of Success and Tradeoffs Involving the
+Fourier Transform Modulus, Tech. Rep. LAUR-95-3350, Los Alamos National Laboratory (1995).
+[38] D. P. DiVincenzo, Quantum Computation, Science 270, 255 (1995).
+[39] A. Barenco, A. Ekert, K.-A. Suominen, and P. Törmä, Approximate quantum Fourier transform and decoherence, Phys.
+Rev. A 54, 139 (1996).
+[40] V. Vedral, A. Barenco, and A. Ekert, Quantum networks for elementary arithmetic operations, Phys. Rev. A 54, 147
+(1996).
+[41] J.-P. Seifert, Using Fewer Qubits in Shor’s Factorization Algorithm via Simultaneous Diophantine Approximation, in
+Topics in Cryptology — CT-RSA 2001 , edited by D. Naccache (Springer Berlin Heidelberg, Berlin, Heidelberg, 2001) pp.
+319–327.
+[42] D. McAnally, A Refinement of Shor’s Algorithm, arXiv:quant-ph/0112055 (2001).
+[43] G. Leander, Improving the Success Probability for Shor’s Factoring Algorithm, arXiv:quant-ph/0208183 (2002).
+[44] D. Coppersmith, An approximate Fourier transform useful in quantum factoring, arXiv:quant-ph/0201067 (2002).
+[45] S. Beauregard, Circuit for Shor’s algorithm using 2n+3 qubits, Quantum Inf. Comput. 3, 175 (2003).
+[46] A. G. Fowler and L. C. L. Hollenberg, Scalability of Shor’s algorithm with a limited set of rotation gates, Phys. Rev. A
+70, 032329 (2004).
+[47] V. M. Kendon and W. J. Munro, Entanglement and its Role in Shor’s Algorithm, Quantum Inf. Comput. 6, 630 (2006).
+[48] E. Gerjuoy, Shor’s factoring algorithm and modern cryptography. An illustration of the capabilities inherent in quantum
+computers, Am. J. Phys 73, 521 (2005).
+[49] S. J. Devitt, A. G. Fowler, and L. C. L. Hollenberg, Robustness of Shor’s algorithm, Quantum Inf. Comput. 6, 616 (2006).
+[50] C. Zalka, Shor’s algorithm with fewer (pure) qubits, arXiv:quant-ph/0601097 (2016).
+[51] P. S. Bourdon and H. T. Williams, Sharp Probability Estimates for Shor’s Order-Finding Algorithm, Quantum Inf.
+Comput. 7, 522–550 (2007).
+[52] I. L. Markov and M. Saeedi, Constant-optimized quantum circuits for modular multiplication and exponentiation, Quantum
+Inf. Comput. 12, 0361 (2012).
+[53] I. L. Markov and M. Saeedi, Faster quantum number factoring via circuit synthesis, Phys. Rev. A 87, 012310 (2013).
+[54] F. Grosshans, T. Lawson, F. Morain, and B. Smith, Factoring Safe Semiprimes with a Single Quantum Query,
+arXiv:1511.04385 (2015).
+[55] T. Lawson, Odd orders in Shor’s factoring algorithm, Quantum Inf. Process. 14, 831 (2015).
+[56] A. Johnston, Shor’s Algorithm and Factoring: Don’t Throw Away the Odd Orders, Cryptology ePrint Archive, Report
+2017/083 (2017), https://ia.cr/2017/083.
+[57] T. Häner, M. Roetteler, and K. M. Svore, Factoring using 2n+2 qubits with Toffoli based modular multiplication, Quantum
+Inf. Comput. 17, 0673 (2017).
+[58] E. D. Davis, Benchmarks for quantum computers from Shor’s algorithm, arXiv:2111.13856 (2021).
+[59] D. C. Bastos and L. A. Brasil Kowada, How to detect whether Shor’s algorithm succeeds against large integers without
+a quantum computer, Procedia Comput. Sci. 195, 145 (2021), proceedings of the XI Latin and American Algorithms,
+Graphs and Optimization Symposium.
+[60] A. V. Antipov, E. O. Kiktenko, and A. K. Fedorov, Efficient realization of quantum primitives for Shor’s algorithm using
+PennyLane library, PLOS ONE 17, e0271462 (2022).
+[61] Y. S. Nam and R. Blümel, Performance scaling of Shor’s algorithm with a banded quantum Fourier transform, Phys. Rev.
+A 86, 044303 (2012).
+[62] M. Ekerå, Quantum algorithms for computing general discrete logarithms and orders with tradeoffs, J. Math. Cryptol. 15,
+359 (2021).
+[63] M. Ekerå and J. Håstad, Quantum Algorithms for Computing Short Discrete Logarithms and Factoring RSA Integers,
+in Post-Quantum Cryptography, edited by T. Lange and T. Takagi (Springer International Publishing, Cham, 2017) pp.
+347–363.
+[64] M. Ekerå, On post-processing in the quantum algorithm for computing short discrete logarithms, Des. Codes Cryptogr.
+88, 2313 (2020).
+[65] R. Jozsa, Quantum factoring, discrete logarithms, and the hidden subgroup problem, Comput. Sci. Eng. 3, 34 (2001).
+[66] G. H. Hardy and E. M. Wright, An Introduction to the Theory of Numbers, Sixth Edition (Oxford University Press, 2008).
+[67] D. J. Bernstein, J.-F. Biasse, and M. Mosca, A Low-Resource Quantum Factoring Algorithm, in Post-Quantum Cryptography, edited by T. Lange and T. Takagi (Springer International Publishing, Cham, 2017) pp. 330–346.
+
+31
+[68] L. K. Grover, A Fast Quantum Mechanical Algorithm for Database Search, in Proceedings of the Twenty-Eighth Annual
+ACM Symposium on Theory of Computing, STOC ’96 (Association for Computing Machinery, New York, NY, USA,
+1996) p. 212–219.
+[69] J. Li, X. Peng, J. Du, and D. Suter, An Efficient Exact Quantum Algorithm for the Integer Square-free Decomposition
+Problem, Sci. Rep. 2, 1 (2012).
+[70] L. M. K. Vandersypen, M. Steffen, G. Breyta, C. S. Yannoni, M. H. Sherwood, and I. L. Chuang, Experimental realization
+of Shor's quantum factoring algorithm using nuclear magnetic resonance, Nature 414, 883 (2001).
+[71] C.-Y. Lu, D. E. Browne, T. Yang, and J.-W. Pan, Demonstration of a Compiled Version of Shor’s Quantum Factoring
+Algorithm Using Photonic Qubits, Phys. Rev. Lett. 99, 250504 (2007).
+[72] B. P. Lanyon, T. J. Weinhold, N. K. Langford, M. Barbieri, D. F. V. James, A. Gilchrist, and A. G. White, Experimental
+Demonstration of a Compiled Version of Shor’s Algorithm with Quantum Entanglement, Phys. Rev. Lett. 99, 250505
+(2007).
+[73] A. Politi, J. C. F. Matthews, and J. L. O’Brien, Shor’s Quantum Factoring Algorithm on a Photonic Chip, Science 325,
+1221 (2009).
+[74] E. Lucero, R. Barends, Y. Chen, J. Kelly, M. Mariantoni, A. Megrant, P. O’Malley, D. Sank, A. Vainsencher, J. Wenner,
+T. White, Y. Yin, A. N. Cleland, and J. M. Martinis, Computing prime factors with a Josephson phase qubit quantum
+processor, Nat. Phys. 8, 719 (2012).
+[75] U. Skosana and M. Tame, Demonstration of Shor’s factoring algorithm for N = 21 on IBM quantum processors, Sci. Rep.
+11, 16599 (2021).
+[76] J. Abhijith, A. Adedoyin, J. Ambrosiano, P. Anisimov, W. Casper, G. Chennupati, C. Coffrin, H. Djidjev, D. Gunter,
+S. Karra, N. Lemons, S. Lin, A. Malyzhenkov, D. Mascarenas, S. Mniszewski, B. Nadiga, D. O’malley, D. Oyen, S. Pakin,
+L. Prasad, R. Roberts, P. Romero, N. Santhi, N. Sinitsyn, P. J. Swart, J. G. Wendelberger, B. Yoon, R. Zamora,
+W. Zhu, S. Eidenbenz, A. Bärtschi, P. J. Coles, M. Vuffray, and A. Y. Lokhov, Quantum Algorithm & Implementations
+for Beginners, ACM Transactions on Quantum Computing 3, 18 (2022).
+[77] E. Andriyash, Z. Bian, F. Chudak, M. Drew-Brook, A. D. King, W. G. Macready, and A. Roy, Boosting integer factoring
+performance via quantum annealing offsets, Tech. Rep. (D-Wave Systems Inc, Burnaby, BC, Canada, 2016) D-Wave
+Technical Report Series 14-1002A-B.
+[78] R. Dridi and H. Alghassi, Prime factorization using quantum annealing and computational algebraic geometry, Sci. Rep.
+7, 43048 (2017).
+[79] S. Jiang, K. A. Britt, A. J. McCaskey, T. S. Humble, and S. Kais, Quantum Annealing for Prime Factorization, Sci. Rep.
+8, 17667 (2018).
+[80] W. Peng, B. Wang, F. Hu, Y. Wang, X. Fang, X. Chen, and C. Wang, Factoring larger integers with fewer qubits via
+quantum annealing with optimized parameters, Sci. China Phys. Mech. Astron. 62, 60311 (2019).
+[81] R. Mengoni, D. Ottaviani, and P. Iorio, Breaking RSA Security With A Low Noise D-Wave 2000Q Quantum Annealer:
+Computational Times, Limitations And Prospects, arXiv:2005.02268 [quant-ph] (2020).
+[82] B. Wang, F. Hu, H. Yao, and C. Wang, Prime factorization algorithm based on parameter optimization of Ising model,
+Sci. Rep. 10, 7106 (2020).
+[83] A. D. King, S. Suzuki, J. Raymond, A. Zucca, T. Lanting, F. Altomare, A. J. Berkley, S. Ejtemaee, E. Hoskinson,
+S. Huang, E. Ladizinsky, A. J. R. MacDonald, G. Marsden, T. Oh, G. Poulin-Lamarre, M. Reis, C. Rich, Y. Sato, J. D.
+Whittaker, J. Yao, R. Harris, D. A. Lidar, H. Nishimori, and M. H. Amin, Coherent quantum annealing in a programmable
+2,000 qubit Ising chain, Nat. Phys. 18, 1324 (2022).
+[84] A. D. King, J. Raymond, T. Lanting, R. Harris, A. Zucca, F. Altomare, A. J. Berkley, K. Boothby, S. Ejtemaee,
+C. Enderud, E. Hoskinson, S. Huang, E. Ladizinsky, A. J. R. MacDonald, G. Marsden, R. Molavi, T. Oh, G. PoulinLamarre, M. Reis, C. Rich, Y. Sato, N. Tsai, M. Volkmann, J. D. Whittaker, J. Yao, A. W. Sandvik, and M. H. Amin,
+Quantum critical dynamics in a 5,000-qubit programmable spin glass, Nature 617, 61 (2023).
+[85] Message Passing Interface Forum, MPI: A Message-Passing Interface Standard Version 4.0 (2021).
+[86] D. Willsch, M. Willsch, F. Jin, K. Michielsen, and H. De Raedt, GPU-accelerated simulations of quantum annealing and
+the quantum approximate optimization algorithm, Comput. Phys. Commun. 278, 108411 (2022).
+[87] K. Michielsen, M. Nocon, D. Willsch, F. Jin, Th. Lippert, and H. De Raedt, Benchmarking gate-based quantum computers,
+Comput. Phys. Commun. 220, 44 (2017).
+[88] U. Weiss, Quantum Dissipative Systems, 4th ed. (World Scientidic, 2012) https://www.worldscientific.com/doi/pdf/10.1142/8334.
+[89] E. Paladino, Y. M. Galperin, G. Falci, and B. L. Altshuler, 1/f noise: Implications for solid-state quantum information,
+Rev. Mod. Phys. 86, 361 (2014).
+[90] M. Carroll, S. Rosenblatt, P. Jurcevic, I. Lauer, and A. Kandala, Dynamics of superconducting qubit relaxation times,
+npj Quantum Inf. 8, 132 (2022).
+[91] M. Fox, Quantum Optics: An Introduction, Oxford Master Series in Physics (Oxford University Press, 2006).
+[92] A. Wallraff, D. I. Schuster, A. Blais, L. Frunzio, J. Majer, M. H. Devoret, S. M. Girvin, and R. J. Schoelkopf, Approaching
+Unit Visibility for Control of a Superconducting Qubit with Dispersive Readout, Phys. Rev. Lett. 95, 060501 (2005).
+[93] J. Gambetta, A. Blais, D. I. Schuster, A. Wallraff, L. Frunzio, J. Majer, M. H. Devoret, S. M. Girvin, and R. J. Schoelkopf,
+Qubit-photon interactions in a cavity: Measurement-induced dephasing and number splitting, Phys. Rev. A 74, 042318
+(2006).
+[94] M. D. Reed, L. DiCarlo, B. R. Johnson, L. Sun, D. I. Schuster, L. Frunzio, and R. J. Schoelkopf, High-Fidelity Readout
+in Circuit Quantum Electrodynamics Using the Jaynes-Cummings Nonlinearity, Phys. Rev. Lett. 105, 173601 (2010).
+[95] K. Jacobs, Quantum Measurement Theory and its Applications (Cambridge University Press, 2014).
+
+32
+[96] M. Naghiloo, Introduction to Experimental Quantum Measurement with Superconducting Qubits, arXiv:1904.09291 (2019).
+[97] M. Boissonneault, J. M. Gambetta, and A. Blais, Improved Superconducting Qubit Readout by Qubit-Induced Nonlinearities, Phys. Rev. Lett. 105, 100504 (2010).
+[98] A. S. Holevo, Quantum Systems, Channels, Information: A Mathematical Introduction (De Gruyter, Berlin, Germany,
+2019).
+[99] M. M. Wilde, Quantum Information Theory (Cambridge University Press, Cambridge, England, UK, 2017).
+[100] Jülich Supercomputing Centre, JUWELS: Modular Tier-0/1 Supercomputer at the Jülich Supercomputing Centre, J. of
+Large-Scale Res. Facil. 5, A135 (2019).
+[101] Jülich Supercomputing Centre, JUWELS Cluster and Booster: Exascale Pathfinder with Modular Supercomputing Architecture at Juelich Supercomputing Centre, J. of Large-Scale Res. Facil. 7, A138 (2021).
+[102] NVIDIA A100 Tensor Core GPU, Data Sheet, https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/
+a100/pdf/nvidia-a100-datasheet-nvidia-us-2188504-web.pdf (2022), accessed on 18 September 2023.
+[103] G. L. Miller, Riemann’s hypothesis and tests for primality, J. Comput. Syst. Sci 13, 300 (1976).
+[104] K. Michielsen, K. De Raedt, and H. De Raedt, Simulation of Quantum Computation: A Deterministic Event-Based
+Approach, J. Comput. Theor. Nanosci. 2, 227 (2005).
+[105] M. Ekerå, Quppy, https://github.com/ekera/quppy.git (2023), to appear.
+[106] Google Quantum AI, Exponential suppression of bit or phase errors with cyclic error correction, Nature 595, 383 (2021).
+[107] S. Krinner, N. Lacroix, A. Remm, A. Di Paolo, E. Genois, C. Leroux, C. Hellings, S. Lazar, F. Swiadek, J. Herrmann,
+G. J. Norris, C. K. Andersen, M. Müller, A. Blais, C. Eichler, and A. Wallraff, Realizing repeated quantum error correction
+in a distance-three surface code, Nature 605, 669 (2022).
+[108] V. V. Sivak, A. Eickbusch, B. Royer, S. Singh, I. Tsioutsios, S. Ganjam, A. Miano, B. L. Brock, A. Z. Ding, L. Frunzio,
+S. M. Girvin, R. J. Schoelkopf, and M. H. Devoret, Real-time quantum error correction beyond break-even, Nature 616,
+50 (2023).
+[109] G. Einarsson, Probability Analysis of a Quantum Computer, arXiv:quant-ph/0303074 [quant-ph] (2003).
+[110] W. H. Press, S. A. Teukolsky, W. T. Vetterling, and B. P. Flannery, Numerical Recipes 3rd Edition: The Art of Scientific
+Computing (Cambridge University Press, New York, USA, 2007).
+[111] E. T. Jaynes and G. L. Bretthorst, Probability Theory: The Logic of Science (Cambridge University Press, 2003).
+[112] J.-L. Nicolas, Petites valeurs de la fonction d’Euler, J. Number Theory 17, 375 (1983).
+[113] J. B. Rosser and L. Schoenfeld, Approximate formulas for some functions of prime numbers, Illinois J. Math. 6, 64 (1962).
+[114] M. A. Nielsen, Errata list for “Quantum Computation and Quantum Information”, https://michaelnielsen.org/qcqi/
+errata/errata/errata.html (2014).
+[115] R. D. Carmichael, Note on a new number theory function, Bull. Amer. Math. Soc. 16, 232 (1910).
+
+

@@ -1,0 +1,1445 @@
+                                         Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with
+                                         Neumann Boundary Conditions
+                                         ROHAN SAWHNEY∗ , Carnegie Mellon University and NVIDIA, USA
+                                         BAILEY MILLER∗ , Carnegie Mellon University, USA
+                                         IOANNIS GKIOULEKAS† , Carnegie Mellon University, USA
+                                         KEENAN CRANE† , Carnegie Mellon University, USA
+
+
+
+
+arXiv:2302.11815v3 [cs.GR] 13 May 2023
+                                         Fig. 1. The walk on stars (WoSt) method handles mixed Dirichlet and Neumann boundary conditions, enabling it to model a richer class of problems than
+                                         the original walk on spheres (WoS) method. Here for instance we simulate diffusive convective heat transfer from a toaster (Dirichlet) to a piece of bread
+                                         (Neumann) by solving a Laplace equation with mixed boundary conditions (top and bottom right), complementing the radiative transfer computed via ray
+                                         tracing (bottom left). As with ray tracing, we can simulate directly on the full high-resolution data (bottom center) without generating a volume mesh or forming
+                                         a global stiffness matrix. Since results are progressive, we can get a preview of how the toast will look faster than it takes to toast a real piece of bread (top left).
+
+                                         Grid-free Monte Carlo methods based on the walk on spheres (WoS) algorithm                  Dirichlet boundary conditions. We introduce the walk on stars (WoSt) algo-
+                                         solve fundamental partial differential equations (PDEs) like the Poisson equa-              rithm, which solves linear elliptic PDEs with arbitrary mixed Neumann and
+                                         tion without discretizing the problem domain or approximating functions in                  Dirichlet boundary conditions. The key insight is that one can efficiently
+                                         a finite basis. Such methods hence avoid aliasing in the solution, and evade                simulate reflecting Brownian motion (which models Neumann conditions)
+                                         the many challenges of mesh generation. Yet for problems with complex                       by replacing the balls used by WoS with star-shaped domains. We identify
+                                         geometry, practical grid-free methods have been largely limited to basic                    such domains via the closest point on the visibility silhouette, by simply
+                                                                                                                                     augmenting a standard bounding volume hierarchy with normal informa-
+                                         ∗ and † indicate equal contribution.
+                                                                                                                                     tion. Overall, WoSt is an easy modification of WoS, and retains the many
+                                                                                                                                     attractive features of grid-free Monte Carlo methods such as progressive
+                                         Authors’ addresses: Rohan Sawhney, rohansawhney@cs.cmu.edu, Carnegie Mellon
+                                         University and NVIDIA, USA; Bailey Miller, bmmiller@andrew.cmu.edu, Carnegie                and view-dependent evaluation, trivial parallelization, and sublinear scaling
+                                         Mellon University, USA; Ioannis Gkioulekas, igkioule@cs.cmu.edu, Carnegie Mellon            to increasing geometric detail.
+                                         University, USA; Keenan Crane, kmcrane@cs.cmu.edu, Carnegie Mellon University,
+                                         5000 Forbes Ave, Pittsburgh, PA, 15213, USA.                                                CCS Concepts: • Mathematics of computing → Partial differential
+                                                                                                                                     equations; Integral equations; Probabilistic algorithms.
+                                         Permission to make digital or hard copies of part or all of this work for personal or       Additional Key Words and Phrases: Monte Carlo methods, walk on spheres
+                                         classroom use is granted without fee provided that copies are not made or distributed
+                                         for profit or commercial advantage and that copies bear this notice and the full citation   ACM Reference Format:
+                                         on the first page. Copyrights for third-party components of this work must be honored.      Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane. 2023.
+                                         For all other uses, contact the owner/author(s).
+                                         © 2023 Copyright held by the owner/author(s).
+                                                                                                                                     Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann
+                                         0730-0301/2023/8-ART1                                                                       Boundary Conditions. ACM Trans. Graph. 42, 4, Article 1 (August 2023),
+                                         https://doi.org/10.1145/3592398                                                             20 pages. https://doi.org/10.1145/3592398
+
+
+                                                                                                                                             ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+1:2   •   Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane
+
+
+1     INTRODUCTION                                                                 pure Dirichlet (absorbing)           pure Neumann (reflecting)
+
+Systems throughout nature—and in our everyday lives—exhibit vast
+geometric and material complexity (Figures 1, 5). Although Monte
+Carlo methods have been enormously successful for photorealistic
+rendering, there remains a large divide between our ability to visu-
+alize and simulate natural phenomena. To make complex simulation
+problems feasible, a common approach is to simplify the original
+model, e.g., via coarsening, homogenization, or learning. Yet in many
+physical systems, subtle differences in fine-scale geometry have a
+major impact on large-scale behavior. Hence, even if the end goal
+is to use a lower-dimensional model, one must have tools that can
+accurately fit such a model, starting from the original geometry.
+More broadly, models of real physical systems must often integrate
+disparate phenomena (say, light transport and heat transfer), which
+classically demand very different computational tools (Figure 20).                    Dirichlet
+For all these reasons, we tend to shy away from simulating the                        Neumann        mixed reflecting/absorbing
+natural world at its original level of complexity, either by making
+gross approximations—or by tempering our ambition.                             Fig. 2. A Brownian random walk terminates when it hits an absorbing
+   Prompted by the disparity between rendering and simulation,                 Dirichlet boundary 𝜕Ω𝐷 (top left), but is pushed back into the domain
+                                                                               along the inward normal to a reflecting Neumann boundary 𝜕Ω𝑁 (bottom).
+Sawhney and Crane [2020] advocate the use of grid-free Monte Carlo
+                                                                               The walk continues forever if the boundary is only reflecting (top right).
+methods to solve partial differential equations (PDEs) on domains
+of extreme geometric complexity. Such methods need not discretize
+the problem domain (as in finite difference methods), or even pick                Our strategy, which we call walk on stars (WoSt), is both more
+a finite basis of functions (as in finite element and boundary el-             efficient and more general. In short, we identify a large star-shaped
+ement methods). Instead, like ray tracing methods, they require                region around the current point, and sample a point on its boundary
+only pointwise access to geometry via closest point queries. This              by picking a random direction (Figure 3, Section 4). This strategy
+setup makes grid-free methods especially attractive in simulation              can be viewed as a Monte Carlo estimator for the boundary inte-
+scenarios where solution values or derivatives (e.g., forces) need             gral equation (BIE) of a Laplace problem (Section 3). WoSt hence
+only be evaluated at a few key points of interest, rather than densely         takes steps that are independent of the level of tessellation, and are
+over the entire domain. Yet grid-free Monte Carlo methods have                 typically much larger than the empty balls used by WoS (Sections
+one major shortcoming: since their development in the 1950s, they              3.4.2 & 6.3). Moreover, this strategy applies to domains that are
+have not been extended to many PDEs beyond the original Dirichlet              not polyhedral, and unlike past WoS-based strategies is not limited
+Laplace problem studied by Muller [1956]. In this paper we take a              to convex domains (Section 4.4). The only question that must be
+basic but important step forward by developing a practical strategy            answered is: how do we find star-shaped regions? In this paper
+for incorporating Neumann boundary conditions—which are a basic                we propose one strategy, using the visibility silhouette, which is
+component of virtually every real physical model.                              easy to implement efficiently without much overhead (Section 5).
+                                                                               Fundamentally, however, the WoSt approach relies only on the use
+                                                                               of star-shaped regions—not on any particular method used to com-
+   Basic Approach. The original WoS method solves Dirichlet prob-
+                                                                               pute them. Importantly, WoSt requires only few modifications to
+lems by simulating random walks that ultimately get absorbed into
+                                                                               an existing WoS implementation, and achieves sublinear scaling to
+the boundary (Figure 3, top left). Rather than simulate many small
+                                                                               geometric detail using essentially the same data structures as WoS. It
+steps of an isotropic Brownian motion (Figure 2), this process is
+                                                                               thus provides the same advantages as WoS (progressive evaluation,
+greatly accelerated by sampling the next point from the largest
+                                                                               trivial parallelization, robustness to defective geometry, etc.), while
+empty ball around the current point (Section 3.4). To model Neu-
+                                                                               being applicable to a broader class of problems.
+mann conditions, one must also simulate reflecting random walks
+that “bounce” off the boundary (Figure 2, top right & bottom)                     Limitations. For problems where boundary conditions are mostly
+[Grebenkov 2006, 2007]. In a half space, reflecting                            Neumann, WoSt can take very long walks: it must reflect at the
+walks amount to just taking the absolute value                                 Neumann boundary, and can terminate only on the Dirichlet bound-
+of Brownian motion in one coordinate direction.                                ary (Figure 2, bottom). This situation is analogous to path tracing
+Hence, for polyhedral domains, a naïve strategy                                a scene where all materials have albedo one—such as a room of
+for simulating reflections would be to sample the                              perfect mirrors (Figure 22). Likewise, pure Neumann conditions
+largest ball that intersects only a single boundary   refine                   are uncommon in many real physical scenarios—corresponding to,
+face, and perform a reflection across the bound-                               e.g., perfect insulators. Support for more general Robin boundary
+ary plane if the sampled point falls outside the                               conditions would hence both improve modeling realism and increase
+domain. However, the efficiency of this strategy                               efficiency, as more walks could terminate early (Section 7). In concur-
+quickly drops as the boundary mesh is refined.                                 rent work, we also present a boundary value caching (BVC) strategy
+
+ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+                                                                  Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions • 1:3
+
+
+     pure Dirichlet (absorbing)            pure Neumann (reflecting)                Input boundary conditions                   Input boundary mesh
+
+
+
+
+                                                                                                                                                    Singular matrix
+                                                                                                              BEM                                 Non-invertible system
+
+
+                                                                                     -1         1 Dirichlet   WoSt
+                                                                                                0 Neumann
+
+                                                                                   Fig. 4. Finite element technology like BEM suffers from large global errors in
+                                                                                   the PDE solution without significant mesh refinement due to local aliasing of
+    interior point                                                                 boundary data, and can fail completely on domains with irregular elements
+    boundary point                                                                 (middle row). In contrast, our method solves PDEs without any aliasing
+        ε-shell                                                                    artifacts irrespective of tesselation quality as it decouples problem inputs
+                                                                                   from the boundary representation (bottom row). It can also handle source
+        Dirichlet
+                                                                                   terms without requiring a volumetric mesh.
+        Neumann        mixed reflecting/absorbing
+
+Fig. 3. Top left: Walk on spheres simulates a Brownian random walk inside
+an absorbing Dirichlet boundary 𝜕Ω𝐷 , repeatedly jumping to a random               et al. 2023]. Second, increasing generality through new estimators
+point on the largest sphere centered at the current walk location. The walk        that can solve PDEs in infinite domains [Nabizadeh et al. 2021] or
+is terminated when it enters an 𝜀-shell 𝜕Ω𝜀𝐷 around the boundary. Top right        with variable coefficients [Sawhney et al. 2022], that simulate fluid
+and bottom: Our walk on stars algorithm generalizes WoS to domains with            equations [Rioux-Lavoie et al. 2022], and that enable differentia-
+a reflecting Neumann boundary 𝜕Ω𝑁 , using a sphere that can contain a              bility for inverse problems [Yılmazer et al. 2022]. Our focus is to
+subset of the reflecting boundary inside it. The next location of the walk is      further push the envelope along the second thrust by developing
+determined by intersecting a ray with a randomly-sampled direction against         the first Monte Carlo estimator that can solve Neumann and mixed-
+the sphere and the visible portions of 𝜕Ω𝑁 it contains, picking the first hit      boundary problems on general, nonconvex domains while providing
+point. The walk continues forever if the boundary is only reflecting (top
+                                                                                   a performance-bias tradeoff comparable to classic WoS.
+right), and terminates inside 𝜕Ω𝜀𝐷 otherwise (bottom).
+                                                                                       Grid-based PDE Solvers. Like WoS, WoSt does not require a vol-
+                                                                                   ume mesh or background grid—offering critical advantages relative
+that greatly amortizes the cost of long walks, even for Neumann-                   to grid-based methods such as finite differences and finite element
+dominated problems [Miller et al. 2023]. Here we focus purely on                   methods. Namely, grid-free estimators provide output sensitivity
+enriching boundary conditions in grid-free Monte Carlo methods.                    (i.e., the ability to focus computation only on regions of interest), pro-
+WoSt is otherwise limited to the same class of PDEs as WoS—namely                  gressive evaluation (i.e., the ability to preview solutions as they im-
+linear elliptic PDEs such as the Poisson equation (Equation 1). How-               prove), support for general geometric representations (e.g., meshes,
+ever, boundary integral formulations are readily available for the                 implicit surfaces, or instanced geometry), trivial parallelization, and
+Helmholtz equation [Hunter and Pullan 2001, Chapter 3], linear                     excellent scaling with increasing geometric detail. Whereas grid-
+elasticity [Hunter and Pullan 2001, Chapter 4] and even fluids (via                based methods are often faster on simple models that can be easily
+stochastic integral equations) [Busnello et al. 2005; Rioux-Lavoie                 meshed, WoSt easily handles problems whose real-world complex-
+et al. 2022]). We hence expect that WoSt will provide a valuable                   ity places them out of reach for traditional techniques—at least not
+starting point for handling more general boundary conditions in                    without critical sacrifices in accuracy (Figure 5). On the flip side,
+these broader problems.                                                            grid-based methods can share global information about solution
+                                                                                   values (via a coupled linear solve), whereas classic grid-free Monte
+2    RELATED WORK                                                                  Carlo methods must make independent estimates at each point—
+We briefly discuss alternative strategies for solving PDEs; Sawhney                leading to fairly redundant computation. As we show in concurrent
+and Crane [2020, Sections 1 and 7] and Sawhney et al. [2022, Section               work [Miller et al. 2023], information sharing via sample reuse can
+7] describe in depth the tradeoffs between grid-free Monte Carlo                   dramatically accelerate grid-free methods as well.
+and conventional, discretization-based methods like FEM, BEM, and
+meshless FEM, and provide extensive numerical comparisons.                            Boundary Element Methods. Among grid-based techniques, the
+                                                                                   boundary element method (BEM) is most closely related to WoSt,
+   Walk on Spheres. Monte Carlo estimators for linear elliptic PDEs                as it too solves boundary integral equations (Section 3.3). Whereas
+with Dirichlet boundaries, such as WoS, date back to Muller [1956],                grid-free Monte Carlo can solve problems with volumetric data (e.g.,
+and have recently received renewed interest following their intro-                 source terms or variable PDE coefficients), BEM can do so only
+duction to graphics by Sawhney and Crane [2020]. There have been                   when coupled with a secondary solver such as FEM or radial basis
+rapid advances along two main thrusts: first, increasing efficiency                function techniques [Coleman et al. 1991; Hunter and Pullan 2001;
+through optimized implementation [Mossberg 2021], bidirectional                    Partridge et al. 2012]. As a result, BEM inherits the shortcomings
+formulations [Qi et al. 2022], and sample caching techniques [Miller               of the grid-based approaches discussed above. Even in the absence
+
+                                                                                            ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+1:4   •   Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane
+
+
+
+
+                                                                                boundary conditions
+
+
+
+
+                                                                                  Dirichlet      Neumann
+
+Fig. 5. Where will oxygen flow at the beginning of a breath? Here we use walk on stars to simulate gas exchange via Laplacian transport [Grebenkov 2006],
+directly on a detailed lung model with thin features (center). The output-sensitivity of our method enables us to focus computation purely on the slice planes
+used for visualization (right), rather than needing to solve over the whole domain. Attempting simulation on the same model using FEM leads to significant
+problems, either because meshing destroys critical details (top left), or takes more than 25 hours to produce a mesh that captures the original geometry
+(bottom left). In contrast, walk on stars provides near-immediate feedback that reliably reflects the true geometry and solution.
+
+
+of volumetric terms, BEM discretizes the domain boundary to con-                  integrators (Figure 6): numerous consecutive reflections result in
+struct, then invert, a dense linear system. Hence, computational                  slow runtimes (due to long walk lengths) and large estimation bias
+complexity scales quadratically with geometric detail, requiring spe-             (due to accumulation of discretization error). In contrast, WoSt uses
+cialized techniques like hierarchical matrix approximation to scale               non-spherical, star-shaped regions that can contain large pieces of
+to large geometries [Hackbusch 2015]. Finally, BEM must encode                    the Neumann boundary. Unlike WoS, it hence continues to take large
+boundary conditions via the discretized boundary representation.                  steps near the Neumann boundary, while avoiding discretization.
+The resulting aliasing can yield global artifacts or singular systems—            These differences translate into order-of-magnitude improvements
+and in some cases an inability to even produce a solution (Figure 4).             in both runtime performance and estimation accuracy (Section 6.3).
+                                                                                     WoSt builds on the techniques of Simonov [2008] and Ermakov
+   Monte Carlo Methods for Neumann Problems. Neumann condi-                       and Sipin [2009], which also sample successive random walk loca-
+tions introduce additional complexity into random walk methods                    tions on regions that can contain the Neumann boundary. However,
+due to the need to reflect, rather than absorb, random walks at the               these techniques are restricted to problems with convex Neumann
+boundary. Stochastic differential equation (SDE) integrators such as              boundaries. By sampling walk locations using star-shaped regions
+Euler-Maruyama [Higham 2001] use discretized random walks, mod-                   (Section 4.4), WoSt can solve problems on general nonconvex do-
+eling reflections by projecting walks back into the domain [Costan-               mains, while also being significantly faster for convex ones.
+tini et al. 1998]. Such reflections introduce discretization error and               Ding et al. [2022] recently proposed a hybrid WoS-BEM solver to
+greatly increase walk length (Figure 17), further exacerbating the                handle Neumann problems. The hybrid nature of their solver means
+challenges already associated with SDE integrators for Dirichlet                  that it sacrifices key properties of Monte Carlo-only techniques,
+problems: a fixed step size means either very slow runtimes (due to               such as progressive evaluation, robustness to poorly tessellated
+a large number of steps inside the domain) or large estimation bias               surface geometry, trivial parallelization, and output sensitivity.
+(due to discretization error). Unlike SDE integrators, WoS (for pure                 Finally, the walk on boundary (WoB) method is an alternative
+Dirichlet problems) and WoSt (for mixed-boundary problems) use                    Monte Carlo approach for mixed-boundary problems. WoB recur-
+adaptive—and generally large—step sizes, avoid discrete approxima-                sively evaluates single and double layer potentials by tracing rays
+tion, and thus offer a much more favorable runtime-to-bias tradeoff               that reflect off the boundary [Sabelfeld and Simonov 2013]. Simi-
+(see Section 6.3 and Sawhney et al. [2022, Section 7.1.3]).                       lar to Simonov [2008] and Ermakov and Sipin [2009], this method
+   For pure Dirichlet problems, WoSt reduces to the standard WoS                  currently works reliably only on problems with convex Neumann
+estimator (Section 3.4), i.e., it uses the largest sphere that does not           boundaries, suffering from high variance and bias in nonconvex
+intersect the boundary. Thus, walks converge quickly to the Dirich-               domains—Section 4.4.1 explains why all three of these methods
+let boundary, where they are absorbed. For mixed-boundary prob-                   struggle with nonconvex domains; see also Section 6.2 for numerical
+lems, augmented WoS methods use finite-difference approximations                  experiments. In concurrent work, Sugimoto et al. [2023] introduce
+of Neumann conditions [Mascagni and Simonov 2004; Maire and                       WoB to the graphics community—their accessible overview and
+Tanré 2013; Zhou et al. 2017]. However, near the Neumann boundary                 improvements to the technique likely open avenues to further, more
+sphere sizes become very small, and walks behave much as in SDE                   efficient estimators that span the space between WoSt and WoB.
+
+
+ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+                                                           Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions • 1:5
+
+
+   Accelerated Distance and Silhouette Queries. Much like path trac-        prescribed derivatives ℎ : 𝜕Ω𝑁 → R in the normal direction 𝑛.
+ing, both WoS and WoSt require iterative applications of a basic            Either subset can be empty, in which case we say the equation has
+set of geometric queries and sampling operations. WoS uses closest          pure Dirichlet or Neumann conditions. A function 𝑢 is harmonic if
+point queries to the Dirichlet boundary to determine random walk            it satisfies Equation 1 for 𝑓 = 0, i.e., if Δ𝑢 = 0 on Ω.
+step sizes. These queries can be accelerated with a bounding vol-              A screened Poisson equation adds a constant absorption term 𝜎𝑢,
+ume hierarchy (BVH) [Intel 2013; Sawhney 2021; Krayer and Müller            𝜎 ∈ R>0 , modeling a medium that dampens or “cools” the solution:
+2021], achieving sublinear scaling relative to geometric detail. WoSt                            Δ𝑢 (𝑥) − 𝜎𝑢 (𝑥)      =    𝑓 (𝑥)       on Ω,                 (2)
+additionally uses closest silhouette point queries to the Neumann
+boundary to define star-shaped regions. As we show in Section 5,            subject to the same boundary conditions as in Equation 1. One can
+these queries can likewise be accelerated using a BVH augmented to          form more general linear elliptic equations by adding variable diffu-
+include orientation information for the geometry inside each node.          sion, drift and absorption coefficients to Equation 2—see Sawhney
+We use the spatialized normal cone hierarchy (SNCH) of Johnson              et al. [2022, Section 2.2] for a detailed exposition. For simplicity
+and Cohen [2001], which has previously been used to accelerate              our exposition focuses on the (screened) Poisson equation, though
+culling of back-facing geometry, local minimum distance queries,            much of the material presented here applies to more general linear
+and next-event estimation (NEE) for rendering scenes with many              PDEs (see Section 7 for further discussion).
+lights [Estevez and Kulla 2018]. More recently, silhouette queries          3.2.1 Green’s Function. A Green’s function captures the influence
+have become a critical subroutine for differentiable Monte Carlo ren-       of the source term 𝑓 —in particular, it describes the solution when
+dering [Li et al. 2018], where they are used to estimate radiometric        the source is a Dirac delta distribution 𝛿𝑥 centered at a single point
+integrals arising from visibility discontinuities. Thus, acceleration       𝑥 ∈ Ω [Evans 1998; Duffy 2015]. For instance, in the case of Equa-
+schemes for silhouette queries in these emerging rendering algo-            tion 1 the Green’s function 𝐺 Ω (𝑥, 𝑦) is the solution to the Poisson
+rithms are likely to benefit WoSt, and vice versa.                          equation Δ𝑢 (𝑦) = 𝛿𝑥 (𝑦). In general, a Green’s function will depend
+                                                                            on the shape of the domain Ω and the choice of boundary condi-
+3     BACKGROUND                                                            tions. Typically, Green’s functions are not available in closed-form—
+We first review linear elliptic PDEs and their boundary integral            however, explicit expressions are available for important special
+                                                                            cases, e.g., the free-space Green’s function 𝐺 R on Ω = R𝑁 , and the
+                                                                                                                            𝑁
+equation (BIE) representation, which serves as the starting point for
+our WoSt estimator in Section 4. We also demonstrate how to derive          Green’s function 𝐺 for a ball Ω = 𝐵 with zero-Dirichlet boundary
+                                                                                                  𝐵
+the WoS estimator from the BIE, to aid comparison with WoSt.                conditions (see Appendix A.1). The WoS and WoSt methods effec-
+                                                                            tively provide a bridge between closed-form Green’s functions on
+3.1    Notation                                                             special domains, and solutions to PDEs on more general domains.
+For any set 𝐴 ⊂ R𝑁 , we use 𝜕𝐴 and |𝐴| for its boundary and volume,
+                                                                            3.2.2 Poisson Kernel. The Poisson kernel likewise captures the in-
+resp. We use 𝑝 𝐴 to denote a probability density function on 𝐴, and
+                                                                            fluence of the boundary conditions on the solution, e.g., when the
+write 𝑥 ∼ 𝑝 𝐴 for a random point 𝑥 ∈ 𝐴 drawn from 𝑝 𝐴 . For any
+                                                                            function 𝑔 is a Dirac delta distribution 𝛿𝑥 centered on a single bound-
+point 𝑧 ∈ 𝜕𝐴, we use 𝑛𝑧 for the unit outward normal at 𝑧. We say
+                                                                            ary point 𝑥 ∈ 𝜕Ω. At any point 𝑦 ∈ Ω with associated normal 𝑛 𝑦 , it
+𝜕𝐴 is convex at 𝑧 if all principal curvatures are positive (relative
+                                                                            can be expressed as the normal derivative of a Green’s function:
+to 𝑛𝑧 ), and nonconvex otherwise. For any point 𝑥 ∈ 𝐴, 𝑥 (𝜕𝐴) B
+                                                                                                                       𝜕𝐺 Ω (𝑥, 𝑦)
+argmin𝑦 ∈𝜕𝐴 ∥𝑦 − 𝑥 ∥ is the closest point to 𝑥 on 𝜕𝐴, and 𝐵(𝑥, 𝑟 ) is                                  𝑃 Ω (𝑥, 𝑦) B                .                         (3)
+a ball with center 𝑥 and radius 𝑟 . We drop arguments for 𝑥 and                                                           𝜕𝑛 𝑦
+𝐵 when the context is clear. We define the 𝜀-shell around 𝜕𝐴 as             As with Green’s functions, common Poisson kernels are known
+𝜕𝐴𝜀 B {𝑥 ∈ Ω : ∥𝑥 − 𝑥 (𝜕𝐴)∥ < 𝜀}. Finally, we use Δ for the                 explicitly in free space and for a ball (see Appendix A.2).
+negative-semidefinite Laplace operator on R𝑁 .
+                                                                            3.3    Boundary Integral Equation
+3.2    Linear Elliptic Equations                                            The solution 𝑢 to a linear PDE can be expressed via a boundary
+Linear elliptic partial differential equations have broad utility in        integral involving the associated Green’s function and Poisson ker-
+geometry processing, simulation, graphics, and scientific computing         nel. Assume for now that Ω is a watertight domain with smooth
+in general. A prototypical example is the Poisson equation                  boundary 𝜕Ω, and let 𝑥 be an evaluation point on the interior of
+                                                                            Ω. We first multiply the Poisson equation in Equation 1 with its
+                   Δ𝑢 (𝑥)   =   𝑓 (𝑥)    on Ω,
+                                                                            Green’s function 𝐺 Ω and integrate over Ω to get
+                    𝑢 (𝑥)   =   𝑔(𝑥)     on 𝜕Ω𝐷 ,                 (1)                   ∫                          ∫
+                   𝜕𝑢 (𝑥)
+                    𝜕𝑛𝑥     =   ℎ(𝑥)     on 𝜕Ω𝑁 ,                                   0=      𝐺 Ω (𝑥, 𝑦) Δ𝑢 (𝑦) d𝑦 −    𝐺 Ω (𝑥, 𝑦) 𝑓 (𝑦) d𝑦.  (4)
+                                                                                             Ω                               Ω
+which describes, e.g., the steady-state temperature distribution over       Applying integration by parts to the first integral, we have
+a domain Ω ⊂ R𝑁 . Here 𝑢 : Ω → R is the unknown solution, and                       ∫                           ∫
+                                                                                                    𝜕𝑢 (𝑧)
+𝑓 : Ω → R is a source term, analogous to a heat source or sink. We              0=       𝐺 Ω (𝑥, 𝑧)        d𝑧 −     ∇𝐺 Ω (𝑥, 𝑦) · ∇𝑢 (𝑦) d𝑦
+partition the boundary 𝜕Ω into a subset 𝜕Ω𝐷 where the solution has                    𝜕Ω              𝜕𝑛𝑧         Ω
+                                                                                    ∫
+Dirichlet boundary conditions, i.e., prescribed values 𝑔 : 𝜕Ω𝐷 → R,               −     𝐺 Ω (𝑥, 𝑦) 𝑓 (𝑦) d𝑦.                                                 (5)
+and a subset 𝜕Ω𝑁 where it has Neumann boundary conditions, i.e.,                         Ω
+
+
+                                                                                     ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+1:6   •   Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane
+
+
+Applying integration by parts again to the second integral in Equa-                       Both BEM and WoS can be interpreted as methods for solving the
+tion 5 and rearranging terms then yields                                                BIE, for different choices of sets 𝐴 and 𝐶. Throughout we highlight
+ ∫                          ∫
+                                                               𝜕𝑢 (𝑧)                   boundary terms (in blue) and interior terms (in gray) to make the
+     𝑢 (𝑦) Δ𝐺 Ω (𝑥, 𝑦) d𝑦 =      𝑃 Ω (𝑥, 𝑧) 𝑢 (𝑧) − 𝐺 Ω (𝑥, 𝑧)        d𝑧                correspondence with Equation 8 clear.
+   Ω                                                            𝜕𝑛𝑧
+                            ∫ 𝜕Ω
+                                                                                        3.3.2 Boundary Element Method. BEM integrates Equation 8 over
+                          +    𝐺 Ω (𝑥, 𝑦) 𝑓 (𝑦) d𝑦.                   (6)
+                                        Ω                                               the PDE domain (𝐴 = Ω) using free-space kernels (𝐶 = R𝑁 ). BEM
+From the definition Δ𝐺 Ω (𝑥, 𝑦) = 𝛿𝑥Ω (𝑦) we arrive at
+                                                                                        does not directly support source terms 𝑓 , leading to the integral
+                 ∫                                                                                                                boundary
+                                                    𝜕𝑢 (𝑧)
+        𝑢 (𝑥) =       𝑃 Ω (𝑥, 𝑧) 𝑢 (𝑧) − 𝐺 Ω (𝑥, 𝑧)        d𝑧                                            ∫
+                                                                                                                                                      𝜕𝑢 (𝑧)
+                                                                                                                   R𝑁                        𝑁
+                   𝜕Ω                                𝜕𝑛𝑧                                 𝛼 (𝑥) 𝑢 (𝑥) =         𝑃        (𝑥, 𝑧) 𝑢 (𝑧) − 𝐺 R (𝑥, 𝑧)            d𝑧 . (10)
+                 ∫                                                                                                                                     𝜕𝑛𝑧
+                    𝐺 Ω (𝑥, 𝑦) 𝑓 (𝑦) d𝑦.
+                                                                                                          𝜕Ω
+              +                                                                   (7)
+                          Ω                                                             To determine the unknown data 𝑢 on 𝜕Ω𝑁 and 𝜕𝑢/𝜕𝑛 on 𝜕Ω𝐷 , BEM
+This equation determines the solution 𝑢 at 𝑥 entirely through the                       uses a finite basis of functions (associated with mesh nodes on a
+solution values 𝑢 (𝑧) and normal derivatives 𝜕𝑢 (𝑧)/𝜕𝑛𝑧 on the bound-                   discretized boundary) to solve a dense linear system—resulting in
+ary 𝜕Ω, and the source values 𝑓 (𝑦) inside the domain Ω. From                           the tradeoffs discussed in Section 2.
+Equation 1, the Dirichlet and Neumann parts of the boundary have
+                                                                                        3.3.3 Walk on Spheres. WoS instead integrates the BIE over a ball
+prescribed values 𝑔 and ℎ, resp., while 𝑓 is specified inside the do-
+                                                                                        𝐵(𝑥, 𝑟 ) ⊂ Ω centered at 𝑥, adopting kernels from the ball (𝐴 = 𝐶 =
+main. To use Equation 7, we must then determine unknown solution
+                                                                                        𝐵(𝑥, 𝑟 )). At points 𝑧 ∈ 𝜕𝐵, these kernels simplify to 𝐺 𝐵 (𝑥, 𝑧) = 0
+values 𝑢 (𝑧) on the Neumann boundary 𝜕Ω𝑁 , and unknown deriva-
+                                                                                        and 𝑃 𝐵 (𝑥, 𝑧) = 1/|𝜕𝐵 | (Appendix A.1), yielding an integral
+tive values 𝜕𝑢 (𝑧)/𝜕𝑛𝑧 on the Dirichlet boundary 𝜕Ω𝐷 .
+                                                                                                             boundary                            interior
+3.3.1 General Setting. In practice, Equation 7 cannot be used di-                                             ∫               ∫
+                                                                                                       1
+rectly since the Green’s function and Poisson kernel for an arbitrary                    𝑢 (𝑥) =                   𝑢 (𝑧) d𝑧 +     𝐺 𝐵 (𝑥, 𝑦) 𝑓 (𝑦) d𝑦 . (11)
+domain Ω are unknown. Fortunately, this equation can be general-                                   |𝜕𝐵(𝑥, 𝑟 )| 𝜕𝐵 (𝑥,𝑟 )       𝐵 (𝑥,𝑟 )
+ized to the boundary integral equation (BIE) [Costabel 1987, Section
+                                                                                        This setup greatly simplifies the BIE by eliminating dependence on
+2] where these functions are no longer tied to the domain Ω. Instead
+                                                                                        𝜕𝑢/𝜕𝑛 (hence avoiding the need for any branching estimates). Unlike
+one may use, e.g., the closed-form Green’s function and Poisson
+                                                                                        BEM, the source term 𝑓 is accounted for, and one does not need
+kernel for a ball, or for R𝑁 . Moreover, while we ultimately seek a
+                                                                                        to discretize the domain boundary 𝜕Ω nor solve a global system of
+solution on Ω, the BIE applies to arbitrary subdomains in Ω:
+                                                                                        equations. Instead, the solution is evaluated by recursively using
+  Boundary Integral Eqation                                                             Equation 11 to estimate 𝑢 (𝑧) on the ball boundary 𝜕𝐵, leading to
+                                                                                        the WoS algorithm (Section 3.4.2).
+  For any two sets 𝐴, 𝐶 ⊂ Ω, and for any point 𝑥 ∈ R𝑁 , the
+  solution to the Poisson equation in Equation 1 satisfies:                             3.4   Walk on Spheres Estimator
+                                                   boundary
+                                                                                        WoS is a Monte Carlo estimator for Equation 11, which means that
+                              ∫                                                         it approximates the boundary and interior integrals using random
+                                                                    𝜕𝑢 (𝑧)
+          𝛼 (𝑥) 𝑢 (𝑥) =             𝑃 𝐶 (𝑥, 𝑧) 𝑢 (𝑧) − 𝐺 𝐶 (𝑥, 𝑧)          d𝑧           samples of the integrands. WoSt follows the same basic recipe, but
+                              𝜕𝐴                                     𝜕𝑛𝑧                for a different version of the BIE. Before discussing these estimators
+                                        interior
+                                                                                        in detail, we first review Monte Carlo integration [Fishman 2006],
+                              ∫                                                         which is the numerical foundation for both methods.
+                                    𝐶
+                     +             𝐺 (𝑥, 𝑦) 𝑓 (𝑦) d𝑦 ,                          (8)
+                              𝐴                                                         3.4.1 Monte Carlo Integration. For an 𝐿 1 -integrable function 𝜙 :
+                                                                                        𝐴 → R, the Monte Carlo method approximates the integral
+  where                                                                                                             ∫
+                                         
+                                         
+                                          1,  𝑥 ∈ 𝐴,                                                          𝐼 B     𝜙 (𝑥) d𝑥                       (12)
+                                         
+                                         
+                                  𝛼 (𝑥) B 1/2, 𝑥 ∈ 𝜕𝐴,                          (9)                                           𝐴
+                                                                                       using the sum
+                                               𝑥 ∉ 𝐴.
+                                         
+                                          0,
+                                         
+                                                                                                                  𝑁
+                                                                                                               1 ∑︁ 𝜙 (𝑥𝑛 )
+  Hunter and Pullan [2001, Chapter 3.3] provide a derivation. For                                        𝐼b𝑁 B                 ,         𝑥𝑛 ∼ 𝑝 𝐴 ,               (13)
+                                                                                                               𝑁 𝑛=1 𝑝 𝐴 (𝑥𝑛 )
+screened Poisson equations we instead use the Green’s function
+and Poisson kernel from Appendix A.2. The BIE can be extended                           where 𝑥𝑛 are independent samples randomly drawn from a proba-
+further—for instance, if 𝜕𝐴 is a non-smooth curve in the plane,                         bility density 𝑝 𝐴 that is nonzero on the support of 𝜙. An estimator
+then 𝛼 = 1 − 𝜃 /2𝜋 at a corner with interior angle 𝜃 . Likewise,                        is unbiased if its expected value equals the true value, E[b  𝐼𝑁 ] = 𝐼 .
+in Appendix B we generalize the BIE to double-sided boundary                            We can quantify the accuracy of an estimator using its expected
+conditions. To keep things simple, we will assume in Section 4 that                     squared error E[(𝐼b𝑁 − 𝐼 ) 2 ], which for an unbiased estimator equals
+𝜕𝐴 is smooth, letting 𝛼 = 1/2 at all boundary points.                                   its variance Var[𝐼b𝑁 ] B E[(𝐼b𝑁 − E[𝐼b𝑁 ]) 2 ]. Assuming independent
+
+ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+                                                                     Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions • 1:7
+
+
+samples 𝑥𝑛 , variance goes to zero at a rate 𝑂 ( 1/𝑁 ) [Pharr et al. 2016,
+Chapter 13]. We express all estimators in this paper as single-sample
+estimates 𝐼b, dropping the subscript 𝑁 = 1 for brevity. Averaging
+these estimates over many trials improves accuracy.                                                                 nudge into domain
+
+3.4.2 WoS Estimator. A recursive single-sample estimate for Equa-
+tion 11 at a point 𝑥𝑘 ∈ Ω is given by
+                     boundary                         interior
+
+             1          𝑢b(𝑥𝑘+1 )        𝐺 𝐵 (𝑥 𝑘 ) (𝑥𝑘 , 𝑦𝑘+1 )𝑓 (𝑦𝑘+1 )
+ 𝑢b(𝑥𝑘 )B                              +                                  ,   (14)
+          |𝜕𝐵(𝑥𝑘 )| 𝑝 𝜕𝐵 (𝑥𝑘 ) (𝑥𝑘+1 )           𝑝 𝐵 (𝑥𝑘 ) (𝑦𝑘+1 )
+
+where 𝑥𝑘+1 ∈ 𝜕𝐵 and 𝑦𝑘+1 ∈ 𝐵 are sampled from probability
+                                                                                                                                                                  ε-shell
+densities 𝑝 𝜕𝐵 and 𝑝 𝐵 , resp. Typical choices are the uniform den-
+sity 𝑝 𝜕𝐵 B 1/|𝜕𝐵|, and the normalized Green’s function 𝑝 𝐵 B
+𝐺 𝐵 (𝑥𝑘 , 𝑦𝑘+1 )/|𝐺 𝐵 (𝑥𝑘 )|, where |𝐺 𝐵 (𝑥𝑘 )| is the integral of 𝐺 𝐵 over
+𝐵(𝑥𝑘 ) (see Appendix A and Sawhney and Crane [2020, Section 4.2]).
+Recursive evaluation of Equation 14 determines a random walk on                       Fig. 6. To simulate reflecting random walks with WoS, a standard approach
+the points 𝑥 0 → 𝑥 1 → . . . , where each point 𝑥𝑘 sits on a sphere                   [Mascagni and Simonov 2004; Maire and Tanré 2013] is to offset a walk
+centered at the previous point 𝑥𝑘−1 —hence the name walk on spheres                   that approaches the Neumann boundary back into the domain by a fixed
+(Figure 3). This walk terminates if 𝑢 (𝑥𝑘 ) is known; otherwise, the                  distance along the inward normal 𝑛 to the boundary (top). This approach
+process repeats. To take big steps, WoS typically uses the largest                    introduces discretization error into the reflecting walk simulation. Moreover,
+sphere centered at 𝑥𝑘 and contained entirely in Ω (i.e., 𝑟 = ∥𝑥 − 𝑥 ∥).               the resulting walks have a tendency to cling to the boundary as they are
+                                                                                      naturally attracted to it, leading to long walk lengths (bottom).
+3.4.3 Boundary Conditions for WoS. How a walk terminates de-
+pends on the particular boundary conditions, enumerated below.
+   Pure Dirichlet Conditions. For pure Dirich-
+let conditions (𝜕Ω = 𝜕Ω𝐷 ), walks terminate                                              Unfortunately, such reflections are often impractical for prob-
+in the 𝜀-shell 𝜕Ω𝜀𝐷 and the solution estimate                                         lems with a large Neumann boundary 𝜕Ω𝑁 : the finite difference
+is set to the boundary value 𝑔 at the closest                                         approximation introduces significant bias if 𝜁 is much larger than
+point 𝑥 𝑘 , i.e., 𝑢b(𝑥𝑘 ) B 𝑔(𝑥 𝑘 ). Terminating                                      𝜀–yet if 𝜁 is only slightly larger than 𝜀, random walks “stick” to
+walks in the shell introduces negligible bias of                                      𝜕Ω𝜀𝑁 , taking many small steps before escaping toward the interior
+order 𝑂 ( 1/log 𝜀 ) [Binder and Braverman 2012];                                      (Figure 6, bottom). Figure 16 shows that, in practice, boundary re-
+Sawhney and Crane [2020, Figure 14] show experimentally that                          flections yield both slow runtime and large accumulated bias. WoSt
+shrinking 𝜀 has little impact on runtime cost. WoSt likewise uses                     avoids these issues by considering larger spheres that contain the
+an 𝜀-shell to absorb walks near the Dirichlet boundary, reducing to                   Neumann boundary (Section 4), greatly improving both accuracy
+WoS for pure Dirichlet problems.                                                      and efficiency.
+   Mixed Dirichlet-Neumann Conditions. The standard WoS approach
+for mixed boundary problems [Mascagni and Simonov 2004] also                             Pure Neumann Conditions. The solution to a Poisson equation
+performs a random walk as above, again terminating on 𝜕Ω𝜀𝐷 . If                       with pure Neumann boundary conditions is determined only up to
+the walk ever reaches a point 𝑥e𝑘 in the 𝜀-shell 𝜕Ω𝜀𝑁 around the                      an additive constant. From the random walk perspective, there is no
+Neumann boundary, then the Neumann value ℎ at the closest point                       Dirichlet boundary to terminate on, hence contributions from ℎ and
+𝑥 𝑘 ∈ 𝜕Ω𝑁 is approximated via finite differences, e.g.,                               𝑓 accumulate forever. However, shorter walks tend to resolve high-
+                                                                                      frequency details in the solution, whereas the contribution from
+                                𝑢 (𝑥 𝑘 + 𝜁 𝑛𝑥 𝑘 ) − 𝑢 (𝑥 𝑘 )
+                    ℎ(𝑥 𝑘 ) ≈                                  ,              (15)    independent longer walks is more spatially uniform (see Figure 18).
+                                             𝜁                                        Based on this observation, Maire and Tanré [2013] describe a WoS
+where 𝜁 > 𝜀 is a constant. The solution estimate at 𝑥𝑘 is then                        estimator that stops the simulation once walks become longer than
+                                                                                      a certain length, pinning an additive constant to the solution. For
+              𝑢b(𝑥𝑘 ) B 𝑢b(𝑥 𝑘 + 𝜁 𝑛𝑥 𝑘 ) − 𝜁ℎ(𝑥 𝑘 ) ≈ 𝑢 (𝑥 𝑘 ).              (16)
+                                                                                      WoSt we instead apply Tikhonov regularization, which makes the
+In other words, −𝜁ℎ(𝑥 𝑘 ) is added to the running estimate, and                       solution unique by adding a small absorption term 𝜎𝑢 to the PDE
+the walk continues as usual from the point 𝑥 𝑘 + 𝜁 𝑛𝑥 𝑘 obtained by                   (resulting in a screened Poisson equation). In particular, we switch
+nudging 𝑥 𝑘 back into the domain by a fixed distance 𝜁 along the                      to this PDE when a walk gets longer than a user-specified length
+inward unit normal (Figure 6, top). Mascagni and Simonov [2004]                       (Figure 19), which adds a small but controlled amount of bias. We
+call this procedure a boundary reflection; Maire and Tanré [2013]                     then terminate walks via Russian roulette [Pharr et al. 2016, Section
+and Zhou et al. [2017] provide more sophisticated approximations                      13.7], using a termination probability proportional to the Poisson
+using higher-order differences.                                                       kernel of a screened Poisson equation (Equation 39).
+
+                                                                                               ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+1:8   •    Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane
+
+
+4     THE WALK ON STARS ALGORITHM                                                      4.3      The WoSt Estimator
+In this section, we develop walk on stars (WoSt), a recursive estimator
+                                                                                          Walk on Stars Estimator
+for mixed boundary-value problems like Equation 1. Like WoS, WoSt
+takes large steps inside the domain Ω to quickly reach the Dirichlet                      A recursive single-sample estimator for Equation 17 is given by
+boundary—yet unlike WoS, WoSt can also take large steps near the                                                                 boundary
+Neumann boundary without incurring large bias. Our method is
+still entirely grid-free, i.e., neither Ω nor 𝜕Ω has to be discretized;                               𝑃 𝐵 (𝑥𝑘 , 𝑥𝑘+1 ) 𝑢b(𝑥𝑘+1 )          𝐺 𝐵 (𝑥𝑘 , 𝑧𝑘+1 ) ℎ(𝑧𝑘+1 )
+                                                                                          𝑢b(𝑥𝑘 ) B                                  −
+we need only query the boundary geometry 𝜕Ω via ray intersec-                                         𝛼 (𝑥𝑘 ) 𝑝 𝜕St(𝑥𝑘 ,𝑟 )(𝑥𝑘+1 )       𝛼 (𝑥𝑘 ) 𝑝 𝜕St𝑁 (𝑥𝑘 ,𝑟 )(𝑧𝑘+1 )
+tions and modified distance queries (Section 5). Here we assume for
+simplicity that the domain Ω is a compact subset of R𝑁 ; see Appen-                                             interior
+
+dix B for extensions to open domains and double-sided boundary                                      𝐺 𝐵 (𝑥𝑘 , 𝑦𝑘+1 ) 𝑓 (𝑦𝑘+1 )
+                                                                                                  +                              ,                                   (18)
+conditions. Detailed pseudocode is provided in Algorithm 1.                                         𝛼 (𝑥𝑘 ) 𝑝 St(𝑥𝑘 ,𝑟 ) (𝑦𝑘+1 )
+                                                                                          where
+4.1       Star-Shaped Subdomains                                                             • the points 𝑥𝑘+1 ∈ 𝜕St, 𝑧𝑘+1 ∈ 𝜕St𝑁 , and 𝑦𝑘+1 ∈ St are
+In lieu of balls, WoSt considers regions                                                        sampled from the probability densities 𝑝 𝜕St (Section 4.4),
+that are star-shaped with respect to a                                                          𝑝 𝜕St𝑁 (Section 4.5), and 𝑝 St (Section 4.6), resp.
+point 𝑥 [Hansen et al. 2020]: any ray cast                                                   • 𝑟 is chosen so that St(𝑥𝑘 , 𝑟 ) is star-shaped (Section 4.4).
+from 𝑥 must intersect the region boundary
+only once. Though in principle any star-                                                  At a high level, each step of WoSt accumulates contributions
+shaped subdomain could be used, we use                                                 from the Neumann data ℎ and source term 𝑓 . For mixed Dirichlet-
+regions St(𝑥, 𝑟 ) given by the component of                                            Neumann problems, the walk terminates in 𝜕Ω𝜀𝐷 , using the Dirichlet
+𝐵(𝑥, 𝑟 ) ∩ Ω containing 𝑥, for a particular                                            data 𝑔 as the solution estimate, i.e., 𝑢b(𝑥𝑘 ) B 𝑔(𝑥 𝑘 (𝜕Ω𝐷 )). For pure
+choice of ball 𝐵 (see Section 4.4.2). Similar                                          Dirichlet problems, WoSt reduces to WoS; for pure Neumann prob-
+to Equation 1, we partition the region boundary into a Neumann part                    lems we apply Tikhonov regularization (Section 3.4.2). We first
+𝜕St𝑁 B 𝜕Ω𝑁 ∩ 𝜕St with prescribed normal derivatives 𝜕𝑢/𝜕𝑛 = ℎ                          discuss how to sample the next step 𝑥𝑘+1 (Section 4.4), followed by
+from Equation 1, and a spherical part 𝜕St𝐵 B 𝜕𝐵 ∩ 𝜕St (see inset).                     sampling procedures for ℎ and 𝑓 (Sections 4.5, 4.6).
+
+4.2       Boundary Integral Formulation                                                4.4      Random Walk on Star-Shaped Regions
+Letting 𝐴 B St and 𝐶 B 𝐵 in Equation 8, the BIE becomes                                The next walk location is importance sampled from the Poisson
+                                                                                       kernel for a ball centered at the current point 𝑥𝑘 , i.e., 𝑥𝑘+1 ∼ 𝑝 𝜕St =
+                                                                                       𝑃 𝐵 (𝑥𝑘 , 𝑥𝑘+1 ). For a Poisson equation in R3 , this kernel is given by
+                                             boundary
+                         ∫                         ∫
+                                                                                                          𝐵                   𝑛𝑥𝑘+1 · (𝑥𝑘+1 − 𝑥𝑘 )
+          𝛼 (𝑥)𝑢 (𝑥) =        𝑃 𝐵 (𝑥, 𝑧) 𝑢 (𝑧) −        𝐺 𝐵 (𝑥, 𝑧) ℎ(𝑧) d𝑧                               𝑃3D (𝑥𝑘 , 𝑥𝑘+1 ) =                             .                 (19)
+                          𝜕St(𝑥,𝑟 )                𝜕St𝑁 (𝑥,𝑟 )
+                                                                                                                                4𝜋 ∥𝑥𝑘+1 − 𝑥𝑘 ∥ 3
+                                                                                       We can use the same sampling density for a screened Poisson equa-
+                                 interior
+                         ∫                                                             tion, since its corresponding kernel simply multiplies 𝑃 𝐵 by a con-
+                     +       𝐺 𝐵 (𝑥, 𝑦) 𝑓 (𝑦) d𝑦 .                              (17)   stant in [0, 1) determined by the absorption coefficient (Equation 39).
+                          St(𝑥,𝑟 )                                                        Equation 19 coincides with the signed solid angle subtended by
+                                                                                       𝜕St at 𝑥𝑘+1 with respect to 𝑥𝑘 [Barill et al. 2018; Feng et al. 2023].
+                                                                                       In rendering, this term appears in the light transport equation (LTE)
+As with the BIE for WoS (Equation 11), the solution value 𝑢 (𝑧) is
+                                                                                       [Pharr et al. 2016, Equation 14.15]. Unlike the BIE, the LTE multiplies
+the only unknown in this equation: at points 𝑧 ∈ 𝜕St𝑁 the normal
+                                                                                       𝑃 𝐵 with a binary visibility 𝑉 (𝑥, 𝑦) that equals 1 if 𝑥 and 𝑦 are mutu-
+derivative 𝜕𝑢/𝜕𝑛 is given by the fixed Neumann data along 𝜕Ω, and
+                                                                                       ally visible. Visibility ensures the product 𝑉 (𝑥𝑘 , 𝑦) 𝑃 𝐵 (𝑥𝑘 ,𝑟 ) (𝑥𝑘 , 𝑦)
+is not needed at points 𝑧 ∈ 𝜕St𝐵 , where 𝐺 𝐵 (𝑥, 𝑧) = 0. Since only one
+                                                                                       is nonnegative: positive if 𝑦 is visible from 𝑥𝑘 ; zero otherwise.
+quantity is unknown, estimators for this equation need not branch.
+                                                                                       Through a change of variables, this product can be importance
+   Simonov [2008], and later Ermakov and Sipin [2009], take a par-
+                                                                                       sampled via directional sampling, i.e., cast a ray from 𝑥𝑘 in a di-
+allel approach on domains Ω with convex Neumann boundaries                                              𝑁 −1
+                                                                                       rection 𝑣 ∼ 𝑝 S (𝑣) = 1/|S𝑁 −1 | uniformly sampled from the unit
+𝜕Ω𝑁 . In particular, they use regions formed by intersecting Ω with
+                                                                                       sphere, and find its first intersection with 𝜕St:
+a ball 𝐵 whose radius is the distance to the Dirichlet boundary,
+𝑑 Dirichlet B ∥𝑥 − 𝑥 (𝜕Ω𝐷 )∥. Hence, 𝐵 can contain a subset of the                      𝑥𝑘+1 B 𝑥𝑘 + 𝑡 𝜕 𝑣, 𝑡 𝜕 B min{𝑡 ∈ [0, +∞) : 𝑥𝑘 +𝑡𝑣 ∈ 𝜕St(𝑥𝑘 , 𝑟 )} . (20)
+Neumann boundary 𝜕Ω𝑁 . In the convex case, such regions are au-
+                                                                                       We refer to Veach and Guibas [1995b] for details on the relationship
+tomatically star-shaped. To handle arbitrary domains, WoSt instead
+                                                                                       between area sampling and directional sampling.1
+uses visibility information to obtain star-shaped regions even near
+nonconvex Neumann boundaries (which in general can yield a ra-                         1 If 𝑥
+                                                                                           𝑘 lies on the boundary, then the ray origin should be offset slightly along the
+dius 𝑟 ≤ 𝑑 Dirichlet ), as we will see in Section 4.4.2.                               inward boundary normal to avoid self-intersections; see Wächter and Binder [2019].
+
+
+ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+                                                                            Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions • 1:9
+
+
+
+
+          naive estimator                                   walk on stars
+       (multiple intersections)                         (single intersection)
+
+Fig. 7. Left: For a ball 𝐵 (𝑥𝑘 , 𝑟 ) whose radius 𝑟 is the distance to the Dirichlet
+boundary 𝜕Ω𝐷 , the solution to a Poisson equation has to be estimated at all
+ray intersections, sampled proportional to signed solid angle. Right: WoSt
+instead restricts 𝐵 ∩ Ω to be star-shaped relative to 𝑥𝑘 to avoid more than
+one intersection, estimating the PDE solution at the first intersection point
+𝑥𝑘+1 on either 𝜕𝐵 inside Ω, or the Neumann boundary 𝜕Ω𝑁 inside 𝐵.
+                                                                                             Fig. 8. We use star-shaped regions defined by intersecting a ball 𝐵 (𝑥𝑘 , 𝑟 )
+                                                                                             with the domain Ω and taking the component connected to 𝑥𝑘 . The ball
+4.4.1 Non-Visible Regions. Since Brownian motion can effectively                             does not contain the Dirichlet boundary 𝜕Ω𝐷 : only visible parts of the
+                                                                                             Neumann boundary 𝜕Ω𝑁 and the spherical part of 𝜕𝐵.
+“walk around corners” (Figure 2), the BIE has no visibility term.
+Hence, the solution value at 𝑥𝑘 can depend on non-visible points
+𝑥𝑘+1 , complicating use of directional sampling. In particular, if the                          The use of star-shaped subdomains suggests the name walk on
+subdomain around 𝑥𝑘 is nonconvex, then a naïve strategy is to es-                            stars, in analogy with walk on spheres. Like the original WoS algo-
+timate 𝑢𝑥+1 at all intersections along a ray from 𝑥𝑘 (Figure 7, left),                       rithm (and unlike the reflections in Figure 6) WoSt can take large
+yielding a branching walk that increases in size exponentially. One                          steps when far from the Dirichlet boundary, using small steps mainly
+could instead use just a single randomly selected intersection, but                          near termination. Though other star-shaped sets could be also used,
+this approach yields extremely high variance (see Figure 14), for two                        our approach is motivated by the fact that the closest silhouette
+reasons. First, the recursive solution estimate must be multiplied by                        point is quite easy to compute—as will be discussed in Section 5.
+the number of intersections to account for the expected contribution
+from each intersection, causing a blowup in value as walk length                             4.4.3 Minimum Radius for Star-Shaped Regions. Near concave parts
+increases. Second, the Poisson kernel alternates sign along consec-                          of the Neumann boundary, the distance to the closest silhouette
+utive intersection points along a ray, yielding unstable estimates                           point on 𝜕Ω𝑁 shrinks to zero (Figure 9), stalling the progress of
+due to cancellation [Kalos and Whitlock 2009, Chapter 4].2 These                             random walks. We hence limit the radius 𝑟 used to define St(𝑥𝑘 , 𝑟 ) to
+issues are also the root cause of high variance and bias in the walk                         a user-defined value 𝑟 min , but still use only the first ray intersection
+on boundary method [Sabelfeld and Simonov 2013; Sugimoto et al.                              to sample the next point 𝑥𝑘+1 . This scheme incurs a small amount
+2023]. Moreover, using just the first intersection leads to a biased                         of bias when St is not star-shaped, since we effectively assume the
+estimator, as we explain in Appendix C.                                                      solution 𝑢 is zero on any piece of 𝜕St not visible from 𝑥𝑘 (Figure 10,
+                                                                                             left)—Appendix C provides further discussion. As with the parame-
+4.4.2 Sampling Star-Shaped Regions. To avoid these issues, some                              ter 𝜀 for the Dirichlet 𝜀-shell 𝜕Ω𝜀𝐷 , a smaller 𝑟 min value reduces bias
+past work assumes the entire Neumann boundary 𝜕Ω𝑁 is convex                                  near concave regions of 𝜕Ω𝑁 at the expense of performance. We
+[Simonov 2008; Ermakov and Sipin 2009], yielding only one inter-                             study this performance-bias tradeoff in Section 6.1. In practice our
+section for any subdomain 𝐵(𝑥𝑘 , 𝑟 ) ∩ Ω where 𝑟 B 𝑑 Dirichlet . This                        star-shaped regions tend to be much larger than 𝑟 min , even slightly
+assumption of course limits the applicability of such estimators.                            away from a concave boundary.
+   We instead let 𝑟 be the minimum of the distance 𝑑 Dirichlet to
+the Dirichlet boundary, and the distance 𝑑 silhouette to the closest
+point on the visibility silhouette of 𝜕Ω𝑁 (Section 5). The connected
+component of 𝐵(𝑥𝑘 , 𝑟 ) ∩ Ω containing 𝑥𝑘 then defines a star-shaped
+region St(𝑥𝑘 , 𝑟 ). Figure 8 shows several examples. We can thus
+sample points on the region boundary 𝜕St by simply taking the first
+point along a ray from 𝑥𝑘 that intersects either 𝜕𝐵(𝑥𝑘 , 𝑟 ) or 𝜕Ω.
+2 One might overcome these issues by decomposing the BIE into independent integrals—
+each with a Poisson kernel that is entirely positive or negative—then randomly select        Fig. 9. The distance 𝑟 to the visibility silhouette shrinks as a query point
+one integral for sampling in proportion to the area over which it is integrated. Unfortu-
+nately, it is unclear how to efficiently perform such a decomposition.                       approaches a concave region on 𝜕Ω𝑁 .
+
+
+                                                                                                      ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+1:10   •   Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane
+
+
+
+
+Algorithm 1 WalkOnStars(𝑥, 𝑛𝑥 , onNeumann, 𝜀, 𝑟 min )
+Input: A point 𝑥, the normal 𝑛𝑥 at 𝑥 (undefined if 𝑥 ∉ 𝜕Ω𝑁 ), a                                                                                visible from xk
+                                                                                                                                                  (no bias)
+    flag onNeumann indicating whether 𝑥 ∈ 𝜕Ω𝑁 , a termination
+    parameter 𝜀, and a minimum radius 𝑟 min .
+Output: A single-sample WoSt estimate 𝑢b(𝑥) for Equation 1.                                                                                    hidden from xk
+ 1: ⊲ Compute distance to 𝜕Ω𝐷 , or ∞ if 𝜕Ω𝐷 = ∅       ⊲Section 5                                                                                (not sampled)
+ 2: 𝑑 Dirichlet , 𝑥 ← DistanceDirichlet(𝑥)
+ 3: ⊲ Return boundary value 𝑔 at 𝑥 if 𝑥 ∈ 𝜕Ω𝜀                                     Fig. 10. WoSt uses balls with radius no smaller than 𝑟 min to prevent walks
+                                            𝐷
+  4: if 𝑑 Dirichlet < 𝜀 then return 𝑔(𝑥)                                          from stopping near concave Neumann boundaries. Left: We only sample
+                                                                                  parts of 𝜕Ω𝑁 directly visible to 𝑥𝑘 inside any ball 𝐵 (𝑥𝑘 , 𝑟 min ), implicitly
+  5: ⊲ Compute distance to the visibility silhouette of 𝜕Ω 𝑁 (Alg. 2)
+                                                                                  assuming the function 𝑢 is zero elsewhere. Right: Hemispherical boundary
+  6: 𝑑 silhouette ← SilhouetteDistanceNeumann(𝑥, 𝑑 Dirichlet )                    sampling ensures the next walk location 𝑥𝑘+1 does not leave the domain,
+  7: ⊲ Compute radius for star-shaped region St(𝑥)                                but incurs a small bias in 𝑢
+                                                                                                             b when 𝑥𝑘 lies on a concave boundary.
+  8: 𝑟 ← max(𝑟 min , min(𝑑 Dirichlet , 𝑑 silhouette ))
+  9: ⊲ Uniformly sample a direction 𝑣 on the unit sphere
+ 10: 𝑣 ← SampleUnitSphere()                                                       4.5   Sampling Neumann Boundary Conditions
+ 11: ⊲ If 𝑥 ∈ 𝜕Ω 𝑁 , sample 𝑣 from hemisphere w/ axis −𝑛𝑥 (Sec. 4.4.4)            For problems with nonzero Neumann conditions, we must evaluate
+ 12: if onNeumann and 𝑛𝑥 · 𝑣 > 0 then 𝑣 ← −𝑣                                      the second term in Equation 18. To do so, we sample a point 𝑧𝑘+1
+ 13: ⊲ Intersect ray 𝑥 + 𝑟𝑣 w/ Neumann part 𝜕St𝑁 , and get first hit              uniformly on the Neumann boundary 𝜕Ω𝑁 , adding a contribution
+ 14: didIntersectNeumann, 𝑝, 𝑛𝑝 ← IntersectNeumann(𝑥, 𝑣, 𝑟 )
+                                                                                  ℎ(𝑧𝑘+1 ) only if 𝑧𝑘+1 is also contained in 𝜕St𝑁 . (Appendix D explains
+ 15: ⊲ If there is no hit, intersect spherical part 𝜕St𝐵 instead
+                                                                                  why this term is not estimated using the next location 𝑥𝑘+1 .) This
+                                                                                  estimate remains unbiased, since we effectively integrate the same
+ 16: if not didIntersectNeumann then 𝑝 ← 𝑥                 + 𝑟𝑣
+                                                                                  function (ℎ restricted to 𝜕St𝑁 ) over a larger domain. Sampling the
+ 17: ⊲ Compute single-sample Neumann contribution                                 entire Neumann boundary leads to high variance in the estimator,
+ 18: 𝑧, 𝑛𝑧 , pdf𝑧 ← NeumannBoundarySample(𝑥, 𝑟 )                       ⊲Alg. 5    as most samples will not lie on 𝜕St𝑁 . Likewise, rejection sampling is
+ 19: isValid ← pdf𝑧 > 0 and ∥𝑧 − 𝑥 ∥ < 𝑟 and                      ⊲Section 4.5    prohibitively expensive since 𝜕St𝑁 can be much smaller than 𝜕Ω𝑁 .
+ 20:                   not IntersectNeumann(𝑥, 𝑧 − 𝑥, 1 − 1e-6)                   In Section 5.2, we hence describe a strategy for efficiently generating
+ 21: 𝛼 ← onNeumann ? 1/2 : 1                                                      samples 𝑧𝑘+1 close to 𝑥𝑘 , which significantly reduces variance.
+ 22: 𝑁b ← isValid ? 𝐺 𝐵 (𝑥,𝑟 ) (𝑥, 𝑧) ℎ(𝑧) / 𝛼 pdf𝑧 : 0
+ 23: ⊲ Compute single-sample source contribution                                  4.6   Sampling the Source Term
+ 24: 𝑡 source ∼ 𝐺 𝐵 (𝑥,𝑟 ) (𝑥, 𝑦)/|𝐺 𝐵 (𝑥,𝑟 ) (𝑥)|                    ⊲Sec. 5.2   Finally, we sample a point 𝑦𝑘+1 ∈ 𝐵(𝑥𝑘 , 𝑟 ) to estimate the interior
+ 25: 𝑦 ← 𝑥 + 𝑡 source 𝑣                            ⊲Reuse 𝑣 for source sample     integral in Equation 18 (Algorithm 1, lines 24-27). We reuse the
+     b ← ∥𝑦 −𝑥 ∥ < ∥𝑝 −𝑥 ∥ ? |𝐺 𝐵 (𝑥, 𝑟 )| 𝑓 (𝑦) : 0 ⊲𝑓 = 0 if 𝑦 ∉ St(𝑥)
+ 26: 𝑆                                                                            ray direction 𝑣 we sampled to gener-
+ 27: ⊲ Update walk position and normal                                            ate 𝑥𝑘+1 (Equation 20), and set 𝑦𝑘+1 B
+ 28: 𝑥, 𝑛𝑥 ← 𝑝, 𝑛𝑝                               ⊲𝑛𝑝 is undefined if 𝑥 ∉ 𝜕Ω𝑁      𝑥𝑘 + 𝑡 source 𝑣, where we sample the dis-
+ 29: onNeumann ← didIntersectNeumann                                              tance 𝑡 source ∼ 𝑝 (𝑡 source ) ∝ 𝐺 𝐵 (𝑥𝑘 , 𝑥𝑘 +
+ 30: return WalkOnStars(𝑥, 𝑛𝑥 , onNeumann, 𝜀, 𝑟 min ) − 𝑁          b + 𝑆b         𝑡 source 𝑣). If the sampled distance 𝑡 source
+                                                                                  is greater than the distance 𝑡 𝜕 B
+                                                                                  ∥𝑥𝑘+1 − 𝑥𝑘 ∥, then the point 𝑦𝑘+1 is out-
+4.4.4 Hemispherical Sampling on                                                   side the star-shaped region St(𝑥𝑘 , 𝑟 ), and
+the Neumann Boundary. When 𝑥𝑘                                                     we reject it (see inset). As in Section 4.4.4, (re)using a hemispherical
+lies on 𝜕Ω𝑁 , sampling 𝑣 from the                                                 direction cancels 𝛼 (𝑥𝑘 ) = 1/2 when 𝑥𝑘 ∈ 𝜕Ω𝑁 .
+unit sphere can yield points 𝑥𝑘+1
+outside Ω (see inset). Here we                                                    4.7   Final Estimator
+instead sample 𝑣 from the hemi-                                                   Our final WoSt estimator is defined recursively as:
+sphere around 𝑛𝑥𝑘 . This scheme                                                                         (
+effectively invokes the reflection principle of Brownian motion,                                         𝑔(𝑥 𝑘 ),           𝑥 𝑘 ∈ 𝜕Ω𝜀𝐷 ,
+across the halfplane at the base of the hemisphere [Jacobs 2010]. A                           𝑢b(𝑥𝑘 ) B                                                     (21)
+                                                                                                         𝑢b(𝑥𝑘+1 ) − 𝑁
+                                                                                                                     b + 𝑆b otherwise,
+useful consequence is that the 𝛼 (𝑥𝑘 ) = 1/2 in the denominator of
+the first term in Equation 18 is canceled by the factor 1/2 we get                where the next walk location 𝑥𝑘+1 in Ω or on 𝜕Ω𝑁 is sampled using
+from sampling a hemisphere rather than a sphere, preventing our                   the procedure in Section 4.4, and the non-recursive Neumann and
+recursive estimator from picking up a multiplicative factor of two                source contributions 𝑁  b and 𝑆b are provided in Algorithm 1, lines
+each time a walk reaches 𝜕Ω𝑁 . Note that if 𝜕Ω𝑁 is concave at 𝑥𝑘 ,                23 and 27, resp. This estimator maintains the general structure of a
+we again incur a small amount of bias (Figure 10, right).                         WoS estimator, and thus introduces little implementation overhead.
+
+ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+                                                               Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions •           1:11
+
+
+5     GEOMETRIC QUERIES
+In general, WoSt works with any boundary representation that
+supports the following queries:
+    Q.1 closest point queries to 𝜕Ω𝐷 ,                                                                                                                         query
+                                                                                        silhouette points                                                      point
+    Q.2 closest silhouette point queries to 𝜕Ω𝑁 ,
+                                                                                        front-facing geometry                                            n
+    Q.3 ray intersection queries against 𝜕Ω𝑁 , and
+                                                                                        back-facing geometry
+    Q.4 point sampling queries on 𝜕Ω𝑁 .
+                                                                                                                    n
+Since none of these queries require the boundary to have a well-                                                                                               n
+defined inside/outside, it need not be watertight, and can have cracks,
+holes, or self-intersections—see in particular Appendix B for a dis-
+cussion of open domains and double-sided boundary conditions.
+   In principle, queries Q.1–Q.4 could be evaluated for, say, spline              Fig. 11. An optimized procedure for finding silhouettes should avoid visiting
+patches or implicit surfaces (Section 7); we focus exclusively on                 finely-tessellated geometry that is entirely front- or back-facing relative to
+                                                                                  the query point.
+triangle meshes. In particular, both Q.1 and Q.3 use standard closest
+point and ray intersection algorithms (not detailed here); Sections
+5.1 and 5.2 describe closest silhouette point queries (Q.2) and point             angle between the axis and any triangle normal (Figure 12). Normal
+sampling queries (Q.4), resp. All queries use a bounding volume hier-             cones can be assembled during BVH construction. We currently use
+archy (BVH) to achieve amortized sublinear scaling in the number                  the surface area heuristic (SAH) [Wald 2007]; performance could be
+of triangles; our basic approach is to add normal information to                  further improved via the surface area orientation heuristic (SAOH)
+the BVH already used by WoS [Sawhney and Crane 2020, Section                      of Estevez and Kulla [2018, Section 4.4], which clusters primitives
+5.1]. In particular, we build a standard BVH to perform closest point             according to both proximity and alignment.
+queries to the Dirichlet boundary (Q.1), and a separate SNCH (Sec-
+tion 5.1) for all queries of the Neumann boundary (Q.2-Q.4), using               5.1.2 Closest Silhouette Point Traversal. To perform a silhouette
+normal information only for Q.2. In practice, all queries needed                 query, we traverse the SNCH in depth-first order (Algorithm 2). For
+to implement WoSt on triangle meshes are supported by the FCPW                   each node N in this traversal we build a view cone rooted at 𝑥. The
+library of Sawhney [2021]; see also Appendix E for pseudocode.                   cone’s axis points toward the center of N, and its half-angle tightly
+                                                                                 bounds the AABB (Figure 12); we then check if the view cone and the
+5.1     Closest Silhouette Point Queries                                         node’s normal cone contain a pair of mutually orthogonal directions.
+                                                                                 If this test fails, all triangles in N must be front- or back-facing
+The silhouette of a triangle mesh relative to a given direction 𝑣
+                                                                                 relative to the query point, and it can be skipped. In the context
+occurs along a set of edges 𝑒 that satisfy a local silhouette condition.
+                                                                                 of WoSt, an upper bound on the size of a star-shaped region St(𝑥)
+In particular, 𝑒 is a silhouette edge if for each distinct pair of triangles
+                                                                                 is given by the distance 𝑑 Dirichlet from 𝑥 to the Dirichlet boundary
+containing 𝑒,
+                                                                                 (Section 4.4.2). To further improve query efficiency we can hence
+                           (𝑣 · 𝑛 1 ) · (𝑣 · 𝑛 2 ) ≤ 0,                 (22)     restrict the search to the radius 𝑟 max = 𝑑 Dirichlet .
+
+where 𝑛 1, 𝑛 2 are consistently oriented            silhouette                    5.2   Point Sampling Queries
+normals (see inset). Note in particular                                           Recall that for problems with nonzero Neumann conditions, we
+that every boundary edge is a silhou- e             e          e                  sample points from 𝜕Ω𝑁 (Section 4.5). To increase the likelihood
+ette edge. In WoSt, 𝑣 is the direction                                            that these points lie on 𝜕St𝑁 (𝑥), we adopt a hierarchical importance
+from the current walk location 𝑥 to its
+closest point on 𝑒. A naïve strategy for        e             e                                              normal cone
+finding the closest silhouette edge is to
+use a BVH to locate the closest point           not silhouette
+to 𝑥 on all edges, skipping edges not contained in the silhouette.
+However, this strategy is highly inefficient when BVH nodes contain
+large, finely-tessellated regions that are all front- or back-facing
+(Figure 11): here each edge is examined (and rejected) exhaustively,               query                                                               view
+                                                                                   point                                                               cone
+whereas ideally the whole node should simply be culled.                                                                                SNCH
+                                                                                                                                        node
+5.1.1 Spatialized Normal Cone Hierarchy. To improve scaling, we
+hence augment our BVH with information about the orientation of
+the geometry inside each node. In particular, we adopt the spatial-
+ized normal cone hierarchy (SNCH) of Johnson and Cohen [2001].                    Fig. 12. A SNCH tests for a pair of mutually orthogonal directions in a view
+Each node of a SNHC stores not only an axis-aligned bounding box                  cone and a node’s normal cone to determine whether the node contains a
+(AABB), but also a normal cone. The cone axis is the average normal               silhouette edge. The geometry inside the node can be skipped if no such
+of all triangles in the node, and the cone half angle 𝜃 is the maximum            pair of directions is found.
+
+
+                                                                                           ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+1:12    •   Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane
+
+
+reference solution r min = 0.001                 r min = 0.1                  r min = 1                      reference solution       WoSt    multiple intersections
+
+
+                                                                                                                                                                  RMSE
+    average number
+    of steps from              253 steps                      115 steps           29 steps
+
+
+                                                                                                                                                                               # walks
+
+                                                                                                                increasing
+                                                                                                                                                                  RMSE
+                                                                                                                portion of
+                                                                                                                 boundary
+       -1           +1               Neumann                      Dirichlet                                    is Neumann
+                                                                                                                                                                               # walks
+                                       r = 0.001
+
+
+
+                                                                                             relative time
+                                              relative RMSE
+                                                                                                              -1            +1
+                                                                                                                                                                  RMSE
+                           r = 0.1    r =1
+                                                                                                                      Dirichlet
+                                                                                                                      Neumann
+                   relative size
+                      of radii                                                                                                                                                 # walks
+        boundary
+        conditions                                                                                           Fig. 14. Here we solve for a known reference function, using its normal
+                                                                                                             derivatives to specify Neumann conditions on an increasingly large part of
+Fig. 13. Much like the parameter for the 𝜀-shell, WoSt introduces an 𝑟 min                                   the boundary. WoSt exhibits the expected Monte Carlo convergence rate,
+parameter to help walks make progress near concave parts of the Neumann                                      whereas the estimator based on multiple ray intersections from Section 4.4.1
+boundary. Walks generally converge faster with larger values for 𝑟 min , with                                quickly blows up.
+run-time improvements outweighing the relative increase in bias.
+
+
+                                                                                                                          Figure 1 (toast)     Figure 5 (lungs)          Figure 19 (lizard)
+
+sampling strategy used in rendering to accelerate next-event esti-
+mation [Estevez and Kulla 2018]. In particular, during each step of
+BVH traversal we select only a single random child whose AABB                                                  RMSE
+intersects St(𝑥). To give preference to nodes closer to the query
+point 𝑥, we sample according to the free-space Green’s function
+                                                                                                                             time (secs)           time (secs)               time (secs)
+    𝑁
+𝐺 R (Algorithm 5, lines 12-27), rather than the Green’s function
+for a ball (which becomes negative outside St(𝑥)). Once we reach a
+leaf node, we uniformly sample a point from the leaf triangles with                                          Fig. 15. WoSt exhibits the expected rate of convergence for a Monte Carlo
+respect to surface area (see Algorithm 6, lines 2–9 and Algorithm 5,                                         estimator, shown here for eight fixed points on each example from Sec-
+line 6–10). This point is not guaranteed to lie on 𝜕St𝑁 , but is much                                        tion 6.5. Reference solutions are also computed via WoSt with 216 walks
+more likely to do so compared to uniformly sampling all of 𝜕Ω𝑁 .                                             per point, as there is no analytical solution and no feasible alternatives to
+Estevez and Kulla [2018, Section 5.4] describe further improvements                                          compute it. Timings were taken on an 8 core M1 MacBook Pro.
+to this traversal strategy.
+
+6      EVALUATION
+In this section, we discuss practical considerations relating to our                                         6.1      Stopping Tolerances
+WoSt estimator such as stopping tolerances, and use several syn-                                             Like WoS, WoSt terminates walks in an 𝜀-shell 𝜕Ω𝜀𝐷 around the
+thetic tests to evaluate its effectiveness. We use a multicore CPU-                                          Dirichlet boundary, yielding a small, controllable amount of bias.
+based implementation, and achieve essentially linear scaling; unless                                         The performance-bias tradeoff is also relatively insensitive to the
+otherwise noted, all experiments used a 64-core 3rd Generation Intel                                         parameter 𝜀. See Binder and Braverman [2012] and Sawhney and
+Xeon workstation. As seen in, e.g., Figure 5 (left) and discussed by                                         Crane [2020, Section 6.1] for more detailed analysis and experiments.
+Sawhney and Crane [2020, Section 7.5], the preprocessing cost of                                                The minimum radius parameter 𝑟 min from Section 4.4.3 also in-
+building a BVH is typically not significant (on the order of seconds),                                       curs bias near concave parts of 𝜕Ω𝑁 . Figure 13 examines the ef-
+especially in contrast to finite element mesh generation (on the                                             fect of this parameter—compared to 𝜀, 𝑟 min typically exhibits a
+order of minutes to hours). Test problems are encoded much like                                              more sensitive performance-bias tradeoff, but with run-time im-
+a scene in a photorealistic renderer [Pharr et al. 2016], e.g., using                                        provements again outweighing the small increase in bias. In all
+meshes or other boundary representations to describe 𝜕Ω, and call-                                           other experiments we scale models to fit in a unit sphere, and use
+back functions to encode the functions 𝑓 , 𝑔, and ℎ in Equation 1.                                           𝜀 = 𝑟 min = 0.001. Adaptively picking 𝑟 min based on local boundary
+See Sawhney and Crane [2020, Section 5] for further discussion.                                              curvature may yield even better performance/lower bias.
+
+ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+                                                                       Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions •                          1:13
+
+
+               reference solution      WoSt             WoS        SDE-based                                   Contributions are near constant after many steps
+
+
+equal time
+                                                                                            [0,15) steps               [0,5) steps          [5,10) steps            [10,15) steps
+
+
+
+
+equal sample
+                                                                                                       -1         +1             Neumann
+                                                                                            [0,150) steps          [0,50) steps             [50,100) steps         [100,150) steps
+
+
+
+                       -1             +2          Neumann            Dirichlet
+
+
+                                    RMSE                    RMSE
+                                                                                         Fig. 18. The solution to a Poisson equation with pure Neumann conditions
+  boundary discretized walks                                                             is uniquely defined up to an additive constant. Top: Local details in the PDE
+                                              # walks               time (secs)          solution are often resolved by the first few steps of a WoSt random walk,
+  conditions ignore small gaps
+                                                                                         with near-constant contributions from latter steps. Bottom: More steps are
+                                                                                         typically needed to resolve lower frequency global details.
+Fig. 16. For an equal number of walks, WoSt is significantly more efficient
+than both WoS with discretized boundary reflections (Section 3.4.2), as well
+as SDE-based estimators (Section 2). Timings were taken on an 8 core M1                                            σ = 0.1                σ=1                σ = 10
+                                                                                                               average steps: 1890   average steps: 189   average steps: 19
+MacBook Pro.
+                                                                                            -1.5      +1.5
+
+                                                                                                                                                                                    Tikhonov
+                                                                                                reference
+                                                                                                 solution
+6.2              Convergence                                                                                                                                                      regularization
+As with most Monte    √ Carlo estimators, WoSt exhibits error of mag-
+nitude about 𝑂 (1/ 𝑁 ) with respect to the number of walks 𝑁
+
+
+                                                                                                                                                                                25 unbiased steps
+(Figure 14), suggesting that any bias has little impact on overall
+accuracy. In general we observe that variance tends to be higher
+
+                                                                                                                                                                              followed byTikhonov
+(but still predictable) in regions dominated by Neumann boundaries,
+due to longer walk lengths.
+                                                                                                Neumann
+
+6.3              Comparisons                                                                                                                                                      regularization
+WoSt is both significantly faster and
+less biased than previous Monte                                                          Fig. 19. Top: For pure Neumann problems, a small Tikhonov parameter 𝜎
+Carlo approaches for solving mixed                                                       yields long walks and high variance, while larger 𝜎 values produce shorter
+boundary-value problems with com-                                                        walks with less noise but more bias. Bottom: Since the solution is often
+parable parameter settings. For in-                                                      well-resolved by short walks (Figure 18), we apply regularization only to
+stance, Figure 16 compares several                                                       walks longer than a given length—yielding both less noise and bias.
+methods using comparable parame-
+ters: a minimum star radius 𝑟 min =        Fig. 17. SDE schemes project
+0.001 for WoSt, reflection offset 𝜁 =      walks that leave the domain                    6.4      Pure Neumann Problems
+                                           to the boundary, where the
+0.01 for WoS, and step size 𝑙 =                                                          The solution to a Poisson equation with pure Neumann conditions
+                                           walk continues as usual.
+0.0001 for the SDE-based method.                                                         is determined only up to an additive constant. When we solve such
+As discussed inSection 3.4.2, WoS with boundary reflections suffers                      a PDE with WoSt, we observe that high frequency details in the
+from bias buildup due to long walks that stick to the Neumann                            PDE solution are often resolved by the first few steps of a random
+boundary. Methods based on reflecting SDEs perform even worse                            walk, while the contribution from later steps is closer to constant
+[Costantini et al. 1998] (see inset), as they incur bias not only on                     (Figure 18). As discussed in Section 3.4.2, we use Tikhonov regular-
+the boundary, but also in the interior. The naïve estimator from                         ization to more effectively handle such problems—Figure 19 shows
+Section 4.4.1, which selects one intersection at random, also exhibits                   that this approach provides estimates with less noise and smaller
+massive error as we increase the size of the Neumann boundary                            bias even with substantial regularization, while ensuring that walk
+(Figure 14, center right). In contrast to all these methods, the star-                   length is not unbounded. In general the number of steps needed to
+shaped regions used by WoSt enable one to take large steps without                       resolve the solution is problem-dependent—more steps are typically
+incurring significant bias.                                                              needed when the solution has low-frequency global features.
+
+                                                                                                    ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+1:14   •    Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane
+
+
+
+
+                                                                                   boundary conditions
+
+
+
+
+Fig. 20. Like Monte Carlo ray tracing, WoSt enables flexible modeling of scenarios that are geometrically and physically complex. Center: here an ectotherm
+(anolis carolinensis) warms itself on a rock, which in turn is heated by the sun. Left: Like WoS, WoSt can mix and match different geometric representations—here,
+a polygon mesh and a signed distance function. In this case, it is also easily combined with ray tracing used to determine Dirichlet boundary conditions
+for the heat transfer problem. Right: Unlike FEM and BEM, WoSt can handle highly-detailed boundary conditions without needing to resolve them on a
+mesh—here the lizard’s texture controls the rate of heat absorption via Neumann boundary conditions, yielding stronger warming along the dark stripes.
+
+
+6.5        Geometric Scaling and Flexibility                                        distribution resulting from radiation and convection—emphasizing
+As noted in Section 1, a key motivation for developing grid-free                    the necessity of 2nd-order models for accurate thermal predictions.
+Monte Carlo methods is to push simulation methods closer to the                        Figure 20 shows another heat transfer experiment, where Dirich-
+geometric complexity seen in photorealistic rendering—and in na-                    let conditions induced by solar radiation are used to determine heat
+ture. To stress-test WoSt on complex geometry, we mock up three                     absorbed by an ectothermic lizard, modeled via detailed spatially-
+simulation examples here. Importantly, these examples do not aim                    varying Neumann inflow conditions. Unlike FEM or BEM, where
+to model exact physics or make quantitative predictions—we seek                     boundary data must be evaluated ahead of time, Dirichlet data is
+only to examine solver performance in the presence of (i) extremely                 evaluated on demand via sphere tracing [Hart 1996]. Scene geom-
+complex geometry and (ii) large Neumann boundary regions, which                     etry is represented by a 1.2 million element boundary mesh (for
+are ubiquitous in real physical problems.                                           the lizard) and implicit signed distance functions (for the rocks),
+   Heat transfer is a central topic in thermal engineering, with three              highlighting the ability of WoSt to work with mixed boundary rep-
+basic modes: radiation, conduction, and convection. Thermal ra-                     resentations without global meshing. The solution is evaluated at
+diation is well-captured by 1st-order Monte Carlo light transport                   285k boundary points using 1024 walks per point, taking on aver-
+simulation, whereas conduction and convection involve diffusion,                    age 0.121 milliseconds per point for each walk. As in Monte Carlo
+which must be simulated via a 2nd-order method like WoS or WoSt                     rendering (and unlike FEM/BEM), scene setup required no model
+[Bati et al. 2023]. Thermal convection can also include turbulent                   conversion or meshing—even though data was pulled directly from
+advection à la Navier-Stokes, which can be solved via WoS [Rioux-                   the internet.
+Lavoie et al. 2022] but is not considered here.                                        Finally, Figure 5 models oxygen diffusion in the lungs, one of
+   Inspired by toast-darkening experiments of Myhrvold and Migoya                   many Laplacian transport phenomena with mixed boundary con-
+[2017], Figure 1 models heat transfer from a toaster to a piece of                  ditions [Grebenkov 2006]. We make a simplification by using Neu-
+bread, represented by a CT scan with 3.9 million boundary elements.                 mann rather than Robin boundary conditions (which are an impor-
+To model diffusive convection, we solve a Laplace equation with                     tant topic for future work—see Section 7). While FEM can solve
+large and small Dirichlet values on the heating elements and toaster                such problems, meshing is both a major performance bottleneck and
+cavity (resp.), and Neumann conditions on the bread. The solution                   a hindrance for end-to-end robustness. In this case, even a state-
+is evaluated at roughly 2 million boundary points, using 1 walk                     of-the-art method [Hu et al. 2020] yields badly broken geometry;
+per point for fast preview and 256 walks for the final solution; on                 tweaking parameters to capture the correct geometry incurs a full
+average, WoSt takes 0.166 milliseconds per point for each walk (Fig-                day of compute time, eliminating any advantage of a fast solve.
+ure 15 plots error versus time). A simple phenomenological model is                 With WoSt we get feedback reliably and immediately in an output-
+used to translate surface temperature into color (though more prin-                 sensitive fashion, here restricted to a cross section. In particular, we
+cipled models of Malliard browning could be used here [Chen et al.                  evaluate the solution on a 512 × 512 grid using 1024 walks per point;
+2019]). We observe a marked difference between the temperature                      WoSt takes on average 0.021 milliseconds per point for each walk.
+
+
+ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+                                                             Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions •          1:15
+
+
+                                                                                already well-optimized [Intel 2013; Wald et al. 2019; Krayer and
+                               origin                                           Müller 2021], closest silhouette point queries could be further ac-
+                               termination                                      celerated via, e.g., better tree construction [Estevez and Kulla 2018,
+                                                                                Section 4.4] or intelligent caching of silhouette edges. One might
+                                                                                also extend silhouette queries to (neural) implicit surfaces by build-
+                               reflecting                                       ing on recent range analysis techniques [Sharp and Jacobson 2022].
+                                                                                Likewise, Neumann point sampling queries could be optimized à la
+                               absorbing                                        many-light sampling [Estevez and Kulla 2018, Section 5.4], ensuring
+                      WoSt         (average steps: 214)
+                                                                                that Neumann boundary samples lie in star-shaped regions.
+                      path tracing (average bounces: 219)                         Concave Neumann Boundaries. To take larger steps near silhouette
+                                                                               points, we could replace the fixed parameter 𝑟 min with an adaptive
+Fig. 21. Unidirectional random walk methods such as WoSt and path tracing      radius based on local curvature estimates [Pottmann et al. 2007].
+require many steps or bounces to make their way through a key hole.
+                                                                               Alternatively, one might apply multi-level Monte Carlo [Giles 2015;
+                                                                               Misso et al. 2022] to reduce bias by aggregating estimates obtained
+                                                                               via progressively smaller values of 𝑟 min .
+7   LIMITATIONS AND FUTURE WORK
+The principal benefit of WoSt is not simply that it can solve Neumann              Global Information Sharing through Sample Reuse. WoSt estimates
+problems, but rather that it exhibits a speed-bias tradeoff closer to           solution values independently at each point, often resulting in highly
+the original WoS algorithm for Dirichlet problems, i.e., it provides            redundant computation. In concurrent work [Miller et al. 2023], we
+large steps and low-variance estimates away from the Dirichlet                  develop a grid-free sample reuse scheme for WoSt inspired by virtual
+boundary—especially compared to SDE, WoS, or WoB approaches to                  point light (VPL) methods from rendering [Keller 1997; Dachsbacher
+the Neumann problem (Sections 2 and 6.3). However, Neumann and                  et al. 2014]. This method gives unbiased solution estimates at arbi-
+mixed boundary problems remain fundamentally more challenging                   trary points by caching terms of the BIE on the domain boundary,
+than pure Dirichlet problems, with many opportunities for future                and may open the door to domain decomposition strategies [Chan
+extension and improvement.                                                      and Mathew 1994] for domains with thin features (Figure 21). Other
+                                                                                reuse schemes from rendering such as photon mapping [Hachisuka
+   Next-Event, Path-Space, and Bidirectional Estimators. For Neumann-           et al. 2008; Hachisuka and Jensen 2009] and ReSTIR [Bitterli et al.
+dominated problems, forward random walk estimators must take                    2020; Ouyang et al. 2021] surely provide similar opportunities.
+many steps before obtaining a Dirichlet contribution, resulting in
+high computation time without a commensurate decrease in vari-                    Denoising and Geometric Prefiltering. Since elliptic PDEs have
+ance. This situation directly parallels forward rendering algorithms           very regular solutions, high-frequency noise in WoSt estimates is
+that produce long light paths in scenes with predominantly non-                nicely mitigated via denoising, as noted by Sawhney and Crane
+absorbing materials. For instance, Figure 21 replicates a classic “key-        [2020, Figure 13]; here again methods from rendering provide a
+hole problem” using both 2D path tracing (assuming perfectly dif-              wealth of opportunities [Zwicker et al. 2015; Chaitanya et al. 2017;
+fuse reflections) and WoSt (with Neumann-dominated boundary).                  Schied et al. 2017, 2018; Gharbi et al. 2019; Kozlowski and Cheblokov
+In both cases, average walk length is greater than 200, highlighting           2021; NVIDIA 2022, 2017]. Another interesting challenge is how
+a general challenge faced by unidirectional Monte Carlo methods.               to detect—or even define—silhouettes for geometry with intricate
+   In rendering, next-event estimation helps by adding a direct illumi-        microstructures [Neyret 1998], perhaps through some form of geo-
+nation contribution at each bounce [Whitted 1980; Cook et al. 1984].           metric prefiltering [Wu et al. 2019]. In particular, the SNCH itself
+One could likewise try adding a Dirichlet contribution at each step            provides a form of prefiltering: nodes higher than the leaves can
+of WoSt, by allowing subdomains to contain part of the Dirichlet               provide conservative or approximate bounds on 𝑑 silhouette that ef-
+boundary. Such a scheme would simply need some way to estimate                 fectively amount to smoothing out fine-scale geometry (at the cost
+𝜕𝑢/𝜕𝑛 at Dirichlet points (Equation 17).                                       of bias). Likewise, SNCH nodes could be built by sampling a dis-
+   More generally, a path-space formulation [Pharr et al. 2016, Section        tribution (à la microflake models [Heitz et al. 2015]) rather than
+14.4.4] of the BIE may lead to estimators that make more global                bounding explicit geometry.
+sampling decisions (e.g., via Markov chain Monte Carlo [Veach                     Robin Boundary Conditions. In rendering, a room full of non-
+and Guibas 1997; Kelemen et al. 2002]) or bidirectional estimators             absorbing mirrors yields much longer path lengths than a scene
+that help connect difficult-to-sample boundary and source data to              with realistic, partially absorptive materials (Figure 22). Likewise,
+arbitrary evaluation points [Lafortune and Willems 1993; Veach and             perfectly-reflecting Neumann conditions represent an “extreme case”
+Guibas 1995a]. The bidirectional WoS method of Qi et al. [2022]                for grid-free Monte Carlo methods, since materials in real physical
+provides a concrete starting point—along with a rich literature from           problems are typically reflecting and absorbing. For instance, realis-
+Monte Carlo rendering [Veach and Guibas 1997; Vorba and Křivánek               tic thermal, electromagnetic, and fluid models often assume Robin
+2016; Müller et al. 2017; Herholz et al. 2019; Müller et al. 2019, 2020].      boundary conditions of the form
+ Geometric Queries. The dominant cost in WoSt is evaluating geo-                                          𝜕𝑢 (𝑥)
+metric queries (Section 5). While ray- and closest-point queries are                         𝛼𝑢 (𝑥) + 𝛽          = 𝑔(𝑥) on 𝜕Ω,           𝛼, 𝛽 ∈ R              (23)
+                                                                                                           𝜕𝑛𝑥
+
+                                                                                        ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+1:16   •   Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane
+
+
+   Partial Absorption & Reflection                    Perfect Reflection         REFERENCES
+                                                                                 Gavin Barill, Neil G. Dickson, Ryan Schmidt, David I. W. Levin, and Alec Jacobson. 2018.
+                                                                                     Fast Winding Numbers for Soups and Clouds. ACM Trans. Graph. 37, 4, Article 43
+                                                                                     (2018), 12 pages.
+                                                                                 Mégane Bati, Stéphane Blanco, Christophe Coustet, Vincent Eymet, Vincent Forest,
+                                                                                     Richard Fournier, Jacques Gautrais, Nicolas Mellado, Mathias Paulin, and Benjamin
+                                                                                     Piaud. 2023. Coupling Conduction, Convection and Radiative Transfer in a Single
+                                                                                     Path-Space: Application to Infrared Rendering. ACM Trans. Graph. 42, 4 (aug 2023).
+                                                                                 Ilia Binder and Mark Braverman. 2012. The rate of convergence of the walk on spheres
+                                                                                     algorithm. Geometric and Functional Analysis 22, 3 (2012), 558–587.
+                                                                                 Benedikt Bitterli, Chris Wyman, Matt Pharr, Peter Shirley, Aaron Lefohn, and Wojciech
+                                                                                     Jarosz. 2020. Spatiotemporal Reservoir Resampling for Real-Time Ray Tracing with
+                                                                                     Dynamic Direct Lighting. ACM Trans. Graph. 39, 4, Article 148 (2020), 17 pages.
+                                                                                 Andrei N Borodin and Paavo Salminen. 2015. Handbook of Brownian motion-facts and
+                                                                                     formulae. Springer Science & Business Media.
+                                                                                 Barbara Busnello, Franco Flandoli, and Marco Romito. 2005. A probabilistic representa-
+                                                                                     tion for the vorticity of a three-dimensional viscous fluid and for general systems of
+Fig. 22. Realistic scenes for visualization and analysis rarely have purely          parabolic equations. Proc. Edinburgh Math. Soc. 48, 2 (2005), 295–336.
+reflecting surfaces. Left: A rendered scene with both absorbing and reflecting   Chakravarty R. Alla Chaitanya, Anton S. Kaplanyan, Christoph Schied, Marco Salvi,
+                                                                                     Aaron Lefohn, Derek Nowrouzezahrai, and Timo Aila. 2017. Interactive Reconstruc-
+surfaces. Right: A rendered scene of a room full of perfect mirrors.                 tion of Monte Carlo Image Sequences Using a Recurrent Denoising Autoencoder.
+                                                                                     ACM Trans. Graph. 36, 4 (2017).
+                                                                                 Tony F Chan and Tarek P Mathew. 1994. Domain decomposition algorithms. Acta
+                                                                                     numerica 3 (1994), 61–143.
+[Senior 1960; Gustafson and Abe 1998; Grebenkov 2006; Hahn and                   Peter Yichen Chen, Jonathan David Blutinger, Yorán Meijers, Changxi Zheng, Eitan
+                                                                                     Grinspun, and Hod Lipson. 2019. Visual modeling of laser-induced dough browning.
+Özisik 2012]. Incorporating such conditions into WoSt would result                   Journal of Food Engineering 243 (2019), 9–21.
+in shorter walks and greater efficiency, since (as in rendering) low-            Chris J Coleman, David L Tullock, and Nhan Phan-Thien. 1991. An effective boundary
+                                                                                     element method for inhomogeneous PDEs. J. App. Math. Phys. (ZAMP) 42, 5 (1991).
+throughput walks could be terminated early via Russian roulette                  Robert L. Cook, Thomas Porter, and Loren Carpenter. 1984. Distributed Ray Tracing.
+[Pharr et al. 2016, Section 13.7]. Support for Robin boundary condi-                 In Proc. SIGGRAPH. 137–145.
+tions would enable WoSt to solve PDEs with variable coefficients                 Martin Costabel. 1987. Principles of boundary element methods. Computer Physics
+                                                                                     Reports 6, 1-6 (1987), 243–274.
+[Sawhney et al. 2022] and exterior problems [Nabizadeh et al. 2021]              Cristina Costantini, Barbara Pacchiarotti, and Flavio Sartoretto. 1998. Numerical Ap-
+with mixed boundary conditions, since the Girsanov and Kelvin                        proximation for Functionals of Reflecting Diffusion Processes. SIAM J. Appl. Math.
+transformations used by these methods (resp.) convert Neumann                        58, 1 (1998), 73–102.
+                                                                                 Carsten Dachsbacher, Jaroslav Křivánek, Miloš Hašan, Adam Arbree, Bruce Walter, and
+conditions into Robin conditions. Work by [Simonov 2017, Section                     Jan Novák. 2014. Scalable realistic rendering with many-light methods. In Computer
+1] provides one possible starting point.                                             Graphics Forum, Vol. 33. Wiley Online Library, 88–104.
+                                                                                 Cuiyang Ding, Changhao Yan, Xuan Zeng, and Wei Cai. 2022. A Parallel Iterative
+                                                                                     Probabilistic Method for Mixed Problems of Laplace Equations with the Feynman–
+   Extension to Other PDEs. Though we have developed WoSt in                         Kac Formula of Killed Brownian Motions. SIAM J. Sci. Comp. 44, 5 (2022).
+the context of (screened) Poisson equations, we believe the basic                Dean G Duffy. 2015. Green’s functions with applications. Chapman and Hall/CRC.
+algorithmic strategy applies more broadly: fundamentally, the WoSt               Sergey M Ermakov and Alexander S Sipin. 2009. The “walk in hemispheres” process
+                                                                                     and its applications to solving boundary value problems. Vestnik St. Petersburg
+algorithm depends on the structure of the BIE, and BIE formula-                      University: Mathematics 42 (2009), 155–163. Issue 3.
+tions are readily available for a variety of other PDEs, including               Alejandro Conty Estevez and Christopher Kulla. 2018. Importance Sampling of Many
+the Helmholtz equation [Hunter and Pullan 2001, Chapter 3], linear                   Lights with Adaptive Tree Splitting. 1, 2 (Aug. 2018), 25:1–25:17.
+                                                                                 Lawrence C Evans. 1998. Partial differential equations. Vol. 19. Rhode Island, USA.
+elasticity [Hunter and Pullan 2001, Chapter 4] and the biharmonic                Nicole Feng, Mark Gillespie, and Keenan Crane. 2023. Winding Numbers on Discrete
+equation [Ingham and Kelmanson 2012]. Stochastic integral for-                       Surfaces. ACM Trans. Graph. (2023).
+                                                                                 George Fishman. 2006. Monte Carlo: concepts, algorithms, and applications. Springer
+mulations are also known for Navier-Stokes [Busnello et al. 2005;                    Science & Business Media.
+Rioux-Lavoie et al. 2022].                                                       Pau Gargallo, Emmanuel Prados, and Peter Sturm. 2007. Minimizing the reprojection
+   Even within the class of PDEs presented here, geometric scal-                     error in surface reconstruction from images. In IEEE Int. Conf. Comp. Vis. 1–8.
+                                                                                 Michaël Gharbi, Tzu-Mao Li, Miika Aittala, Jaakko Lehtinen, and Frédo Durand. 2019.
+ability will likely pay dividends in well-chosen scientific and en-                  Sample-Based Monte Carlo Denoising Using a Kernel-Splatting Network. ACM Trans.
+gineering contexts—just as it has for Monte Carlo simulation of                      Graph. 38, 4, Article 125 (jul 2019), 12 pages. https://doi.org/10.1145/3306346.3322954
+light transport. In general, the very different capabilities of grid-            Michael B Giles. 2015. Multilevel monte carlo methods. Acta numerica 24 (2015),
+                                                                                     259–328.
+free Monte Carlo methods are still largely unexplored in geometric,              Denis S Grebenkov. 2006. Partially reflected Brownian motion: a stochastic approach
+visual, and scientific computing, with many unique benefits and                      to transport phenomena. arXiv preprint math/0610080 (2006).
+                                                                                 Denis S Grebenkov. 2007. NMR survey of reflected Brownian motion. Reviews of Modern
+attractive use cases yet to be discovered.                                           Physics 79, 3 (2007), 1077.
+                                                                                 Karl Gustafson and Takehisa Abe. 1998. The third boundary condition—was it Robin’s?
+ACKNOWLEDGMENTS                                                                      The Mathematical Intelligencer 20, 1 (1998), 63–71.
+                                                                                 Toshiya Hachisuka and Henrik Wann Jensen. 2009. Stochastic Progressive Photon
+The authors thank Gautam Iyer for suggesting Tikhonov regulariza-                    Mapping. ACM Trans. Graph. 28, 5 (dec 2009), 1–8. https://doi.org/10.1145/1618452.
+tion, and Dario Seyb and Rasmus Tamstorf for fruitful conversations.                 1618487
+                                                                                 Toshiya Hachisuka, Shinji Ogaki, and Henrik Wann Jensen. 2008. Progressive Photon
+This work was generously supported by nTopology and Disney Re-                       Mapping. ACM Trans. Graph. 27, 5, Article 130 (2008), 8 pages.
+search, NSF awards 1943123, 2212290 and 2008123, Alfred P. Sloan                 Wolfgang Hackbusch. 2015. Hierarchical matrices: algorithms and analysis. Vol. 49.
+                                                                                     Springer.
+Research Fellowship FG202013153, a Packard Fellowship, NSF Grad-                 David W Hahn and M Necati Özisik. 2012. Heat conduction. John Wiley & Sons.
+uate Research Fellowship DGE2140739, and an NVIDIA Graduate                      Guillermo Hansen, Irmina Herburt, Horst Martini, and Maria Moszyńska. 2020. Star-
+Fellowship.                                                                          shaped sets. Aequationes mathematicae 94, 6 (2020), 1001–1092.
+
+
+ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+                                                                         Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions •                 1:17
+
+
+John C Hart. 1996. Sphere tracing: A geometric method for the antialiased ray tracing       Damien Rioux-Lavoie, Ryusuke Sugimoto, Tümay Özdemir, Naoharu H. Shimada,
+   of implicit surfaces. The Visual Computer 12, 10 (1996), 527–545.                             Christopher Batty, Derek Nowrouzezahrai, and Toshiya Hachisuka. 2022. A Monte
+Eric Heitz, Jonathan Dupuy, Cyril Crassin, and Carsten Dachsbacher. 2015. The SGGX               Carlo Method for Fluid Simulation. ACM Trans. Graph. 41, 6, Article 240 (nov 2022),
+   Microflake Distribution. ACM Trans. Graph. 34, 4, Article 48 (2015), 11 pages.               16 pages. https://doi.org/10.1145/3550454.3555450
+Sebastian Herholz, Yangyang Zhao, Oskar Elek, Derek Nowrouzezahrai, Hendrik P A             Karl K Sabelfeld and Nikolai A Simonov. 2013. Random walks on boundary for solving
+   Lensch, and Jaroslav Křivánek. 2019. Volume Path Guiding Based on Zero-Variance               PDEs. De Gruyter.
+   Random Walk Theory. ACM Trans. Graph. 38, 3, Article 25 (2019), 19 pages.                Rohan Sawhney. 2021. FCPW: Fastest Closest Points In The West. https://github.com/
+Desmond J Higham. 2001. An algorithmic introduction to numerical simulation of                   rohan-sawhney/fcpw
+   stochastic differential equations. SIAM review 43, 3 (2001), 525–546.                    Rohan Sawhney and Keenan Crane. 2020. Monte Carlo Geometry Processing: A Grid-
+Yixin Hu, Teseo Schneider, Bolun Wang, Denis Zorin, and Daniele Panozzo. 2020. Fast              Free Approach to PDE-Based Methods on Volumetric Domains. ACM Trans. Graph.
+   Tetrahedral Meshing in the Wild. ACM Trans. Graph. 39, 4 (2020), 18 pages.                    39, 4, Article 123 (aug 2020), 18 pages. https://doi.org/10.1145/3386569.3392374
+Peter Hunter and Andrew Pullan. 2001. Fem/bem notes. Department of Engineering              Rohan Sawhney, Dario Seyb, Wojciech Jarosz, and Keenan Crane. 2022. Grid-Free
+   Science, The University of Auckland, New Zeland (2001).                                       Monte Carlo for PDEs with Spatially Varying Coefficients. ACM Trans. Graph. 41, 4,
+Derek B Ingham and Mark A Kelmanson. 2012. Boundary integral equation analyses of               Article 53 (jul 2022), 17 pages. https://doi.org/10.1145/3528223.3530134
+   singular, potential, and biharmonic problems. Vol. 7. Springer Sci. Bus. Med.            Christoph Schied, Anton Kaplanyan, Chris Wyman, Anjul Patney, Chakravarty R Alla
+Intel. 2013. Embree: High Performance Ray Tracing Kernels. http://embree.github.io/              Chaitanya, John Burgess, Shiqiu Liu, Carsten Dachsbacher, Aaron Lefohn, and Marco
+Kurt Jacobs. 2010. Stochastic processes for physicists: understanding noisy systems.             Salvi. 2017. Spatiotemporal variance-guided filtering: real-time reconstruction for
+   Cambridge University Press.                                                                   path-traced global illumination. In Proceedings of High Performance Graphics. 1–12.
+David E Johnson and Elaine Cohen. 2001. Spatialized normal come hierarchies. In             Christoph Schied, Christoph Peters, and Carsten Dachsbacher. 2018. Gradient estima-
+   Proceedings of the 2001 symposium on Interactive 3D graphics. 129–134.                        tion for real-time adaptive temporal filtering. Proceedings of the ACM on Computer
+Malvin H Kalos and Paula A Whitlock. 2009. Monte carlo methods. John Wiley & Sons.               Graphics and Interactive Techniques 1, 2 (2018), 1–16.
+Csaba Kelemen, László Szirmay-Kalos, György Antal, and Ferenc Csonka. 2002. A               Thomas BA Senior. 1960. Impedance boundary conditions for imperfectly conducting
+   simple and robust mutation strategy for the metropolis light transport algorithm. In          surfaces. Applied Scientific Research, Section B 8, 1 (1960), 418–436.
+   Computer Graphics Forum, Vol. 21. Wiley Online Library, 531–540.                         Nicholas Sharp and Alec Jacobson. 2022. Spelunking the Deep: Guaranteed Queries
+Alexander Keller. 1997. Instant radiosity. In Proceedings of the 24th annual conference          on General Neural Implicit Surfaces via Range Analysis. ACM Trans. Graph. 41, 4,
+   on Computer graphics and interactive techniques. 49–56.                                      Article 107 (jul 2022), 16 pages. https://doi.org/10.1145/3528223.3530155
+Pawel Kozlowski and Tim Cheblokov. 2021. ReLAX: A Denoiser Tailored to Work with            Nikolai A Simonov. 2008. Walk-on-Spheres Algorithm for Solving Boundary-Value Prob-
+   the ReSTIR Algorithm. GPU Technology Conference (2021).                                       lems with Continuity Flux Conditions. Springer Berlin Heidelberg, Berlin, Heidelberg.
+Bastian Krayer and Stefan Müller. 2021. Hierarchical Point Distance Fields. In Interna-          633–643 pages.
+   tional Symposium on Visual Computing. Springer, 435–446.                                 Nikolai A Simonov. 2017. Walk-on-spheres algorithm for solving third boundary value
+Eric P Lafortune and Yves D Willems. 1993. Bi-directional path tracing. In Proc. Int.            problem. Applied Mathematics Letters 64 (2017), 156–161.
+   Conf. Comp. Graph. Vis. Tech. Alvor, Portugal.                                           Ryusuke Sugimoto, Terry Chen, Yiti Jiang, Christopher Batty, and Toshiya Hachisuka.
+Tzu-Mao Li, Miika Aittala, Frédo Durand, and Jaakko Lehtinen. 2018. Differentiable               2023. A Practical Walk-on-Boundary Method for Boundary Value Problems. ACM
+   Monte Carlo Ray Tracing through Edge Sampling. ACM Trans. Graph. 37, 6 (2018).                Trans. Graph. 42, 4 (aug 2023), 16 pages. https://doi.org/10.1145/3592109
+Sylvain Maire and Etienne Tanré. 2013. Monte Carlo approximations of the Neumann            Eric Veach and Leonidas Guibas. 1995a. Bidirectional estimators for light transport. In
+   problem. Monte Carlo Methods and Applications 19, 3 (2013), 201–236.                          Photorealistic Rendering Techniques. Springer, 145–167.
+Michael Mascagni and Nikolai A Simonov. 2004. Monte Carlo Methods for Calculating           Eric Veach and Leonidas J Guibas. 1995b. Optimally combining sampling techniques for
+   Some Physical Properties of Large Molecules. SIAM J. Sci. Comp. 26, 1 (2004).                 Monte Carlo rendering. In Proceedings of the 22nd annual conference on Computer
+Bailey Miller, Rohan Sawhney, Keenan Crane, and Ioannis Gkioulekas. 2023. Boundary               graphics and interactive techniques. 419–428.
+   Value Caching for Walk on Spheres. ACM Trans. Graph. 42, 4 (2023).                       Eric Veach and Leonidas J. Guibas. 1997. Metropolis Light Transport. In Proceedings
+Zackary Misso, Benedikt Bitterli, Iliyan Georgiev, and Wojciech Jarosz. 2022. Unbiased           of the 24th Annual Conference on Computer Graphics and Interactive Techniques
+   and Consistent Rendering Using Biased Estimators. ACM Trans. Graph. 41, 4 (2022).            (SIGGRAPH ’97). ACM Press/Addison-Wesley Publishing Co., USA, 65–76. https:
+Linus Mossberg. 2021. GPU-Accelerated Monte Carlo Geometry Processing for Gradient-             //doi.org/10.1145/258734.258775
+   Domain Methods. Ph. D. Dissertation. Linköping University, Linköping, Sweden.            Jiří Vorba and Jaroslav Křivánek. 2016. Adjoint-Driven Russian Roulette and Splitting in
+Mervin E Muller. 1956. Some Continuous Monte Carlo Methods for the Dirichlet                     Light Transport Simulation. ACM Trans. Graph. 35, 4, Article 42 (jul 2016), 11 pages.
+   Problem. Annals of Mathematical Statistics 27, 3 (Sept. 1956), 569–589.                       https://doi.org/10.1145/2897824.2925912
+Thomas Müller, Markus Gross, and Jan Novák. 2017. Practical path guiding for efficient      Carsten Wächter and Nikolaus Binder. 2019. A fast and robust method for avoiding
+   light-transport simulation. In Comp. Graph. Forum, Vol. 36. Wiley Online Library.             self-intersection. Ray Tracing Gems: High-Quality and Real-Time Rendering with
+Thomas Müller, Brian Mcwilliams, Fabrice Rousselle, Markus Gross, and Jan Novák.                 DXR and Other APIs (2019), 77–85.
+   2019. Neural Importance Sampling. ACM Trans. Graph. 38, 5 (2019).                        Ingo Wald. 2007. On fast construction of SAH-based bounding volume hierarchies. In
+Thomas Müller, Fabrice Rousselle, Alexander Keller, and Jan Novák. 2020. Neural                  2007 IEEE Symposium on Interactive Ray Tracing. IEEE, 33–40.
+   Control Variates. ACM Trans. Graph. 39, 6 (2020).                                        Ingo Wald, Will Usher, Nathan Morrical, Laura Lediaev, and Valerio Pascucci. 2019.
+Nathan Myhrvold and Francisco J Migoya. 2017. Modernist bread. Cooking Lab.                      RTX Beyond Ray Tracing: Exploring the Use of Hardware Ray Tracing Cores for
+Mohammad Sina Nabizadeh, Ravi Ramamoorthi, and Albert Chern. 2021. Kelvin                       Tet-Mesh Point Location.. In High Performance Graphics (Short Papers). 7–13.
+   Transformations for Simulations on Infinite Domains. ACM Trans. Graph. 40, 4,            Turner Whitted. 1980. An Improved Illumination Model for Shaded Display. Commun.
+   Article 97 (jul 2021), 15 pages. https://doi.org/10.1145/3450626.3459809                      ACM 23, 6 (jun 1980), 343–349. https://doi.org/10.1145/358876.358882
+Fabrice Neyret. 1998. Modeling, animating, and rendering complex scenes using volu-         Lifan Wu, Shuang Zhao, Ling-Qi Yan, and Ravi Ramamoorthi. 2019. Accurate Appear-
+   metric textures. IEEE Trans. Vis. Comp. Graph. 4, 1 (1998).                                   ance Preserving Prefiltering for Rendering Displacement-Mapped Surfaces. ACM
+NVIDIA. 2017. NVIDIA OptiX AI-Accelerated Denoiser. https://developer.nvidia.com/                Trans. Graph. 38, 4, Article 137 (jul 2019), 14 pages. https://doi.org/10.1145/3306346.
+   optix-denoiser.                                                                               3322936
+NVIDIA. 2022. NVIDIA Real-time denoisers (NRD). https://developer.nvidia.com/rtx/           Ekrem Fatih Yılmazer, Delio Vicini, and Wenzel Jakob. 2022. Solving Inverse PDE
+   ray-tracing/rt-denoisers.                                                                     Problems using Grid-Free Monte Carlo Estimators. arXiv preprint arXiv:2208.02114
+Yaobin Ouyang, Shiqiu Liu, Markus Kettunen, Matt Pharr, and Jacopo Pantaleoni. 2021.            (2022).
+   ReSTIR GI: Path Resampling for Real-Time Path Tracing. In Computer Graphics              Yijing Zhou, Wei Cai, and Elton Hsu. 2017. Computation of the local time of reflecting
+   Forum, Vol. 40. Wiley Online Library, 17–29.                                                  brownian motion and the probabilistic representation of the neumann problem.
+Paul William Partridge, Carlos Alberto Brebbia, et al. 2012. Dual reciprocity boundary           Communications in Mathematical Sciences 15, 1 (2017), 237–259.
+   element method.                                                                          Matthias Zwicker, Wojciech Jarosz, Jaakko Lehtinen, Bochang Moon, Ravi Ramamoorthi,
+Matt Pharr, Wenzel Jakob, and Greg Humphreys. 2016. Physically based rendering: From             Fabrice Rousselle, Pradeep Sen, Cyril Soler, and S-E Yoon. 2015. Recent advances
+   theory to implementation. Morgan Kaufmann.                                                    in adaptive sampling and reconstruction for Monte Carlo rendering. In Computer
+Helmut Pottmann, Johannes Wallner, Yong-Liang Yang, Yu-Kun Lai, and Shi-Min Hu.                  graphics forum, Vol. 34. Wiley Online Library, 667–681.
+   2007. Principal curvatures from the integral invariant viewpoint. Computer Aided
+   Geometric Design 24, 8-9 (2007), 428–442.
+Yang Qi, Dario Seyb, Benedikt Bitterli, and Wojciech Jarosz. 2022.                    A
+   bidirectional formulation for Walk on Spheres.                    Computer Graph-
+   ics Forum 41, 4 (2022), 51–62.                     https://doi.org/10.1111/cgf.14586
+   arXiv:https://onlinelibrary.wiley.com/doi/pdf/10.1111/cgf.14586
+
+
+
+                                                                                                      ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+1:18   •    Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane
+
+
+A      GREEN’S FUNCTIONS AND POISSON KERNELS                                          Their integral over the ball 𝐵(𝑥, 𝑅) equals:
+                                                                                                      ∫                                           
+Here we provide expressions for Green’s functions and Poisson                              𝜎,𝐵                   𝜎,𝐵             1            1
+kernels in free-space and over a ball in 2D and 3D. Our WoSt estima-                    |𝐺 2D  (𝑥)| B          𝐺 2D  (𝑥, 𝑦) d𝑦 =     1−        √     ,     (37)
+                                                                                                       𝐵 (𝑥,𝑅)                   𝜎      𝐼 0 (𝑅 𝜎)
+tor uses these functions to solve the Poisson and screened Poisson                                    ∫                                       √       
+                                                                                           𝜎,𝐵                   𝜎,𝐵             1           𝑅 𝜎
+equations via their boundary integral formulation.                                      |𝐺 3D  (𝑥)| B          𝐺 3D  (𝑥, 𝑦) d𝑦 =     1−          √       . (38)
+                                                                                                       𝐵 (𝑥,𝑅)                   𝜎      sinh(𝑅 𝜎)
+A.1        Poisson Equation                                                           Finally, the corresponding Poisson kernels at any point 𝑦 ∈ 𝐵 equal
+                                                                                                                                           2
+The free-space Green’s functions in 2D and 3D for two points 𝑥 and                                          𝜎,𝐵
+                                                                                                           𝑃2D             𝜎,𝐵
+                                                                                                                (𝑥, 𝑦) = 𝑄 2D  (𝑥, 𝑦) 𝑃 R (𝑥, 𝑦),             (39)
+𝑦 equal:                                                                                                                                  3
+                                                                                                             𝜎,𝐵            𝜎,𝐵
+                   2            log(𝑟 )        3            1                                              𝑃 3D  (𝑥, 𝑦) = 𝑄 3D  (𝑥, 𝑦) 𝑃 R (𝑥, 𝑦),            (40)
+               𝐺 R (𝑥, 𝑦) =             , 𝐺 R (𝑥, 𝑦) =         ,        (24)
+                                  2𝜋                      4𝜋𝑟                         where
+where 𝑟 B ∥𝑦 − 𝑥 ∥. The corresponding Poisson kernels equal:                                                                     √ 
+                                                                                                            √           √ 𝐾0 (𝑅 𝜎) √
+                                                                                                      
+                                                                                         𝜎,𝐵
+         2           𝑛 𝑦 · (𝑦 − 𝑥)         3          𝑛 𝑦 · (𝑦 − 𝑥)                    𝑄 2D  (𝑥, 𝑦) B 𝐾1 (𝑟 𝜎) + 𝐼 1 (𝑟 𝜎)       √   𝑟 𝜎,                     (41)
+     𝑃 R (𝑥, 𝑦) =                  , 𝑃 R (𝑥, 𝑦) =                   ,   (25)                                               𝐼 0 (𝑅 𝜎)
+                          2𝜋𝑟 2                           4𝜋𝑟 3                                           √   √
+                                                                                             (𝑥, 𝑦) B 𝑒 −𝑟 𝜎 𝑟 𝜎 + 1 +
+                                                                                         𝜎,𝐵                          
+where 𝑛 𝑦 is the unit normal at 𝑦.                                                     𝑄 3D                                                                   (42)
+                                                                                                                                                         √
+   For a ball 𝐵(𝑥, 𝑅) of radius 𝑅 centered at 𝑥, we can derive 2D and                                               √    √          √               𝑒 −𝑅 𝜎
+3D Green’s functions from the corresponding free-space expressions                                            cosh(𝑟 𝜎) 𝑟 𝜎 − sinh(𝑟 𝜎)                √ .
+                                                                                                                                                 sinh(𝑅 𝜎)
+using the method of images [Duffy 2015]. This gives:
+                                                                                    We note that 𝑄 𝜎,𝐵 ∈ [0, 1) for 𝜎 > 0. Using Equation 39, we in-
+           𝐵             log(𝑅/𝑟 )        𝐵            1 1 1                          troduce a multiplicative weight of 𝑄 𝜎,𝐵 in the solution estimate at
+        𝐺 2D  (𝑥, 𝑦) =             , 𝐺 3D    (𝑥, 𝑦) =          −      . (26)
+                             2𝜋                       4𝜋 𝑟 𝑅                          every step of a WoSt random walk for a screened Poisson equation,
+                                                                                                                                        𝑁
+These functions integrate over the ball 𝐵(𝑥, 𝑅) to:                                   since directions are sampled proportionally to 𝑃 R (Section 4.4). As
+                𝐵
+                          ∫
+                                     𝐵              𝑅2                                we mention in Section 3.4.2, the cumulative product of 𝑄 𝜎,𝐵 can be
+             |𝐺 2D (𝑥)| B          𝐺 2D (𝑥, 𝑦) d𝑦 =    ,                       (27)   used as a Russian roulette probability to terminate walks.
+                           𝐵 (𝑥,𝑅)                  4
+                                                                                      B    OPEN DOMAINS AND DOUBLE-SIDED BOUNDARIES
+                          ∫
+                𝐵                    𝐵              𝑅2
+             |𝐺 3D (𝑥)| B          𝐺 3D (𝑥, 𝑦) d𝑦 =    .                       (28)
+                           𝐵 (𝑥,𝑅)                  6                                 Here we describe how to modify Algorithm 1 to support double-
+The corresponding Poisson kernels are the same as their free-space                    sided boundary conditions in an open domain Ω ⊂ R𝑁 . We start
+counterparts. For any point 𝑦 ∈ 𝜕𝐵 where 𝑛 𝑦 = (𝑦 − 𝑥)/𝑅, they                        with the BIE for double-sided boundary conditions [Costabel 1987]:
+simplify to:
+                                                                                                                                boundary
+                            1                   1                                                                                        +
+                                                                                                                                         𝜕𝑢 (𝑧) 𝜕𝑢 −(𝑧)
+               𝐵                  𝐵
+                  (𝑥, 𝑦) =           (𝑥, 𝑦) =
+                                                                                                     ∫                                                  
+             𝑃 2D              , 𝑃3D                .          (29)
+                                                                                                      𝑃 +(𝑥, 𝑧) 𝑢 +(𝑧) −𝑢 −(𝑧) −𝐺 (𝑥, 𝑧)
+                                                                                                                             
+                           2𝜋𝑅                4𝜋𝑅 2                                   𝛼 (𝑥)𝑢 (𝑥) =                                             −          d𝑧
+                                                                                                     𝜕Ω                                   𝜕𝑛𝑧+   𝜕𝑛𝑧−
+A.2        Screened Poisson Equation
+                                                                                                             domain
+Let 𝐼𝑛 and 𝐾𝑛 (for 𝑛 = 0, 1, . . .) denote modified Bessel functions of                              ∫
+the first and second kind, resp. The free-space Green’s functions in                            +        𝐺 (𝑥, 𝑦) 𝑓 (𝑦) d𝑦 ,                                  (43)
+2D and 3D for a screened Poisson equation with a positive screening                                  Ω
+coefficient 𝜎 then equal:
+                                                           √                          where 𝑛 + and 𝑛 − denote unit outward and inward facing normals
+                                √
+                2         𝐾0 (𝑟 𝜎)           3         𝑒 −𝑟 𝜎                         on 𝜕Ω, resp., 𝑢 + and 𝑢 − represent corresponding solution values on
+           𝐺 𝜎,R (𝑥, 𝑦) =             , 𝐺 𝜎,R (𝑥, 𝑦) =        .    (30)               either side of 𝜕Ω, and the kernel 𝑃 + (𝑥, 𝑧) B 𝜕𝐺 (𝑥,𝑧)/𝜕𝑛𝑧+ . Since all
+                             2𝜋                          4𝜋𝑟
+The corresponding Poisson kernels are:                                                points are either on the boundary or the domain interior, 𝛼 = 1/2
+                            2                   2               2                     on 𝜕Ω and 1 otherwise.
+                     𝑃 𝜎,R (𝑥, 𝑦) = 𝑄 𝜎,R (𝑥, 𝑦) 𝑃 R (𝑥, 𝑦),                   (31)      The high-level idea is to estimate Equa-
+                         𝜎,R3                𝜎,R3              R3                     tion 43 by choosing an appropriate set
+                     𝑃          (𝑥, 𝑦) = 𝑄          (𝑥, 𝑦) 𝑃        (𝑥, 𝑦),    (32)
+                                                                                      of boundary conditions to use in a star-
+where                                                                                 shaped region St(𝑥𝑘 , 𝑟 ) centered at the
+                              2               √   √
+                         𝑄 𝜎,R (𝑥, 𝑦) B 𝐾1 (𝑟 𝜎) 𝑟 𝜎,                          (33)   current walk location 𝑥𝑘 , i.e., 𝑔+ or 𝑔−
+                                            √   √                                     as the Dirichlet data when 𝑥𝑘 ∈ 𝜕Ω𝐷 ,
+                         𝑄 𝜎,R (𝑥, 𝑦) B 𝑒 −𝑟 𝜎 𝑟 𝜎 + 1 .
+                              3                       
+                                                                               (34)
+                                                                                      and ℎ + or ℎ − as the Neumann data in St
+For a ball 𝐵(𝑥, 𝑅), the 2D and 3D Green’s functions are:                              when 𝑥𝑘 ∈ 𝜕Ω𝑁 . The choice of bound-
+                                                        √ 
+                                  √           √ 𝐾0 (𝑅 𝜎)
+                                                                                     ary conditions depends on whether the
+           𝜎,𝐵           1
+         𝐺 2D (𝑥, 𝑦) =       𝐾0 (𝑟 𝜎) − 𝐼 0 (𝑟 𝜎)       √   ,                  (35)   boundary 𝜕Ω is front- or back-facing relative to 𝑥𝑘 or 𝑥𝑘−1 for 𝑘 > 0
+                        2𝜋                        𝐼 0 (𝑅 𝜎)
+                                          √                                         (inset). We assume the boundary 𝜕Ω has a canonical orientation de-
+           𝜎,𝐵           1 sinh((𝑅 − 𝑟 ) 𝜎)                                           fined by the unit outward normal 𝑛𝑧+ for any point 𝑧 ∈ 𝜕Ω, and that
+         𝐺 3D  (𝑥, 𝑦) =                √        .                              (36)
+                        4𝜋     𝑟 sinh(𝑅 𝜎)                                            the walk’s direction of approach towards 𝜕Ω equals 𝑞𝑘 B 𝑥𝑘 − 𝑥𝑘−1 .
+
+ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+                                                                  Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions •               1:19
+
+
+For 𝑘 = 0, we require 𝑞 0 as input to the algorithm to determine the                 D        WHY SAMPLE THE NEUMANN TERM SEPARATELY
+user-specified choice of boundary conditions to use; for instance,                  We use two separate samples 𝑥𝑘+1 and 𝑧𝑘+1 to estimate the first
+setting 𝑞 0 = 𝑛𝑥+0 uses 𝑔+ if 𝑥 0 ∈ 𝜕Ω𝐷 .                                           and second terms in Equation 18 corresponding to the unknown
+   For double-sided Dirichlet boundary conditions, we change line                   solution value 𝑢 and known Neumann data ℎ, resp. However, we
+5 in Algorithm 1 to return 𝑔+ when 𝑞𝑘 · 𝑛𝑥+ > 0 and 𝑔− otherwise;                   could in theory use 𝑥𝑘+1 to estimate both boundary terms. To do so,
+                                              𝑘
+the dot product determines whether the boundary is back-facing                      we would rewrite the WoSt estimator as follows:
+relative to 𝑥𝑘−1 . Before using hemispherical direction sampling on
+                                                                                                                                 boundary
+𝜕Ω𝑁 to determine the next walk location 𝑥𝑘+1 (line 13), we flip the
+direction of the boundary normal 𝑛𝑥+𝑘 if 𝑞𝑘 · 𝑛𝑥+𝑘 < 0; this ensures                                   𝑃 𝐵(𝑥𝑘 , 𝑥𝑘+1 ) 𝑢b(𝑥𝑘+1 )         𝐺 𝐵(𝑥𝑘 , 𝑥𝑘+1 ) ℎ(𝑥˜ 𝑘+1 )
+                                                                                          𝑢b(𝑥𝑘 ) B                                  −
+that 𝑥𝑘+1 lies on the same side of the boundary as the direction from                                 𝛼 (𝑥𝑘 ) 𝑝 𝜕St(𝑥𝑘 ,𝑟 )(𝑥𝑘+1 )       𝛼 (𝑥𝑘 ) 𝑝 𝜕St(𝑥 𝑘 ,𝑟 )(𝑥
+                                                                                                                                                                  𝑘+1 )
+which the walk approached 𝜕Ω𝑁 . Finally, we let 𝑧𝑘+1 be a Neumann
+sample on 𝜕St𝑁 for double-sided Neumann conditions. In line 23,                                                 interior
+we then use ℎ + on 𝑧𝑘+1 if (𝑧𝑘+1 − 𝑥𝑘 ) · 𝑛𝑧+𝑘+1 > 0 and ℎ − otherwise                              𝐺 𝐵(𝑥𝑘 , 𝑦𝑘+1 ) 𝑓 (𝑦𝑘+1 )
+                                                                                                  +                              ,                                        (44)
+when 𝑥𝑘 ∉ 𝜕Ω𝑁 ; the boundary orientation in this case is determined                                 𝛼 (𝑥𝑘 ) 𝑝 St(𝑥𝑘 ,𝑟 ) (𝑦𝑘+1 )
+relative to 𝑥𝑘 . When 𝑥𝑘 ∈ 𝜕Ω𝑁 , we use ℎ + as the Neumann data on
+𝑧𝑘+1 if the boundary normal is flipped and ℎ − otherwise.                           where                    (
+   There is a non-zero probability for a random walk to wander off                                ˜            ℎ(𝑥𝑘+1 ), 𝑥𝑘+1 ∈ 𝜕St𝑁 (𝑥𝑘 , 𝑟 ),
+                                                                                                 ℎ(𝑥𝑘+1 ) B                                               (45)
+to infinity when using WoSt in an open domain or in the exterior of                                            0,            𝑥𝑘+1 ∈ 𝜕St𝐵 (𝑥𝑘 , 𝑟 ).
+a closed domain; this corresponds to the non-recurrent behavior of                  In practice, this approach is problematic as the second term in
+Brownian motion in 2D and 3D [Borodin and Salminen 2015, Chap-                      Equation 44 is biased: the direction sampling procedure in Section 4.4
+ter 2]. Nabizadeh et al. [2021] use WoS to solve exterior problems                  never samples a point 𝑥𝑘+1 on a flat Neumann boundary when
+with pure Dirichlet boundary conditions outside a closed domain by                  𝑥𝑘 ∈ 𝜕Ω𝑁 , even if ℎ is non-zero there. This is because the Poisson
+performing a spherical inversion of the domain. We leave extending                  kernel 𝑃 𝐵 in Equation 19 (which serves as our sampling density 𝑝 𝜕St )
+their approach to mixed boundary-value problems to future work.                     is zero for points 𝑥𝑘+1 where 𝑛𝑥𝑘+1 ⊥ (𝑥𝑘+1 − 𝑥𝑘 ). More generally,
+                                                                                    even for non-flat boundaries, the ratio 𝐺 𝐵/𝑝 𝜕St B 𝐺 𝐵/𝑃 𝐵 in the second
+                                                                                    term in Equation 44 results in high-variance estimates as the Poisson
+C    WHY NOT ALWAYS USE THE FIRST INTERSECTION                                      kernel can take on both very large and small values. These issues
+                                                                                    motivate our use of a separate sample 𝑧𝑘+1 from the probability
+At first glance, the discussion in Sec-
+                                                                                    density function 𝑝 𝜕St𝑁 (𝑥𝑘 ,𝑟 )(𝑧𝑘+1 ) (Equation 18), which we generate
+tion 4.4.1 prompts a simple idea for cre
+                                                     pu                             using the procedure described in Section 4.5.
+generalizing the technique of Simonov               lin scu
+                                                       e lar
+[2008] and Ermakov and Sipin [2009]
+                                                                                     E        PSEUDOCODE
+to nonconvex domains (which unfortu-
+nately does not work): consider the sub-                                             Here we provide pseudocode for the geometric queries in Section 5.
+domain 𝐵(𝑥𝑘 , 𝑑 Dirichlet ) ∩ Ω, and sample
+                                                                                    Algorithm 2 SilhouetteDistanceNeumann(𝑥, 𝑟 max = ∞)
+the next point 𝑥𝑘+1 by taking the first in-
+tersection with 𝜕 (𝐵(𝑥𝑘 , 𝑑 Dirichlet ) ∩ Ω)                                         Input: A query point 𝑥 ∈ R3 & a radius 𝑟 around 𝑥 to search in.
+along a ray 𝑣 from 𝑥𝑘 , ignoring any later intersections. This is                    Output: The closest point to 𝑥 on the visibility silhouette of 𝜕Ω𝑁 .
+analogous to choosing a BIE subdomain 𝐴 ⊂ 𝐵(𝑥𝑘 , 𝑑 Dirichlet ) ∩ Ω                    1: return DistClosestSilhouette(snch.root, 𝑥, 𝑟 max )
+comprising only points in 𝐵(𝑥𝑘 , 𝑑 Dirichlet ) ∩ Ω visible to 𝑥𝑘 . The
+boundary of such a subdomain 𝐴 is made up of two components:                        Algorithm 3 DistClosestSilhouette(𝑇 , 𝑥, 𝑟, 𝑑𝑇min = 0)
+first, the part of 𝜕 (𝐵(𝑥𝑘 , 𝑑 Dirichlet ) ∩ Ω) that is visible to 𝑥𝑘 ; second,
+                                                                                     Input: A spatialized normal cone hierarchy𝑇 , a query point 𝑥 ∈ R3 ,
+any crepuscular rays [Gargallo et al. 2007] corresponding to the
+                                                                                         a radius 𝑟 around 𝑥 to search in, and optionally the minimum
+visibility silhouette on 𝜕 (𝐵(𝑥𝑘 , 𝑑 Dirichlet ) ∩ Ω) with respect to 𝑥𝑘
+                                                                                         distance to 𝑇 ’s AABB from 𝑥 (0 if 𝑥 is inside AABB).
+(see inset).
+                                                                                     Output: Distance from 𝑥 to closest point on visibility silhouette.
+   The second component is the reason why just sampling the first
+                                                                                      1: if 𝑑 min > 𝑟 then return 𝑟 ⊲Ignore nodes outside search radius
+intersection would produce biased results, as one would never sam-                           𝑇
+ple any points on the crepuscular rays. Even if we considered a                          2: if 𝑇 .isLeaf then
+modified sampling strategy that allowed for generating points 𝑧 on                       3:     ⊲Return distance to closest silhouette edge in leaf node
+these rays, we would additionally need to estimate the normal deriv-                     4:     for 𝑒 in 𝑇 .edges do
+ative 𝜕𝑢 (𝑧)/𝜕𝑛𝑧 of the solution at 𝑧 as this data is only known on the                  5:         𝑝𝑒 ← ClosestPointOnEdge(𝑒, 𝑥)
+Neumann boundary. (An estimate of the solution 𝑢 (𝑧) is not needed,                      6:        𝑣 ← 𝑝𝑒 − 𝑥
+as the Poisson kernel is zero on crepuscular rays.) By constrast, we                     7:        𝑑𝑒 ← |𝑣 |
+shrink the subdomain A to 𝐵(𝑥𝑘 , min (𝑑 Dirichlet, 𝑑 silhouette )) ∩ Ω in                8:         if 𝑑𝑒 < 𝑟 then
+Section 4.4.2 so that it does not contain any crepuscular rays—using                     9:             hasTri0, 𝑛 0 ← GetAdjacentTriangleNormal(𝑒, 0)
+just the first intersection then evades the aforementioned problems.                 10:                hasTri1, 𝑛 1 ← GetAdjacentTriangleNormal(𝑒, 1)
+
+                                                                                               ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+1:20   •   Rohan Sawhney, Bailey Miller, Ioannis Gkioulekas, and Keenan Crane
+
+
+ 11:                isSilhouetteEdge ← not hasTri0 || not hasTri1 ||
+ 12:                                    (𝑣 · 𝑛 0 ) · (𝑣 · 𝑛 1 ) ≤ 0
+ 13:                if isSilhouetteEdge then return 𝑑𝑒                          Algorithm 5 NeumannBoundarySample(𝑥, 𝑟 )
+ 14: else                                                                       Input: A sphere with center 𝑥 ∈ R3 and radius 𝑟 .
+ 15:    ⊲Intersect AABBs with sphere formed by 𝑥 and 𝑟                          Output: A point 𝑧 ∈ 𝜕Ω𝑁 if the sphere is nonempty, the unit
+ 16:    𝐿, 𝑅 ← 𝑇 .left,𝑇 .right                                                     outward normal 𝑛𝑧 and the probability pdf𝑧 . The sample is not
+ 17:    visit𝐿 , 𝑑𝐿min ← IntersectAABBSphere(𝐿.aabb, 𝑥, 𝑟 )                         guaranteed to lie inside the sphere, but is likely to be near 𝑥.
+ 18:    visit𝑅 , 𝑑𝑅min ← IntersectAABBSphere(𝑅.aabb, 𝑥, 𝑟 )                      1: ⊲Sample a random triangle inside or intersecting with the sphere
+ 19:    ⊲Cull nodes with only front- or back-facing triangles                    2: 𝑡 ← null
+ 20:    if visit𝐿 and 𝑑𝐿min > 0 then                                             3: pdf𝑡 ← 0
+ 21:        visit𝐿 ← HasSilhouette(𝐿.aabb, 𝐿.cone, 𝑥) ⊲Alg. 4                    4: SampleTriangleInSphere(snch.root, 𝑥, 𝑟, 𝑡, pdf𝑡 )
+                                                                                 5: if 𝑡 not null then
+ 22:    if visit𝑅 and 𝑑𝑅min > 0 then
+                                                                                 6:      ⊲Sample a random point 𝑧 on the triangle 𝑡
+ 23:        visit𝑅 ← HasSilhouette(𝑅.aabb, 𝑅.cone, 𝑥) ⊲Alg. 4
+                                                                                 7:     𝑧, 𝑛𝑧 , pdf𝑧 ← SamplePointOnTriangle(𝑡)
+ 24:    if visit𝐿 and visit𝑅 then
+                                                                                 8:      return 𝑧, 𝑛𝑧 , pdf𝑡 · pdf𝑧
+ 25:        if 𝑑𝐿min < 𝑑𝑅min then      ⊲Traverse closer subtree first
+ 26:            𝑟 ← DistClosestSilhouette(𝐿, 𝑥, 𝑟, 𝑑𝐿min )                       9: return null, null, 0
+
+ 27:            return DistClosestSilhouette(𝑅, 𝑥, 𝑟, 𝑑𝑅min )
+ 28:        else                                                                Algorithm 6 SampleTriangleInSphere(𝑇 , 𝑥, 𝑟, 𝑡, pdf𝑡 , pdf𝑇 = 1)
+ 29:            𝑟 ← DistClosestSilhouette(𝑅, 𝑥, 𝑟, 𝑑𝑅min )                      Input: A binary tree 𝑇 , a sphere with center 𝑥 ∈ R3 and radius 𝑟 , a
+ 30:            return DistClosestSilhouette(𝐿, 𝑥, 𝑟, 𝑑𝐿min )                        triangle 𝑡 yet to be selected and its sampling pdf𝑡 . The optional
+ 31:    else if visit𝐿 then                                                          argument computes pdf𝑇 of traversing a random branch in T.
+ 32:        return DistClosestSilhouette(𝐿, 𝑥, 𝑟, 𝑑𝐿min )                       Output: A randomly selected triangle 𝑡 in the sphere & its sampling
+ 33:    else if visit𝑅 then                                                          pdf𝑡 ; no triangle is selected if the sphere does not intersect 𝜕Ω𝑁 .
+ 34:        return DistClosestSilhouette(𝑅, 𝑥, 𝑟, 𝑑𝑅min )                         1: if 𝑇 .isLeaf then
+ 35: return 𝑟                                                                     2:     ⊲Select a random triangle proportionally to its area
+                                                                                  3:     totalArea ← 0
+Algorithm 4 HasSilhouette(aabb, conenormal, 𝑥)                                    4:     for 𝑡𝑇 in 𝑇 .triangles do
+                                                                                  5:         if IntersectTriangleSphere(𝑡𝑇 , 𝑥, 𝑟 ) then
+Input: An AABB aabb, a conenormal encoding normal information                     6:              totalArea ← totalArea + Area(𝑡𝑇 )
+     for the triangles in aabb, and a query point 𝑥.                              7:              if Rand() · totalArea < Area(𝑡𝑇 ) then
+Output: Conservative guess of whether aabb contains a silhouette                  8:                  𝑡 ← 𝑡𝑇
+     with respect to 𝑥, achieved by checking if the normal and view               9:                  pdf𝑡 ← pdf𝑇 · Area(𝑡)
+     cones associated with the AABB contain orthogonal directions.
+                                                                                         if totalArea > 0 then pdf𝑡 ← pdf𝑡 / totalArea
+  1: ⊲aabb may contain silhouette if conenormal ’s half angle is ≥ 90◦
+                                                                                 10:
+                                                                                 11: else
+  2: 𝑎 nc ← conenormal .axis
+                                                                                 12:     ⊲Select subtree to traverse weighted by its proximity to 𝑥
+  3: 𝜃 nc ← conenormal .halfAngle
+  4: if 𝜃 nc ≥ 𝜋/2 then return true                                              13:     𝐿 ← 𝑇 .left
+                                                                                 14:     𝑅 ← 𝑇 .right
+  5: ⊲Set view cone axis from 𝑥 to aabb’s center
+                                                                                 15:     weight𝐿 ← IntersectAABBSphere(𝐿.aabb, 𝑥, 𝑟 ) ?
+  6: 𝑎 vc ← Centroid(aabb) − 𝑥                                                                                3
+  7: 𝑙 vc ← |𝑎 vc |
+                                                                                 16:                      𝐺 R (𝑥, Centroid(𝐿.aabb)) : 0
+  8: 𝑎 vc ← 𝑎 vc / 𝑙 vc                                 ⊲View cone axis          17:     weight𝑅 ← IntersectAABBSphere(𝑅.aabb, 𝑥, 𝑟 ) ?
+                                                                                                              3
+  9: ⊲aabb may contain silhouette if 𝑎 vc is ⊥ to directions in conenormal       18:                      𝐺 R (𝑥, Centroid(𝑅.aabb)) : 0
+                                                                                 19:     totalWeight ← weight𝐿 + weight𝑅
+ 10: 𝜙 ← ArcCos(𝑎 nc · 𝑎 vc )    ⊲Angle between normal & view axes
+                                                                                 20:     if totalWeight > 0 then
+ 11: if 𝜋/2 ≥ 𝜙 − 𝜃 nc and 𝜋/2 ≤ 𝜙 + 𝜃 nc then return true
+                                                                                 21:         prob𝐿 ← weight𝐿 / totalWeight
+ 12: ⊲Compute view cone half angle w.r.t. aabb’s bounding sphere
+                                                                                 22:         if Rand() < prob𝐿 then
+ 13: 𝑟 ← BoundingSphereRadius(aabb)                                              23:              pdf𝐿 ← pdf𝑇 · prob𝐿
+ 14: if 𝑙 vc ≤ 𝑟 then return true ⊲invalid cone, sphere contains 𝑥               24:              SampleTriangleInSphere(𝐿, 𝑥, 𝑟, 𝑡, pdf𝑡 , pdf𝐿 )
+ 15: 𝜃 vc ← ArcSin(𝑟 / 𝑙 vc )                     ⊲View cone half angle          25:         else
+ 16: ⊲aabb may contain silhouette if cones contain ⊥ directions                  26:              pdf𝑅 ← pdf𝑇 · (1 − prob𝐿 )
+ 17: 𝜃 sum ← 𝜃 nc + 𝜃 vc                                                         27:              SampleTriangleInSphere(𝑅, 𝑥, 𝑟, 𝑡, pdf𝑡 , pdf𝑅 )
+ 18: if 𝜃 sum ≥ 𝜋/2 then return true
+ 19: return 𝜋/2 ≥ 𝜙 − 𝜃 sum and 𝜋/2 ≤ 𝜙 + 𝜃 sum
+
+
+
+
+ACM Trans. Graph., Vol. 42, No. 4, Article 1. Publication date: August 2023.
+

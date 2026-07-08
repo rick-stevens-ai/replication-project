@@ -1,0 +1,728 @@
+                                           Pulse-efficient quantum machine learning
+                                           André Melo1,2 , Nathan Earnest-Noble                3
+                                                                                                   , and Francesco Tacchino        4
+
+
+
+                                           1
+                                               Kavli Institute of Nanoscience, Delft University of Technology, P.O. Box 4056, 2600 GA Delft, The Netherlands
+                                           2
+                                               IBM Quantum, IBM Netherlands, Amsterdam, NH 1066 VH, The Netherlands
+                                           3
+                                               IBM Quantum, IBM T. J. Watson Research Center, Yorktown Heights, New York 10598, USA
+                                           4
+                                               IBM Quantum, IBM Research Europe – Zurich, 8803 Rüschlikon, Switzerland
+
+
+                                             Quantum machine learning algorithms                             over the last decade [1, 2, 3, 4]. Initial works in
+                                           based on parameterized quantum circuits                           the field focused on developing quantum versions
+                                           are promising candidates for near-term                            of existing classical algorithms, thereby achieving
+                                           quantum advantage. Although these al-                             asymptotically faster runtimes [5, 6, 7]. How-
+
+
+
+
+arXiv:2211.01383v2 [quant-ph] 5 Oct 2023
+                                           gorithms are compatible with the current                          ever, these algorithms are beyond the capabil-
+                                           generation of quantum processors, device                          ities of current quantum hardware, as they re-
+                                           noise limits their performance, for exam-                         quire the execution of rather deep quantum cir-
+                                           ple by inducing an exponential flatten-                           cuits and often rely on specific assumptions like
+                                           ing of loss landscapes. Error suppression                         quantum memories [8] to overcome bottlenecks
+                                           schemes such as dynamical decoupling and                          in data loading and readout. More recently, the
+                                           Pauli twirling alleviate this issue by re-                        fast technological progress and wide availability
+                                           ducing noise at the hardware level. A re-                         of noisy quantum processors [9, 10] motivated the
+                                           cent addition to this toolbox of techniques                       emergence of a second generation of QML algo-
+                                           is pulse-efficient transpilation, which re-                       rithms based on parameterized quantum circuits
+                                           duces circuit schedule duration by exploit-                       (PQCs) [11, 12, 13, 14, 15, 16, 17, 18]. In this
+                                           ing hardware-native cross-resonance inter-                        alternative QML paradigm, quantum computers
+                                           action. In this work, we investigate the im-                      may function as a co-processor working in tan-
+                                           pact of pulse-efficient circuits on near-term                     dem with classical computers. Because the cir-
+                                           algorithms for quantum machine learning.                          cuit Ansätze can be shallow in depth, PQC-based
+                                           We report results for two standard ex-                            algorithms are in principle compatible with the
+                                           periments: binary classification on a syn-                        existing generation of quantum devices.
+                                           thetic dataset with quantum neural net-                              An important obstacle to the viability of QML
+                                           works and handwritten digit recognition                           in the near term is the presence of hardware
+                                           with quantum kernel estimation. In both                           noise [19]. Coherent errors often simply shift the
+                                           cases, we find that pulse-efficient transpi-                      position of minima in the loss landscape, in which
+                                           lation vastly reduces average circuit du-                         case they can be trained away [20]. In contrast,
+                                           rations and, as a result, significantly im-                       errors arising from incoherent noise have more ad-
+                                           proves classification accuracy. We con-                           verse effects that hinder trainability and perfor-
+                                           clude by applying pulse-efficient transpila-                      mance. As an example, incoherent errors cause
+                                           tion to the Hamiltonian Variational Ansatz                        the loss function of a large family of Ansätze
+                                           and show that it delays the onset of noise-                       to vanish exponentially with increasing number
+                                           induced barren plateaus.                                          of layers, a phenomenon known as noise-induced
+                                                                                                             barren plateaus (NIBP) [21]. A similar effect oc-
+                                           1 Introduction
+                                                                                                             curs in kernel-based methods where noise can lead
+                                                                                                             to an exponential concentration of the kernel val-
+                                                                                                             ues [22].
+                                           Quantum machine learning (QML) is a nascent
+                                           area of research that has seen rapid developments                    A common approach to mitigate the effects
+                                                                                                             of device noise is to use protocols that esti-
+                                           André Melo: am@andremelo.org
+                                                                                                             mate improved expectation values through clas-
+                                           Francesco Tacchino      : fta@zurich.ibm.com
+                                                                                                             sical post-processing, a procedure known as er-
+
+                                           Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                                   1
+ror mitigation [23, 24, 25, 26, 27, 28]. While                ≈ 90%. Finally, we explicitly compute the ef-
+schemes such as zero-noise extrapolation [23, 24]             fect of PE transpilation on NIBP. In particular,
+and virtual distillation [25] can significantly en-           we study how the loss function of the Hamilto-
+hance the performances of noisy processors [29],              nian Variational Ansatz [44] evolves for increasing
+they also introduce additional experimental or                number of layers and find that PE transpilation
+computational overhead and are can be ineffec-                slows down the onset of the NIBP.
+tive in preventing noise-induced cost concentra-
+tion [30, 22, 31, 32]. A complementary strategy
+is to apply error suppression schemes that sup-
+                                                              2 Application to quantum neural net-
+press noise at the hardware level, such as dynam-
+ical decoupling [33, 34] and Pauli twirling [35]. A
+recently-introduced tool for hardware-level error             works
+suppression is pulse-efficient (PE) transpilation
+of cross-resonance gates [36, 37]. The core idea
+                                                               QNNs are one of the leading variational algo-
+of this technique is to decompose two-qubit gates
+                                                               rithms for QML [45, 46, 11, 47, 48]. A typical
+into hardware-native ones, such as echoed cross-
+                                                               QNN architecture for classification tasks is com-
+resonance pulses on superconducting architec-
+                                                               prised of three main steps. First, classical data
+tures based on fixed-frequency qubits. The echoes
+                                                              ⃗x ∈ Rn is encoded onto a quantum state through
+are then exposed to the transpiler to remove re-
+                                                               a parameterized feature map UFM (⃗x). The result-
+dundant single-qubit rotations. The resulting cir-
+                                                               ing state UFM (⃗x)|0⟩⊗n is then fed to a variational
+cuits often have significantly lower schedule dura-
+                                                               ansatz Uv (θ),
+                                                                           ⃗ where θ⃗ denotes a set of trainable
+tions, thereby mitigating errors introduced by fi-
+                                                               parameters. Finally, the expectation value of an
+nite coherence times. Crucially, PE transpilation
+                                                               observable O is measured and classically post-
+requires no additional overhead or calibration.
+                                                               processed to yield the model predictions yp =
+Refs. [36, 38] applied this technique to combina-
+                                                               f (⃗x|⃗
+                                                                     θ) and the loss function L(f (⃗x|⃗
+                                                                                                      θ), ⃗y ), where
+torial optimization tasks and demonstrated sig-
+                                                               y are the true labels. A classical optimization al-
+nificant improvements over conventional CNOT-
+                                                               gorithm then iteratively varies θ⃗ to minimize L.
+based transpilation. Related ideas were also ex-
+plored in Refs. [39, 40, 41], which directly op-                 We begin by studying the impact of PE tran-
+timized pulse parameters to address variational               spilation on a binary classification task with the
+problems. However, a comprehensive study of the               QNN shown in Fig. 1 (see App. A for a descrip-
+impact of PE transpilation on the performance                 tion of the underlying mechanism which enables
+of paradigmatic QML algorithms powered by pa-                 our specific PE method). We consider an archi-
+rameterized quantum circuits was not available                tecture similar to the one reported in Ref. [17]
+until now.                                                    but restrict entangling operations to neighbor-
+                                                              ing pairs of qubits in order to avoid prohibitively
+   In this work, we demonstrate the application               large circuit depths. A forward pass of the QNN
+of PE transpilation to three paradigmatic QML                 starts with two layers of the feature map proposed
+tasks. To highlight the general applicability and             in Ref. [14] (Fig. 1 (b)). A single layer applies
+versatility of our method, we conduct our exper-              Hadamard and RZ gates on all qubits, where the
+iments across three different IBM Quantum [42]                RZ rotation angle is related to the feature values
+backends using qiskit [43]. We begin by train-                by the relation 2xi . This is followed by RZZ op-
+ing Quantum Neural Networks (QNNs) on a syn-                  erations on neighboring pairs of qubits, where the
+thetic dataset and observe that PE transpilation              rotation angle xij = 2(π − xi )(π − xj ) depends on
+significantly improves the resulting training loss            products of the features. We then apply a vari-
+and classification accuracy. Afterwards, we apply             ational ansatz that consists of parameterized RY
+PE transpilation to a quantum kernel circuit that             gates applied on every qubit, followed by CNOTs
+we use to classify all 10 digits of the commonly-             on neighboring qubits, and a final set of param-
+used MNIST dataset. When compared to CNOT-                    eterized RY (Fig. 1 (a)). The angles θi of the
+based transpilation, PE transpilation allows us               RY operations are the training parameters that
+to significantly extend the width of the kernel               are optimized classically to fit a given target func-
+circuits and achieve a classification accuracy of             tion. Finally, we measure the parity of the output
+
+Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                                  2
+ (a)                                                          bit strings
+    |0⟩0                     RY (θ0 )         Ry (θ3 )                ⃗ = |⟨0|U † (⃗x)U † (θ)P
+                                                                m(⃗x, θ)                       ⃗ Uv (θ)U
+                                                                                                      ⃗ FM (⃗x)|0⟩|2
+                                                                                FM           v
+                                                                                                                     (1)
+               UFM (⃗x)      RY (θ1 )         Ry (θ4 )        where P = i Zi is the parity operator and Zi is
+                                                                           Q
+    |0⟩1
+                                                              the standard Pauli Z operator acting on the i-th
+                                                              qubit. We associate even parity with class 0 and
+    |0⟩2                     RY (θ2 )         Ry (θ5 )
+                                                              odd parity with class 1.
+                                                                 We benchmark the QNN performance on a syn-
+ (b)                                                          thetic two-class dataset with standard and PE
+                                 RZZ                          transpilation. To ensure the QNN can distinguish
+       H       RZ (2x0 )                                      between the two classes with high accuracy, the
+                                                              dataset is generated via the QNN model by fixing
+       H       RZ (2x1 )       RZ (x01 )                      the trainable parameters θ⃗s in such a way that the
+                                                              separation of the classes is maximised. The train-
+       H       RZ (2x2 )                        RZ (x12 )     ing procedure is then carried out starting from a
+                                                              new, random initialisation of the parameters, and
+ (c)                                                          should ideally recover the set used to generate the
+                                                              data. More formally, we uniformly sample 600
+   Q0                                                         feature vectors ⃗x ∈ [0, 1)n and compute their par-
+                                                                        ⃗ through noiseless simulations. Using
+                                                              ity m(⃗x, θ)
+   Q1                                                         the L-BFGS-B optimizer [49], we search for QNN
+                                                              parameters θ⃗s that maximize the average absolute
+                                                                       1 P
+                                                              parity 600   i |m(x⃗i , θ⃗s )|. Out of this set of feature
+   Q0                                                         vectors, we further select the 50 samples for each
+                                                              class with the largest absolute parity expectation
+   Q1
+                                                              value. Fig. 2(a) shows an example of the result-
+           0               1000        2000         3000      ing dataset for 2 qubits alongside the probability
+                              Time (ns)                       of observing class 0 p(y = 0, ⃗x, θ⃗s ). We observe
+                                                              that the decision boundary of the QNN correctly
+ Figure 1: (a) Quantum neural network architecture for        separates the two classes.
+                             1
+ binary classification. A forward pass of the network be-        We train the QNNs on ibmq_jakarta us-
+ gins with an encoding stage that maps feature vectors        ing a cross-entropy loss function and 50 iter-
+⃗x to a quantum state through a parameterized feature         ations of Spall’s SPSA stochastic gradient de-
+ map UFM (⃗x). The second stage of the network consists
+                                                              scent algorithm [50] with an automated calibra-
+ of a variational form with parameterized RY (whose an-
+ gles are optimized with a classical routine) and CNOT        tion phase [44] of 50 iterations. Moreover, we ap-
+ gates applied on neighboring qubits. Finally, we mea-        ply readout error mitigation [51] and use 100 sam-
+ sure the parity of the qubits in the Z basis, with the       ples both for training and testing the networks.
+ fraction of even (odd) bitstrings representing the prob-     We show example training curves for n = 3 qubits
+ ability of class 0 (1). (b) A single layer of the param-     in Fig. 2(b) which converge almost immediately
+ eterized feature map UFM (⃗x). Hadamard gates are ap-        after the initial calibration stage. In Fig. 3(a-
+ plied on every qubit, followed by RZZ rotations on ev-
+                                                              b), we compare the training loss and testing clas-
+ ery pair of neighboring qubits (highlighted in blue). (c)
+ Pulse schedules that implement an RZZ (0.5) gate on          sification accuracy of pulse-efficient and regular
+ ibmq_guadalupe through a conventional CNOT-based             QNNs with n = 2 to 5 qubits. While the perfor-
+ approach (top panel) and pulse-efficient transpilation       mance of the standard QNN deteriorates rapidly
+ (bottom panel). The section highlighted in red in the        after n = 2, the PE QNN remains competitive
+ top panel corresponds to the pulses that implement a sin-    with the performance of the noiseless simulation
+ gle CNOT gate through cross-resonance. Pulse-efficient       throughout the whole range of n. We attribute
+ transpilation significantly decreases the schedule dura-     this improvement to a reduction in incoherent er-
+ tion resulting in higher circuit fidelities.
+                                                              ror due to the shorter schedule duration in PE
+                                                              circuits (Fig. 3(c)). More specifically, as we show
+                                                              in Fig. 1(c) PE transpilation significantly short-
+
+Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                                     3
+                                         (a)                                                                                             (b)
+                                                                                                                 1.0
+                                         1.0
+                                                                                                                                         0.6                             Noiseless simulation
+                                                                                                                                                                         Pulse-efficient
+                                         0.8                                                                     0.8
+                                                                                                                                         0.5                             Regular
+
+                                                                                                                 0.6
+
+                                                                                                                       p(y = 0)
+                                         0.6                                                                                             0.4
+                                 x1                                                                                               Loss
+                                         0.4                                                                     0.4                     0.3
+                                         0.2                                               Class 0               0.2                     0.2
+                                                                                           Class 1
+                                         0.0                                                                                             0.1
+                                                                                                                 0.0
+                                               0.0                        0.2                         0.4                                        0       25       50        75        100
+                                                                  x0                                                                                            Iteration
+
+Figure 2: Training a quantum neural network on ibmq_jakarta. (a) Example of a synthetic two-class dataset generated
+from the QNN shown in Fig. 1 with n = 2 features. The 1heat map represents the probability assigned to class 0 by
+the QNN with the weights set to those used to generate the binary dataset. The red dashed lines correspond to the
+decision boundaries p(y = 0) = p(y = 1) = 0.5 of the model. (b) Convergence of the training loss on n = 4 qubits
+dataset after 120 iterations of the SPSA algorithm. The blue, orange and green curves show the training loss of the
+simulated, pulse-efficient, and regular quantum neural networks, respectively.
+
+
+                  Noiseless simulation                          Pulse-efficient                                 Regular             3 Application to quantum kernels
+                           0.3 (a)                                                  1.0
+
+
+
+
+                                                              Classification acc.
+                                                                                          (b)                                       We now turn to investigating the impact of PE
+
+
+  Training loss
+                                                                                                                                    transpilation on fidelity-based quantum kernel
+                           0.2                                                      0.9
+                                                                                                                                    classification. This class of algorithms uses a
+                                                                                                                                    quantum feature map to compute a similarity
+                                                                                    0.8                                             measure between input data points [15, 14, 52,
+                           0.1
+                                 2         3     4        5                               2       3         4         5             18, 53]
+                                 Number of qubits                                         Number of qubits
+                                                                                                                                               K(x⃗i , x⃗j ) = |⟨0|UFM (x⃗i )UFM (x⃗j )|0⟩|2 .   (2)
+
+
+
+
+   Circuit duration (µs)
+                                                                                                                                                                    †
+                           20 (c)
+
+                                                                                                                                    The resulting Gram matrix K is then fed to a
+                           10                                                                                                       classical kernel method such as a support vec-
+                                                                                                                                    tor machine [54] to predict the corresponding la-
+                                                                                                                                    bels ⃗y .
+                                     2                3                                       4                   5
+                                                                                                                                        For this experiment we use the same feature
+                                                     Number of qubits
+                                                                                                                                    map as in the QNN case presented above, but in-
+                                                                                                                                    crease the depth to 4 in order to achieve higher
+Figure 3: Comparison of the performance of quantum
+                                                                                                                                    classification accuracy. Following the approach
+neural networks with           1
+                         pulse-efficient and regular tran-
+spilation. (a) Training loss after 120 iterations of the                                                                            outlined in Ref. [14], we estimate the feature vec-
+SPSA algorithm. (b) Classification accuracy on the test                                                                             tor kernel function for all pairs of training data
+set. (c) Average schedule duration of QNN circuit. The                                                                              x⃗i , x⃗j using 8192 shots. Specifically, we apply
+pulse-efficient circuits have significantly lower schedule                                                                          the circuit UFM †
+                                                                                                                                                       (x⃗i )UFM
+                                                                                                                                                              †
+                                                                                                                                                                 (x⃗j )|0⟩⊗n and then mea-
+duration, which improves circuit fidelity and classifica-                                                                           sure all qubits in the Z basis. The kernel entry
+tion accuracy.                                                                                                                      K(x⃗i , x⃗j ) then corresponds to the frequency of
+                                                                                                                                    the zero bitstring 0n . Having repeated this pro-
+                                                                                                                                    cess for all the training data, we feed the result-
+                                                                                                                                    ing kernel matrix to a conventional support vec-
+                                                                                                                                    tor machine implemented with scikit-learn [55].
+                                                                                                                                    For this classification task, we choose the MNIST
+ens the duration of RZZ gates [36] and hence of                                                                                     dataset, a popular real-world database of hand-
+the feature map portion of the circuit.                                                                                             written digits [56], and use 10 training and testing
+
+Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                                                                                                                 4
+                                               Noiseless simulation                                 Pulse-efficient + dynamical decoupling                                                     Regular
+                                     (a)                                                           (b)                                                                  (c)
+                           0.9                                                                                                                                125
+
+
+
+
+ Classification accuracy                                                                                                              Circuit duration (µs)
+                                                                                         0.6
+
+
+
+
+                                                                         Normlized MSE
+                           0.8
+                                                                                                                                                              100
+                           0.7                                                           0.4
+                           0.6                                                                                                                                 75
+
+                           0.5                                                           0.2
+                                                                                                                                                               50
+                           0.4                                                                                                                                                             Average T1
+                                                                                         0.0                                                                   25
+                                 2         3   4   5    6   7   8   9                          2         3   4   5    6   7   8   9                                     2     3   4   5    6    7   8    9
+                                           Number of qubits                                              Number of qubits                                                     Number of qubits
+
+                            0                                                             0                                                                     0
+                                     (d)                                                           (e)                                                                  (f)
+                                                                        0.8
+                           20                                                            20                                                                    20
+                                                                                                                                      0.4
+                                                                        0.6
+                           40                                                            40                                                                    40
+
+                           60                                           0.4              60                                                                    60
+                                                                                                                                      0.2                                                                    0.01
+                           80                                           0.2              80                                                                    80
+
+                                                                        0.0                                                           0.0                                                                    0.00
+                                 0                 50                                          0                 50                                                 0                 50
+
+
+Figure 4: Impact of pulse-efficient transpilation on quantum kernel classification run on ibmq_montreal. (a) Classifi-
+cation accuracy on test dataset for a noiseless simulation,1pulse-efficient, and regular circuits. (b) Normalized mean
+square error of the training kernel matrix compared to the simulated kernel matrix. (c) Average circuit duration for
+pulse-efficient and regular circuits compared to the T1 . In the bottom panel we show the training kernel matrices at
+n = 9 qubits obtained with (d) noiseless simulations, (e) pulse-efficient circuits, and (f) regular circuits.
+
+
+samples for each of the ten digits. The kernel cho-                                                                   accuracy as a function of the number of qubits
+sen for this experiment uses a the number of in-                                                                      for all three methods. Focusing first on the simu-
+put features equal to the number of qubits. In the                                                                    lated curve, the classification accuracy increases
+case of the MNIST dataset, the resolution of the                                                                      monotonically with the number of qubits. This
+images exceeds the number of qubits we use. We                                                                        occurs because the number of qubits increases
+therefore reduce the number of features through                                                                       concomitantly with the number of training fea-
+a truncated singular value decomposition, a stan-                                                                     tures, which makes it easier to distinguish differ-
+dard dimensionality reduction procedure.                                                                              ent digits. Turning to the device runs, the perfor-
+  Due to the sparsity of the kernel circuits, the                                                                     mance of the regular circuit remains very close to
+qubits experience large idle times that lead to er-                                                                   the ideal curve up to 5 qubits, after which it de-
+ror accumulation [57]. To mitigate this source of                                                                     grades rapidly and stays below 80%. This sharp
+noise, we combine PE transpilation with a dy-                                                                         turning point coincides with the average circuit
+namical decoupling protocol. Whenever qubit i                                                                         duration becoming comparable with the average
+has an idle time Tidle larger than twice the single                                                                   device T1 , see Fig 4(c). In contrast, the PE tran-
+qubit gate time, we apply a dynamical decoupling                                                                      spilation circuit durations are always well below
+sequence τ /2−Xp −τ −Xm −τ /2 with delay times                                                                        the coherence limit of the device, thereby yield-
+τ = Tidle − 2TXp/m where Xp/m are positive/neg-                                                                       ing classification accuracies that reach 90% and
+ative π pulses around the x-axis and TXp/m their                                                                      closely track the simulated values. To further
+duration.                                                                                                             quantify the performance of the device runs, in
+                                                                                                                      Fig 4(c) we show the normalized mean square er-
+   We run the kernel circuits on linearly connected
+                                                                                                                      ror of the experimental kernel matrices compared
+subsets of qubits on ibmq_montreal with PE and
+regular transpilation, along with noiseless simu-
+lations. Fig. 4(a) shows the testing classification
+
+Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                                                                                                                                   5
+to the simulated matrix K sim :                                         Noiseless simulation         Regular        Pulse-efficient
+
+
+                              ij (Kij − Kij )                                     ⟨|C|⟩                         ⟨|∂lm C|⟩
+                          P         sim       2
+         NMSE(K) =                              .     (3)
+                                  ij (Kij )                                                    (a)                             (b)
+                               P        sim 2
+
+
+The error curves show a similar trend to the av-
+erage circuit durations, with the error of the reg-                                                  10−1
+                                                                 10−1
+ular circuits increasing much faster than the PE
+circuits. In Fig. 4(d-f) we show training kernel
+matrices with n = 9 qubits for all three methods.
+The PE transpilation kernel matrix is close to
+the simulated matrix and has an approximately                    10−2                                10−2
+                                                                         2    4     6     8     10          2   4    6     8    10
+block-diagonal structure, indicating the feature                         Number of qubits                   Number of qubits
+map is capable of separating the digits with high
+accuracy. In contrast, the regular transpilation
+                                                              Figure 5: Mitigation of noise-induced barren plateaus
+matrix is mostly devoid of structure, which re-               through pulse-efficient     1
+                                                                                       transpilation. We consider an
+sults in significantly lower classification accuracy.         ansatz similar to the Hardware Variational Ansatz with a
+Moreover, its matrix elements are close to 0, sig-            number of layers that increases linearly with the number
+naling that the underlying bitstring distribution             of qubits. By sampling over 100 sets of random param-
+is extremely noisy.                                           eters we compute the average (a) loss function, and (b)
+   In App. B we perform additional experiments                partial derivative with respect to the last βi,i+1 param-
+                                                              eter.
+to estimate how much of the performance boost
+we observe can be attributed to PE transpilation
+versus dynamical decoupling and find that PE                  first two qubits O = Z0 Z1 along with its deriva-
+transpilation is the main driver of the improve-              tive with respect to the last βi,i+1 parameter.
+ment.                                                         Further, we set the number of layers to increase
+                                                              linearly with the number of qubits L = 2(n − 1)
+4 Impact on noise-induced barren                              and perform our runs on ibmq_montreal.
+                                                                 In Figure 5 we show the cost function and its
+plateaus                                                      partial derivative with respect to the last βi,i+1
+                                                              parameter averaged over 100 random parameter
+In our last experiment, we investigate the im-
+                                                              sets. In the case of noiseless simulations, both
+pact of PE transpilation on NIBP. We implement
+                                                              curves appear to slowly decay polynomially with
+the Hamiltonian Variational Ansatz for the trans-
+                                                              increasing number of qubits. On the other hand,
+verse field Ising model as considered in Refs. [58]
+                                                              the device runs show a noticeable exponential de-
+and [21]. We consider a linearly connected chain
+                                                              cay starting at around n = 8 qubits, which we
+of spins, such that a single layer of the ansatz is
+                                                              attribute to the onset of NIBP. However, both
+given by
+                                                              the average loss function and derivative of the
+        UTFIM = exp (−iHx ) exp (−iHzz ) ,            (4)     PE transpilation circuits are consistently above
+                                                              those of the regular circuits. Although PE tran-
+where                                                         spilation does not remove NIBP, it has more fa-
+                      N −1                                    vorable scaling which would allow going to higher
+               Hx =          γi σix ,                 (5)     depths of number of qubits when compared with
+                      X
+
+                      i=0                                     regular transpilation.
+                      N −2
+              Hzz =          βi,i+1 σiz σi+1
+                                         z
+                                                      (6)
+                      X
+                                             ,
+                       i=0                                    5 Discussion
+and σαi are the conventional Pauli matrices acting            In this work, we studied the impact of PE transpi-
+on the i-th qubit. To study the onset of NIBP, we             lation on the performance of near-term QML al-
+study the behavior of a local observable with in-             gorithms. We began by performing binary classi-
+creasing number of qubits n and ansatz layers L.              fication of a synthetic dataset with a QNN, where
+Following [21], we measure the local parity of the            we found that PE circuits achieved significantly
+
+Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                                                     6
+higher classification accuracy and lower training                References
+loss. Secondly, we used quantum kernel estima-
+tion to classify a real-world dataset of handwrit-            [1] Peter Wittek. “Quantum machine learning”.
+ten digits. Combining PE transpilation with dy-                   Elsevier. (2014).
+namical decoupling allowed us to accurately es-               [2] Jacob Biamonte, Peter Wittek, Nicola Pan-
+timate kernels up to 9 qubits and achieve 90%                     cotti, Patrick Rebentrost, Nathan Wiebe, and
+classification accuracy, whilst regular circuits re-              Seth Lloyd. “Quantum machine learning”. Na-
+main below 80%. Lastly, we studied the onset                      ture 549, 195–202 (2017).
+of NIBP on a commonly-used ansatz for quan-                   [3] Maria Schuld and Francesco Petruccione.
+tum chemistry. Our results show that PE tran-                     “Machine learning with quantum computers”.
+spilation slows down the onset of NIBP, which                     Springer. (2021).
+allows executing variational quantum algorithms               [4] S. Mangini, F. Tacchino, D. Gerace, D. Ba-
+at higher numbers of qubits when compared with                    joni, and C. Macchiavello. “Quantum com-
+regular transpilation.                                            puting models for artificial neural networks”.
+   Our results highlight a key advantage of PE                    Europhysics Letters 134, 10002 (2021).
+transpilation, namely that it introduces no addi-             [5] Nathan Wiebe, Daniel Braun, and Seth
+tional overhead or calibrations and is compatible                 Lloyd. “Quantum Algorithm for Data Fit-
+with most qiskit-based programs with minimal                      ting”. Phys. Rev. Lett. 109, 050505 (2012).
+modifications. Furthermore, we observe that it                [6] Seth Lloyd, Masoud Mohseni, and Patrick
+consistently improves circuit performance across                  Rebentrost. “Quantum algorithms for su-
+different models and devices. This makes our                      pervised and unsupervised machine learn-
+proposed approach particularly appealing for ap-                  ing” (2013). arXiv:1307.0411.
+plications and use cases that rely on remote de-              [7] Patrick Rebentrost, Masoud Mohseni, and
+vice access and control. We expect that these                     Seth Lloyd. “Quantum Support Vector Ma-
+improvements extend to most protocols featur-                     chine for Big Data Classification”. Phys. Rev.
+ing parameterized RZX (θ) gates: these natively                   Lett. 113, 130503 (2014).
+appear in a broad class of quantum algorithms,                [8] Vittorio Giovannetti, Seth Lloyd, and
+such as Hamiltonian simulation schemes [59, 60]                   Lorenzo Maccone. “Quantum random ac-
+– with potential applications to optimization [61]                cess memory”.        Phys. Rev. Lett. 100,
+and sampling problems [62, 63] – and unitary cou-                 160501 (2008).
+pled cluster circuits in quantum chemistry.                   [9] John Preskill.     “Quantum Computing in
+   While finalizing this work, we became aware of                 the NISQ era and beyond”. Quantum 2,
+a recent preprint [64] that also applies PE transpi-              79 (2018).
+lation to PQCs designed for quantum chemistry                 [10] Antonio D. Corcoles, Abhinav Kandala, Ali
+and optimization tasks.                                           Javadi-Abhari, Douglas T. McClure, An-
+                                                                  drew W. Cross, Kristan Temme, Paul D. Na-
+                                                                  tion, Matthias Steffen, and Jay M. Gambetta.
+                                                                  “Challenges and opportunities of near-term
+                                                                  quantum computing systems”. Proceedings of
+  Acknowledgements                                                the IEEE 108, 1338–1352 (2020).
+                                                              [11] Marcello Benedetti, Erika Lloyd, Stefan
+We are thankful to Caroline Tornow, Daniel                        Sack, and Mattia Fiorentini. “Parameterized
+J. Egger and Kunal Sharma for useful discus-                      quantum circuits as machine learning mod-
+sions. We acknowledge the use of IBM Quantum                      els”. Quantum Science and Technology 4,
+services for this work. IBM, the IBM logo, and                    043001 (2019).
+ibm.com are trademarks of International Business              [12] Marco Cerezo, Andrew Arrasmith, Ryan
+Machines Corp., registered in many jurisdictions                  Babbush, Simon C Benjamin, Suguru Endo,
+worldwide. Other product and service names                        Keisuke Fujii, Jarrod R McClean, Kosuke Mi-
+might be trademarks of IBM or other companies.                    tarai, Xiao Yuan, Lukasz Cincio, et al. “Varia-
+The current list of IBM trademarks is available                   tional quantum algorithms”. Nature Reviews
+at https://www.ibm.com/legal/copytrade.                           Physics 3, 625–644 (2021).
+
+Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                              7
+[13] Kishor Bharti, Alba Cervera-Lierta, Thi Ha                   Gambetta. “Error mitigation for short-depth
+    Kyaw, Tobias Haug, Sumner Alperin-Lea,                        quantum circuits”. Phys. Rev. Lett. 119,
+    Abhinav Anand, Matthias Degroote, Her-                        180509 (2017).
+    manni Heimonen, Jakob S. Kottmann, Tim                    [24] Suguru Endo, Simon C. Benjamin, and Ying
+    Menke, Wai-Keong Mok, Sukin Sim, Leong-                       Li. “Practical quantum error mitigation for
+    Chuan Kwek, and Alán Aspuru-Guzik. “Noisy                     near-future applications”. Phys. Rev. X 8,
+    intermediate-scale quantum algorithms”. Rev.                  031027 (2018).
+    Mod. Phys. 94, 015004 (2022).                             [25] William J. Huggins, Sam McArdle,
+[14] Vojtěch Havlíček, Antonio D Córcoles, Kris-                  Thomas E. O’Brien, Joonho Lee, Nicholas C.
+    tan Temme, Aram W Harrow, Abhinav Kan-                        Rubin, Sergio Boixo, K. Birgitta Whaley,
+    dala, Jerry M Chow, and Jay M Gambetta.                       Ryan Babbush, and Jarrod R. McClean.
+    “Supervised learning with quantum-enhanced                    “Virtual distillation for quantum error miti-
+    feature spaces”. Nature 567, 209–212 (2019).                  gation”. Phys. Rev. X 11, 041036 (2021).
+[15] Maria Schuld and Nathan Killoran. “Quan-                 [26] Bálint Koczor. “Exponential error suppres-
+    tum Machine Learning in Feature Hilbert                       sion for near-term quantum devices”. Phys.
+    Spaces”. Phys. Rev. Lett. 122, 040504 (2019).                 Rev. X 11, 031057 (2021).
+[16] Francesco Tacchino, Stefano Mangini, Pana-               [27] Philippe Suchsland, Francesco Tacchino,
+    giotis Kl. Barkoutsos, Chiara Macchiavello,                   Mark H. Fischer, Titus Neupert, Panagio-
+    Dario Gerace, Ivano Tavernelli, and Daniele                   tis Kl. Barkoutsos, and Ivano Tavernelli. “Al-
+    Bajoni. “Variational learning for quantum ar-                 gorithmic Error Mitigation Scheme for Cur-
+    tificial neural networks”. IEEE Transactions                  rent Quantum Processors”.       Quantum 5,
+    on Quantum Engineering 2, 1–10 (2021).                        492 (2021).
+[17] Amira Abbas, David Sutter, Christa Zoufal,               [28] Zhenyu Cai, Ryan Babbush, Simon C. Ben-
+    Aurelien Lucchi, Alessio Figalli, and Stefan                  jamin, Suguru Endo, William J. Huggins,
+    Woerner. “The power of quantum neural net-                    Ying Li, Jarrod R. McClean, and Thomas E.
+    works”. Nature Computational Science 1,                       O’Brien. “Quantum error mitigation” (2023).
+    403–409 (2021).                                               arXiv:2210.00921.
+[18] Hsin-Yuan Huang, Michael Broughton, Ma-                  [29] Abhinav Kandala, Kristan Temme, Anto-
+    soud Mohseni, Ryan Babbush, Sergio Boixo,                     nio D Córcoles, Antonio Mezzacapo, Jerry M
+    Hartmut Neven, and Jarrod R. McClean.                         Chow, and Jay M Gambetta. “Error miti-
+    “Power of data in quantum machine learning”.                  gation extends the computational reach of a
+    Nature Communications 12, 2631 (2021).                        noisy quantum processor”. Nature 567, 491–
+[19] Daniel Stilck França and Raul Garcia-                        495 (2019).
+    Patron. “Limitations of optimization algo-                [30] Samson Wang, Piotr Czarnik, Andrew Ar-
+    rithms on noisy quantum devices”. Nature                      rasmith, M. Cerezo, Lukasz Cincio, and
+    Physics 17, 1221–1227 (2021).                                 Patrick J. Coles. “Can error mitigation im-
+[20] Jarrod R McClean, Jonathan Romero, Ryan                      prove trainability of noisy variational quan-
+    Babbush, and Alán Aspuru-Guzik. “The the-                     tum algorithms?” (2021). arXiv:2109.01051.
+    ory of variational hybrid quantum-classical               [31] Yihui Quek, Daniel Stilck França, Sumeet
+    algorithms”. New Journal of Physics 18,                       Khatri, Johannes Jakob Meyer, and Jens Eis-
+    023023 (2016).                                                ert. “Exponentially tighter bounds on limi-
+[21] Samson Wang, Enrico Fontana, M. Cerezo,                      tations of quantum error mitigation” (2023).
+    Kunal Sharma, Akira Sone, Lukasz Cincio,                      arXiv:2210.11505.
+    and Patrick J. Coles. “Noise-induced barren               [32] Kento Tsubouchi, Takahiro Sagawa, and
+    plateaus in variational quantum algorithms”.                  Nobuyuki Yoshioka. “Universal cost bound of
+    Nature Communications 12, 6961 (2021).                        quantum error mitigation based on quantum
+[22] Supanut      Thanasilp,     Samson    Wang,                  estimation theory” (2023). arXiv:2208.09385.
+    M. Cerezo, and Zoë Holmes. “Exponential                   [33] Lorenza Viola, Emanuel Knill, and Seth
+    concentration and untrainability in quantum                   Lloyd. “Dynamical decoupling of open quan-
+    kernel methods” (2022). arXiv:2208.11060.                     tum systems”. Phys. Rev. Lett. 82, 2417–
+[23] Kristan Temme, Sergey Bravyi, and Jay M.                     2421 (1999).
+
+Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                             8
+[34] Bibek Pokharel, Namit Anand, Benjamin                        work for Quantum Computing”. url: https:
+    Fortman, and Daniel A. Lidar. “Demonstra-                     //doi.org/10.5281/zenodo.2562111.
+    tion of fidelity improvement using dynami-                [44] Abhinav Kandala, Antonio Mezzacapo,
+    cal decoupling with superconducting qubits”.                  Kristan Temme, Maika Takita, Markus
+    Phys. Rev. Lett. 121, 220502 (2018).                          Brink, Jerry M Chow, and Jay M Gam-
+[35] Zhenyu Cai, Xiaosi Xu, and Simon C Ben-                      betta. “Hardware-efficient variational quan-
+    jamin. “Mitigating coherent noise using pauli                 tum eigensolver for small molecules and quan-
+    conjugation”. npj Quantum Information 6, 1–                   tum magnets”. Nature 549, 242–246 (2017).
+    9 (2020).                                                 [45] Edward Farhi and Hartmut Neven. “Classifi-
+[36] Nathan Earnest, Caroline Tornow, and                         cation with quantum neural networks on near
+    Daniel J Egger. “Pulse-efficient circuit tran-                term processors” (2018). arXiv:1802.06002.
+    spilation for quantum applications on cross-              [46] Maria Schuld, Alex Bocharov, Krysta M.
+    resonance-based hardware”. Phys. Rev. Re-                     Svore, and Nathan Wiebe. “Circuit-centric
+    search 3, 043088 (2021).                                      quantum classifiers”. Phys. Rev. A 101,
+[37] John P. T. Stenger, Nicholas T. Bronn,                       032308 (2020).
+    Daniel J. Egger, and David Pekker. “Simulat-              [47] Junyu Liu, Francesco Tacchino, Jennifer R.
+    ing the dynamics of braiding of Majorana zero                 Glick, Liang Jiang, and Antonio Mezzacapo.
+    modes using an IBM quantum computer”.                         “Representation learning via quantum neu-
+    Phys. Rev. Research 3, 033171 (2021).                         ral tangent kernels”.     PRX Quantum 3,
+[38] Siyuan Niu and Aida Todri-Sanial. “Effects                   030323 (2022).
+    of Dynamical Decoupling and Pulse-Level Op-               [48] Junyu Liu, Khadijeh Najafi, Kunal Sharma,
+    timizations on IBM Quantum Computers”.                        Francesco Tacchino, Liang Jiang, and Anto-
+    IEEE Transactions on Quantum Engineering                      nio Mezzacapo. “Analytic theory for the dy-
+    3, 1–10 (2022).                                               namics of wide quantum neural networks”.
+[39] Oinam Romesh Meitei, Bryan T Gard,                           Phys. Rev. Lett. 130, 150601 (2023).
+    George S Barron, David P Pappas, Sophia E                 [49] Ciyou Zhu, Richard H Byrd, Peihuang Lu,
+    Economou, Edwin Barnes, and Nicholas J                        and Jorge Nocedal. “Algorithm 778: L-bfgs-
+    Mayhall. “Gate-free state preparation for fast                b: Fortran subroutines for large-scale bound-
+    variational quantum eigensolver simulations”.                 constrained optimization”. ACM Transactions
+    npj Quantum Information 7, 1–11 (2021).                       on mathematical software (TOMS) 23, 550–
+[40] Z. Liang, H. Wang, J. Cheng, Y. Ding,                        560 (1997).
+    H. Ren, Z. Gao, Z. Hu, D. S. Boning, X. Qian,             [50] James C Spall. “Adaptive stochastic ap-
+    S. Han, W. Jiang, and Y. Shi. “Variational                    proximation by the simultaneous perturba-
+    Quantum Pulse Learning”. 2022 IEEE Inter-                     tion method”. IEEE transactions on auto-
+    national Conference on Quantum Computing                      matic control 45, 1839–1853 (2000).
+    and Engineering (QCE), 556-565 (2022).                    [51] Sergey Bravyi, Sarah Sheldon, Abhinav
+[41] Zhiding Liang, Jinglei Cheng, Hang Ren,                      Kandala, David C. Mckay, and Jay M. Gam-
+    Hanrui Wang, Fei Hua, Zhixin Song, Yong-                      betta. “Mitigating measurement errors in
+    shan Ding, Fred Chong, Song Han, Yiyu                         multiqubit experiments”. Phys. Rev. A 103,
+    Shi, and Xuehai Qian. “NAPA: Intermediate-                    042605 (2021).
+    level Variational Native-pulse Ansatz for                 [52] C. M. Wilson, J. S. Otterbach, N. Tezak,
+    Variational Quantum Algorithms” (2023).                       R. S. Smith, A. M. Polloreno, Peter J. Kar-
+    arXiv:2208.01215.                                             alekas, S. Heidel, M. Sohaib Alam, G. E.
+[42] “IBM      Quantum”.            url:  https:                  Crooks, and M. P. da Silva.            “Quan-
+    //quantum-computing.ibm.com/.                                 tum Kitchen Sinks: An algorithm for ma-
+[43] Gadi Aleksandrowicz, Thomas Alexander,                       chine learning on near-term quantum comput-
+    Panagiotis Barkoutsos, Luciano Bello, Yael                    ers” (2019). arXiv:1806.08321.
+    Ben-Haim, David Bucher, Francisco Jose                    [53] Maria Schuld. “Supervised quantum machine
+    Cabrera-Hernández, Jorge Carballo-Franquis,                   learning models are kernel methods” (2021).
+    Adrian Chen, Chun-Fu Chen, Jerry M. Chow,                     arXiv:2101.11020.
+    and et al. “Qiskit: An Open-source Frame-                 [54] Corinna Cortes and Vladimir Vapnik.
+
+Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                            9
+    “Support-vector networks”. Mach. Learn. 20,                   enhanced markov chain Monte Carlo”. Nature
+    273–297 (1995).                                               619, 282–287 (2023).
+[55] F. Pedregosa, G. Varoquaux, A. Gramfort,                 [64] Mohannad M. Ibrahim, Hamed Mohammad-
+    V. Michel, B. Thirion, O. Grisel, M. Blon-                    bagherpoor, Cynthia Rios, Nicholas T. Bronn,
+    del, P. Prettenhofer, R. Weiss, V. Dubourg,                   and Gregory T. Byrd. “Evaluation of parame-
+    J. Vanderplas, A. Passos, D. Cournapeau,                      terized quantum circuits with cross-resonance
+    M. Brucher, M. Perrot, and E. Duchesnay.                      pulse-driven entanglers”. IEEE Transactions
+    “Scikit-learn: Machine learning in Python”.                   on Quantum Engineering 3, 1–13 (2022).
+    Journal of Machine Learning Research 12,                  [65] Jerry M Chow, Antonio D Córcoles, Jay M
+    2825–2830 (2011).                                             Gambetta, Chad Rigetti, Blake R Johnson,
+[56] Dheeru Dua and Casey Graff. “UCI machine                     John A Smolin, Jim R Rozen, George A
+    learning repository”. url: http://archive.                    Keefe, Mary B Rothwell, Mark B Ketchen,
+    ics.uci.edu/ml.                                               et al. “Simple all-microwave entangling gate
+                                                                  for fixed-frequency superconducting qubits”.
+[57] Jennifer R. Glick, Tanvi P. Gujarati, An-                    Phys. Rev. Lett. 107, 080502 (2011).
+    tonio D. Corcoles, Youngseok Kim, Ab-
+                                                              [66] Easwar Magesan and Jay M Gambetta.
+    hinav Kandala, Jay M. Gambetta, and
+                                                                  “Effective hamiltonian models of the cross-
+    Kristan Temme. “Covariant quantum ker-
+                                                                  resonance gate”.       Phys. Rev. A 101,
+    nels for data with group structure” (2022).
+                                                                  052308 (2020).
+    arXiv:2105.03406.
+                                                              [67] Moein Malekakhlagh, Easwar Magesan, and
+[58] Roeland Wiersema, Cunlu Zhou, Yvette                         David C McKay. “First-principles analysis of
+    de Sereville, Juan Felipe Carrasquilla,                       cross-resonance gate operation”. Phys. Rev.
+    Yong Baek Kim, and Henry Yuen. “Explor-                       A 102, 042605 (2020).
+    ing entanglement and optimization within                  [68] Sarah Sheldon, Easwar Magesan, Jerry M
+    the hamiltonian variational ansatz”. PRX                      Chow, and Jay M Gambetta. “Procedure
+    Quantum 1, 020319 (2020).                                     for systematically tuning up cross-talk in the
+[59] Alexander Miessen, Pauline J Ollitrault,                     cross-resonance gate”. Phys. Rev. A 93,
+    Francesco Tacchino, and Ivano Tavernelli.                     060302 (2016).
+    “Quantum algorithms for quantum dynam-                    [69] Neereja Sundaresan, Isaac Lauer, Emily
+    ics”. Nature Computational Science 3, 25–                     Pritchett, Easwar Magesan, Petar Jurcevic,
+    37 (2023).                                                    and Jay M Gambetta. “Reducing unitary and
+[60] Youngseok Kim, Christopher J. Wood,                          spectator errors in cross resonance with op-
+    Theodore J. Yoder, Seth T. Merkel, Jay M.                     timized rotary echoes”. PRX Quantum 1,
+    Gambetta, Kristan Temme, and Abhinav                          020318 (2020).
+    Kandala. “Scalable error mitigation for noisy
+    quantum circuits produces competitive ex-                 A Pulse-efficient cross-resonance cir-
+    pectation values”. Nature Physics 19, 752–
+    759 (2023).                                               cuits
+[61] Johannes Weidenfeller, Lucia C. Valor,                   In this appendix we briefly review pulse-efficient
+    Julien Gacon, Caroline Tornow, Luciano                    transpilation for cross-resonance-based hardware
+    Bello, Stefan Woerner, and Daniel J. Egger.               (typically coupled fixed frequency transmons).
+    “Scaling of the quantum approximate opti-                 The cross-resonance interaction arises by driving
+    mization algorithm on superconducting qubit               a control qubit at the target qubit’s frequency.
+    based hardware”. Quantum 6, 870 (2022).                   Within the two-level approximation, the result-
+[62] Guglielmo Mazzola. “Sampling, rates, and                 ing time-independent Hamiltonian reads
+    reaction currents through reverse stochastic
+                                                                                    1
+    quantization on quantum computers”. Phys.                              HCR =      (Z ⊗ B + I ⊗ C) ,     (7)
+    Rev. A 104, 022431 (2021).                                                      2
+[63] David Layden, Guglielmo Mazzola, Ryan V                  where B = ωZI I + ωZX X + ωZY Y , C = ωIX X +
+    Mishmash, Mario Motta, Pawel Wocjan, Jin-                 ωIY Y + ωIZ Z, and I, X, Y, Z are Pauli matri-
+    Sung Kim, and Sarah Sheldon. “Quantum-                    ces [65, 66, 67]. By using echoed cross-resonance
+
+Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                            10
+                                  Noiseless simulation            Pulse-efficient                        Pulse-efficient + d.d.           Regular
+
+
+                                1.0
+                                                                                               0.6
+
+
+
+
+      Classification accuracy
+                                                                               Normlized MSE
+                                0.8
+                                                                                               0.4
+                                0.6
+                                                                                               0.2
+                                0.4
+                                                                                               0.0
+                                      2   3   4    5     6   7   8    9   10                         2   3   4    5    6    7     8   9   10
+                                               Number of qubits                                               Number of qubits
+
+     Figure 6: Impact of pulse-efficient transpilation on quantum kernel classification run on ibmq_gaudalupe.
+                                                                                   1
+pulses with rotary tones [68, 69], it is possible to                                           lation.
+isolate the ZX interaction and thus implement
+the unitary RZX (θ) = exp{−iZXθ/2} with good
+accuracy. To first approximation, the rotation
+                                                                                               B Pulse-efficient kernel classification
+angle of this conditional rotation is given by θ =                                             without dynamical decoupling
+tCR ωZX (A), where ωZX (A) is a non-linear inter-
+action term that depends on the amplitude of                                                   In Section 3, we showed kernel estimation results
+the cross-resonance pulse. IBM Quantum back-                                                   for circuits with PE transpilation and dynami-
+ends leverage the cross-resonance interaction to                                               cal decoupling. A natural follow-up question is
+implement CNOT gates constructed with echoed                                                   how much of the performance improvement can
+rotations RZX (π/2) = CR(π/4)XCR(−π/4)X.                                                       be attributed to each of the two error suppression
+Here, CR are the non-echoed cross-resonance                                                    strategies. To address this question, we run a
+pulses, typically shaped as flat-top gaussians. To-                                            smaller set of experiments on ibmq_gaudalupe to
+gether with a complete set of one-qubit gates,                                                 classify digits 0, 7, and 9. We execute the kernels
+this CNOT gate is then used as a primitive                                                     with PE transpilation with and without dynam-
+to synthesize arbitrary two-qubit gates. How-                                                  ical decoupling and show the resulting classifica-
+ever, it is possible to implement arbitrary rota-                                              tion accuracy and NMSE in Fig. 6. Although dy-
+tions RZX (θ) by appropriately scaling the cross-                                              namical decoupling has a sizeable effect, we con-
+resonance pulses [36]. The core idea of PE tran-                                               clude that PE transpilation is the primary driver
+spilation is to leverage this native parametric gate                                           of the performance improvement over regular cir-
+to decrease circuit duration and achieve higher fi-                                            cuits.
+delities. The scheme works as follows. Using Car-
+tan’s decomposition, we first rewrite a CNOT-
+transpiled circuit in terms of parameterized, non-
+echoed RZX (θ) rotations. Then, we expand the
+RZX (θ) gates and expose its echoed implemen-
+tation CR(θ/2)XCR(−θ/2)X. A final transpi-
+lation pass removes redundant single-qubit rota-
+tions, leaving at most one single-qubit rotation
+between non-echoed RZX pulses. Though non-
+linear behaviour can result in coherent over or
+under rotations, this method achieves significant
+reductions in circuit duration for certain gates
+(such as the RZZ (θ) interaction used in this work)
+compared to conventional CNOT-based transpi-
+
+
+Accepted in Quantum 2023-09-18, click title to verify. Published under CC-BY 4.0.                                                                   11
+

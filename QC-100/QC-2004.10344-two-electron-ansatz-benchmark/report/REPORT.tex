@@ -1,0 +1,175 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,url,graphicx}
+\usepackage{listings}
+\title{Independent Replication --- arXiv:2004.10344\\
+\large Smart \& Mazziotti, ``Efficient Two-Electron Ansatz for Benchmarking Quantum Chemistry on a Quantum Computer''\\
+(Phys.\ Rev.\ A \textbf{103}, 012420, 2021)}
+\author{QC-100 wave, independent replication (2026-07-03)}
+\date{Backfilled 2026-07-05}
+\begin{document}
+\maketitle
+
+\section{Paper summary}
+Smart \& Mazziotti propose a compact, gate-efficient VQE ansatz for two-electron
+systems. Any 2-electron 2-DM in the natural-orbital (Zumino) basis is fully
+parametrised by (i) natural-orbital occupations and (ii) $O(r)$ phase factors.
+For H$_2$/STO-3G ($r{=}2$, 4 spin-orbitals $\to$ 4 qubits after Jordan--Wigner),
+this collapses the correlated wavefunction to a \emph{single} double-excitation
+angle $t_{22'11'}$ generating $|1\alpha 1\beta\rangle \to |2\alpha 2\beta\rangle$
+from the Hartree--Fock reference. Headline benchmarks: (1) H$_2$ potential-energy
+curve at STO-3G, 4 qubits, real IBM hardware (ibm-5, ibm-14), reaching millihartree
+accuracy vs FCI across $R\in[0.5,2.5]$~\AA{} with error mitigation; (2) H$_3^+$
+curve at 6 qubits; (3) effect of symmetry verification on N-representability
+metrics.
+
+\section{Claims table (classically testable subset)}
+\begin{center}\small
+\begin{tabular}{clcc}
+\toprule
+ID & Claim & Classically testable? & Tested here?\\
+\midrule
+C1 & Compact 1-parameter ansatz spans H$_2$/STO-3G FCI (noise-free limit) & Yes & \textbf{Yes} \\
+C2 & O(1) circuit preparations, linear in basis for tomography & Partial & Partial (H$_2$ only)\\
+C3 & JW image of double-excitation has $\sim$8-CNOT nearest-neighbor implementation & Yes & \textbf{Yes} \\
+C4 & IBM hardware curve to mhartree accuracy with mitigation & No (device retired) & No\\
+C5 & Symmetry verification improves N-representability metric V (Table I) & No (hardware) & No\\
+C6 & Fewer parameters than UCCSD (1 vs 3 for H$_2$/STO-3G) & Yes & \textbf{Yes} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Method (headline path exercised)}
+Environment: Python 3.13, PySCF 2.13.1, OpenFermion 1.7.1, OpenFermion-PySCF 0.5,
+Qiskit 2.5.0. All classical (statevector) on CPU.
+
+For each $R$: PySCF RHF/STO-3G $\to$ integrals; \texttt{MolecularData} +
+\texttt{run\_pyscf(run\_scf=True, run\_fci=True)} $\to$ molecular Hamiltonian
++ FCI reference. \texttt{jordan\_wigner} $\to$ 4-qubit Pauli operator;
+\texttt{get\_sparse\_operator(n\_qubits=4)} $\to$ $16{\times}16$ Hermitian matrix.
+
+Ansatz $|\psi(\theta)\rangle = \exp(\theta T)|HF\rangle$ with
+$T = a^\dagger_2 a^\dagger_3 a_1 a_0 - a^\dagger_0 a^\dagger_1 a_3 a_2$
+(antihermitian double-excitation), $|HF\rangle=|0011\rangle$. State via
+\texttt{scipy.sparse.linalg.expm\_multiply}. VQE: BFGS from 9 starts in
+$[-\pi,\pi]$ (single-parameter -- multi-start is defensive only).
+
+Cross-check: explicit Qiskit 4-qubit \texttt{QuantumCircuit} implementing
+$\exp(-i\theta/2 \cdot Y_0 X_1 X_2 X_3)$ via a CNOT staircase (single-Pauli-string
+decomposition), plus HF X-gates, evaluated with \texttt{Statevector}.
+
+Baseline: standard JW-UCCSD on H$_2$/STO-3G -- 2 spin-preserving Givens singles
+(2 CNOTs each) + 1 double (same 6-CNOT block) $=$ 3 params, 14 CNOTs.
+
+\section{Results vs paper}
+\subsection*{H$_2$ dissociation curve (C1)}
+18 bond lengths $R = 0.30$--$3.00$~\AA:
+$\max|E_{\mathrm{VQE}}{-}E_{\mathrm{FCI}}| = 4.0\times 10^{-12}$~mhartree;
+mean $1.0\times 10^{-12}$~mhartree; \textbf{18/18} within the 1.6~mhartree
+chemical-accuracy threshold. The compact ansatz reaches FCI to numerical
+precision at every bond length tested, including strongly dissociated
+geometries where HF is qualitatively wrong.
+
+\subsection*{Qiskit cross-check (C1, independent code path)}
+At $R=0.735$~\AA: $\theta^* = 0.22354$~rad;
+$E_{\mathrm{VQE}} = -1.1373060357533986$; $E_{\mathrm{FCI}} = -1.1373060357534000$;
+$\Delta = 1.3\times 10^{-12}$~mhartree. Two independent state-preparation paths
+(matrix exponential vs Qiskit-native gate sequence) agree with FCI and with each
+other.
+
+\subsection*{Gate counts (C3, C6)}
+\begin{center}\small
+\begin{tabular}{lccc}
+\toprule
+Ansatz & \#params & \#CNOTs & Depth \\
+\midrule
+Compact 2e (this work, single-Pauli-string) & 1 & 6 & 10 \\
+Compact (paper, Nam et al.\ nearest-neighbor) & 1 & 8 (reported) & --- \\
+UCCSD JW baseline (this work) & 3 & 14 & 16 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Parameter-count claim (C6, $3\times$ reduction vs UCCSD) verified. CNOT-count
+claim (C3, $\sim$8 CNOTs with NN constraint) consistent; our simpler 6-CNOT
+single-Pauli-string form gives the same energy exactly because the missing 7
+Pauli strings act as identity on the $\{|0011\rangle,|1100\rangle\}$ orbit.
+
+\section{Verdict: REPLICATED}
+The noise-free core claim (compact 1-parameter ansatz spans H$_2$/STO-3G FCI to
+chemical accuracy across the dissociation curve) reproduces \emph{exactly}
+(to $\sim 10^{-12}$~Ha) at 18 bond lengths using two independent state-preparation
+paths. Parameter-count advantage vs UCCSD (1 vs 3) verified. 8-CNOT count
+consistent with paper's NN-constrained Pauli-sum decomposition. Hardware claims
+(C4, C5) not tested -- both target IBM devices (ibm-5, ibm-14) are retired and
+require hardware access outside a CPU-only replication scope.
+
+\section{Critical evaluation and limitations (honest failure surface)}
+This replication delivers on the paper's \emph{noise-free ansatz-expressiveness}
+core, but the following caveats are load-bearing and should not be understated:
+
+\begin{itemize}
+\item \textbf{Trivial minimisation regime.} H$_2$/STO-3G with a 1-parameter ansatz
+is a genuinely trivial optimisation landscape --- the ``VQE loop'' is a scalar
+line-search in $\theta$ over a smooth cosine-like objective, and the global
+minimum is analytic. The BFGS + 9-start protocol is defensive overkill and
+cannot exercise the barren-plateau / initialisation failure modes that dominate
+realistic VQE. The demonstration of expressiveness is real; the demonstration
+of \emph{trainability at scale} is essentially vacuous.
+
+\item \textbf{Single molecule, single basis.} Only H$_2$ in STO-3G was reproduced.
+The paper's H$_3^+$ 6-qubit curve, its second headline system, was not replicated
+here. HeH$^+$ (frequently used as a 2e VQE test system) was not touched. A curve
+sweep over one molecule in a minimal basis is not a benchmark; it is a sanity
+check.
+
+\item \textbf{No noise model, no shot noise, no error mitigation.} All results
+are exact statevector. This deliberately isolates the ansatz-expressiveness
+claim (C1) but cannot corroborate or refute the paper's central practical value
+proposition, which is that this ansatz + error mitigation is what makes the
+NISQ result work. C4 and C5 remain fully open from this replication.
+
+\item \textbf{CNOT count comparison is not apples-to-apples.} Our 6-CNOT figure
+uses a single-Pauli-string decomposition on all-to-all connectivity;
+the paper's 8 CNOTs assumes nearest-neighbor connectivity plus Nam et al.\
+simplifications across the full 8-string Pauli sum. We report the discrepancy
+transparently but did not build the paper's exact decomposition; a direct
+hardware-topology-matched comparison was not attempted.
+
+\item \textbf{UCCSD baseline is our own build, not a canonical reference.}
+We built UCCSD from JW-mapped standard singles + doubles; parameter count (3)
+matches the standard, but the 14-CNOT depth is a specific decomposition choice
+and other UCCSD compilers may produce 8--20 CNOTs depending on grouping.
+The $\sim2\times$ CNOT-savings headline is directionally correct but not a
+formal lower bound.
+
+\item \textbf{Symmetry-verification claim (C5) untouched.} The paper's Table I
+symmetry-verification effect on the N-representability metric $V$ is the only
+part of the paper that speaks to \emph{why} the compact ansatz is useful beyond
+being small. Not replicated.
+
+\item \textbf{No comparison to modern adaptive ansatze.} ADAPT-VQE, iterative
+QCC, or qubit-ADAPT on the same H$_2$/STO-3G system would also reach FCI with
+a small number of parameters and would frame the paper's contribution in a
+current context. Not attempted.
+
+\item \textbf{Chemical-accuracy verdict is trivial in this regime.}
+Reporting ``18/18 within 1.6 mhartree'' when the max error is $4\times 10^{-12}$
+mhartree is a strong statement about the ansatz but a weak statement about
+the 1.6 mhartree threshold's relevance. Any expressiveness-complete ansatz
+would trivially satisfy this bar.
+\end{itemize}
+
+\section{Files}
+Code: \texttt{code/vqe\_h2\_compact.py}, \texttt{code/circuit\_gate\_counts.py},
+\texttt{code/plot\_curve.py}. Results:
+\texttt{results/h2\_curve.\{json,csv\}}, \texttt{results/h2\_dissociation\_curve.png},
+\texttt{results/gate\_counts.json},
+\texttt{results/\{compact,uccsd\}\_circuit.txt}. Logs in \texttt{logs/}.
+Paper snapshot in \texttt{work/}. Evidence copies in \texttt{report/evidence/}.
+
+\section{Open questions}
+See \texttt{open\_questions\_section.tex} for 5 concrete probes (adaptive
+ansatze, noise-aware ansatz choice, transferability across bond-length regimes,
+active-space embedding, ML-selected ansatz architecture).
+
+\end{document}

@@ -1,0 +1,174 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,longtable}
+\usepackage{listings}
+
+\title{Independent Replication Report --- CS-VQE\\ \large arXiv:2011.10027 (Kirby, Tranter, Love, 2020)}
+\author{Ollie (subagent), Rick Stevens replication project (QC-100)}
+\date{2026-07-03; backfilled 2026-07-06}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently re-implement the Contextual Subspace Variational Quantum
+Eigensolver (CS-VQE) of Kirby, Tranter, and Love (Quantum 5, 456, 2021) on an
+open-source Python stack (OpenFermion + PySCF + NumPy/SciPy) and reproduce
+the two directly-testable numerical claims of the paper: (i)~the Section~2.4
+mean fractional errors on a family of 10\,000 random 3-qubit
+Hamiltonians, and (ii)~the reduced-qubit VQE energy for H$_2$/STO-3G under
+the Jordan--Wigner (JW) mapping. Both claims reproduce to within
+$\lesssim 0.5\%$ of the paper's headline values, and H$_2$ CS-VQE recovers
+the full FCI energy on $q=1$ quantum qubit (vs.\ 4 for full VQE), directly
+exercising the paper's qubit-reduction claim. Verdict: \textbf{REPLICATED}.
+Larger-molecule sweeps (Fig.~2/3 in the paper: LiH, H$_2$O, N$_2$, \ldots) are
+out of QC-100 laptop-CPU scope and were not re-run; the algorithmic mechanism
+that produces those reductions is verified end-to-end on H$_2$.
+\end{abstract}
+
+\section{Paper summary}
+CS-VQE partitions a molecular qubit Hamiltonian
+$H = \sum_j h_j P_j$ into a \emph{noncontextual} piece $H_{nc}$ (Pauli terms
+that admit a joint quasi-quantized value assignment; solvable classically via
+the Kirby--Love (2019) closed form) and a \emph{contextual} piece $H_c$ (the
+rest). The noncontextual ground state fixes single-qubit stabilizers in a
+rotated basis; the full Hamiltonian is projected into their joint
+$\pm1$-eigenspace, and VQE is run only on the residual $q = n - k$ qubits.
+Choosing how many stabilizers to leave unfixed interpolates continuously
+between the pure noncontextual classical answer and full VQE.
+
+\section{Claims table}
+\begin{longtable}{p{0.05\linewidth} p{0.55\linewidth} p{0.10\linewidth} p{0.20\linewidth}}
+\toprule
+\# & Claim & Tested? & Result \\
+\midrule
+C1 & Sec.~2.4: mean frac.\ error $\overline{\varepsilon}_{nc}=0.257$ and $\overline{\varepsilon}_{\text{CS-VQE}}=0.0268$ over 10\,000 random 3-qubit $H$. & Yes & $0.2558\,/\,0.0267$ ($<\!0.5\%$) \\
+C2 & H$_2$/STO-3G JW: CS-VQE reaches chemical accuracy at $q < n$, giving $>\!2\times$ qubit reduction. & Yes & $q=1$ recovers FCI to numerical zero (4$\times$ reduction) \\
+C3 & Naïve greedy-by-$|h|$ partition $\Rightarrow$ $E_{nc}=E_{HF}$. & Yes & Reproduced: $-1.11668$ Ha \\
+C4 & Fig.~2 reductions across LiH/H$_2$O/N$_2$/\ldots & No & Out of QC-100 scope; mechanism verified on H$_2$ \\
+C5 & Fig.~3 $\sim\!10\times$ reduction in QPU-measured terms. & Partial & H$_2$ shows 15$\to$4 c-terms = 3.75$\times$; consistent direction/magnitude for a very small system \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+\subsection{Environment}
+Fresh Python venv on CherryRd (macOS, arm64, CPU-only):
+NumPy 2.5.0, SciPy 1.18.0, Qiskit 2.5.0, qiskit-nature 0.8.0,
+OpenFermion 1.7.1, PySCF 2.13.1, Python 3.13.
+
+\subsection{Sec.~2.4 (10\,000 random 3-qubit $H$)}
+14 real coefficients $h_j \sim \mathcal{U}(-1,1)$ per instance
+(seed \texttt{20260703}); noncontextual set
+$S_{nc}=\{ZII, IXI, IYI, IZX, IZY, IZZ, ZXI, ZYI, ZZX, ZZY, ZZZ\}$,
+contextual set $S_c=\{IIX,IIY,IIZ\}$. Compute
+$E_{\text{true}} = \min\text{eigval}(H)$ (8$\times$8);
+$E_{nc}$ from the closed form
+$E_{nc} = \min_{q_Z\in\{\pm1\}} [\,h_{ZII}\,q_Z - \|b(q_Z)\|_2\,]$;
+and the CS-VQE correction as $\min\text{eigval}$ of $H_c'$ projected into
+the $+1$-eigenspace of $A_0=\sum_j r_j^* A_j$. Wall time 3.6~s.
+
+\subsection{H$_2$/STO-3G CS-VQE}
+Bond length 0.7414~\AA, PySCF+OpenFermion, JW $\to$ 15-term 4-qubit
+Hamiltonian. Reference $E_{HF}=-1.11668439$~Ha, $E_{FCI}=-1.13727017$~Ha,
+correlation energy 20.6~mHa. Exhaustive scan over all $2^{15}=32\,768$
+subsets, filtered by the graph-theoretic noncontextual test
+(anticommutation-graph connected components must each be cliques and
+commute across components); 6\,015 noncontextual partitions found. For
+each, diagonalize $H_{nc}$ classically, project $H$ into its ground-state
+subspace, diagonalize $\to E_{\text{CS-VQE}}$. Wall time $\sim 5$~s.
+
+\section{Results}
+\subsection{Sec.~2.4}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Quantity & Paper & Replication ($n{=}10{,}000$) & $\Delta$ \\
+\midrule
+$\overline{\varepsilon}_{nc}$        & 0.257  & \textbf{0.2558} & $-0.5\%$ \\
+$\overline{\varepsilon}_{\text{CS-VQE}}$ & 0.0268 & \textbf{0.0267} & $-0.4\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Also stable at $n{=}500$ ($0.2537 / 0.0261$): variance is set by the
+14-term family geometry, not sample noise.
+
+\subsection{H$_2$/STO-3G qubit sweep}
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+$d=2^q$ & $q$ & Best $E_{\text{CS-VQE}}$ (Ha) & Err vs FCI (Ha) & Chem.\ acc.? \\
+\midrule
+1  & 0 & $-1.13700852$ & $2.6\times 10^{-4}$ & yes (0.26 mHa) \\
+2  & 1 & $-1.13727017$ & $1.1\times 10^{-15}$ & yes (numerical zero) \\
+4  & 2 & $-1.13727017$ & $1.1\times 10^{-15}$ & yes \\
+8  & 3 & $-1.13727017$ & $1.1\times 10^{-15}$ & yes \\
+16 & 4 & $-1.13727017$ & $8.9\times 10^{-16}$ & yes (full VQE) \\
+\bottomrule
+\end{tabular}
+\end{center}
+Headline: CS-VQE recovers FCI at $q=1$ (vs.\ 4 for full VQE), a
+$4\times$ qubit reduction --- comfortably better than the paper's
+``$>\!2\times$'' summary claim on the smallest test molecule. Even $q=0$
+(pure classical noncontextual) reaches chemical accuracy with the right
+partition (nc $=\{IIII, IIZI, YXXY, ZIZI, ZIIZ, IZZI\}$).
+
+\section{Critique}
+\paragraph{Was the CS decomposition independently implemented?} Yes ---
+from the paper's Sections~2.1--3 and the Kirby--Love 2019 closed form,
+without touching the authors' code. The graph-theoretic noncontextuality
+test was re-derived and applied to all $2^{15}$ subsets of the H$_2$
+Hamiltonian.
+
+\paragraph{Was the reduced-qubit VQE energy reproduced?} Yes for H$_2$
+(the paper's smallest headline example) to numerical precision at
+$q=1$. For LiH/H$_2$O/N$_2$/\ldots\ (Fig.~2/Fig.~3) we did \emph{not}
+re-run the sweep. The algorithm is a straight extension --- larger
+Hamiltonian, same noncontextual search + projection --- but each row
+would require a much larger classical eigensolve or a real ansatz VQE
+run.
+
+\paragraph{Was the non-contextual classical solution verified?} Yes.
+$E_{nc}$ from the closed form matches direct diagonalization of $H_{nc}$
+to $\sim 10^{-15}$ Ha across all tested partitions.
+
+\paragraph{Was the comparison against full VQE made?} Yes for H$_2$: at
+$q=n=4$ CS-VQE equals full-Hamiltonian $\min\text{eigval}$ to numerical
+zero, confirming CS-VQE $\to$ full VQE in the trivial-partition limit.
+
+\paragraph{Honest limitations.}
+\begin{itemize}\itemsep0pt
+\item \textbf{No VQE optimization loop.} We diagonalize the projected
+Hamiltonian directly (as the paper explicitly allows: ``quantum
+corrections were simulated classically by directly evaluating the lowest
+eigenvalues''). We did not run a parameterized ansatz + classical
+optimizer + measurement estimator; sampling noise, ansatz-expressibility
+limits, and barren-plateau behavior of the reduced-qubit VQE are
+therefore not tested.
+\item \textbf{Only one molecule.} H$_2$/STO-3G is trivially small.
+Whether the qubit-reduction ratio actually grows with system size (the
+paper's real claim of practical value) is not independently established
+here.
+\item \textbf{Only closed-shell.} We tested a spin singlet in a minimal
+basis; open-shell / larger-basis-set behavior of the noncontextual
+partition is untouched.
+\item \textbf{No noise model.} All simulations are noise-free classical
+linear algebra. Whether reduced-qubit CS-VQE is more or less robust to
+device noise than full VQE (an obvious near-term-hardware question) is
+not tested.
+\item \textbf{Partition search is exhaustive, not heuristic.} The paper
+puts significant weight on choosing $H_{nc}$ well (their Section~3);
+our H$_2$ headline uses the best partition from exhaustive enumeration,
+which is only tractable at $n\!=\!4$. Whether their proposed heuristic
+finds this same partition on H$_2$ (and whether it scales) was not
+tested here.
+\end{itemize}
+
+\section{Verdict}
+\textbf{REPLICATED.} Both headline numerical claims (Sec.~2.4 mean
+errors; H$_2$ CS-VQE $q\!<\!n$) reproduce on an independent stack;
+the qubit-reduction mechanism is exercised end-to-end on the paper's
+smallest molecular example.
+
+\input{open_questions_section.tex}
+
+\end{document}

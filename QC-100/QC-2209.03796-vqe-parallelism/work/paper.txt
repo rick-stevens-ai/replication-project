@@ -1,0 +1,525 @@
+                                                         Accelerating the variational quantum eigensolver using parallelism
+
+                                                                                   Lana Mineh1, ∗ and Ashley Montanaro1, 2
+                                                                                                    1
+                                                                                                      Phasecraft Ltd.
+                                                                                   2
+                                                                                       School of Mathematics, University of Bristol
+                                                                                                 (Dated: May 10, 2023)
+                                                           Quantum computers are getting larger and larger, but device fidelities may not be able to keep
+                                                         up with the increase in qubit numbers. One way to make use of a large device that has a limited
+                                                         gate depth is to run many small circuits simultaneously. In this paper we detail our investigations
+                                                         into running circuits in parallel on the Rigetti Aspen-M-1 device. We run two-qubit circuits in
+                                                         parallel to solve a simple instance of the Hubbard model using the variational quantum eigensolver.
+                                                         We present results for running up to 33 circuits in parallel (66 qubits), showing that with the use
+                                                         of error mitigation techniques it is possible to make use of, and gain a real-time speedup from,
+
+
+
+
+arXiv:2209.03796v2 [quant-ph] 9 May 2023
+                                                         parallelisation on current quantum hardware. We obtain a speedup by 18× for exploring the VQE
+                                                         energy landscape, and by more than 8× for running VQE optimisation.
+
+
+                                              Quantum computers in the coming years are expected              classical and quantum computer. Indeed, we find below
+                                           to have thousands of qubits, but it is likely that the fi-         that the choice of which algorithm to use for VQE has
+                                           delity of devices will still restrict the ability to do large      crucial implications for the level of speedup via paral-
+                                           computations involving many qubits. One possible way               lelism that can be achieved. Also, crosstalk and the use
+                                           to make better use of a device is to run multiple smaller          of lower-fidelity qubits might reduce the accuracy of par-
+                                           computations in parallel, increasing the speed of the over-        allel algorithms [3, 4].
+                                           all algorithm being run. Noisy intermediate-scale quan-               In this paper, we go into more depth regarding the
+                                           tum (NISQ) algorithms and hybrid quantum-classical al-             use of parallelism within variational quantum algorithms,
+                                           gorithms such as the variational quantum eigensolver               with the aim of making efficient use of near-term quan-
+                                           (VQE) [1, 2] naturally lend themselves to parallelism, and         tum hardware, and accelerating actual running times of
+                                           are natural test cases for the ability of quantum comput-          algorithms. To do this we conduct a detailed investi-
+                                           ers to take advantage of this concept.                             gation of one simple case of VQE on Rigetti hardware
+                                              A number of works have investigated the theory                  – solving the compressed two-site half-filled Hubbard
+                                           and implementation of parallelism (also called multi-              model, which maps to a two-qubit circuit. This exact
+                                           programming) on NISQ devices. Algorithms have been                 problem has previously been investigated on quantum
+                                           proposed that partition chips into regions of reliable             hardware using Rigetti Aspen-4 and Aspen-7 [7]. Here,we
+                                           qubits, allowing for circuits of different depths and size to      demonstrate that a wall-clock time speedup can indeed
+                                           be run simultaneously [3–6]. On cloud systems, this could          be obtained for VQE: by a factor of more than 8 for the
+                                           potentially allow multiple users to execute circuits on the        optimisation process (when using the BayesMGD optimi-
+                                           same chip at the same time, increasing the throughput              sation algorithm [8]), and by a factor of 18 for exploring
+                                           of quantum devices. Demonstrations of the VQE algo-                the VQE landscape.
+                                           rithm in parallel have also been performed for two-qubit              In Section I, we discuss the details of the problem that
+                                           deuteron and molecular hydrogen, in particular executing           we solve on the quantum computer. We lay out the par-
+                                           circuits to measure all of the Pauli terms in a Hamilto-           ticulars of the VQE algorithm, from the ansatz circuit
+                                           nian simultaneously [4, 6].                                        and classical optimisers to the way in which parallelism is
+                                              These last works introduce and demonstrate the use              incorporated into the algorithm. In Section II we present
+                                           of techniques for achieving a speedup by parallelism. For          the experimental results from Rigetti’s 80-qubit Aspen-
+                                           example, in [6], up to 24 circuits are run in parallel (via 12     M-1 device, where we run up to 33 circuits in parallel
+                                           VQE parameters and 2 measurement settings), implying               (66 qubits). From benchmarking in Section II A we find
+                                           a speedup by up to 24 times. However, it is important              that as we add more circuits in parallel, the average er-
+                                           to note that running circuits in parallel on a quantum             ror in the circuits gets worse but is somewhat mitigated
+                                           computer does not immediately imply a faster or more               through the use of error correction techniques. In Sec-
+                                           accurate algorithm. Given the need to access quantum               tion II B we carry out the full VQE optimisation proce-
+                                           hardware via the cloud, network latency and the need to            dure using different parallelisation techniques and classi-
+                                           transmit additional data might wipe out any speedup                cal optimisers, finding that best use of the device is made
+                                           obtained from parallelism. This is especially relevant             when running circuits with different variational parame-
+                                           to VQE algorithms, which have an inherently sequen-                ters and using a classical optimiser that can best make
+                                           tial flavour and require many round-trips between the              use of batch circuit runs. We conclude in Section III that
+                                                                                                              this could open the way for using parallelisation within
+                                                                                                              the VQE algorithm to carry out rough calculations, us-
+                                                                                                              ing the results to inform a more accurate run on one
+                                           ∗ lana@phasecraft.io
+                                                                                                              circuit. This could reduce the required running time of
+2
+
+variational algorithms on NISQ devices.                           • Each parallel circuit could run an entire instance
+                                                                    of VQE, with the results over all p instances ei-
+                                                                    ther averaged at the end of the computation, or
+         I.   OUTLINING THE PROBLEM                                 the minimum over all of them taken. This is equiv-
+                                                                    alent to running the VQE algorithm p times, and
+   The Hubbard model [9] is one of the simplest models              could provide more certainty that the algorithm has
+of interacting electrons on a lattice, making it a good tar-        succeeded if many of the parallel results agree.
+get for NISQ devices. Despite decades of research, a full
+                                                                  • Each circuit could be used to measure a different
+description of the 2D model beyond approximations is
+                                                                    term in the Hamiltonian as it is often not possible
+still an open problem [10], and is thought to be relevant
+                                                                    to calculate the expectation of the entire Hamilto-
+to applications such as high-temperature superconduc-
+                                                                    nian in one circuit preparation. The speedup here
+tivity [11].
+                                                                    will depend on how many groupings of Pauli terms
+   In this paper, we will concern ourselves with solving
+                                                                    there are, but it could also be combined with any of
+the half-filled 2 × 1 Hubbard model for t = 1, U = 2; a
+                                                                    the methods above. This is what was done in [4, 6],
+case which has previously been investigated thoroughly
+                                                                    combined with using different parameters. How-
+on Rigetti hardware [7]. Using the Jordan-Wigner trans-
+                                                                    ever, the available speedup for the Hubbard model
+form, the 2 × 1 model would map onto four qubits. How-
+                                                                    from parallelising measurements alone would be rel-
+ever, we will make use of the compressed representation
+                                                                    atively limited, as the energy can be measured us-
+outlined in [7] which allows us to map the Hamiltonian
+                                                                    ing 5 measurements for an arbitrary lattice [12].
+onto two qubits. The compressed Hubbard Hamiltonian
+on two sites is now as follows:                                   In this paper we focus on the first two forms of par-
+                               U                               allelism. For the remainder of this section, we will out-
+       HC = −t(X ⊗ I + I ⊗ X) + (I + Z ⊗ Z)             (1)    line the different aspects of the VQE algorithm such as
+                               2
+                                                               ansatz circuit, optimiser and the error mitigation tech-
+                           U −t −t 0
+                                     
+                                                               niques that need to be employed on the device.
+                         −t 0 0 −t
+          = Hhop + Hos =               ,                         We make use of the Hamiltonian variational (HV)
+                           −t 0 0 −t
+                                                               ansatz [13] which has previously been shown to be effec-
+                           0 −t −t U
+                                                               tive for solving the Hubbard model in simulation [12–14]
+where t is the tunnelling amplitude (which governs the         and in experiment [7, 8]. Each layer of the ansatz circuit
+hopping term) and U is the Coulomb potential (which            consists of time-evolutions according to each of the terms
+governs the onsite term).                                      in the Hamiltonian. The variational parameters govern
+  We will aim to produce the ground state of this Hamil-       the length of the time-evolution and the same parameter
+tonian using the VQE algorithm. This works by prepar-          may be used for terms in the Hamiltonian that commute.
+ing a parameterised ansatz circuit |ψ(θ)i on the quantum          The 2 × 1 Hubbard model has a single hopping term
+computer and using the classical computer to optimise          and onsite term, therefore the ansatz has only two varia-
+the circuit with the aim of minimising hψ(θ)|HC |ψ(θ)i.        tional parameters per layer. Furthermore, numerical ex-
+  There are a number of different ways in which we could       periments have shown that only one layer of the ansatz
+make use of parallelism in the VQE algorithm. Let p be         is required to produce the ground state [12], making the
+the number of VQE circuits run in parallel on the same         full circuit that we run:
+quantum device.
+                                                                                |ψi = eiθHhop eiφHos |ψ0 i,             (2)
+    • The same VQE circuit (with the same variational
+      parameters) could be run in parallel. Compared to        where |ψ0 i is the ground state of HC with U = 0 (which
+      standard VQE, this generates p× more shots to es-        can be prepared efficiently using Givens rotations [15]).
+      timate the energy with every run of the quantum          Finally, to measure hHC i requires two preparations of
+      computer. This has the potential to reduce the run-      the quantum circuit as the onsite terms are measured in
+      ning time of the algorithm as the desired number         the computational basis and the hopping terms in the X
+      of shots could be reached earlier, or increase the       basis. Figure 1 demonstrates this circuit in the Rigetti
+      accuracy of the solution in the same running time        native gate set.
+      as standard VQE.                                            We use two different classical optimisation techniques
+                                                               in our experiments, each suited to a different form of par-
+    • Each parallel circuit could run with different vari-     allelism. Both optimisation algorithms have been covered
+      ational parameters, this corresponds to running a        in detail elsewhere; we will restrict the discussion to their
+      batch of circuits with each run of the quantum com-      uses within parallel VQE.
+      puter. This samples p× more data points from the            The first optimiser is simultaneous perturbation
+      energy landscape of the problem with every run.          stochastic approximation (SPSA) [16, 17] which has pre-
+      Together with a classical optimiser that makes best      viously been used on small VQE experiments on super-
+      use of the batched circuits, this approach could also    conducting quantum hardware [7, 18]. The SPSA algo-
+      reduce the running time of the algorithm.                rithm works similarly to standard gradient descent, but
+                                                                                                                             3
+
+                |0i   RX (− π2 )                               •   RX (− π2 )     RZ (π + θ)   RX (− π2 )
+
+
+                |0i   RX (− π2 )   RZ (−π + φ)     RX ( π2 )   •    RX (π)        RZ (π − θ)      RX ( π2 )
+
+                                                                   Hopping               Onsite
+FIG. 1. Optimised quantum circuit (compiled for Rigetti hardware) to implement initial state preparation, one layer of the HV
+ansatz, and measurement of the Hamiltonian terms in HC . The dashed boxes indicate gates that are included in the circuit
+when measuring the hopping or onsite terms. The circuit for measuring the hopping terms has a lower depth as the addition
+of the Hadamard gates for transforming into the X-basis has the effect of cancelling many of the RX and RZ rotations. In
+particular, RZ gates (including those that depend on the hopping parameter θ) are moved to the end of the circuit where they
+do not have an effect on the computational basis measurements.
+
+
+instead picks a random direction to estimate the gradi-             to each pair of qubits at the end of the VQE algorithm us-
+ent along. Each gradient evaluation is then estimated               ing the simplest method presented in [22]. Suppose that
+from two function evaluations, resulting in less calls to           we wish to estimate the energy E(φ, θ) and the result we
+the quantum computer compared to other finite differ-               receive from the quantum computer is E(φ, e θ). We can
+ence methods. We use SPSA with the first method of                  correct the energy estimate using one TFLO data point
+parallelism – running the same circuit with the same pa-            as follows:
+rameters in parallel.
+   The second optimiser we try is Bayesian model gra-
+                                                                                 e θ) 7→ E(φ,
+                                                                                 E(φ,    e θ) + E(0, θ) − E(0,
+                                                                                                          e θ).             (3)
+dient descent (BayesMGD) which has been successfully
+used to solve the Hubbard model on 8 sites (16 qubits)
+using VQE on Google’s quantum hardware [8]. The idea                             II.   EXPERIMENTAL RESULTS
+behind BayesMGD is to sample points θi in a trust region
+around θ. A quadratic function is fitted to these points
+and used to approximate the gradient at θ, which is then              The device that all of the experiments in this paper are
+used to perform gradient descent. A natural way of mak-             run on is the 80-qubit Rigetti Aspen-M-1 which allows for
+ing use of this algorithm in parallel is to run each different      potentially 40 circuits to be run in parallel; the greatest
+point θi in parallel. One iteration of BayesMGD will then           number of parallel circuits that we report on is 33. In
+correspond to one run of the quantum computer.                      this section we will present experimental benchmarking
+                                                                    and VQE results for running parallel two-qubit circuits.
+   Finally, we employ two simple error mitigation tech-
+niques in our experiments, noise inversion (NI) [19–21]
+and training with fermionic linear optics (TFLO) [22].                 A.       Benchmarking and selection of qubit pairs
+   NI is a common technique designed to handle readout
+errors on small circuits. Before running VQE, we sam-                  In order to determine which qubit pairs are usable, how
+ple the readout noise by producing each computational               they perform in parallel and how to best select them, it
+basis state and measuring the outcome. We use this to               is necessary to do some benchmarking of the device. One
+construct a noise matrix N where the elements at (i, j)             simple experiment that can be done before running cir-
+are the estimated probability of measuring |ii given that           cuits in parallel is to run the two-qubit circuit on every
+we have prepared |ji. If the measured probability distri-           possible pair individually and observe their performance.
+bution after running the VQE circuit is d,   ˜ we can obtain
+                                                                    The purpose of this is to determine if the reported two-
+an estimate of the ideal distribution using d ≈ N −1 d.      ˜
+                                                                    qubit gate fidelities are a good way of selecting qubit
+Since the size of N scales exponentially with the number            pairs, and also which error mitigation techniques are
+of qubits, we apply it only locally to each pair of qubits          most effective.
+in our parallel computation.                                           The VQE framework allows for the use of the measured
+   TFLO is a method for mitigating errors in quantum                energy as a straightforward benchmark (the closer to the
+circuits that simulate fermionic systems [22]. Expecta-             ground energy, the better). In a larger experiment where
+tions of certain observables produced by fermionic linear           the ground energy and the corresponding VQE parame-
+optics (FLO) circuits can be computed exactly classically.          ters are unknown, a heuristic that we have found to be
+If these FLO circuits approximate the circuits that we              effective is to use arbitrary parameters and assume that
+want to run on the quantum computer, the exact and ap-              the lower the energy, the better. Although it is possi-
+proximate FLO results can be used to estimate the effect            ble for errors to produce a lower energy state (perhaps
+of errors in our non-FLO circuit. More concretely, in our           by moving out of the given number sector into one that
+case, the only non-FLO operation is the onsite evolution            has a lower ground energy), in practice we have found
+term. If we remove this term (i.e. set φ = 0) then we have          that errors produce higher energy measurements when
+a suitable circuit for TFLO. We apply TFLO separately               we ignore error correction. This is especially the case for
+4
+
+
+
+
+FIG. 2. Plot of reported CZ fidelity (from the Rigetti QCS website) against the energy obtained from running the optimal
+parameter VQE circuit. Circuits were run on each pair individually on Aspen-M-1 and the three graphs demonstrate the
+performance of different error mitigation techniques – Raw (no error correction), NI, TFLO and combined TFLO+NI. The
+optimal parameter and TFLO circuits were run on each pair using 10,000 shots.
+
+
+
+
+FIG. 3. Aspen-M-1 chip with 33 two-qubit circuits run in
+parallel. Connections are shown between qubits where it is
+possible to do a CZ gate, with the chosen pairs highlighted in
+bold.
+
+
+arbitrary parameters achieving a relatively low energy as
+in general errors make the state more mixed, and the
+maximally mixed state has high energy.                           FIG. 4. The average absolute error with exact energy for
+   Figure 2 is a plot of the reported CZ fidelity against        qubit pairs in parallel for one run on Aspen-M-1. The optimal
+                                                                 parameter circuit was run using 10,000 shots in parallel up to
+the energy obtained by running the optimal parameter
+                                                                 33 pairs using greedy pair selection.
+VQE circuit on all 97 pairs on Aspen-M-1. Qubit pairs
+that have a CZ fidelity of above 90% typically behave
+in a similar manner and perform well even without error
+mitigation, making these pairs a good choice for further         out this work we use a “greedy” method of selecting pairs
+experiments. However, the TFLO method of error mit-              where we pick the pair with the best CZ fidelity, remove
+igation brings the lower fidelity pairs in line with the         that pair from the list of qubits, and repeat. This greedy
+higher fidelity pairs, meaning that it may be possible to        pair selection typically selects a maximum of 33 pairs on
+use a larger part of the device for the parallel computa-        Aspen-M-1 (an example of this is demonstrated in Fig-
+tions.                                                           ure 3), but is more flexible as we can pick how many pairs
+   One way of making full use of the quantum computer            we want to select, or which CZ fidelity to cap the pair
+is to use a maximum-weight perfect matching graph al-            selection at.
+gorithm based on a graph of the device connectivity and             In Figure 4 we put greedy pair selection in practice up
+reported CZ fidelities. For the Aspen-M-1 device, such           to 33 pairs by running the same circuit and averaging
+an algorithm selects 39 pairs as missing connections on          the expectation of hHC i. The average error gets worse
+the device do not allow use of all 80 qubits. Although the       as more pairs are added, but by using TFLO, the error
+perfect matching algorithm makes maximum use of the              stays low up to 20-25 pairs. This behaviour seems to
+qubits on the device, it may be preferable to use a smaller,     be due to the fact that we are adding pairs with worse
+but more carefully selected, number of qubits. Through-          fidelities rather than other factors such as crosstalk – see
+                                                                                                                                5
+
+
+
+
+                        (a)                                      (b)                                    (c)
+
+FIG. 5. Heatmap of the energy landscape for 20 points between −π and π for the onsite and hopping parameters φ and θ, and
+taking 10,000 shots for each point. a) The exact energy landscape. b) On Aspen-M-1 using 25 pairs in parallel, 16 runs of the
+quantum computer and applying TFLO+NI for error mitigation. The running time for producing the heatmap was 3 minutes
+40 seconds (this is doubled if we also run TFLO). In comparison, this would take 66 minutes to run if we only used one pair.
+c) The absolute error between the heatmaps a) and b).
+
+
+                                                                       produced using only 16 runs of the quantum computer
+                                                                       by running 25 pairs in parallel, leading to a speedup in
+                                                                       running time of 18× compared to one individual circuit.
+                                                                       The key features of the energy landscape are reproduced
+                                                                       in the parallel run. This means that we could rapidly
+                                                                       generate a heatmap in parallel and then use information
+                                                                       about where the minimum is to start a separate, more
+                                                                       accurate, VQE optimisation closer to the optimal param-
+                                                                       eters. This may not scale to more variational parameters
+                                                                       as the energy of more and more points would need to
+                                                                       be estimated to get an overview of the energy landscape.
+                                                                       However, it is possible a version of this where random
+                                                                       points are sampled from the parameter space and used
+                                                                       to direct a finer VQE optimisation could benefit from
+                                                                       parallelisation.
+                                                                          For the rest of the experiments, we implement the full
+                                                                       VQE algorithm. First, we present the results for SPSA
+FIG. 6. Comparison of SPSA in parallel (using 25 pairs for             where the form of parallelism that is used is running the
+one run on Aspen-M-1) and not in parallel using 1,000 shots to         same circuit on every pair and taking their average for
+estimate the energy and NI applied throughout the optimisa-            the energy estimate. The SPSA metaparameters we use
+tion. The dashed lines are the exact energy at the parameters
+                                                                       are α = 0.602, γ = 0.101, a = 0.15, c = 0.2 from detailed
+given by SPSA, showing that the optimisation procedure on
+the quantum computer has found the optimal parameters, but             numerical experiments conducted in [12]. Unlike in [12],
+the calculated energy needs correcting.                                we run only the one-stage SPSA algorithm (i.e. we do not
+                                                                       change the number of shots taken throughout the optimi-
+                                                                       sation) and set A = 1 as reducing this stability constant
+Figure 9 in the Appendix for a more detailed analysis.                 has been shown to be more effective in experiment [7, 8].
+For larger and longer circuits, crosstalk will likely play a              In Figure 6, we compare running SPSA with one pair
+more dominant role [23], and the selection of the groups               and 25 pairs using 1,000 shots (see Figure 10 in the Ap-
+of qubits will need to take this into account [4].                     pendix for the justification why we have chosen to do
+                                                                       1,000 shots). Both are able to find the optimal parame-
+                                                                       ters, but although running parallel circuits has the effect
+                                                                       of “smoothing out” the optimisation, similarly to Figure 4
+           B.   Performance of parallel VQE                            the calculated energy is more of an overestimate. An-
+                                                                       other drawback from parallelisation here is the running
+   Since there are only two variational parameters φ and               time, the VQE algorithm took 245 seconds to run us-
+θ in the ansatz, we can generate a heatmap as an intu-                 ing one pair, but 420 seconds using 25 pairs; a greater
+itive visual representation of the energy landscape. Fig-              overhead is introduced when more data is being passed
+ure 5 shows a heatmap containing 400 points that was                   back and forth between the quantum computer and the
+6
+
+
+
+
+FIG. 7. Running BayesMGD on Aspen-M-1 on one pair and in parallel using 12 pairs, and 1,000 shots to estimate the
+expectation value. For the parallel run, one BayesMGD iteration provides 12 points of data in the trust region around θ. To
+compare the performance of the algorithm, we also take 12 points for each BayesMGD iteration during the individual run
+(equivalent to setting the metaparameter η = 2). The graphs show the median of 5 repetitions of the experiment for the
+parallel run and 4 for the individual run, the shaded region shows the minimum and maximum values of the energy reached.
+The dots show the final result after TFLO is applied, the minimum error reached for one pair was 0.0127, and for the 12 pairs
+was 0.0541. On average the running time of the individual run was 180 seconds, and 30 seconds for the parallel run.
+
+
+                                                                not need to include the metaparameter η which governs
+                                                                the number of points θi in each iteration of BayesMGD.
+                                                                Instead, the number of points will be governed by the
+                                                                number of pairs we run in parallel. Figure 7 compares
+                                                                BayesMGD using 12 parallel circuits and one individual
+                                                                circuit. The graph shows that the parallel run roughly
+                                                                follows the individual run, and when TFLO is applied
+                                                                the results are comparable in quality. Note that an ideal
+                                                                running time speedup in this case would be 12×, here we
+                                                                achieve a 6× speedup.
+                                                                   In these experiments, we have shown that it is possi-
+                                                                ble to perform a full VQE computation using parallel cir-
+                                                                cuits. For parallelisation to potentially be of use on NISQ
+                                                                hardware, we need to demonstrate a speedup taking into
+                                                                account all overheads. Figure 8 shows the speedup in
+                                                                wall-clock time with the number of pairs in parallel (see
+                                                                Figure 11 in the Appendix for the data showing perfor-
+FIG. 8. Speedup in running time of parallel VQE using SPSA      mance against number of pairs). For BayesMGD recall
+and BayesMGD. Line shows the median of 4 (5) repetitions        that as the number of pairs increases, the corresponding
+when running SPSA (BayesMGD) in parallel, with the shaded       algorithm on one pair makes more function evaluations.
+region showing the minimum and maximum speedup.
+                                                                For SPSA, we are consistently doing 1,000 shots on every
+                                                                pair, so we do not expect to see a speedup. Ideally we
+                                                                would see an accuracy increase as the number of pairs
+classical computer.                                             increases, but this is not the case as we show in Figure 6
+   Although SPSA works with parallel circuits, we do not        and 11.
+appear to get a benefit from parallelisation of the same
+circuit. Another approach to take is to run the parallel
+circuits with different variational parameters, we do this
+with the BayesMGD optimiser. The metaparameters we                                III.   CONCLUSION
+use are α = 0.602, , δ = 0.6, ξ = 0.101, l = 0.2 from [8],
+and γ = 0.6, A = 1 for moving through the parameter               In this paper we have demonstrated a minimal two-
+space faster. In our parallel VQE experiments, we do            qubit parallel VQE example, running up to 33 circuits in
+                                                                                                                             7
+
+parallel for benchmarking and up to 25 circuits for the
+VQE algorithm. We selected a small two-qubit circuit
+that has already performed well on Rigetti hardware [7]
+to maximise the possibility for parallelisation given the
+restricted size of current quantum hardware. While we
+have demonstrated it is possible to conduct a full VQE
+experiment with parallel computations on the same quan-
+tum device (see Figure 6 and 7), there remain significant
+challenges for scaling up to larger circuits.
+   Although it is difficult to pin down the exact be-
+haviours of the qubit pairs in parallel and individually,
+a general strategy that produced good results was to se-
+lect pairs that had the best reported gate fidelities in the
+provided hardware statistics and prioritising quality over
+quantity. While the problem of finding suitable pairs can
+be solved using a matching algorithm or a greedy search,
+doing larger computations involves the more complicated
+problem of finding sub-graphs on the quantum device
+where the qubits are good quality and have the desired
+connectivity. A number of papers have proposed algo-
+rithms for doing this whilst taking account of the device
+specifications and crosstalk [3–6], and experiments have
+                                                               FIG. 9. Error with exact energy for qubit pairs in parallel
+been conducted on IBMQ devices running up to four five-
+                                                               on Aspen-M-1. The optimal parameter circuit was run using
+qubit computations in parallel [4].                            10,000 shots in parallel up to 33 pairs using greedy pair selec-
+   In our experiments as we added more circuits in paral-      tion, and also individually on each of these pairs. This graph
+lel, the accuracy of the results got worse as every pair be-   shows the calculated energy (after TFLO was applied) minus
+ing added had a worse fidelity, similarly to the findings of   the exact energy, for each qubit pair individually (top row)
+other investigations [3, 5]. This meant that the approach      and for each parallel run it was included in. See Figure 3 for
+where the same circuit was run in parallel with the aim        a visual representation of the 33 selected pairs.
+of producing more accurate results did not benefit from
+parallelisation. In fact, running one pair with a low num-
+ber of shots was more accurate and had a shorter running       building up a picture of a small but interesting region of
+time. For optimisation algorithms such as SPSA which           the energy landscape. Overall, parallelisation could help
+are fairly sequential and do not require a lot of function     to reduce the running time of VQE and the number of
+calls per iteration, this would likely be the method of        VQE optimisation steps required on NISQ devices.
+parallelisation to use, but it would not provide a benefit
+speed or accuracy wise.
+   The approach of running different circuits in parallel                     ACKNOWLEDGEMENTS
+with the aim of gaining more information about the en-
+ergy landscape sped up the runtime of heatmap genera-            We would like to thank other Phasecraft team mem-
+tion and BayesMGD. Despite qubits of worse fidelity be-        bers for their feedback on this work, and Rigetti for the
+ing included in the computation, we were able to produce       access to their Aspen-M-1 hardware. This work was
+good quality results (see Figure 5 and 7). It is likely that   supported by Innovate UK (grant no. 44167) and has
+this method of parallelisation will work well with other       received funding from the European Research Council
+optimisation algorithms that batch function evaluations        (ERC) under the European Union’s Horizon 2020 re-
+such as evolutionary algorithms, or enable faster calcula-     search and innovation programme (grant no. 817581).
+tions of gradients using finite differences.
+   With methods such as these, the trade-off between
+speed and accuracy will need to be considered. For cur-                    Appendix A: Additional results
+rent quantum devices, due to low gate fidelities, one of
+the best uses of parallelism may be to carry out rough            In this appendix we present additional results obtained
+calculations such as the heatmap in Figure 5 and use           from Aspen-M-1 over the course of the experiments car-
+the results to inform a more accurate VQE run on one           ried out in Section II.
+circuit. For larger circuits and higher number of parame-         In Figure 4 we ran the same circuit in parallel using
+ters, investigation is required to determine what types of     greedy pair selection up to 33 pairs. In Figure 9 we
+useful rough calculations can be done. For example, this       present the full data from this experiment by showing
+could involve determining the initial VQE parameters by        how each pair behaves in parallel and individually. The
+randomly sampling from the parameter space; or rapidly         aim of this is to see if any systematic errors were intro-
+8
+
+                                                                    On the other hand, it can be difficult to predict ex-
+                                                                 actly how a pair will behave individually or in parallel –
+                                                                 for example, pairs [10, 11] and [26, 27] perform well indi-
+                                                                 vidually, but consistently overestimate the energy when
+                                                                 in parallel. The Aspen-M-1 device is also formed from
+                                                                 two 40-qubit devices with inter-chip connections placed
+                                                                 between the two rows of octagons [24]. The pair [114,
+                                                                 17] is much more stable than [0, 103] in parallel whose
+                                                                 performance fluctuates the most out of all of the other
+                                                                 pairs; but both (and other inter-chip connections) have
+                                                                 been observed to behave similarly to any other pair when
+                                                                 running circuits individually.
+                                                                    Moving onto the VQE experiments, Figure 10 shows
+                                                                 the results from running SPSA with parallel circuits (26
+                                                                 pairs were chosen using a greedy pair selection capped at
+                                                                 90% fidelity). In our benchmarking experiments in Sec-
+                                                                 tion II A we fixed the number of shots at 10,000, here we
+FIG. 10. Running SPSA on Aspen-M-1 using 26 pairs in             show that SPSA performs well even using 1,000 shots.
+parallel, using different numbers of shots to estimate the en-   This allows us to fix 1,000 shots for all further VQE ex-
+ergy. For each of the runs, 50 SPSA iterations were done         periments.
+(corresponding to 150 circuit evaluations as SPSA requires          Finally, in Figure 11 we present the full data from the
+two points to estimate the gradient, and we have also evalu-     SPSA and BayesMGD runs carried out in Figure 8. For
+ated the circuit at θ to track the optimisation process) and
+NI was applied during the run. The dashed lines are the exact
+                                                                 SPSA, adding pairs does not change the underlying be-
+energy at the parameters given by SPSA.                          haviour of the optimisation algorithm, instead we are ef-
+                                                                 fectively estimating the energy with more shots. How-
+                                                                 ever, as we have already seen, this does not improve the
+                                                                 accuracy of the energy estimate; in fact, it makes it worse
+duced in the results once more pairs were added. Note            as we are adding in more shots from pairs with worse fi-
+that only the last 7 pairs had a CZ fidelity below 90%.          delities. With BayesMGD, we are effectively increasing
+From Figure 4 we saw that the average error gets worse           the metaparameter η as we add more pairs, changing
+as more pairs are added, but TFLO still manages to keep          the underlying behaviour of the optimisation algorithm.
+the error lower up to 20-25 pairs. From Figure 9, this be-       In [8], the optimal value of η was 1.5 which corresponds
+haviour seems to be due to the fact that we are adding           to using 9 pairs in parallel. Below 8 pairs, the differ-
+pairs with worse fidelities rather than crosstalk – for ex-      ent BayesMGD runs in Figure 11 show a lot of variation,
+ample, the performance of the two best pairs stay fairly         likely because the algorithm is not as effective for a low
+consistent throughout the parallel runs.                         value of η. Above this, BayesMGD outperforms SPSA.
+
+
+
+
+ [1] M. Cerezo, A. Arrasmith, R. Babbush, S. C. Benjamin,             Symposium on High-Performance Computer Architecture
+     S. Endo, K. Fujii, J. R. McClean, K. Mitarai, X. Yuan,           (HPCA). IEEE, 2021.
+     L. Cincio, and P. J. Coles. Variational quantum algo-        [6] S. Niu and A. Todri-Sanial. How parallel circuit ex-
+     rithms. Nat. Rev. Phys., 3(9):625–644, August 2021.              ecution can be useful for NISQ computing?, 2021.
+ [2] K. Bharti, A. Cervera-Lierta, T. H. Kyaw, T. Haug,               arXiv:2112.00387.
+     S. Alperin-Lea, A. Anand, M. Degroote, H. Heimonen,          [7] A. Montanaro and S. Stanisic. Compressed variational
+     J. S. Kottmann, T. Menke, W.-K. Mok, S. Sim, L.-                 quantum eigensolver for the Fermi-Hubbard model, 2020.
+     C. Kwek, and A. Aspuru-Guzik. Noisy intermediate-                arXiv:2006.01179.
+     scale quantum algorithms. Reviews of Modern Physics,         [8] S. Stanisic, J. L. Bosse, F. M. Gambetta, R. A. Santos,
+     94(1):015004, February 2022.                                     W. Mruczkiewicz, T. E. O’Brien, E. Ostby, and A. Mon-
+ [3] P. Das, S. S. Tannu, P. J. Nair, and M. Qureshi. A case          tanaro. Observing ground-state properties of the Fermi-
+     for multi-programming quantum computers. In Proceed-             Hubbard model using a scalable algorithm on a quantum
+     ings of the 52nd Annual IEEE/ACM International Sym-              computer. Nature Communications, 13(1), 2022.
+     posium on Microarchitecture. ACM, 2019.                      [9] J. Hubbard. Electron correlations in narrow energy
+ [4] S. Niu and A. Todri-Sanial. Enabling multi-programming           bands. Proceedings of the Royal Society of London. Series
+     mechanism for quantum computing in the NISQ era.                 A., 276(1365):238–257, 1963.
+     Quantum, 7:925, 2023.                                       [10] J. LeBlanc, A. E. Antipov, F. Becca, I. W. Bulik, G. K.-
+ [5] L. Liu and X. Dou. QuCloud: A new qubit map-                     L. Chan, C.-M. Chung, Y. Deng, M. Ferrero, T. M. Hen-
+     ping mechanism for multi-programming quantum com-                derson, C. A. Jiménez-Hoyos, E. Kozik, X.-W. Liu, A. J.
+     puting in cloud environment. In 2021 IEEE International          Millis, N. Prokof’ev, M. Qin, G. E. Scuseria, H. Shi,
+                                                                                                                             9
+
+
+
+
+FIG. 11. Performance of SPSA and BayesMGD in parallel for different numbers of pairs and using 1,000 shots on Aspen-M-1.
+For each number of parallel pairs, we ran SPSA (capped at 20 iterations, with NI applied during the optimisation) 4 times,
+and BayesMGD (capped at 10 iterations) 5 times – this is due to the SPSA running time being much longer. The lines on the
+graphs show the median of the final results from the runs. For the TFLO+NI corrected (red) line, we also plot the minimum
+and maximum result reached.
+
+
+     B. Svistunov, L. F. Tocchio, I. Tupitsyn, S. R. White,           actions on Aerospace and Electronic Systems, 34(3):817–
+     S. Zhang, B.-X. Zheng, Z. Zhu, and E. G. and. Solutions          823, 1998.
+     of the Two-Dimensional Hubbard Model: Benchmarks            [18] A. Kandala, A. Mezzacapo, K. Temme, M. Takita,
+     and Results from a Wide Range of Numerical Algorithms.           M. Brink, J. M. Chow, and J. M. Gambetta. Hardware-
+     Physical Review X, 5(4):041041, 2015.                            efficient variational quantum eigensolver for small
+[11] E. Dagotto. Correlated electrons in high-temperature su-         molecules and quantum magnets. Nature, 549(7671):242–
+     perconductors. Reviews of Modern Physics, 66(3):763–             246, 2017.
+     840, 1994.                                                  [19] S. Endo, S. C. Benjamin, and Y. Li. Practical quantum
+[12] C. Cade, L. Mineh, A. Montanaro, and S. Stanisic.                error mitigation for near-future applications. Physical
+     Strategies for solving the Fermi-Hubbard model on                Review X, 8(3), 2018.
+     near-term quantum computers. Physical Review B,             [20] F. B. Maciejewski, Z. Zimborás, and M. Oszmaniec. Mit-
+     102(23):235122, 2020.                                            igation of readout noise in near-term quantum devices by
+[13] D. Wecker, M. B. Hastings, and M. Troyer. Progress               classical post-processing based on detector tomography.
+     towards practical quantum variational algorithms. Phys.          Quantum, 4:257, 2020.
+     Rev. A, 92(4):042303, 2015.                                 [21] S. Bravyi, S. Sheldon, A. Kandala, D. C. Mckay, and
+[14] J.-M. Reiner, F. Wilhelm-Mauch, G. Schön, and                    J. M. Gambetta. Mitigating measurement errors in multi-
+     M. Marthaler. Finding the ground state of the hub-               qubit experiments. Physical Review A, 103(4):042605,
+     bard model by variational methods on a quantum com-              2021.
+     puter with gate errors. Quantum Science and Technology,     [22] A. Montanaro and S. Stanisic. Error mitigation by train-
+     4(3):035005, 2019.                                               ing with fermionic linear optics, 2021. arXiv:2102.02120.
+[15] Z. Jiang, K. J. Sung, K. Kechedzhi, V. N. Smelyanskiy,      [23] A. Ash-Saki, M. Alam, and S. Ghosh. Experimental
+     and S. Boixo. Quantum Algorithms to Simulate Many-               characterization, modeling, and analysis of crosstalk in
+     Body Physics of Correlated Fermions. Physical Review             a quantum computer. IEEE Transactions on Quantum
+     Applied, 9(4), 2018.                                             Engineering, 1:1–6, 2020.
+[16] J. C. Spall. An overview of the simultaneous perturbation   [24] https://www.globenewswire.com/news-release/
+     method for efficient optimization. Johns Hopkins APL             2021/12/15/2352647/0/en/Rigetti-Computing-
+     Techincal Digest, 19(4), 1998.                                   Announces-Next-Generation-40Q-and-80Q-Quantum-
+[17] J. Spall. Implementation of the simultaneous perturba-           Systems.html.
+     tion algorithm for stochastic optimization. IEEE Trans-
+

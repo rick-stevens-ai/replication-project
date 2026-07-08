@@ -1,0 +1,3353 @@
+Resource Estimation for Quantum Variational Simulations of the Hubbard Model
+Zhenyu Cai∗
+Department of Materials, University of Oxford, Oxford, OX1 3PH, United Kingdom and
+Quantum Motion Technologies Ltd, Nexus, Discovery Way, Leeds, LS2 3AA, United Kingdom
+(Dated: July 1, 2020)
+As the advances in quantum hardware bring us into the noisy intermediate-scale quantum (NISQ)
+era, one possible task we can perform without quantum error correction using NISQ machines is
+the variational quantum eigensolver (VQE) due to its shallow depth. A specific problem that we
+can tackle is the strongly interacting Fermi-Hubbard model, which is classically intractable and
+has practical implications in areas like superconductivity. In this Article, we outline the details
+about the gate sequence, the measurement scheme and the relevant error mitigation techniques for
+the implementation of the Hubbard VQE on a NISQ platform. We perform resource estimation
+for both silicon spin qubits and superconducting qubits for a 50-qubit simulation, which cannot
+be solved exactly via classical means, and find similar results. The number of two-qubit gates
+required is on the order of 20000. Hence, to suppress the mean circuit error count to a level such
+that we can obtain meaningful results with the aid of error mitigation, we need to achieve a two-
+qubit gate error rate of ∼ 10−4
+. When searching for the ground state, we need a few days for one
+gradient-descent iteration, which is impractical. This can be reduced to around 10 minutes if we
+distribute our task among hundreds of quantum processing units. Hence, implementing a 50-qubit
+Hubbard model VQE on a NISQ machine can be on the brink of being feasible in near term, but
+further optimisation of our simulation scheme, improvements in the gate fidelity, improvements in
+the optimisation scheme and advances in the error mitigation techniques are needed to overcome
+the remaining obstacles. The scalability of the hardware platform is also essential to overcome the
+runtime issue via parallelisation, which can be done on one single silicon multi-core processor or
+across multiple superconducting processors.
+I. INTRODUCTION
+The difficulty of simulating large quantum systems was
+an inspiration for the idea of quantum computation [1],
+thus naturally, we look to quantum system simulation
+as one of the first applications of quantum computers.
+Fault-tolerant simulation of a non-trivial system requires
+an integrated quantum device with at least hundreds of
+thousands of qubits given a gate infidelity of 10−3
+or tens
+of thousands of qubits given a gate infidelity of 10−4
+[2].
+This is still out of reach with the current technology.
+With the advance of qubit counts and gate error rates
+bringing us into the noisy intermediate-scale quantum
+(NISQ) era, one must wonder if there is a classically
+intractable and physically meaningful task such NISQ
+hardware can tackle without quantum error correction.
+One of the most promising candidates is the variational
+quantum eigensolver (VQE) due to its shallow depth. In
+VQE, we aim to use a parametrised quantum circuit to
+prepare the eigenstate (usually the ground state) of a
+given Hamiltonian. The task is carried out through mea-
+suring observables using the quantum circuit and opti-
+mising the parameters using a classical computer. As we
+will see later, one of the lowest hanging fruits in this area
+is the preparation of the ground state of the strongly in-
+teracting Fermi-Hubbard model, which is what we will
+be focusing on in this Article.
+A huge number of circuit runs are needed to run
+VQE [3]. Luckily, the task is highly parallelisable and
+∗ cai.zhenyu.physics@gmail.com
+thus can be distributed to many quantum processors.
+Both silicon spin qubits and superconducting qubits are
+good candidates for such a task due to their compati-
+bility with the commercial fabrication technology [4, 5],
+which should reduce the cost and enhance the reliabil-
+ity of reproducing multiple quantum processors for the
+same task. Furthermore, we presently explain that the
+ansatz circuit of the Hubbard model that we are inter-
+ested in can be naturally broken into the native gates of
+both silicon spin qubits and superconducting qubits. In
+this Article, we will first use silicon spin qubits as our ex-
+ample platform to carry out our gate count and runtime
+analysis and then we will apply the same analysis to the
+superconducting qubits.
+The Article is structured as follows, we begin by in-
+troducing the concept of VQE and why we choose to
+simulate the Hubbard model in Section II. Then we will
+outline the ansatz circuit we use and its gate counts for
+the silicon platform in Section III. To deal with the noise
+in the circuit, we will apply error mitigation to our ex-
+ample circuit in Section IV. Following that, in Section V
+we will introduce more details about our implementation
+and the estimated algorithm runtime on the silicon plat-
+form. In Section VI, we will apply the same analysis to
+the superconducting platform. This is followed by our
+conclusion in Section VII.
+arXiv:1910.02719v4 [quant-ph] 30 Jun 20202
+II. VARIATIONAL QUANTUM EIGENSOLVER
+A. Background
+For a given Hamiltonian H, we want to find a circuit
+that can prepare its ground state |ψ0i with the associ-
+ated ground state energy E0. We try to achieve this
+with a circuit with tunable gates that have M parame-
+ters ~ θ = {θ1,θ2,··· ,θM} that we can control, which will
+produce an output state ψ(~ θ)
+E
+. In VQE, Our goal is
+to obtain the set of optimal parameters ~ θop such that
+the state prepared by the circuit can well approximate
+the ground state we want ψ(~ θop)
+E
+≈ |ψ0i. Then we
+can measure various properties of the ground state us-
+ing ψ(~ θop)
+E
+. Refs [6] and [7] provide a comprehensive
+overview on variational algorithms and more generally
+the field of quantum computational chemistry.
+B. Choosing the Simulation Problem and its
+Corresponding Ansatz
+The parametrised circuit in VQE is called an ansatz
+circuit, or simply ansatz for short. It determines the
+quantum subspace that our output state can reach, hence
+it is the key to the success of our algorithm. An example
+of a simple ansatz is called the hardware-efficient ansatz
+(HEA) [8], which just uses gates available to the physical
+qubit systems to create many entangling blocks along the
+circuit. However, it is difficult to obtain an analytical or
+even a heuristic estimate of the number of gates required
+in an HEA for the success of our algorithm. A better
+approach will be using an ansatz inspired by the problem
+itself. For example, the unitary-coupled-cluster ansatz
+(UCCA) for quantum chemistry [9], the low depth circuit
+ansatz (LDCA) [10] and the Hamiltonian ansatz (HA) [3]
+for more general simulations of closed quantum systems.
+The number of gates needed by HA scales as O(NblkR)
+where R is the number of subterms in the Hamiltonian of
+our simulation and Nblk is the number of repeating blocks
+within the ansatz. For a general electronic structure
+Hamiltonian (which applies to most chemistry Hamilto-
+nians), we have R ∼ O(N4
+) due to the terms accounting
+for electron-electron interactions [3]. For periodic sys-
+tems, the added structure allows us to transform our
+basis orbitals to achieve R ∼ O(N2
+) [11]. One of the
+systems that has the most favourable scaling while main-
+taining great physical interest is the 2D Hubbard model,
+in which by restricting to only on-site interactions and
+nearest-neighbour hopping, we can achieve R ∼ O(N).
+Using HA to simulate the Hubbard model, the gates we
+apply are dependent on the qubit encoding we use. Us-
+ing the Jordan-Wigner encoding, some of the gates will
+be non-local, which can be overcome by using O(N
+1
+2 )
+additional gates [12]. Other encodings like Verstraete-
+Cirac encoding [13] or superfast encoding [14] will en-
+sure locality, but require at least doubling the number
+of qubits. Since we are focusing on near-term devices in
+which qubit resources can be limited, we will only con-
+sider the Jordan-Wigner encoding in this Article. In such
+case, the number of gates needed to simulate the 2D Hub-
+bard Model using HA scales as Ngates ∼ O(NblkN
+3
+2 ).
+This is a factor of N
+1
+2 better than LDCA assuming the
+same number of blocks Nblk in both ansatze. To achieve
+results of sufficient precision, we likely need to go up to
+double excitation for UCCA, which means a gate scaling
+of Ngates ∼ O(N5
+) (assuming Jordan-Wigner encoding,
+see Ref [7]). To achieve similar precision, Nblk for HA is
+likely to scale better than O(N
+7
+2 ) based on the previous
+Hubbard model numerical simulation results [3, 15, 16],
+thus HA should have a scaling advantage over UCCA in
+simulating the Hubbard model.
+Hence, in the rest of this Article, we will be focusing on
+the ground state preparation of the Hubbard model us-
+ing Hamiltonian Ansatz (HA) under the Jordan-Wigner
+encoding.
+Note that for the NISQ regime that we are interested
+in, the constants we ignored in the above scaling analysis
+can make a very significant difference. Thus there might
+exist other problems with a different ansatz implementa-
+tion that are more practical than the one we are going
+to consider when we dig into the exact implementation
+details.
+III. ANSATZ CIRCUIT
+A. 2D Fermi-Hubbard Model
+The Hamiltonian of the 2D Fermi-Hubbard model is:
+H = −t
+X
+σ,hv,wi
+a†
+v,σaw,σ + a†
+w,σav,σ
+
++ U
+X
+v
+nv,↑nv,↓
+where a†
+v,σ/av,σ are the creation/annihilation operators
+of site v with spin σ. The first term represents the near-
+est neighbour hopping interactions, with t being the tun-
+nelling energy and hv,wi representing summing up sites
+v and w that are adjacent to each other in a 2D geometry.
+The second term is the on-site repulsion energy.
+Extracting the ground state properties of the Hubbard
+model in the parameter regime of e.g. U
+t ≈ 4 → 8 at
+close to half-filling is believed to be relevant to the un-
+derstanding of high-Tc cuprate superconductors [17, 18].
+However, solutions using classical methods have high de-
+gree of uncertainty in this parameter regime [17], leading
+to our attempt here using quantum algorithms. In this
+Article, for simplicity we will be considering the half-
+filling case, i.e. for V sites we have V electrons, but most
+of our arguments can be generalised to any number of
+electrons.
+Using the Jordan-Wigner encoding, each qubit will en-
+code one orbital. There are two spin orbitals to each site,3
+hence the number of qubits (N) needed is twice the num-
+ber of sites (V ). For a classically intractable 50-qubit
+problem, we will be looking at V = 25, e.g. a 5×5 Hub-
+bard model. It is important to note that even though a
+Hubbard Hamiltonian of this size cannot be solved ex-
+actly classically, there are various approximation meth-
+ods available [17].
+In the Jordan-Wigner encoding, the Fermionic creation
+and annihilation operators become:
+a†
+i 7→ Z:iA†
+i
+ai 7→ Z:iAi
+where i denotes the index of the canonical ordering of the
+orbitals (including both spins and sites). A = |0ih1| =
+X+iY
+2 is the qubit lowering operator and A†
+is the qubit
+raising operator. Z:i =
+Qi−1
+j=1 Zj is the Z operator string
+that maintains the Fermionic commutation relationship.
+The on-site repulsion term and the hopping term of
+the Hubbard Hamiltonian thus becomes:
+ninj = a†
+iaia†
+jaj 7→
+1
+4
+(I − Zi)(I − Zj)
+a†
+iaj + a†
+jai 7→
+1
+2
+(XiXj + YiYj)Zi:j
+(1)
+where we have without loss of generality assumed j > i
+and defined Zi:j =
+Qj−1
+k=i+1 Zk.
+B. Hamiltonian Ansatz
+The Hamiltonian ansatz was proposed by Wecker et
+al. [3]. Its circuit is essentially a Trotterised variational
+annealing path, which is inspired by both adiabatic state
+preparation and the quantum approximate optimisation
+algorithm [19, 20].
+For a Hamiltonian of the form:
+H =
+X
+i
+λihi
+where hi are different interaction terms, a block of the
+Hamiltonian ansatz is just:
+Y
+i
+e−iθihi
+i.e. we implement a parametrised unitary gate corre-
+sponding to every interaction term. We will implement
+Nblk of such blocks in sequence with different sets of pa-
+rameters. The Hamiltonian ansatz, though inspired by
+Trotterised annealing, is not equivalent to Trotterisation.
+Thus a Hamiltonian ansatz using higher-order Trotteri-
+sation does not necessarily have lower algorithmic errors
+than a Hamiltonian ansatz using lower-order Trotteri-
+sation. In NISQ devices, we might want to avoid us-
+ing higher-order Trotterisation in the Hamiltonian ansatz
+due to higher gate counts and deeper circuits. Hence,
+here we have used the first-order Trotter formula for the
+Hamiltonian ansatz.
+From Eq. (1), we see that the gates corresponding to
+the repulsion terms are all local, while the gates that cor-
+respond to hopping will only be local if the two orbitals
+involved are close to each other in the canonical ordering
+due to the trailing Z string.
+FIG. 1. The black arrows denote the canonical order of the
+orbitals of different sites for a 5×5 Hubbard model. Here the
+ordering is in a snake-fold pattern running along the horizon-
+tal direction. The red/blue curly lines denote the even/odd
+hopping interaction.
+Now if we choose a canonical ordering such that the
+two spin orbitals of the same site are always adjacent to
+each other, while the orbitals of different sites are ordered
+in a folding pattern running along the horizontal direc-
+tion as shown in Fig. 1, then all the horizontal hopping
+terms will be local while some of the vertical hopping
+terms will not be. The non-local vertical hopping can be
+made local by using additional Fermionic swap (fSWAP)
+gates to swap the canonical order of the orbitals [21]:
+fi,i+1
+swap 7→
+1
+2
+[(XiXi+1 + YiYi+1) + Zi + Zi+1].
+Kivlichan et al. [12] outline a way to implement a block
+of the Hamiltonian ansatz for the open boundary 2D
+Hubbard model using only local gates with O(N
+1
+2 ) depth
+using a Fermionic swap network. The exact structure of
+this ansatz is recapped in Appendix A1. In Appendix A,
+we have decomposed the gates corresponding to the re-
+pulsion terms, the hopping terms and the Fermionic swap
+into the native gates of silicon spin qubits, and found that
+we only need single-qubit Z rotation and partial swaps.
+Then we applied the gate decompositions to the Hamil-
+tonian ansatz, optimised the circuit using the qubit ex-
+change symmetry of the gates, and obtained the number
+of single-qubit gates and two-qubit gates needed for one4
+block of Hamiltonian ansatz for V sites to be:
+N1q,ha = 4V
+3
+2 + 7V − 4
+√
+V
+N2q,ha = 8V
+3
+2 + V − 4
+√
+V .
+For V = 25, we have
+N1q,ha ≈ 650
+N2q,ha ≈ 1000.
+C. Full Ansatz Circuit
+To produce a good approximation to the Hubbard
+ground state, we need a good starting state for the Hamil-
+tonian ansatz. In the context of adiabatic evolution, a
+good starting state should be in the same phase as the
+output state as discussed by Wecker et al. [18]. Since the
+Hamiltonian ansatz evolves out of adiabatic evolution,
+we should expect a similar result to hold. The starting
+state we use should be a single Slater determinant, which
+can be solved classically and can be efficiently prepared
+using a quantum circuit [12, 22], e.g. the ground state of
+the non-interacting Hubbard Hamiltonian (i.e. U = 0).
+In Appendix B we have recapped the details about the
+Slater determinant preparation circuit using Givens rota-
+tion. We decomposed the Givens rotation into the native
+gates of silicon spin qubits and again found that we only
+need Z rotation and partial swaps. Then we applied the
+gate decompositions to the Slater determinant prepara-
+tion circuit, optimised the circuit and obtained the num-
+ber of single-qubit gates and two-qubit gates needed for
+V sites to be:
+N1q,prep = 2V 2
+N2q,prep = 2V 2
+.
+When the two spin subspaces of the starting state are
+decoupled (e.g. the non-interacting Hubbard ground
+state), we can prepare the Slater determinant separately
+in the two spin subspaces, which is also discussed in Ap-
+pendix B. In this case, we need to start in a orbital or-
+dering in which the spin-up and spin-down are separated,
+and end in a orbital ordering in which the spin-up and
+spin-down are interleaved for inputting into the Hamil-
+tonian ansatz. We found that the saving in gate counts
+is limited due to the need to rearrange the orbital or-
+dering while the runtime needed is longer. Hence, here
+we will stick with the simple Slater determinant prepa-
+ration scheme in which we do not consider the two spin
+subspaces separately.
+The total number of gates needed for the whole ansatz
+circuit on the silicon-spin-qubit platform is:
+N1q = 2V 2
+|{z}
+N1q,prep
++
+
+4V
+3
+2 + 7V − 4
+√
+V
+
+| {z }
+N1q,ha
+Nblk
+N2q = 2V 2
+|{z}
+N2q,prep
++
+
+8V
+3
+2 + V − 4
+√
+V
+
+| {z }
+N2q,ha
+Nblk.
+Hence, if Nblk scales better than O(
+√
+V ), then the Slater
+determinant preparation will dominate the gate count at
+large V , otherwise the Hamiltonian ansatz will dominate
+the gate count at large V . In the previous simulation
+of the Hubbard model in a ladder grid structure with
+periodic boundaries [3], Nblk scales super-linear to V ,
+while Ref [15, 16] also shows similar results for the open-
+boundary Hubbard model. Hence, we will expect the
+gate cost due to the Slater determinant preparation part
+of the circuit to be negligible at large V .
+If we take the optimistic assumption of Nblk ∼ V , then
+the number of gates needed in the ansatz circuit for V =
+25 on the silicon-spin-qubit platform will be:
+N1q ≈ 17000
+N2q ≈ 26000.
+(2)
+Across all major qubit platforms, the error rate of the
+single-qubit gates is generally much lower than that of the
+two-qubit gates. If we assume an optimistic two-qubit
+gate error rate of around 10−4
+and a negligible single-
+qubit gate error rate, the expected number of errors in
+each circuit run (which we will call the mean circuit error
+count from here on) is:
+µ = 26000 × 10−4
+∼ 2.5, (3)
+which is still of the order of unity. Hence, to obtain a
+meaningful result out of our noisy circuit, we must apply
+error mitigation.
+IV. ERROR MITIGATION
+VQE is inherently robust against local systematic er-
+rors since they can be offset by shifts in the variational
+parameters [23], which was observed in experiments [24].
+For the other error components, we can further mitigate
+them via symmetry verification.
+A. Symmetry Verification
+It is often the case that there are some symmetries
+that the resultant state must follow. Suppose we want to
+obtain the expectation value of an observable O using the
+output state, and we know that our output state must
+follow the symmetry S. We can measure both O and S
+in every circuit run and discard the runs that fail the
+symmetry test to obtain the error-mitigated expectation
+value [25, 26], which is called direct verification. Suppose
+the fraction of circuit runs that passed the symmetry test
+is PS, then we need a factor of
+CS =
+1
+PS
+(4)
+more circuit runs to implement direct verification. CS
+here is the sampling cost factor of direct verification.5
+In the case that O and S cannot be measured in the
+same run and S is a Pauli symmetry with eigenvalues
+s = ±1, the symmetry-verified expectation value OS can
+be obtained via post-processing instead [25]:
+OS =
+O + sOS
+1 + sS
+. (5)
+Here we have assumed O commute with S, which is often
+the case when O is a term in the Hamiltonian since many
+symmetries of the ground state follow from the symme-
+tries of the Hamiltonian. As shown in Ref. [27], the cost
+of post-processing verification will be the square of that
+of direct verification.
+B. Symmetry Verification in Hubbard Model
+Simulation
+In the case of the preparing the Hubbard model ground
+state, we can verify the electron number parity symmetry
+Sσ =
+Y
+i
+(1 − 2ni)
+of the output state. Here ni is the number operator of
+the ith orbital. In the Jordan-Wigner encoding, it simply
+maps to the product of all Z operators:
+Sσ =
+Y
+i
+Zi.
+As shown in Appendix F, in the silicon platform, we can
+measure both the energy terms and the symmetry Sσ
+in the same circuit runs, enabling us to perform direct
+verification.
+In fact, since our ansatz circuit also conserves the elec-
+tron number within each spin subspace, by using a start-
+ing state with the right number of spin-up and spin-down
+electrons, we can actually verify the electron number par-
+ity symmetry within each spin subspace, which we will
+denote as S↑ and S↓.
+The ansatz circuit can be decomposed into two-qubit
+components that represent different interaction terms,
+fSWAPs and Given rotations as listed in Appendix A2.
+We will assume there are M of these components in the
+circuit, all are affected by depolarising channels with er-
+ror probability p, which means that the mean circuit error
+count is:
+µ = Mp. (6)
+In between the two-qubit components where the errors
+occur, our state will have well-defined S↑ and S↓ (though
+the set of qubits that correspond to each spin subspace
+may be different from the final state due to the use of
+fSWAP). Hence, if a Pauli error occurs here and anti-
+commutes with S↑, it will flip the S↑ eigenvalue, leading
+to a failed S↑ test at the end. Since S↑ is the product
+of Z operators in the spin-up subspace, detectable errors
+will be the Pauli errors whose total weights in X and
+Y are odd. Similar arguments also apply to S↓ in the
+spin-down subspace.
+There are two types of two-qubit components in the
+circuit, for which we will make two different approxima-
+tions to their error channels:
+• The components acting within one spin subspace:
+Within the 16 two-qubit Pauli error components
+(including the identity), we can detect the errors
+with one X or Y in it, which is half of them. Hence,
+for these two-qubit components, their depolarising
+errors can be approximated by the composition of a
+detectable error channel and an undetectable error
+channel, both with the error probability p
+2.
+• The components acting across both spin subspaces:
+Within the 16 two-qubit Pauli error components
+(including the identity), 4 are undetectable, 4 are
+detectable only by S↑, 4 are detectable only by S↓
+and 4 are detectable by both. For simplicity, we will
+absorb the last case into the other two detectable
+cases and approximate the depolarising channel by
+the composition of three error channels:
+1. An undetectable error channel with the error
+probability p
+4.
+2. An error channel detectable by the S↑ with
+the error probability 3p
+8 .
+3. An error channel detectable by the S↓ with
+the error probability 3p
+8 .
+Our circuit consists of alternating layers of these two
+types of two-qubit components, thus there are approx-
+imately equal numbers of components for each type (i.e.
+M
+2 ). Hence, when we focus only on the spin-up sub-
+space, there are around M
+4 components acting within the
+subspace with detectable error probability p
+2 and around
+M
+2 components acting across both spin subspaces with
+detectable error probability 3p
+8 , which gives a total de-
+tectable mean circuit error count of
+µd =
+M
+4
+p
+2
++
+M
+2
+3p
+8
+=
+5Mp
+16
+=
+5µ
+16
+(7)
+In the large circuit limit, the probability that l detectable
+errors occur in the spin-up subspace will follow the Pois-
+son distribution with the mean µd:
+Pl = e−µd
+µl
+d
+l!
+.
+The exact same arguments can be applied to the spin-
+down subspace which gives the same equations.
+When focusing on one of the symmetries, only odd
+numbers of detectable errors will be detected since an
+even number of occurrences will commute with S↑/S↓,
+hence the fraction of circuit runs that pass the verification6
+of S↑/S↓ is:
+PS,one =
+X
+even l
+Pl = e−µd
+cosh(µd) =
+1 + e−2µd
+2
+.
+Since in our error channel approximations, events of S↑
+violation and S↓ violation are independent of each other,
+we can obtain the fraction of circuit runs that pass the
+verification of both S↑ and S↓ as:
+PS = P2
+S,one =
+1
+4
+1 + e−2µd
+2
+.
+Hence, using Eq. (4) and Eq. (7), the sampling cost factor
+of applying symmetry verification using S↑ and S↓ is
+CS ∼
+1
+PS
+= 4 1 + e−2µd
+−2
+= 4
+
+1 + e−5µ
+8
+−2
+. (8)
+When focusing on one of the symmetry, the expected
+number of circuit errors detectable by S↑/S↓ after sym-
+metry verification is:
+µS,one =
+X
+even l
+Pl
+PS,one
+l =
+µd
+PS,one
+X
+odd l
+Pl = µd tanh(µd).
+Since the error events of S↑ violation and S↓ violation are
+independent of each other, we can obtain the resultant
+mean circuit error rate after applying symmetry verifica-
+tion using both S↑ and S↓:
+µS = µ − 2µd + 2µS,one =
+3µ
+8
++
+5µ
+8
+tanh
+
+5µ
+16
+
+(9)
+where we have made use of Eq. (7). Hence, the mean
+circuit error count is reduced by a fraction of:
+µ − µS
+µ
+=
+5
+8
+
+1 − tanh
+
+5µ
+16
+
+(10)
+after symmetry verification.
+Note that the key quantity in our error mitigation anal-
+ysis is the mean circuit error count µ = Mp, not the gate
+error rate p. Hence, even though we are discussing in
+terms of two-qubit components here instead of elemen-
+tary gates, as long as we are using a realistic µ, all of our
+estimates will be very similar to what we can obtain by
+considering elementary gates.
+As shown in Eq. (3) and later in Eq. (22), we are in-
+terested in the cases in which the original mean circuit
+error count is around 2:
+µ ∼ 2.
+Substituting into Eq. (8), we can obtain the symmetry
+verification cost factor:
+CS ≈ 2.4. (11)
+After applying symmetry verification using both S↑ and
+S↓, we should expect the mean circuit error count reduce
+by around 30% using Eq. (10).
+C. Error Extrapolation
+In the previous section, we have argued that we can
+reduce the mean circuit error count by a sizeable fraction
+using symmetry verification. However, the mean circuit
+error count is still not negligible, thus we need to employ
+another error mitigation technique – error extrapolation
+– to extract useful information out of our noisy circuit.
+We will write the average value of the observable O
+obtained from a quantum circuit with mean circuit error
+count µ as Oµ. If we run the circuit with the minimal
+error rate µ to obtain Oµ, and we boost the error rate by
+a factor of λ to obtain Oλµ, then an estimate of the error-
+free observable expectation value O0 can be obtained via
+linear extrapolation [28, 29]:
+O0 =
+λOµ − Oλµ
+λ − 1
+. (12)
+Linear extrapolation has been successfully im-
+plemented experimentally on superconducting plat-
+forms [30], in which the error is boosted via changing
+the time length of the control pulses. Similar methods
+can be applied to the silicon platform. When the mean
+circuit error count increase, we can probe at more error
+rates and go beyond linear extrapolation to Richardson
+extrapolation to improve our estimation accuracy [29].
+For large quantum circuits, there has been numeri-
+cal evidence showing that it might be more appropriate
+to extrapolate along an exponential curve instead [31].
+However, the act of symmetry verification might violate
+some assumptions for exponential extrapolation, thus
+changing the shape of the extrapolation curve. Hence,
+in order to combine symmetry verification with error ex-
+trapolation, here we will focus on linear extrapolation.
+D. Combination
+As shown in Section IVB, symmetry verification can
+reduce the mean circuit error count. To combine symme-
+try verification with error extrapolation, we simply apply
+symmetry verification to the two observables in Eq. (12):
+OSE =
+λOS,µ − OS,λµ
+λ − 1
+. (13)
+here OSE is the error-mitigated observable after both
+symmetry verification and error extrapolation while OS,µ
+is the symmetry-verified observable at mean circuit error
+count µ.
+Using Eq. (8), the cost of symmetry verification is given
+by:
+CS,λ = 4
+
+1 + e−5λµ
+8
+−2
+. (14)
+Hence, using Eq. (13) and assuming Var[Oµ] =7
+Var[Oλµ], we have
+Var[OSE] =
+λ2
+CS,1 + CS,λ
+(λ − 1)
+2 Var[Oµ]
+Hence, for each sample of OSE, we need to take CSE
+total samples of Oµ and Oλµ to achieve same precision
+level, where
+CSE = 2
+λ2
+CS,1 + CS,λ
+(λ − 1)
+2
+= 8
+λ2
+
+1 + e−5µ
+8
+−2
++
+
+1 + e−5λµ
+8
+−2
+(λ − 1)
+2 .
+The factor of 2 is to account for the samples of both Oµ
+and Oλµ.
+For µ = 2, λ = 2, we have:
+CSE ∼ 25. (15)
+i.e. if we want to apply symmetry verification and two-
+point linear extrapolation with λ = 2 to our example, we
+need 25 times more circuit runs to obtain an estimated
+observable than sampling from the circuit directly. The
+combination of symmetry verification and error mitiga-
+tion was proven to be very effective in numerical simu-
+lations [26]. In our example, we managed to suppress
+the original mean circuit error count by almost 30% us-
+ing symmetry verification. Together with the robustness
+of the variational circuits against local systematic errors,
+they should enable efficient applications of error extrapo-
+lation, and thus allowing us to extract meaningful results
+out of our noisy quantum circuit.
+V. VQE IMPLEMENTATION
+A. Parametrising the Hamiltonian Ansatz
+We have outlined the structure of the ansatz circuit in
+Section III, now we will turn to the way we parametrise
+the gates in the circuit. In the simplest scheme, we can
+assign a different parameter to each parametrised gate to
+allow an unconstrained optimisation of the ansatz circuit.
+However, a large number of parameters will mean a large
+number of dimensions in the parameter space. This can
+lead to difficulties in optimisation and may lead to long
+runtime since we need to probe more directions to obtain
+the gradient vector. Hence, here we will try to reduce the
+number of parameters by using the symmetry of the site
+layout.
+For the open-boundary Hubbard model, the site layout
+has mirror symmetries along the horizontal and vertical
+direction. Thus the 2D Hubbard grid can be sliced into
+four equivalent partitions: Neq = 4. On top of that if we
+have the same number of rows and columns, then the site
+layout also has an additional diagonal mirror symmetry,
+which gives Neq = 8. The ground state of the Hubbard
+model is expected to follow the same symmetry.
+The input Slater determinant should follows the same
+layout symmetry, hence so does the ansatz parametrisa-
+tion. That is, the parametrised gates that represent the
+corresponding interaction terms in different equivalent
+partitions, which can be mapped to each other via layout-
+symmetry transformations, will share the same parame-
+ters.
+Hence, the number of parameters in our ansatz is:
+Npara ≈
+Nsite
+paraV
+Neq
+Nblk. (16)
+where Nsite
+para is the number of parameters per site.
+Ignoring the boundary case, there will be 5 interac-
+tion terms associated with each site: the repulsion term
+and the horizontal and vertical hopping terms of the two
+spins. The input Slater determinant and the output
+ground state must have the same spin symmetry since
+our ansatz preserves spins. Hence, the ansatz parametri-
+sation will also have the same spin symmetry. Without
+spin-flip symmetry, the parameters for the spin-up and
+spin-down hopping terms will be different, thus 5 inter-
+action terms means 5 parameters: Nsite
+para = 5. With spin-
+flip symmetry, the gates for the spin-up and spin-down
+hopping terms can share the same set of parameters, thus
+Nsite
+para = 3. If we are considering the half-filling ground
+state with the smallest total spin, then:
+• Odd number of sites (electrons): different numbers
+of spin-up and spin-down electrons, which means
+no spin-flip symmetry and Nsite
+para = 5.
+• Even number of sites (electrons): same number
+of spin-up and spin-down electrons, which means
+spin-flip symmetry and Nsite
+para = 3.
+For the Hubbard model with periodic boundaries along
+the horizontal direction, we have translational symmetry
+of the sites along the horizontal direction, which means
+that all columns are equivalent on top of the vertical
+mirror symmetry we have, giving Neq = 2Ncol. This can
+lead to fewer parameters. However, as we will discuss
+in Section VB, the vertical interaction terms cannot be
+measured locally and efficiently in this case, thus we will
+not consider such a boundary condition.
+For the Hubbard model with periodic boundaries in
+both directions, we have complete translational symme-
+try and thus every site is equivalent. However, we will
+also not consider this case since there is not yet an effi-
+cient Hamiltonian ansatz circuit for the periodic Hubbard
+model with a gate count and scaling as favourable as the
+one we have adopted for the open-boundary case.
+B. Measurement
+The measurement of energy is carried out by measuring
+the individual Pauli components of the Hamiltonian. The8
+Pauli components within an individual repulsion term or
+a hopping term commute with each other. Thus with the
+availability of non-demolishing measurements, ideally we
+should be able to measure all the commuting interaction
+terms at one go. For the Hubbard model, there are five
+commuting subsets as shown in Fig. 1: repulsion terms,
+even horizontal hopping terms, odd horizontal hopping
+terms, even vertical hopping terms and odd vertical hop-
+ping terms. Thus we should be able to obtain one sam-
+ple of each interaction term in five circuit runs. How-
+ever, direct measurements of the vertical hopping terms
+can be costly due to their non-locality. These non-local
+terms can be broken down into non-local Pauli observ-
+ables, which in turn can be obtained by performing local
+Pauli measurements and multiplying the results. How-
+ever, such local measurements can break the commuta-
+tivity of the vertical hopping terms such that we cannot
+measure them in parallel.
+For the case of the open-boundary Hubbard model,
+we can tackle this by switching the canonical ordering
+of orbitals from running horizontally in the 2D grid to
+running vertically when we try to measure the vertical
+hopping terms. In such a way, just like the horizontal
+hopping terms are local in the horizontal-running canon-
+ical order, the vertical hopping terms will also be local in
+the vertical-running canonical order. Note that switching
+the orbital canonical order will require us to switch the
+ansatz accordingly, but the same parameters will be used
+for the parametrised gates that correspond to the same
+interaction terms. In such a way, we can still obtain one
+sample of all interactions terms in five circuit runs. The
+same measurement scheme can be used to measure the
+energy gradients since it involves the same Pauli mea-
+surements with some small modifications to the ansatz
+circuit (see Appendix D2).
+Now on top of obtaining the energy or energy gradient
+by measuring the Pauli components Gj of the Hubbard
+Hamiltonian, we also want to apply direct symmetry ver-
+ification outlined in Section IVA by measuring the sym-
+metry operator S in the same run. However, it is often
+the case that S is not local, thus to obtain S we need to
+rely on local measurements and post-processing.
+In our example, there is no need to measure the elec-
+tron number parity symmetry, it can be obtained by com-
+posing the measurement results of the interaction terms.
+When measuring the repulsion terms, we will be perform-
+ing single-qubit Z measurement for every qubit. The re-
+pulsion terms and the electron number parity can both
+be obtained via post-processing. In the case of measuring
+the hopping terms, we will be measuring XX and Y Y for
+the hopping pairs adjacent to each other in the canonical
+order. We can obtain the results of ZZ measurements
+by composing XX and Y Y (with an additional − sign),
+composing with the Z measurements of the qubits not
+included in the hopping pairs, we can then obtain the
+electron number parity via post-processing.
+It is worth noting that the Hubbard model simula-
+tion is quite friendly for efficient local measurements of
+the Hamiltonian terms. For more general problems, one
+might need to turn to more sophisticated measurement
+schemes [27, 32, 33].
+In the above scheme, we have assumed we can carry out
+non-demolishing measurements, which can be carried out
+in silicon using ancilla qubits. In Appendix F, we outline
+a possible quantum dot layout that enables an efficient
+implementation of our measurement scheme.
+C. Optimisation Method
+We need to employ classical optimisation algorithms to
+obtain the optimal set of parameters for our parametrised
+quantum circuit. There are two general approaches, di-
+rect search and gradient-based. Direct search involves
+evaluating the cost function at different points and choos-
+ing the next set of points to evaluate based on the known
+points of the cost function, while gradient-based meth-
+ods make use of the gradient of the cost function. In our
+case, since we are searching for the ground state, the cost
+function that we want to minimise is the energy of the
+state produced by our quantum circuit.
+The energy can be straightforwardly evaluated by mea-
+suring the Pauli components of the Hamiltonian as men-
+tioned in Section VB. As discussed in Ref. [34], to com-
+pete with the best classical algorithm for Hubbard model
+simulation, we need to estimate the energy per site to
+the precision E,site = 10−3
+t. In Appendix E, we have
+translated this precision requirement into the precision
+requirement on the estimates of each Hamiltonian Pauli
+term. For the 5 × 5 Hubbard model, the number of cir-
+cuit runs needed to estimate the energy to the required
+precision is:
+ME ≈ 4 × 105
+. (17)
+The gradient vector can be evaluated using finite differ-
+ence, which involves evaluating the energy at two neigh-
+bouring points. In the simplest gradient descent scheme,
+by evaluating the energy points used in finite difference
+to the precision E,site and also choosing the terminating
+threshold of the change in energy to be E,site, we will
+be able to find the local energy minimum with the re-
+quired precision E,site given the right gradient-descent
+step size. In such a case, we will need twice the num-
+ber of measurements compared to energy estimation to
+evaluate the gradient in one direction (since we need to
+evaluate two energy points). We have Npara directions to
+probe, thus the number of circuit runs needed to evaluate
+the full energy gradient vector using finite difference is:
+Mfd
+grad = 2NparaME. (18)
+Using Eq. (16) and assuming Nblk ∼ V , for 5×5 Hubbard
+model, the number of circuit runs needed to estimate the
+full gradient vector using finite difference is:
+Mfd
+grad = 2NparaME ≈ 3.1 × 108
+.9
+The precision of the gradient vector obtained here is de-
+pendent on the finite difference step size we choose. In
+Appendix E, we have outlined how to obtain the optimal
+step size and the gradient precision grad that we can
+achieve using this optimal step size.
+The gradient vector can also be evaluated using di-
+rect measurements of a modified ansatz circuit. The
+two approaches to obtain the gradient were compared
+in Refs. [9, 35], in which they explain that more mea-
+surements are needed in finite difference to overcome
+the finite step size approximation it makes. We further
+compare them for our implementation in Appendix E,
+taking into account of the fact that we have the many
+parametrised gates share the same parameters due to
+the symmetries in the site layout. We found that direct
+measurements require fewer samples compared to finite
+difference as the number of gates with shared parameters
+increases. In Appendix E, we explain that to achieve the
+same gradient precision grad achieved above using finite
+difference (with the optimal step size), the number of
+circuit runs required using direct measurements is:
+Mgrad ≈ 2.5 × 107
+(19)
+which is an order of magnitude better than finite differ-
+ence in this case.
+Direct search methods are generally more effective in
+noisy and non-smooth problems while for gradient-based
+methods, the number of function calls needed usually
+scales better in higher dimensional problems [36]. We
+have also proven above that evaluating the full gradient
+vector is usually much more costly than evaluating an
+energy point in our implementation. We can see that
+neither of the approaches are clearly preferred. Vari-
+ous direct search optimisation methods like Nelder-Mead
+simplex have been successfully implemented experimen-
+tally [37–43] for small-size problems due to the robust-
+ness of direct search against noise, while gradient-based
+method like SPSA, which requires a smaller number of
+samples than simple gradient descent due to its stochas-
+tic nature, have also found success in the simulations of
+small molecules [8, 30, 44]. With improvements in the
+quantum hardware noise rate, we will expect gradient-
+based methods to play a more and more important role
+in the experimental realisation of VQE, especially con-
+sidering the success of advanced gradient-based methods
+like Adam and Adagrad in high dimension noisy opti-
+misation problems in classical machine learning [45, 46].
+There are also investigations into using machine learning
+for optimisation [47, 48], which might have faster conver-
+gence rate and higher robustness to noise. In the end,
+the optimisation scheme is likely to involve a combina-
+tion of various methods, with the aid of techniques like
+block-by-block optimisation [3] and sequential optimisa-
+tion [49].
+Cade et al. [16] have performed numerical simulation
+of the Hubbard VQE using SPSA optimisation. They
+followed a three-stage protocol with coarser gradient pre-
+cision at the beginning and moving to finer and finer gra-
+dient precision as the optimisation progress. In the end
+they evaluated the gradient using finite-difference with
+the number of circuit runs for each energy estimation be-
+ing ME ∼ 5×104
+(this is different from our result above
+due to different precision requirements). Their 3×3 Hub-
+bard simulations converge when the number of circuit
+runs is around Mtot ∼ 2 × 108
+. There are 30 parame-
+ters in their circuit, using Eq. (18), we can translate the
+result of their simulation into the language of simple gra-
+dient descent, the number of ‘effective’ gradient descent
+iteration in their simulation is just:
+niter =
+Mtot
+Mfd
+grad
+=
+Mtot
+2NparaME
+= 67.
+As mentioned above, the gradient-based method has been
+shown to scale extremely well with increased problem
+dimensions in practice. Thus, we can expect the number
+of ‘effective’ gradient descent iteration needed for 5 × 5
+Hubbard simulation will also be in the region of
+niter ∼ 100. (20)
+D. Algorithm Runtime for Silicon Spin Qubits
+Here we will estimate the algorithm runtime needed
+for running the VQE for the 5×5 open-boundary Fermi-
+Hubbard model.
+From Appendix A and B, we know the runtime Tcirc
+needed for the ansatz circuit with Slater determinant
+preparation is:
+Tcirc ≈ (49 + 45Nblk)τ1q + (196 + 80Nblk)τ2q + τin + τm
+where τ1q and τ2q are the typical time needed to perform
+a π
+2 rotation for Z rotation and partial swap respectively,
+and τin, τm are the time required for qubit initialisation
+and measurements.
+In silicon quantum dot spin qubits, the Z rotations
+can be implemented using the Stark shift at the speed
+τ1q ∼ 0.1µs [50]. Partial swaps can be implemented using
+exchange interaction at sub-ns scale [51]. Here instead
+we will assume a two-qubit-gate time of tens of ns to pre-
+vent the gate fidelity being limited by the finite voltage
+rise time [52]. For readout, a scheme that can achieve
+more than 98% fidelity in under 6µs has been demon-
+strated [53], and a sub-µs scheme with 99.7% fidelity has
+been proposed [54]. For initialisation, the simplest way
+is via spin relaxation, which will be on the ms timescale.
+Faster initialisation can be achieved via spin-selective
+tunnelling from charge reservoirs [55] or electron shut-
+tling and ‘hotspot reset’ [56–59]. Initialisations at the
+µs scale have been achieved in silicon donor qubits [60]
+and other semiconductor quantum dot qubits [61]. Thus
+here we will assume the time needed for initialisation plus
+readout can be reduced to below 100µs. Hence, for the
+5 × 5 Hubbard model with Nblk = V = 25, the runtime10
+needed for each circuit run is around
+Tcirc ∼ 250µs.
+In Section VC, we have obtained the number of circuit
+runs needed for estimating the energy and the energy gra-
+dient vector. However, as mentioned in Section IV, due
+to the high mean circuit error count, we need to apply
+error mitigation. The sampling cost of applying both di-
+rect symmetry verification and linear error extrapolation
+is CSE ∼ 25 as shown in Eq. (15). Thus the number of
+circuit runs needed to estimate the energy and the energy
+gradient vector with error mitigation is:
+M∗
+E = CSEME ≈ 1 × 107
+M∗
+grad = CSEMgrad ≈ 6 × 108
+.
+(21)
+Thus the time needed to evaluate the error-mitigated en-
+ergy and energy gradient is:
+TE = TcircM∗
+E = 2500 s
+Tgrad = TcircM∗
+grad = 1.5 × 105
+s ≈ 1.7 days.
+Using the simplest optimisation scheme, gradient de-
+scent, each iteration step then involves the evaluation
+of one gradient vector, which requires 1.7 days. Such
+a long duration per iteration is hardly practical. How-
+ever, the time cost is mostly due to the large number of
+samples needed, thus can be easily solved by running
+many circuits in parallel in multiple quantum proces-
+sors. With 200 processors, the time required for each
+gradient-descent iteration is reduced to around 10 min-
+utes, thus making gradient descent feasible runtime-wise
+even if we require thousands of iterations for convergence.
+In Eq. (20), we have estimated the number of iterations
+required to be on the order of a hundred, which will corre-
+sponds to a total runtime of around 1 day. 200 processors
+will mean 104
+qubits, which can easily fit onto a single
+silicon chip along with the classical controls and mea-
+surement devices required, giving us one single integrated
+multi-core processor for the task. We stress that these
+cores would be independent of one another. Of course, we
+do not assert that simple gradient descent would neces-
+sarily be able to find the solution for the problem size we
+are considering. However, its runtime feasibility should
+be indicative of the runtime of the other more advanced
+gradient-based methods.
+VI. RESOURCE ESTIMATES FOR
+SUPERCONDUCTING QUBITS
+When we switch from the silicon spin qubits to su-
+perconducting qubits, most of our arguments apply ex-
+cept we need to decompose our circuit using a differ-
+ent gate set and a different set of hardware operation
+times. For the superconducting qubits, a natural two-
+qubit gate to use for the Hubbard model simulation will
+be the partial iSWAP gate [62], which is implemented
+using XY-interaction and is just the hopping interaction
+gate we need to implement. The differences between par-
+tial iSWAP and partial SWAP have been discussed by
+Schuch et al. [63]. By using partial iSWAP as our only
+elementary two-qubit gate, it also enable us to implement
+all Z rotations virtually [64]. As derived in Appendix C,
+for the 5 × 5 Hubbard model with the number of ansatz
+blocks equal to the number of sites, the gate counts are:
+N1q ≈ 2500
+N2q ≈ 14000.
+Comparing to Eq. (2), we can see a massive decrease
+in the single-qubit gate count due to the use of virtual
+Z gates, which in turn reduces our fidelity requirement
+for the single-qubit gates. However, applying virtual Z
+gate would require us to implement partial iSWAP with
+a range of different frequency tunings [64], which would
+increase the difficulties in calibrating the partial iSWAP
+gates. We also see a reduction in the number of two-qubit
+gates required, but it is still of the same order and thus
+will lead to a similar gate fidelity requirement ∼ 10−4
+.
+The resultant mean circuit error count is reduced to
+µ ∼ 1.5, (22)
+which will lead to improved performance of the error mit-
+igation techniques. Individual superconducting quantum
+processor of size ∼ 50 has been experimentally demon-
+strated to be able to perform certain tasks that cannot
+be performed efficiently on any classical computers [65].
+There have also been demonstrations of successful imple-
+mentations of various error mitigation techniques on the
+superconducting platform [30, 66].
+The runtime required for one circuit run as derived in
+Appendix C is
+Tcirc ≈ 125τ1q + 650τ2q + τin + τm.
+where τ1q τ2q, τin and τm are the time required for single-
+qubit gates, two-qubit gates (iSWAP), initialisation and
+readout, respectively. In superconducting qubits, we
+have τ1q ∼ 20ns [67], τ2q ∼ 200ns [62] and τin ∼ τm ∼
+100ns [68, 69]. Thus the total runtime is around:
+Tcirc ≈ 150µs
+which is similar to the runtime estimate for silicon qubits.
+The difference is that the runtime bottleneck here is the
+two-qubit gate speed while in silicon the two-qubit gates
+contribute the least to the overall runtime compared to
+the other operations.
+Using Eq. (21), the time needed to evaluate the error-
+mitigated energy and energy gradient are:
+TE = TcircM∗
+E = 1500 s
+Tgrad = TcircM∗
+grad = 1 × 105
+s ≈ 1.2 days
+which are also similar to the silicon platform.11
+Parallelisation in multiple quantum processors is still
+essential to bring the total runtime down to a practi-
+cal level. We need around 150 superconducting-qubit
+quantum processors, each with 50 qubits (thus a total
+of around 7500 qubits), to bring time required for each
+gradient-descent iteration to around 10 minutes. The
+number of quantum processors required is similar to that
+of the silicon spin qubits. However, unlike silicon spin
+qubits which can easily fit all of the required quantum
+processors in the same chip, the superconducting proces-
+sors likely need to be distributed into multiple chips due
+to a lower qubit density.
+VII. CONCLUSION
+In this Article, we have investigated the resource re-
+quirements on obtaining the ground state of a Hamilto-
+nian in a quantum computer using VQE, in which the
+Hamiltonian cannot be solved exactly classically. The
+Hamiltonian we have chosen is the 5 × 5 open-boundary
+Fermi-Hubbard model due to its favourable scaling in
+both circuit size and depth. We began our analysis by
+considering silicon spin qubits as our example hardware
+platform for the resource estimation. Our ansatz circuit
+makes use of one of the latest schemes for the input Slater
+determinant preparation [22] and the Hubbard Hamilto-
+nian ansatz implementation [12], which translates into
+17000 single-qubit gates (all are Z rotations) and 26000
+two-qubit gates (all are partial swaps) assuming the num-
+ber of Hamiltonian blocks in the ansatz is equal to the
+number of sites. Hence, with perfect single-qubit Z rota-
+tions and a two-qubit gate error rate on the order of 10−4
+,
+we can achieve a circuit error of ∼ 2.5. To obtain mean-
+ingful results with this mean circuit error count, we must
+incorporate error mitigation techniques like error extrap-
+olation and symmetry verification for which we have dis-
+cussed their combined application to our example. We
+have devised a measurement scheme that allows us to es-
+timate various terms in the Hamiltonian in parallel and
+apply symmetry verification at the same time. Bringing
+all these together, we have estimated the runtime needed
+for one circuit execution on the silicon-spin-qubit plat-
+form to be around 250µs and thus one iteration in a sim-
+ple gradient descent optimisation is around 1.7 days due
+to the large number of samples needed. Hence, we have
+to run VQE in parallel across multiple quantum proces-
+sors to reduce the runtime to a feasible level. Around 200
+quantum processors with 50 data qubits each, which can
+easily fit onto a single silicon chip, can reduce the time
+required for one gradient-descent iteration to around 10
+minutes, and the estimated total algorithm runtime in
+this case will be around 1 day.
+We then applied the same analysis to superconduct-
+ing qubits. We found a large reduction in the number of
+single-qubit gates due to the ability to implement all Z
+rotation virtually by using partial iSWAP as our elemen-
+tary two-qubit gate. By assuming a two-qubit gate error
+rate of 10−4
+and an equal or lower single-qubit gate error
+rate, we can achieve a mean circuit error count of ∼ 1.5.
+To implement the same algorithm, the circuit runtime
+is around 150µs and thus one gradient-descent iteration
+takes around 1.2 days. This can be reduced to around
+10 minutes if we parallelise our task across 150 super-
+conducting quantum processors. Resource estimates for
+other qubit platforms can be readily obtained by follow-
+ing similar arguments.
+To implement Hubbard VQE on NISQ machines, the
+first key difficulty is to maintain the mean circuit error
+count at the order of unity or less so that error mitiga-
+tion can be effective. Superconducting qubits have the
+advantage here due to the lower gate counts from the
+good fit of its elementary gate set to the problem, and
+the recent demonstration of high performance supercon-
+ducting quantum processors of the relevant size [65]. The
+second key difficulty is the extremely long runtime due
+to the huge number of circuit runs required, which mo-
+tivates the necessity of parallelising our tasks over hun-
+dreds or thousands of quantum processors. Silicon spin
+qubits have better potential here due to its higher qubit
+density, enabling us to easily fit all of these quantum pro-
+cessing units into one single multi-core processor, leaving
+a smaller and more manageable physical footprint.
+We can see that implementing a 50-qubit Hubbard
+model VQE on a NISQ machine sits right at the bound-
+ary of being practical in terms of gate counts and mean
+circuit error count. Hence, even a constant factor im-
+provement in the mean circuit error count can have big
+impacts on bringing such an application of NISQ ma-
+chines into reality, which can be brought about via fur-
+ther optimisation of our simulation schemes, improve-
+ments in the gate fidelity, improvements in the optimi-
+sation scheme and advances in the error mitigation tech-
+niques. We also need to rely on parallelisation to tackle
+the runtime issue. It is worth noting that the number of
+qubits required in noisy VQE can become comparable to
+the fault-tolerant implementation. In the case of VQE,
+what we need is a lot of independent small units for par-
+allelisation instead of a single integrated device, which
+should massively reduce the difficulties in manufacturing
+and calibration even if the total number of qubits is of the
+same order. However, this also places great emphasis on
+the ability of the hardware platform to reproduce many
+copies of the quantum processor once we manage to man-
+ufacture a good one. Both of the platforms we discussed
+have advantages in this respect since their compatibil-
+ity with commercial CMOS fabrication technology can
+provide a high-precision, relatively low-cost and highly
+reproducible manufacturing process.
+Due to the large number of hyper-parameters in VQE,
+our gate and runtime estimates are only indicative of the
+canonical case. There can be variability in the estimates
+when we choose a different set of hyper-parameters. One
+important assumption we made is the number of ansatz
+blocks in the circuit is equal to the number of sites:
+Nblk = V , which is an optimistic assumption given what12
+we have observed in the numerical simulations for small
+size system [3, 15, 16]. An increase in Nblk will lead to
+a linear increase in the gate counts and a quadratic in-
+crease in the runtime (due to the increase in both the
+gate counts and the parameter counts).
+Any increase in the gate counts will lead to an increase
+in the mean circuit error count, which needs to be sup-
+pressed using stronger error mitigation. For example,
+instead of two-point error extrapolation, we can sample
+at more error rates, which will increase the number of
+circuit runs. We can also try to verify for additional sym-
+metries. However, when we have multiple symmetries, it
+might not be possible to measure the energy terms along
+with all the symmetries using local measurements in a
+single circuit run any more, which may lead to additional
+runtime overhead. It is also worth exploring the possible
+combinations with other error mitigation techniques like
+quasi-probability [29, 31], to try to gain improvements
+in estimation accuracy and/or sampling costs. We can
+also try to develop new error mitigation techniques. One
+possible avenue could be tailoring the noise in real ma-
+chines using simple gates to increase the sensitivity of
+our symmetry verification against the noise. The effec-
+tiveness of a similar idea in the context of a quantum
+error correction code has been shown [70].
+Any increase in the algorithm runtime can be miti-
+gated via further parallelisation by adding more quan-
+tum processors. Without any sudden large changes in
+the parameters during the optimisation, we should ex-
+pect the energy and the energy gradient change in a rel-
+atively smooth manner as the optimisation progresses.
+Hence, we can use the energy and the energy gradients
+we obtained in the previous steps as the prior for the es-
+timation of the new energy and the energy gradients in a
+Bayesian manner [71]. This should enable us to achieve
+the same precision using much fewer samples and thus
+much shorter algorithm runtime. Other important fac-
+tors that can influence the algorithm runtime include the
+way we parametrised our circuit and the exact optimi-
+sation algorithm we choose, both worth further explo-
+rations.
+Since our ansatz circuit has a relatively short depth
+(O(N
+1
+2 )), the main limiting factor preventing us from
+simulating the Hubbard model much beyond the size 5×5
+is due to the increased gate counts and the resultant in-
+creased mean circuit error count. Stronger error mitiga-
+tion or even new error mitigation can only alleviate this
+problem. To fully tackle this, one possibility is to switch
+to a different kind of qubit encoding: the Majorana loop
+stabiliser code [72]. This encoding allows local vertical
+hopping terms using mediator qubits, thus no Fermionic
+swap network is needed and we can achieve a Hamilto-
+nian ansatz block and a Slater determinant preparation
+circuit with depth O(1). Furthermore, it can detect and
+correct single-qubit errors. Hence, it can potentially sup-
+press circuit errors and take us much beyond our current
+problem size. However, more qubits are needed for the
+encoding and we need to implement higher-weight opera-
+tors for the interaction terms. In addition, when consid-
+ering the stabiliser checks, we need to consider the errors
+introduced in implementing the check circuits and the
+connectivity requirement on the hardware. On the other
+hand, we may implement these stabiliser checks in a post-
+processing way similar to symmetry verification [73], but
+many more circuit runs will be needed.
+ACKNOWLEDGEMENTS
+The author would like to thank Sam McArdle, Yuan
+Xiao and Simon Benjamin for reading through the
+manuscript and providing valuable insights. The author
+would also like to thank Sofia Patomäki, Michael Fog-
+arty and John Morton for discussions on the hardware
+implementation.
+The author acknowledges support from Quantum Mo-
+tion Technologies Ltd.13
+Appendix A: Hubbard Model Hamiltonian Ansatz
+1. Simulation scheme
+Here we recap the scheme to implement the 2D open-
+boundary Hubbard model Hamiltonian ansatz as de-
+scribed in [12]. We will be considering a 2D Hubbard
+models of V sites, with the starting canonical ordering of
+the orbitals as shown in Fig. 2.
+1 2 3
+6 5 4
+7 8 9
+(a)
+1↑
+1↓ 2↓
+2↑ 3↑
+3↓
+6↑
+6↓ 5↓
+5↑ 4↑
+4↓
+7↑
+7↓ 8↓
+8↑ 9↑
+9↓
+(b)
+FIG. 2. (a) The layout and labelling of the sites in a 3-by-3
+Hubbard model. (b) The corresponding canonical ordering of
+the orbitals at the beginning of the circuit. The two rows of
+different colours denote different spins.
+Gates will be local if they are applying to the orbitals
+adjacent to each other in the canonical ordering. In the
+canonical ordering shown in Fig. 2, the orbitals of the
+same site and different spins are adjacent to each other,
+enabling the application of local parametrised on-site re-
+pulsion gates. To apply local hopping gates, we need
+to apply fermionic swaps to the orbitals to move them
+around in the canonical ordering. There are two types
+of fermionic swaps that we can apply: swaps between or
+within spins, which corresponding to swaps between or
+within rows for the orbital layout in Fig. 2. The swap
+scheme in [12] involving alternating swaps within and
+between spins. Now suppose we focus only on the spin-
+down orbitals. The spin-down orbitals start in row 2 in
+which we can only perform local swaps and local hopping
+interactions between the even pairs of orbitals. Then we
+swap between spins, moving spin down to row 1, and now
+we can do local swaps and local hopping interactions be-
+tween the odd pairs of orbitals. Repeating these steps
+will enable us to alternate between odd- and even-pair
+swaps and hopping interactions within the spin-down or-
+bitals, which are interleaved with swaps between the two
+spins. Such a scheme can apply all relevant hopping in-
+teractions in a local manner as shown in Fig. 3.
+We will define an edge pair as a pair of sites that are
+adjacent to each other in the canonical ordering and are
+1 2 3 4 5 6 7 8 9
+2 1 3 4 6 5 8 7 9
+2 3 1 6 4 5 8 9 7
+3 2 1 6 5 4 9 8 7
+3 1 2 5 6 4 9 7 8
+1 3 2 5 4 6 7 9 8
+time arrow
+: hopping interaction : Fermionic swap
+FIG. 3. The scheme for swapping spin-down orbitals and
+applying the relevant hopping interactions for a 3×3 Hubbard
+model. In between steps, there are also swaps between the
+two spins that we did not show. In the end, the spin orbitals
+return to the original ordering, enabling the application of
+the next block of the Hamiltonian ansatz. A similar scheme
+is applied to the spin-up orbitals except that it starts with
+odd-pair swaps first.
+vertical neighbours in the site layout. For example, in
+Fig. 2, the edge pairs are (3,4) and (6,7). The way we
+perform one block of Hamiltonian ansatz is by repeating
+2 ∗ Ncol rounds of the following two steps:
+1. Swap between spins: swapping orbitals of the same
+sites but different spins.
+2. Swap within the same spins, except for edge pairs
+on which we perform hopping interaction instead.
+This will return all the orbitals to their original positions.
+Within the process, we need to
+• Substitute step 1 in the first round with repulsion
+interactions and swaps between spins.
+• Substitute step 2 in the first and last round with
+hopping interactions and swaps interaction within
+same spins, except for edge pairs on which we only
+perform hopping interactions, no swaps.
+We can also implement the periodic boundary condition
+in the horizontal direction by adding a pair of hopping
+interaction into certain rounds of step 2.
+2. Gate count analysis for ansatz
+The gates in the Hubbard model simulation scheme
+are parametrised gates for on-site repulsion, adjacent-
+site hopping, fermionic swaps and combinations of them.
+Here we will decompose them into single-qubit rotations
+and partial swaps, which form one of the basic gate sets
+in silicon qubits.
+We will find the hopping gates, the fermionic swaps,
+and the fSWAP+hopping all starts with Zπ
+2
+and end14
+with Z−π
+2
+on one of the qubits. For on-site repulsion
+and fSWAP+repulsion, we have Z−π
+2
+at the end and we
+can easily add an Zπ
+2
+in front by adding a Z rotation
+pair Zπ
+2
+Z−π
+2
+. All of these gates are symmetric under the
+exchange of qubits, thus we can choose which qubit to
+place the Z rotations.
+We will choose to place these Z rotation on the odd
+qubits in the spin-up space and on the even qubits in the
+spin-down space. In this way, these Z rotation will cancel
+1
+. For the hopping term, the fermionic swap and the
+fSWAP+hopping, this means removing two single-qubit
+rotations. For on-site repulsion and fSWAP+repulsion in
+which we have added a Z rotation pair Zπ
+2
+Z−π
+2
+in front,
+the gate counts do not change.
+In the following section, we will use the below notations
+for the time units of the gates:
+• τ1q: the time unit for a single-qubit gate, which is
+the time needed to perform a π
+2 rotation. We will
+assume the time needed to carry out a single-qubit
+gate with a variable parameter, i.e. gates like Zθ,
+is on average τ1q.
+• τ2q: the time unit for a two-qubit gate, which is the
+time needed to perform a
+√
+SWAP. We will assume
+the time needed to carry out a partial swap with
+a variable parameter, i.e. gates like SWAPθ, is on
+average τ2q.
+The decompositions of the gates into partial swaps and
+single-qubit rotations and their resource estimates are
+shown below:
+• On-site repulsion: UU(θ) = e−iθ
+2 (I−Z1)(I−Z2)
+SWAP 2θ
+SWAP
+3
+2
+Z−2θ
+√
+SWAP
+Zπ
+2
+Z−π
+2
+Gate counts: G1q,U = 3, G2q,U = 3.
+Time needed: τU = 4τ1q + 6τ2q
+• Hopping interaction: Ut(θ) = e−iθ
+2 (XX+Y Y )
+1 Note that in each iteration, we will have
+√
+V − 1 interactions
+within the same spin, while we have
+√
+V interaction in between
+different spins, hence, the Z gate on one of the dot will not be
+cancelled, this will be the last dot in either the spin up space
+or the spin-down space. Also, the Z rotations at the beginning
+and the end of the circuit are not cancelled. However, when
+estimating the number of gates needed, for a large number of
+sites (hence large number of rounds of iterations), we will assume
+such boundary effects are negligible.
+SWAP
+3
+2
+Zθ
+√
+SWAP
+Zπ
+2
+Z−θ Z−π
+2
+Gate counts: G1q,t = 2, G2q,t = 2
+Time needed: τt = τ1q + 4τ2q
+• Fermionic swap:
+Fsw = 1
+2 (XX + Y Y + ZI + IZ) = SWAP · CZ
+SWAP
+3
+2
+Zπ
+√
+SWAP
+Zπ
+2
+Z−π
+2
+Gate counts: G1q,F = 1, G2q,F = 2
+Time needed: τf = 2τ1q + 4τ2q
+• Fermionic swap + on-site repulsion: FswUU
+SWAP 2θ
+SWAP
+3
+2
+Z−2θ+π
+√
+SWAP
+Zπ
+2
+Z−π
+2
+Gate counts: G1q,FU = 3, G2q,FU = 3.
+Time needed: τFU = 6τ1q + 6τ2q
+• Fermionic swap + hopping interaction: FswUt
+SWAP
+3
+2
+Zθ+π
+√
+SWAP
+Zπ
+2
+Z−θ Z−π
+2
+Gate counts: G1q,Ft = 2, G2q,Ft = 2
+Time needed: τFt = 3τ1q + 4τ2q
+Following the above gate decomposition and the Hamil-
+tonian ansatz circuit outlined in Appendix A1, we can
+obtain the following estimates for the total number of
+one-qubit gates needed N1q (all are Z rotations), total
+number of two-qubit gates needed N2q (all are partial
+swaps) and the total length of time needed T to perform
+one block of Hamiltonian ansatz for 2D Hubbard model15
+of V sites using basic single-qubit rotation and partial
+swaps:
+N1q = 4V
+3
+2 + 7V − 4
+√
+V
+N2q = 8V
+3
+2 + V − 4
+√
+V
+T =
+
+8
+√
+V + 5
+
+τ1q +
+
+16
+√
+V + 2
+
+τ2q
+For V = 25, we have:
+N1q ≈ 650
+N2q ≈ 1000
+T ≈ 45τ1q + 80τ2q
+Appendix B: Slater Determinant Preparation
+Here we recap the Slater determinant preparation
+scheme outlined in [12, 22]. Note that the input Slater
+determinant we choose to prepare in this Article will fol-
+low the same spin and site-layout symmetry as the output
+ground state since the ansatz we choose preserves these
+two symmetries.
+1. Background
+We will use Norb to denote the total number of orbitals
+that we are considering while Ne will be the number of
+electrons (i.e. the number of occupied orbitals).
+We start with the qubits representing the eigenorbitals
+of the initial Hamiltonian (e.g. non-interacting Hubbard
+Hamiltonian). The initial state is the ground state of the
+initial Hamiltonian with the first Ne orbitals being oc-
+cupied (i.e. the first Ne qubits are initialised to 1 while
+the rest are initialised to 0). Now the role of the state
+preparation circuit is to transform our qubits from rep-
+resenting the eigenstates of the initial Hamiltonian (with
+orbital creation operators {a†
+j}) to the orbitals that can
+have a compact description of our target Hamiltonian,
+i.e. to the site orbital basis (with orbital creation oper-
+ators {b†
+j}). This basis transformation can be described
+by the transformation matrix Q†
+(also called the Slater
+determinant) of the shape Norb × Ne:
+~ b†
+= Q†
+~ a†
+= U†
+ΛW~ a†
+= U†
+Λ~ a0†
+Here we have carried out singular value decomposition of
+Q†
+. W is a rotation within the filled-orbital subspace to
+find a new set of basis {a0†
+i } other than the eigenstate of
+the initial Hamiltonian {a†
+i}. The qubit ground state in
+basis {a0†
+i } is the same as basis {a†
+i} with all the orbitals
+filled. Hence, we do not need to carry out the transfor-
+mation W explicitly, we only need to keep in mind that
+now we are working in this new basis for the input state
+instead of the initial basis [22]. Λ is a rectangular ma-
+trix of the Norb ×Ne with ones at the diagonal and zeros
+elsewhere. This is just an isometry to expand our space
+from the filled orbital subspace to the full orbital space
+by attaching Norb − Ne empty orbitals. Then the trans-
+formation U†
+on the full orbital space will complete our
+transformation of basis. The transformation U†
+will be
+implemented as compositions of Givens rotations in the
+quantum circuit.
+2. Givens rotation
+A Givens rotation is just a general rotation operation
+within a 2D complex subspace. There are two parts to
+a Givens rotation, one is the rotation to change the am-
+plitude, and the other is phase operator to change the
+relative phase between the two basis in the subspace [22]:
+G(θ,φ) =
+
+cosθ −sinθ
+sinθ cosθ
+
+1 0
+0 eiφ
+
+We will be mostly dealing with real Slater determinant,
+so let us ignore the phase part here. The rotation part
+can be carried out using the operator:
+Rij(θ) = e
+θ
+4 (a†
+i aj−a†
+jai)
+JW transform the neighbouring orbital case, we have
+
+a†
+iai+1 −
+
+a†
+iai+1
+†
+
+= 2iIm
+n
+a†
+iai+1
+o
+⇒ 2iIm{(X − iY )(X + iY )}
+= 2i(XY − Y X)
+Hence, the given rotation for adjacent orbitals are:
+R(θ) = eiθ
+2 (XY −Y X)
+= e−iθ
+2 (Y X−XY )
+which translate into the following circuit using partial
+swap and Z rotations.
+SWAP
+3
+2
+Z−θ
+√
+SWAP
+Zθ
+Using the notation in Appendix A2, we have:
+Gate counts: G1q,G = 2, G2q,G = 2
+Time needed: τG = τ1q + 4τ2q16
+3. Gate count for Givens rotation
+a. Simple scheme
+The transformation from the initial eigenbasis {a†
+i} to
+the target eigenbasis {b†
+i} can be viewed as a process of
+trying to diagonalise the transformation matrix (Slater
+determinant) Q. The transformation W can zero out
+a triangle of entries along the Ne dimension. We need
+one Givens rotation to zero out each remaining non-zero
+off-diagonal elements. The number of Givens rotation
+needed is [22]:
+Ne (Norb − Ne)
+For the half-filling Hubbard model with V sites, we have
+Norb = 2V and Ne = V . Hence, we have V 2
+off-diagonal
+elements to be zeroed out. Each Givens rotation is de-
+composed into two partial-swaps and two Z rotations,
+thus the number of gates we needed are (following the
+notation in Appendix A2)
+N1q = 2V 2
+N2q = 2V 2
+Using the parallel scheme suggested in [12], we have a
+circuit of depth
+(Norb − 1 − (Ne − 1)) + (Ne − 1) = Norb − 1 = 2V − 1
+which translate into the circuit runtime of
+T = (2V − 1)(τ1q + 4τ2q)
+For V = 25, we have:
+N1q = 1250
+N2q = 1250
+T = 49τ1q + 196τ2q
+b. Using spin conservation
+For the Hubbard Hamiltonian that we are consider-
+ing, the two spin spaces are decoupled. Hence, we can
+consider the Slater determinants of the two spin subspace
+separately, each of the shape Ne
+2 × Norb
+2 . Hence, the num-
+ber of Givens rotation needed in each spin subspace is
+Ne
+2
+
+Norb
+2
+−
+Ne
+2
+
+=
+V 2
+4
+.
+To keep the applications of the Givens rotations within
+the spin subspace on only adjacent orbitals, we need to
+start in an orbital ordering with the first Norb/2 being the
+spin-up orbitals and the next Norb/2 being the spin-down
+orbitals. Hence, we need to carry out orbital rearrange-
+ment after the Givens rotations to restore the spin-orbital
+ordering for the Hamiltonian ansatz (Appendix A1).
+We can arrange the Givens rotations such that all the
+Givens rotation on the last spin-up orbital (the Norb
+2 th
+orbital) and the first spin-down orbital (the Norb
+2 + 1th
+orbital) finished first. In the next time step, while we are
+carrying out other Givens rotations, we can start per-
+forming fSWAP on the two orbitals that have finished
+Givens rotation. In the next step, two more orbitals
+will finish their Givens rotation (orbitals Norb
+2 − 1 and
+Norb
+2 + 2), thus now we can perform fSWAP on orbitals
+(Norb
+2 − 1, Norb
+2 ) and (Norb
+2 + 1, Norb
+2 + 2). Carry on we
+will have more and more orbitals finishing their Givens
+rotations, and in each time step we will perform fSWAP
+on all orbitals that finished Givens rotations, alternating
+between the odd pair of orbitals and even pair of orbitals.
+After Norb
+2 −2 layer of swap, we will have alternating up
+and down orbitals. One more layer of swaps between all
+orbitals 4n − 1 and 4n, will give us the ↑↓↓↑↑ ··· order
+we used in the Hamiltonian ansatz (Appendix A1). Note
+here we only talk about how to arrange the orbitals to
+have the right spin ordering, for the ordering of the or-
+bitals within the same spin, it is determined by order of
+the rows and columns of the Slater determinants that we
+wrote down. In total, we need
+(Norb
+2 − 2 + 1) Norb
+2 − 2
+
+2
++ b
+Norb
+4
+c
+≈
+N2
+orb
+8
+−
+Norb
+2
+=
+V 2
+2
+− V
+fSWAPs to achieve the desired orbital order.
+For the fSWAP gates, similar to Appendix A2, we can
+arrange the gates such that the
+√
+Z only acts on the odd
+orbitals, which will enable the cancellation of all the
+√
+Z
+other than those at the boundary. Hence, we can ignore
+the
+√
+Z gates required by the fSWAPs. Our scheme need
+V 2
+4 ×2 Givens rotations and V 2
+2 −V fSWAPs. When de-
+composed into partial swap and Z rotation, the number
+of one-qubit gates and two-qubit gates needed are
+N1q = 2
+
+V 2
+2
+
++
+V 2
+2
+− V =
+3
+2
+V 2
+− V
+N2q = 2
+
+V 2
+2
+
++ 2
+
+V 2
+2
+− V
+
+= 2V 2
+− 2V
+The depth of the circuit before finishing the first
+Givens rotation is Norb − Ne = V . This section of the
+circuit consist of only Givens rotation, hence require run-
+time:
+Ta = V (τ1q + 4τ2q)
+After this, we have the fSWAP network with Givens rota-
+tion happening concurrently, the depth of the circuit here
+is V −1, the runtime is limited by the fSWAP instead of17
+Givens rotation since fSWAP contains π-rotations of Z.
+Hence, the runtime needed for the fSWAP networks is:
+Tb = (V − 1)(2τ1q + 4τ2q)
+Hence, the total runtime needed for the state preparation
+circuit is:
+T = Ta + Tb = (3V − 2)τ1q + (8V − 4)τ2q
+For V = 25, we have:
+N1q = 910
+N2q = 1250
+T = 73τ1q + 196τ2q
+Hence, the spin subspace scheme leads to some reduction
+in the number of one-qubit gate. However, it also leads
+to longer circuit runtime.
+c. Comparison to Ansatz circuit
+When compared to Appendix A2, the number of one-
+qubit gates of the Slater determinant preparation circuit
+is twice of that of one layer of the Hamiltonian ansatz,
+the number of two-qubit gates and the runtime are com-
+parable.
+Do note that the number of gates of the Slater determi-
+nant preparation circuit scale as O(V 2
+), which is worse
+than the V 3/2
+ansatz scaling. The depth of the Slater de-
+terminant preparation circuit scale as O(V ), which is also
+worse than the ansatz scaling O(
+√
+V ) as well. However,
+we need to note that we did not take into account of the
+number of blocks of Hamiltonian ansatz might be needed
+in the ansatz scaling, and the number of blocks needed
+is very likely to scale worse than
+√
+V , which means that
+the state preparation should have a better scaling than
+the ansatz if we take that into account.
+Appendix C: Gate Count Analysis for
+Superconducting Qubits
+Now we will follow the same analysis in Appendix A
+and Appendix B, but switch to superconducting qubits.
+In superconducting qubits, we will use partial iSWAP [62]
+instead of partial SWAP as our elementary two-qubit
+gate. The differences between the two are discussed in
+Ref. [63]
+Note that partial iSWAP is not e−iθ
+2 i SWAP
+, instead it
+is just a gate based on XY interaction:
+iSWAPθ := e−iθ
+2 (XX+Y Y )
+iSWAP := iSWAP−π/2.
+In our circuit, partial iSWAP will be the only type of two-
+qubit gate we use. This would enable us to implement
+all Z rotations in a virtual way since the iSWAP can
+be easily transformed to implement virtual Z gate [64].
+Thus in the following gate count section we will omit all
+Z rotations in our gate counts and time counts.
+In the following section, we will use the below notations
+for the time units of the gates:
+• τ1q: the time unit for a single-qubit gate, which is
+the time needed to perform a π
+2 rotation. We will
+assume the time needed to carry out a single-qubit
+gate with a variable parameter, i.e. gates like Xθ,
+is on average τ1q.
+• τ2q: the time unit for a two-qubit gate, which is the
+time needed to perform a iSWAP. We will assume
+the time needed to carry out a partial swap with
+a variable parameter, i.e. gates like iSWAPθ, is on
+average τ2q.
+The decompositions of the gates in the ansatz into par-
+tial iSWAPs and single-qubit rotations and their resource
+estimates are shown below:
+• On-site repulsion: UU(θ) = e−iθ
+2 (I−Z1)(I−Z2)
+Zπ−θ
+i SWAP
+i SWAP
+Xθ+π
+i SWAP
+i SWAP
+Zπ−θ Xπ
+2
+Xπ
+2
+Gate counts: G1q,U = 3, G2q,U = 4.
+Time needed: τU = 5τ1q + 4τ2q
+• Hopping interaction: Ut(θ) = e−iθ
+2 (XX+Y Y )
+=
+iSWAPθ
+Gate counts: G1q,t = 0, G2q,t = 1
+Time needed: τt = τ2q
+• Fermionic swap:
+Fsw = 1
+2 (XX + Y Y + ZI + IZ)
+i SWAP
+Z−π
+2
+Z−π
+2
+Gate counts: G1q,F = 0, G2q,F = 1
+Time needed: τf = τ2q
+• Fermionic swap + on-site repulsion: FswUU
+Using the fact that iSWAP commute with Zθ ⊗Zθ
+and iSWAP · iSWAP = Z ⊗ Z, we have:18
+Z−π
+2 −θ
+i SWAP
+Xθ+π
+i SWAP
+i SWAP
+Z−π
+2 −θ Xπ
+2
+Xπ
+2
+Gate counts: G1q,FU = 3, G2q,FU = 3.
+Time needed: τFU = 5τ1q + 3τ2q
+• Fermionic swap + hopping interaction: FswUt
+i SWAP θ− π
+2
+Z−π
+2
+Z−π
+2
+Gate counts: G1q,Ft = 0, G2q,Ft = 1
+Time needed: τFt = 2τ2q
+Following the above gate decomposition and the Hamil-
+tonian ansatz circuit outlined in Appendix A, we can
+obtain the following estimates for the total number of
+one-qubit gates needed N1q,antz (all are X rotations), to-
+tal number of two-qubit gates needed N2q,antz (all are
+partial swaps) and the total length of time needed Tantz
+to perform one block of Hamiltonian ansatz for 2D Hub-
+bard model of V sites using basic single-qubit rotation
+and partial iSWAPs:
+N1q,antz = 3V
+N2q,antz = 4V
+3
+2 + 2V − 2
+√
+V
+Tantz = 5τ1q + 4
+√
+V + 1
+
+τ2q
+For V = 25, we have:
+N1q,antz ≈ 75
+N2q,antz ≈ 540
+Tantz ≈ 5τ(1)
++ 24τ(2)
+Now we will turn to initial Slater determinant prepa-
+ration outlined in Appendix B. The gate needed is Given
+rotation, which can be decomposed as
+• Givens rotation: R(θ) = e−iθ
+2 (Y X−XY )
+i SWAP θ
+Zπ
+2
+Z−π
+2
+Gate counts: G1q,G = 0, G2q,G = 1
+Time needed: τG = τ2q.
+Following the same arguments in Appendix B3, the num-
+ber of two-qubit gates and one-qubit gates needed for
+Slater determinant preparation is:
+N1q,prep = V 2
+N2q,prep = V 2
+.
+The depth of the Slater determinant preparation circuit
+is
+D = 2V − 1
+which translate into the circuit runtime of
+Tprep = (2V − 1)τ2q.
+Together we can obtain the resource estimate for the
+full ansatz circuit with Nblk ansatz blocks:
+N1q = V 2
++ 3V Nblk
+N2q = V 2
++
+
+4V
+3
+2 + 2V − 2
+√
+V
+
+Nblk
+T = (2V − 1)τ2q +
+
+5τ1q + 4
+√
+V + 1
+
+τ2q
+
+Nblk
+For V = Nblk = 25, we have:
+N1q ≈ 2500
+N2q ≈ 14000
+T ≈ 125τ1q + 650τ2q.
+Appendix D: Obtaining Energy Gradient in
+Quantum Computers
+1. Background
+As mentioned in Section II. For a given Hamilto-
+nian H, we want to find the set of optimal parame-
+ters ~ θ for an ansatz circuit such that the state ψ(~ θ)
+E
+it produce is as close to the ground state of the Hamil-
+tonian as possible, i.e. we want to find ~ θ such that
+Etot(~ θ) =
+D
+ψ(~ θ) H ψ(~ θ)
+E
+is minimised.
+However, since the energy Etot(~ θ) cannot be directly
+measured, we need to rewrite our Hamiltonian in terms
+of its Pauli components:
+H =
+X
+j
+λjGj
+D
+ψ(~ θ) H ψ(~ θ)
+E
+=
+X
+j
+λj
+D
+ψ(~ θ) Gj ψ(~ θ)
+E
+.
+Hence,
+Etot(~ θ) =
+X
+j
+λjEi(~ θ)19
+where Ej(~ θ) =
+D
+ψ(~ θ) Gj ψ(~ θ)
+E
+, which is just the expec-
+tation value of a Pauli observable, hence can be directly
+obtained from the circuit.
+To find the ground state, we can use gradient-based
+optimisation methods like gradient decent and L-BFGS-
+B, etc. This require us to obtain ∂Etot(~ θ)
+∂θm
+, which in turns
+means that we need to measure
+∂Ej(~ θ)
+∂θm
+for every Hamil-
+tonian component j and every parameter m.
+We can obtain
+∂Ej(~ θ)
+∂θm
+simply using finite difference,
+in which we will measure Ej(θ1,θ2,···θm,···) and
+Ej(θ1,θ2,···θm + δθm,···), and take their difference di-
+vided by δθm to approximate the gradient.
+2. The circuit approach to obtain gradients
+The exact gradient
+∂Ej(~ θ)
+∂θm
+can be obtained using cir-
+cuit measurement instead of using finite difference ap-
+proximation. Suppose our ansatz circuit consist of
+parametrised rotation gates Rn of the form
+Rn(θn) = e−iθnFn
+where Fn are both Hermitian and unitary, e.g. Pauli or
+swaps.
+Then our parametrised circuit can be written as:
+ψ(~ θ)
+E
+=
+1 Y
+n=N
+Rn(θn)|0i = R(~ θ)|0i
+where we have denote the whole circuit using R(~ θ).
+A string of parametrised rotation can be denoted as:
+b Y
+n=a
+Rn(θn) = Ra:b
+which means that R(~ θ) = RN:1
+Hence,
+∂R(~ θ)
+∂θm
+= RN:m+1
+∂Rm(θm)
+∂θm
+Rm−1:1
+= −iRN:m+1FmRm:1
+Hence we have
+∂Ej(~ θ)
+∂θm
+= 2Re
+nD
+ψ(~ θ) Gj
+
+∂m ψ(~ θ)
+Eo
+= 2Re
+n
+0 R†
+(~ θ)Gj
+
+∂mR(~ θ)
+
+0
+o
+= 2Im
+n
+0 (RN:1)
+†
+GjRN:m+1FmRm:1 0
+o
+This can be measured via two kind of circuits:
+• Indirect measurement [28]:
+The circuit is shown in Fig. 4 (a) will measure
+1
+2
+∂Ej(~ θ)
+∂θm
+. Here we use an ancilla which probes the
+main ansatz with a control unitary. The advantage
+of such a scheme is that we can obtain the exact
+gradient of the circuit via measurement of only one
+qubit. However, it requires an extra ancilla qubit.
+The need for performing the control unitary be-
+tween the ancilla and any other qubits also lead to
+connectivity challenges. Control unitaries like con-
+trol swap are also not straightforward to implement
+in lots of architectures.
+• Direct measurement [74]:
+The circuit is shown in Fig. 4 (b). Denoting |φi =
+Rm:1 0 , W = RN:m+1, the circuit will measure:
+Ajm,± = hφ|e±iπ
+4 Fm
+W†
+GjWe∓iπ
+4 Fm
+|φi
+=
+1
+2
+hφ|(1 ± iFm)W†
+GjW (1 ∓ iFm)|φi
+=
+1
+2
+hφ|W†
+GjW |φi +
+1
+2
+hφ|FmW†
+GjWFm |φi
+± i
+1
+2
+hφ|FmW†
+GjW |φi − hφ|W†
+GjWFm |φi
+
+Hence, the gradient
+∂Ej(~ θ)
+∂θm
+can be obtained via
+Ajm,+ − Ajm,−
+= i hφ|FmW†
+GjW |φi − hφ|W†
+GjWFm |φi
+
+= 2Im
+
+hφ|W†
+GjWFm |φi
+=
+∂Ej(~ θ)
+∂θm
+For this method, we do not require any extra ancilla
+or control unitaries. However, we need to measure
+two expectation values Ajm,+ and Ajm,− for the
+estimation of the gradient
+∂Ej(~ θ)
+∂θm
+instead of one in
+the case of indirect measurement.
+3. Shared parameters
+For the case where there are parametrised gates with
+shared parameters, we can still obtain the gradients using
+finite difference in a similar way.
+When using gradient circuits, the story is more com-
+plicated. Firstly, we add a scaling factor βm to each
+parameters: θm → βmθm:
+∂R({θn})
+∂θm
+= −iRN:m+1FmRm:1
+⇒
+∂R({βnθn})
+∂βmθm
+= −iRN:m+1FmRm:1
+∂R({βnθn})
+∂θm
+= −iβmRN:m+1FmRm:120
+··· ··· X
+··· ··· Gj
+1 √
+2
+(|0i − i|1i)
+|0i
+⊗n
+R1 R2 Fm Rm RN
+(a)
+··· ··· Gj |0i
+⊗n
+R1 R2 e±iπ
+4 Fm Rm RN
+(b)
+FIG. 4. These are the circuits used to measure the gradient
+∂Ej(~ θ)
+∂θm
+using (a) indirect measurements, (b) direct measure-
+ments. Here Ej(~ θ) =
+D
+ψ(~ θ) Gj ψ(~ θ)
+E
+is the expectation
+value of the jth component of the Hamiltonian. θm is the pa-
+rameter of the mth parametrised gate Rm(θm) = e−iθmFm
+of
+the ansatz circuit, where Fm is both Hermitian and unitary.
+Note that here we have assumed that all parametrised gates
+have independent parameters.
+Now we change the labelling of the parametrised gates:
+m → m,v, for which gates with the same m will share the
+same parameters, and v labels the different parametrised
+gates that share the same parameter:
+θm,v = θm ∀v
+In such case, we have
+∂R({βn,wθn,w})
+∂θm
+=
+X
+v
+
+∂R({βn,wθn,w})
+∂θm,v
+
+θm,v=θm∀v
+i.e. the gradient w.r.t. to a given parameter θm is
+the sum of all the gradient w.r.t. the parameter of
+each parametrised gate that shared the parameter value.
+Hence, when trying to obtain the gradient using circuit
+measurements, we still need to treat the parameters in
+each gate as independent, and then sum those gradient
+up based on which gates have shared parameters.
+Appendix E: Number of Samples Needed for Energy
+and Energy Gradient
+1. Number of samples in finite difference
+a. Gradient precision
+The equation for the estimation of the gradient of the
+jth
+Pauli term in the Hamiltonian using finite difference
+is:
+∂Ej(~ θ)
+∂θm
+=
+Ej(~ θ +
+~ δm
+2 ) − Ej(~ θ −
+~ δm
+2 )
+δ
+(E1)
+where ~ δm is a vector with the mth
+parameter set to δ and
+all other parameters set to 0. Ej denote the sampling
+average of Ej.
+Hence, we have
+Var[∂mEj] =
+2
+δ2
+Var
+
+Ej
+
+(E2)
+i.e. for larger δ, we can achieve smaller variance in gra-
+dient for a fixed variance in energy. However, we cannot
+increase δ indefinitely because there is an error associ-
+ated with the finite step size when using finite difference,
+which has the magnitude of:
+δ2
+24
+Nsh X
+u,v,w=1
+∂3
+Ej(~ θ)
+∂θm,v∂θm,u∂θm,w
+≈ N3
+sh
+δ2
+24
+∂3
+mEj
+where number of parametrised gates share parameter θm
+is Nsh. The sum over v,u,w are the sum over all the
+parametrised gates that share the same parameter θm as
+discussed in Appendix D3. We have made the assump-
+tion that all third-order derivatives in the sum have sim-
+ilar magnitudes and the same sign. Note that the finite
+step size error increases with δ.
+A balance between the two errors can be achieved when
+we choose the step size δ to satisfy
+r
+2
+δ2
+Var
+
+Ej
+
+= N3
+sh
+δ2
+24
+∂3
+mEj
+δ =
+
+
+24
+q
+2Var
+
+Ej
+
+N3
+sh∂3
+mEj
+
+
+1
+3
+Note that
+∂3
+Ej(~ θ)
+∂θ3
+m
+= 2Re
+nD
+ψ(~ θ) Gj
+
+∂3
+m ψ(~ θ)
+Eo
++ 6Re
+n
+∂m
+D
+ψ(~ θ)
+
+Gj
+
+∂2
+m ψ(~ θ)
+Eo
+where Re
+n
+∂m
+D
+ψ(~ θ)
+
+Gj
+
+∂2
+m ψ(~ θ)
+Eo
+and
+Re
+nD
+ψ(~ θ) Gj
+
+∂3
+m ψ(~ θ)
+Eo
+can be measured us-
+ing circuit similar to the first order derivative in
+Appendix D2. Hence, the magnitude of
+∂3
+Ej(~ θ)
+∂θ3
+m
+is
+around
+√
+22 + 62 ≈ 6.
+Thus we have:
+δ =
+
+
+24
+q
+2Var
+
+Ej
+
+6N3
+sh
+
+
+1
+3
+=
+1.78
+Nsh
+Var
+
+Ej
+1
+6
+Substituting into Eq. (E2), we have:
+Var[∂mEj] = 0.63N2
+shVar
+
+Ej
+2
+3
+Var
+
+Ej
+
+=
+2
+N3
+sh
+Var[∂mEj]
+3
+2
+(E3)
+This is the smallest variance in the gradient that we can
+achieve for a given variance in the energy estimation by
+choosing the optimal step size δ.21
+b. Number of samples needed
+Assuming Var[Ej] ∼ O(1), then the number of sam-
+ples needed to achieve the sample average variance
+Var
+
+Ej
+
+is
+Var[Ej]
+Var
+
+Ej
+ ∼
+1
+Var
+
+Ej
+
+Since we need to evaluate sample average Ej at two
+points in finite difference, the total number of samples
+needed is:
+Mfd ∼
+2
+Var
+
+Ej
+ =
+N3
+sh
+Var[∂mEj]
+3
+2
+(E4)
+2. Number of samples in direct measurement
+a. Gradient precision
+The equation of estimation of the gradient of a the jth
+Pauli term in the Hamiltonian using direct measurement
+is:
+∂Ej(~ θ)
+∂θm
+=
+Nsh X
+v=1
+"
+∂Ej(~ θ)
+∂θm,v
+#
+θm,v=θm∀v
+=
+Nsh X
+v=1
+Ajmv,+ − Ajmv,−
+
+Here the sum over v is the sum over all the parametrised
+gates that share the same parameter θm as discussed in
+Appendix D3.
+Hence, we have:
+Var[∂mEj] = 2NshVar
+
+A
+
+b. Number of samples needed
+Assuming Var[A] ∼ O(1), then the number of samples
+needed to achieve sample average variance Var
+
+A
+
+is
+Var[A]
+Var
+
+A
+ ∼
+1
+Var
+
+A
+
+Since we need to evaluate sample average A at 2Nsh
+points in direct measurement, the total number of sam-
+ples needed is:
+Mdm ∼
+2Nsh
+Var
+
+A
+ =
+(2Nsh)
+2
+Var[∂mEj]
+(E5)
+When compared to Eq. (E4) of finite difference, we can
+see that direct measurement has better scaling in terms
+of both the number of shared of parameters Nsh and
+the target gradient precision Var[∂mEj], thus direct mea-
+surement is preferred.
+3. Comparison between finite difference and direct
+measurement
+To compare the two methods, we use Eq. (E4) and
+Eq. (E5) to study
+Mdm
+Mfd
+=
+4
+p
+Var[∂mEj]
+Nsh
+If we define the breaking point of the gradient precision
+as:
+∗
+grad =
+Nsh
+4
+(E6)
+then we have:
+•
+p
+Var[∂mEj] ≥ ∗
+grad ⇒ Mdm
+Mfd
+≥ 1:
+Finite difference need less samples to achieve the
+given precision.
+•
+p
+Var[∂mEj] < ∗
+grad ⇒ Mdm
+Mfd
+< 1:
+Direct measurement need less samples to achieve
+the given precision.
+Nsh = 4Neq for hopping term (if we assume spin sym-
+metry) and Nsh = 3Neq for repulsion term where Neq is
+the number of equivalent partition in the site layout due
+to symmetry. Here we will take the approximation that
+all Nsh = 4Neq since there are more hopping term than
+repulsion terms. Thus we have:
+Var[∂mEj] = 8NeqVar
+
+A
+
+(E7)
+Using the parametrisation discuss in Section VA, for
+open boundary Hubbard model the breaking point of the
+gradient precision ∗
+grad is:
+• Square site layout:
+Neq = 8 ⇒ ∗
+grad,sq = 2.5 × 10−4
+• Rectangular site layout:
+Neq = 4 ⇒ ∗
+grad,rt = 1 × 10−3
+4. Number of samples needed for energy
+As discussed in [34], to compete with the best classical
+algorithm we need to estimate the energy per site Esite
+to 10−3
+t precision.
+We can decompose the total energy into its subterms
+Ej:
+Etot ≈
+J X
+j=1
+hjEj
+here hj is the coefficient of the Pauli decomposition of
+the Hamiltonian H =
+PJ
+j=1 hjGj.22
+The repulsion terms and hopping terms in the Hamil-
+tonian can be decomposed into their Pauli components:
+Erep =
+1
+4
++
+3 X
+j=1
+1
+4
+Ej
+Ehop =
+2 X
+j=1
+1
+2
+Ej
+Hence, the variance in their sampling average are:
+Var
+
+Erep
+
+=
+3
+42
+Var
+
+Ej
+
+Var
+
+Ehop
+
+=
+1
+2
+Var
+
+Ej
+
+There are V repulsion terms and 4V hopping terms,
+hence the total energy is:
+V X
+k=1
+Erep,k +
+4V X
+k=1
+Ehop,k = V Esite
+which translate into the following equation for variance:
+V Var
+
+Erep
+
++ 4V Var
+
+Ehop
+
+= V 2
+Var
+
+Esite
+
+Var
+
+Ej
+
+=
+16
+35
+V Var
+
+Esite
+
+As mentioned above, we want to achieve Var
+
+Esite
+
+=
+10−3
+t
+2
+, assuming t ∼ O(1), we have:
+Var
+
+Ej
+
+=
+16
+35
+V × 10−6
+(E8)
+Assuming Var[Ej] ∼ O(1), then the number of sam-
+ples needed to achieve sample average variance Var
+
+Ej
+
+is
+MEj ∼
+Var[Ej]
+Var
+
+Ej
+ ∼
+1
+Var
+
+Ej
+ =
+35
+16V
+× 106
+.
+As mentioned in Section VB, we need 5 circuit runs to
+evaluate all energy subterms. Thus, the total number of
+circuit runs needed to evaluate the energy to the required
+precision is:
+ME = 5MEj =
+1.1 × 107
+V
+Thus for V = 25, we have:
+ME ≈ 4 × 105
+5. Number of samples needed for energy gradients
+First we need to decide what precision of the energy
+gradient is needed. In Appendix E4, we have obtained
+the precision of the energy subterms that we want to
+achieve. If we are using finite difference method, in order
+to achieve such a precision in the final result energy sub-
+terms, we can evaluate the energy points in the gradient
+estimation to the same precision, and our terminating
+threshold of change in the estimated energy subterms
+can be set to the same precision. In such case, the gradi-
+ent precision that we can achieve can be obtained using
+Eq. (E3) and Eq. (E8):
+Var[∂mEj] = 0.63N2
+shVar
+
+Ej
+2
+3
+= 3.7N2
+shV
+2
+3 × 10−5
+(E9)
+To achieve the same precision using direct measurement,
+the number of sample needed can be obtained by substi-
+tuting this into Eq. (E5):
+Mdm ≈
+(2Nsh)
+2
+Var[∂mEj]
+= 1.1V −2
+3 × 105
+. (E10)
+Note that this is just the number of samples needed to
+obtain the gradient of an energy subterm w.r.t. one pa-
+rameters. To obtain the full gradient vector, we need to
+iterate over all parameters. Using Eq. (16), the number
+of circuit runs needed to evaluate
+∂Ej(~ θ)
+∂θm
+for all parame-
+ters m using direct measurement is
+Mgrad,j = MdmNpara
+≈
+1.1Nsite
+paraNblkV
+1
+3
+Neq
+× 105
+As mentioned in Section VB, we need 5 circuit runs to
+measure all energy subterms. Thus, the total number of
+circuit runs needed to evaluate the energy gradient vector
+to the required precision is:
+Mgrad = 5Mgrad,j =
+5.5Nsite
+paraNblkV
+1
+3
+Neq
+× 105
+For 5 × 5 Hubbard model, we have V = 25, Neq = 8
+and Nsite
+para = 5. Assuming Nblk = V , the number of
+circuit runs needed is:
+Mgrad ≈ 2.5 × 107
+Appendix F: Quantum Dot Layout
+Fig. 5, Fig. 6 shows how we can perform the non-
+demolishing measurements required by our problem us-
+ing three lines of quantum dot, one line for data and two
+lines for ancilla. The ancilla here come in the form of
+double dot, which will be initialised in singlet and will
+be readout using Pauli spin blockade which enable us to
+distinguish singlet and triplet state. Fig. 5 shows how
+we can measure XX and Y Y of the hopping terms. Af-
+ter that, we can compose XX and Y Y to obtain ZZ
+(with an additional − sign) which in terms can give us23
+electron number parity for symmetry verification. Alter-
+natively we can also measure XX and ZZ, and obtain
+Y Y via post-processing since control-Z gate can be eas-
+ier to implement in silicon qubits. Fig. 5 shows how we
+perform Z-measurement for every data dots to obtain
+the repulsion terms. The electron number parity in sym-
+metry verification can again be obtained via composing
+our measurement results. Our measurement can also be
+carried out using only one row of ancilla. In such a case,
+we essentially using one row of ancilla to carry out two
+rounds of measurements with ancilla reinitialisation in
+between. Other architectures that incorporating spin-to-
+charge readout using reservoirs are also possible.
+1↑ 1↓ 2↓ 3↓ 3↑ 2↑ 4↓ 4↑ 5↑
+. . .
+. . .
+. . .
+: Ancilla double dots : Data dots : Gates between dots
+FIG. 5. The measurements of the hopping terms. The blue
+interaction here are control-X gate from the ancilla to the
+data for the measurement of XX in the hopping term. The
+red interaction here are control-Y gate from the ancilla to the
+data for the measurement of Y Y in the hopping term.
+1↑ 1↓ 2↓ 3↓ 3↑ 2↑ 4↓ 4↑ 5↑
+. . .
+. . .
+: Ancilla double dots : Data dots : Gates between dots
+. . .
+FIG. 6. The measurements of the repulsion terms. All the
+interaction here are control-Z gates. One row of ancilla is
+in charge of Z measurements of the odd data dots while the
+other row of ancilla is in charge of Z measurements of the
+even data dots.
+[1] Richard P. Feynman, “Simulating physics with comput-
+ers,” International Journal of Theoretical Physics 21,
+467–488 (1982).
+[2] Ian D. Kivlichan, Craig Gidney, Dominic W. Berry,
+Nathan Wiebe, Jarrod McClean, Wei Sun, Zhang Jiang,
+Nicholas Rubin, Austin Fowler, Alán Aspuru-Guzik,
+Ryan Babbush, and Hartmut Neven, “Improved Fault-
+Tolerant Quantum Simulation of Condensed-Phase Cor-
+related Electrons via Trotterization,” arXiv:1902.10673
+[physics, physics:quant-ph] (2019).
+[3] Dave Wecker, Matthew B. Hastings, and Matthias
+Troyer, “Progress towards practical quantum varia-
+tional algorithms,” Physical Review A 92 (2015),
+10.1103/PhysRevA.92.042303.
+[4] L. M. K. Vandersypen, H. Bluhm, J. S. Clarke, A. S. Dzu-
+rak, R. Ishihara, A. Morello, D. J. Reilly, L. R. Schreiber,
+and M. Veldhorst, “Interfacing spin qubits in quantum
+dots and donors—hot, dense, and coherent,” npj Quan-
+tum Information 3 (2017), 10.1038/s41534-017-0038-y.
+[5] Morten Kjaergaard, Mollie E. Schwartz, Jochen
+Braumüller, Philip Krantz, Joel I.-J. Wang, Simon Gus-
+tavsson, and William D. Oliver, “Superconducting
+Qubits: Current State of Play,” Annual Review of Con-
+densed Matter Physics 11, 369–395 (2020).
+[6] Sam McArdle, Suguru Endo, Alán Aspuru-Guzik, Si-
+mon C. Benjamin, and Xiao Yuan, “Quantum computa-
+tional chemistry,” Reviews of Modern Physics 92, 015003
+(2020).
+[7] Yudong Cao, Jonathan Romero, Jonathan P. Olson,
+Matthias Degroote, Peter D. Johnson, Mária Kieferová,
+Ian D. Kivlichan, Tim Menke, Borja Peropadre, Nico-
+las P. D. Sawaya, Sukin Sim, Libor Veis, and Alán
+Aspuru-Guzik, “Quantum Chemistry in the Age of Quan-
+tum Computing,” Chemical Reviews 119, 10856–10915
+(2019).
+[8] Abhinav Kandala, Antonio Mezzacapo, Kristan Temme,
+Maika Takita, Markus Brink, Jerry M. Chow, and
+Jay M. Gambetta, “Hardware-efficient variational quan-
+tum eigensolver for small molecules and quantum mag-
+nets,” Nature 549, 242–246 (2017).
+[9] Jonathan Romero, Ryan Babbush, Jarrod R. McClean,
+Cornelius Hempel, Peter J. Love, and Alán Aspuru-
+Guzik, “Strategies for quantum computing molecular en-
+ergies using the unitary coupled cluster ansatz,” Quan-
+tum Science and Technology 4, 014008 (2018).
+[10] Pierre-Luc Dallaire-Demers, Jonathan Romero, Libor
+Veis, Sukin Sim, and Alán Aspuru-Guzik, “Low-depth
+circuit ansatz for preparing correlated fermionic states on
+a quantum computer,” Quantum Science and Technology
+4, 045005 (2019).
+[11] Ryan Babbush, Nathan Wiebe, Jarrod McClean, James
+McClain, Hartmut Neven, and Garnet Kin-Lic Chan,
+“Low-Depth Quantum Simulation of Materials,” Physi-
+cal Review X 8, 011044 (2018).24
+[12] Ian D. Kivlichan, Jarrod McClean, Nathan Wiebe,
+Craig Gidney, Alán Aspuru-Guzik, Garnet Kin-Lic Chan,
+and Ryan Babbush, “Quantum Simulation of Electronic
+Structure with Linear Depth and Connectivity,” Physical
+Review Letters 120, 110501 (2018).
+[13] F Verstraete and J I Cirac, “Mapping local Hamiltoni-
+ans of fermions to local Hamiltonians of spins,” Journal
+of Statistical Mechanics: Theory and Experiment 2005,
+P09012–P09012 (2005).
+[14] Sergey Bravyi and Alexei Kitaev, “Fermionic quantum
+computation,” Annals of Physics 298, 210–226 (2002).
+[15] Jan-Michael Reiner, Frank Wilhelm-Mauch, Gerd Schön,
+and Michael Marthaler, “Finding the ground state of the
+Hubbard model by variational methods on a quantum
+computer with gate errors,” Quantum Science and Tech-
+nology 4, 035005 (2019).
+[16] Chris Cade, Lana Mineh, Ashley Montanaro, and
+Stasja Stanisic, “Strategies for solving the Fermi-
+Hubbard model on near-term quantum computers,”
+arXiv:1912.06007 [quant-ph] (2019).
+[17] Simons Collaboration on the Many-Electron Problem,
+J. P. F. LeBlanc, Andrey E. Antipov, Federico Becca,
+Ireneusz W. Bulik, Garnet Kin-Lic Chan, Chia-Min
+Chung, Youjin Deng, Michel Ferrero, Thomas M. Hen-
+derson, Carlos A. Jiménez-Hoyos, E. Kozik, Xuan-Wen
+Liu, Andrew J. Millis, N. V. Prokof’ev, Mingpu Qin,
+Gustavo E. Scuseria, Hao Shi, B. V. Svistunov, Luca F.
+Tocchio, I. S. Tupitsyn, Steven R. White, Shiwei Zhang,
+Bo-Xiao Zheng, Zhenyue Zhu, and Emanuel Gull, “So-
+lutions of the Two-Dimensional Hubbard Model: Bench-
+marks and Results from a Wide Range of Numerical Al-
+gorithms,” Physical Review X 5, 041041 (2015).
+[18] Dave Wecker, Matthew B. Hastings, Nathan Wiebe,
+Bryan K. Clark, Chetan Nayak, and Matthias Troyer,
+“Solving strongly correlated electron models on a quan-
+tum computer,” Physical Review A 92, 062318 (2015).
+[19] Edward Farhi, Jeffrey Goldstone, and Sam Gutmann,
+“A Quantum Approximate Optimization Algorithm,”
+arXiv:1411.4028 [quant-ph] (2014).
+[20] Edward Farhi and Aram W. Harrow, “Quantum
+Supremacy through the Quantum Approximate Op-
+timization Algorithm,” arXiv:1602.07674 [quant-ph]
+(2016).
+[21] Frank Verstraete, J. Ignacio Cirac, and José I. Latorre,
+“Quantum circuits for strongly correlated quantum sys-
+tems,” Physical Review A 79, 032316 (2009).
+[22] Zhang Jiang, Kevin J. Sung, Kostyantyn Kechedzhi,
+Vadim N. Smelyanskiy, and Sergio Boixo, “Quantum Al-
+gorithms to Simulate Many-Body Physics of Correlated
+Fermions,” Physical Review Applied 9, 044036 (2018).
+[23] Jarrod R McClean, Jonathan Romero, Ryan Babbush,
+and Alán Aspuru-Guzik, “The theory of variational
+hybrid quantum-classical algorithms,” New Journal of
+Physics 18, 023023 (2016).
+[24] P. J. J. O’Malley, R. Babbush, I. D. Kivlichan,
+J. Romero, J. R. McClean, R. Barends, J. Kelly,
+P. Roushan, A. Tranter, N. Ding, B. Campbell, Y. Chen,
+Z. Chen, B. Chiaro, A. Dunsworth, A. G. Fowler, E. Jef-
+frey, E. Lucero, A. Megrant, J. Y. Mutus, M. Neeley,
+C. Neill, C. Quintana, D. Sank, A. Vainsencher, J. Wen-
+ner, T. C. White, P. V. Coveney, P. J. Love, H. Neven,
+A. Aspuru-Guzik, and J. M. Martinis, “Scalable Quan-
+tum Simulation of Molecular Energies,” Physical Review
+X 6, 031007 (2016).
+[25] X. Bonet-Monroig, R. Sagastizabal, M. Singh, and T. E.
+O’Brien, “Low-cost error mitigation by symmetry verifi-
+cation,” Physical Review A 98, 062339 (2018).
+[26] Sam McArdle, Xiao Yuan, and Simon Benjamin, “Error-
+Mitigated Digital Quantum Simulation,” Physical Re-
+view Letters 122, 180501 (2019).
+[27] William J. Huggins, Jarrod McClean, Nicholas Rubin,
+Zhang Jiang, Nathan Wiebe, K. Birgitta Whaley, and
+Ryan Babbush, “Efficient and Noise Resilient Measure-
+ments for Quantum Chemistry on Near-Term Quantum
+Computers,” arXiv:1907.13117 [physics, physics:quant-
+ph] (2019).
+[28] Ying Li and Simon C. Benjamin, “Efficient Variational
+Quantum Simulator Incorporating Active Error Mini-
+mization,” Physical Review X 7 (2017), 10.1103/Phys-
+RevX.7.021050.
+[29] Kristan Temme, Sergey Bravyi, and Jay M. Gambetta,
+“Error Mitigation for Short-Depth Quantum Circuits,”
+Physical Review Letters 119, 180509 (2017).
+[30] Abhinav Kandala, Kristan Temme, Antonio D. Córcoles,
+Antonio Mezzacapo, Jerry M. Chow, and Jay M. Gam-
+betta, “Error mitigation extends the computational reach
+of a noisy quantum processor,” Nature 567, 491–495
+(2019).
+[31] Suguru Endo, Simon C. Benjamin, and Ying Li, “Prac-
+tical Quantum Error Mitigation for Near-Future Appli-
+cations,” Physical Review X 8, 031027 (2018).
+[32] Ophelia Crawford, Barnaby van Straaten, Daochen
+Wang, Thomas Parks, Earl Campbell, and Stephen
+Brierley, “Efficient quantum measurement of Pauli op-
+erators,” arXiv:1908.06942 [quant-ph] (2019).
+[33] Pranav Gokhale and Frederic T. Chong, “$O(N3̂)$ Mea-
+surement Cost for Variational Quantum Eigensolver on
+Molecular Hamiltonians,” arXiv:1908.11857 [quant-ph]
+(2019).
+[34] Philippe Corboz, T. M. Rice, and Matthias Troyer,
+“Competing States in the $t$-$J$ Model: Uniform $d$-
+Wave State versus Stripe State,” Physical Review Letters
+113, 046402 (2014).
+[35] Gian Giacomo Guerreschi and Mikhail Smelyanskiy,
+“Practical optimization for hybrid quantum-classical al-
+gorithms,” arXiv:1701.01450 [quant-ph] (2017).
+[36] T. Kolda, R. Lewis, and V. Torczon, “Optimization by
+Direct Search: New Perspectives on Some Classical and
+Modern Methods,” SIAM Review 45, 385–482 (2003).
+[37] Alberto Peruzzo, Jarrod McClean, Peter Shadbolt, Man-
+Hong Yung, Xiao-Qi Zhou, Peter J. Love, Alán Aspuru-
+Guzik, and Jeremy L. O’Brien, “A variational eigenvalue
+solver on a photonic quantum processor,” Nature Com-
+munications 5, 4213 (2014).
+[38] Yangchao Shen, Xiang Zhang, Shuaining Zhang, Jing-
+Ning Zhang, Man-Hong Yung, and Kihwan Kim, “Quan-
+tum implementation of the unitary coupled cluster for
+simulating molecular electronic structure,” Physical Re-
+view A 95, 020501 (2017).
+[39] Raffaele Santagati, Jianwei Wang, Antonio A. Gentile,
+Stefano Paesani, Nathan Wiebe, Jarrod R. McClean,
+Sam Morley-Short, Peter J. Shadbolt, Damien Bonneau,
+Joshua W. Silverstone, David P. Tew, Xiaoqi Zhou,
+Jeremy L. O’Brien, and Mark G. Thompson, “Witness-
+ing eigenstates for quantum simulation of Hamiltonian
+spectra,” Science Advances 4, eaap9646 (2018).
+[40] J. I. Colless, V. V. Ramasesh, D. Dahlen, M. S. Blok,
+M. E. Kimchi-Schwartz, J. R. McClean, J. Carter, W. A.25
+de Jong, and I. Siddiqi, “Computation of Molecular
+Spectra on a Quantum Processor with an Error-Resilient
+Algorithm,” Physical Review X 8, 011021 (2018).
+[41] Cornelius Hempel, Christine Maier, Jonathan Romero,
+Jarrod McClean, Thomas Monz, Heng Shen, Petar Ju-
+rcevic, Ben P. Lanyon, Peter Love, Ryan Babbush,
+Alán Aspuru-Guzik, Rainer Blatt, and Christian F.
+Roos, “Quantum Chemistry Calculations on a Trapped-
+Ion Quantum Simulator,” Physical Review X 8, 031022
+(2018).
+[42] R. Sagastizabal, X. Bonet-Monroig, M. Singh, M. A.
+Rol, C. C. Bultink, X. Fu, C. H. Price, V. P. Os-
+troukh, N. Muthusubramanian, A. Bruno, M. Beekman,
+N. Haider, T. E. O’Brien, and L. DiCarlo, “Experimen-
+tal error mitigation via symmetry verification in a vari-
+ational quantum eigensolver,” Physical Review A 100,
+010302 (2019).
+[43] C. Kokail, C. Maier, R. van Bijnen, T. Brydges, M. K.
+Joshi, P. Jurcevic, C. A. Muschik, P. Silvi, R. Blatt, C. F.
+Roos, and P. Zoller, “Self-verifying variational quantum
+simulation of lattice models,” Nature 569, 355 (2019).
+[44] M. Ganzhorn, D.J. Egger, P. Barkoutsos, P. Ollitrault,
+G. Salis, N. Moll, M. Roth, A. Fuhrer, P. Mueller, S. Wo-
+erner, I. Tavernelli, and S. Filipp, “Gate-Efficient Sim-
+ulation of Molecular Eigenstates on a Quantum Com-
+puter,” Physical Review Applied 11, 044092 (2019).
+[45] Ian Goodfellow, Yoshua Bengio, Aaron Courville, and
+Francis Bach, Deep Learning (MIT Press, Cambridge,
+Massachusetts, 2017).
+[46] Sebastian Ruder, “An overview of gradient descent opti-
+mization algorithms,” arXiv:1609.04747 [cs] (2017).
+[47] Guillaume Verdon, Michael Broughton, Jarrod R. Mc-
+Clean, Kevin J. Sung, Ryan Babbush, Zhang Jiang, Hart-
+mut Neven, and Masoud Mohseni, “Learning to learn
+with quantum neural networks via classical neural net-
+works,” arXiv:1907.05415 [quant-ph] (2019).
+[48] Max Wilson, Sam Stromswold, Filip Wudarski, Stu-
+art Hadfield, Norm M. Tubman, and Eleanor Rief-
+fel, “Optimizing quantum heuristics with meta-learning,”
+arXiv:1908.03185 [quant-ph] (2019).
+[49] Ken M. Nakanishi, Keisuke Fujii, and Synge
+Todo, “Sequential minimal optimization for quantum-
+classical hybrid algorithms,” arXiv:1903.12166 [physics,
+physics:quant-ph] (2019).
+[50] J. C. C. Hwang, C. H. Yang, M. Veldhorst, N. Hendrickx,
+M. A. Fogarty, W. Huang, F. E. Hudson, A. Morello, and
+A. S. Dzurak, “Impact of $g$-factors and valleys on spin
+qubits in a silicon double quantum dot,” Physical Review
+B 96, 045302 (2017).
+[51] J. R. Petta, A. C. Johnson, J. M. Taylor, E. A. Laird,
+A. Yacoby, M. D. Lukin, C. M. Marcus, M. P. Hanson,
+and A. C. Gossard, “Coherent Manipulation of Coupled
+Electron Spins in Semiconductor Quantum Dots,” Sci-
+ence 309, 2180–2184 (2005).
+[52] K. C. Nowack, M. Shafiei, M. Laforest, G. E.
+D. K. Prawiroatmodjo, L. R. Schreiber, C. Reichl,
+W. Wegscheider, and L. M. K. Vandersypen, “Single-
+Shot Correlations and Two-Qubit Gate of Solid-State
+Spins,” Science 333, 1269–1272 (2011).
+[53] Guoji Zheng, Nodar Samkharadze, Marc L. Noordam,
+Nima Kalhor, Delphine Brousse, Amir Sammak, Gior-
+dano Scappucci, and Lieven M. K. Vandersypen, “Rapid
+gate-based spin read-out in silicon using an on-chip res-
+onator,” Nature Nanotechnology 14, 742–746 (2019).
+[54] S. Schaal, I. Ahmed, J. A. Haigh, L. Hutin, B. Bertrand,
+S. Barraud, M. Vinet, C.-M. Lee, N. Stelmashenko,
+J. W. A. Robinson, J. Y. Qiu, S. Hacohen-Gourgy, I. Sid-
+diqi, M. F. Gonzalez-Zalba, and J. J. L. Morton, “Fast
+Gate-Based Readout of Silicon Quantum Dots Using
+Josephson Parametric Amplification,” Physical Review
+Letters 124, 067701 (2020).
+[55] J. M. Elzerman, R. Hanson, L. H. Willems van Beveren,
+B. Witkamp, L. M. K. Vandersypen, and L. P. Kouwen-
+hoven, “Single-shot read-out of an individual electron
+spin in a quantum dot,” Nature 430, 431–435 (2004).
+[56] V. Srinivasa, K. C. Nowack, M. Shafiei, L. M. K. Van-
+dersypen, and J. M. Taylor, “Simultaneous Spin-Charge
+Relaxation in Double Quantum Dots,” Physical Review
+Letters 110, 196803 (2013).
+[57] Benoit Bertrand, Hanno Flentje, Shintaro Takada, Michi-
+hisa Yamamoto, Seigo Tarucha, Arne Ludwig, An-
+dreas D. Wieck, Christopher Bäuerle, and Tristan Me-
+unier, “Quantum Manipulation of Two-Electron Spin
+States in Isolated Double Quantum Dots,” Physical Re-
+view Letters 115, 096801 (2015).
+[58] M. A. Fogarty, K. W. Chan, B. Hensen, W. Huang,
+T. Tanttu, C. H. Yang, A. Laucht, M. Veldhorst, F. E.
+Hudson, K. M. Itoh, D. Culcer, T. D. Ladd, A. Morello,
+and A. S. Dzurak, “Integrated silicon qubit platform with
+single-spin addressability, exchange control and single-
+shot singlet-triplet readout,” Nature Communications 9,
+4370 (2018).
+[59] C. H. Yang, R. C. C. Leon, J. C. C. Hwang, A. Saraiva,
+T. Tanttu, W. Huang, J. Camirand Lemyre, K. W.
+Chan, K. Y. Tan, F. E. Hudson, K. M. Itoh, A. Morello,
+M. Pioro-Ladrière, A. Laucht, and A. S. Dzurak, “Oper-
+ation of a silicon quantum processor unit cell above one
+kelvin,” Nature 580, 350–354 (2020).
+[60] Andrea Morello, Jarryd J. Pla, Floris A. Zwanenburg,
+Kok W. Chan, Kuan Y. Tan, Hans Huebl, Mikko
+Möttönen, Christopher D. Nugroho, Changyi Yang, Jes-
+sica A. van Donkelaar, Andrew D. C. Alves, David N.
+Jamieson, Christopher C. Escott, Lloyd C. L. Hollenberg,
+Robert G. Clark, and Andrew S. Dzurak, “Single-shot
+readout of an electron spin in silicon,” Nature 467, 687–
+691 (2010).
+[61] M. D. Shulman, S. P. Harvey, J. M. Nichol, S. D. Bartlett,
+A. C. Doherty, V. Umansky, and A. Yacoby, “Suppress-
+ing qubit dephasing using real-time Hamiltonian estima-
+tion,” Nature Communications 5, 5156 (2014).
+[62] David C. McKay, Stefan Filipp, Antonio Mezzacapo,
+Easwar Magesan, Jerry M. Chow, and Jay M. Gambetta,
+“Universal Gate for Fixed-Frequency Qubits via a Tun-
+able Bus,” Physical Review Applied 6, 064007 (2016).
+[63] Norbert Schuch and Jens Siewert, “Natural two-qubit
+gate for quantum computation using the XY inter-
+action,” Physical Review A 67 (2003), 10.1103/Phys-
+RevA.67.032301.
+[64] David C. McKay, Christopher J. Wood, Sarah Sheldon,
+Jerry M. Chow, and Jay M. Gambetta, “Efficient Z-
+Gates for Quantum Computing,” Physical Review A 96
+(2017), 10.1103/PhysRevA.96.022330.
+[65] Frank Arute, Kunal Arya, Ryan Babbush, Dave Bacon,
+Joseph C. Bardin, Rami Barends, Rupak Biswas, Sergio
+Boixo, Fernando G. S. L. Brandao, David A. Buell, Brian
+Burkett, Yu Chen, Zijun Chen, Ben Chiaro, Roberto
+Collins, William Courtney, Andrew Dunsworth, Ed-
+ward Farhi, Brooks Foxen, Austin Fowler, Craig Gidney,26
+Marissa Giustina, Rob Graff, Keith Guerin, Steve Habeg-
+ger, Matthew P. Harrigan, Michael J. Hartmann, Alan
+Ho, Markus Hoffmann, Trent Huang, Travis S. Humble,
+Sergei V. Isakov, Evan Jeffrey, Zhang Jiang, Dvir Kafri,
+Kostyantyn Kechedzhi, Julian Kelly, Paul V. Klimov,
+Sergey Knysh, Alexander Korotkov, Fedor Kostritsa,
+David Landhuis, Mike Lindmark, Erik Lucero, Dmitry
+Lyakh, Salvatore Mandrà, Jarrod R. McClean, Matthew
+McEwen, Anthony Megrant, Xiao Mi, Kristel Michielsen,
+Masoud Mohseni, Josh Mutus, Ofer Naaman, Matthew
+Neeley, Charles Neill, Murphy Yuezhen Niu, Eric Os-
+tby, Andre Petukhov, John C. Platt, Chris Quintana,
+Eleanor G. Rieffel, Pedram Roushan, Nicholas C. Ru-
+bin, Daniel Sank, Kevin J. Satzinger, Vadim Smelyan-
+skiy, Kevin J. Sung, Matthew D. Trevithick, Amit
+Vainsencher, Benjamin Villalonga, Theodore White,
+Z. Jamie Yao, Ping Yeh, Adam Zalcman, Hartmut Neven,
+and John M. Martinis, “Quantum supremacy using a
+programmable superconducting processor,” Nature 574,
+505–510 (2019).
+[66] A. Chiesa, F. Tacchino, M. Grossi, P. Santini, I. Tav-
+ernelli, D. Gerace, and S. Carretta, “Quantum hard-
+ware simulating four-dimensional inelastic neutron scat-
+tering,” Nature Physics 15, 455–459 (2019).
+[67] G Wendin, “Quantum information processing with su-
+perconducting circuits: A review,” Reports on Progress
+in Physics 80, 106001 (2017).
+[68] M. D. Reed, B. R. Johnson, A. A. Houck, L. DiCarlo,
+J. M. Chow, D. I. Schuster, L. Frunzio, and R. J.
+Schoelkopf, “Fast reset and suppressing spontaneous
+emission of a superconducting qubit,” Applied Physics
+Letters 96, 203110 (2010).
+[69] T. Walter, P. Kurpiers, S. Gasparinetti, P. Mag-
+nard, A. Potočnik, Y. Salathé, M. Pechal, M. Mon-
+dal, M. Oppliger, C. Eichler, and A. Wallraff, “Rapid
+High-Fidelity Single-Shot Dispersive Readout of Super-
+conducting Qubits,” Physical Review Applied 7, 054020
+(2017).
+[70] Zhenyu Cai, Xiaosi Xu, and Simon C. Benjamin, “Mit-
+igating coherent noise using Pauli conjugation,” npj
+Quantum Information 6, 1–9 (2020).
+[71] Jarrod R. McClean, Mollie E. Kimchi-Schwartz,
+Jonathan Carter, and Wibe A. de Jong, “Hybrid
+quantum-classical hierarchy for mitigation of decoherence
+and determination of excited states,” Physical Review A
+95 (2017), 10.1103/PhysRevA.95.042308.
+[72] Zhang Jiang, Jarrod McClean, Ryan Babbush, and Hart-
+mut Neven, “Majorana Loop Stabilizer Codes for Error
+Mitigation in Fermionic Quantum Simulations,” Physical
+Review Applied 12, 064041 (2019).
+[73] Jarrod R. McClean, Zhang Jiang, Nicholas C. Rubin,
+Ryan Babbush, and Hartmut Neven, “Decoding quan-
+tum errors with subspace expansions,” Nature Commu-
+nications 11, 636 (2020).
+[74] Kosuke Mitarai and Keisuke Fujii, “Methodology for
+replacing indirect measurements with direct measure-
+ments,” Physical Review Research 1, 013006 (2019).

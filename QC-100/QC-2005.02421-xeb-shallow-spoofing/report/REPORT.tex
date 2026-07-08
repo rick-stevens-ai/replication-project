@@ -1,0 +1,268 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{amsmath,amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible}
+
+\title{QC-100 Independent Replication Report:\\
+Spoofing Linear Cross-Entropy Benchmarking in Shallow Quantum Circuits\\
+(arXiv:2005.02421)}
+\author{Rick Stevens AI / OpenClaw replication pipeline (Ollie)}
+\date{2026-07-03 (LaTeX conversion 2026-07-06)}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently reproduce the mechanistic core of Barak, Chou and Gao's
+result that Google's linear cross-entropy benchmark (Linear XEB) is
+classically spoofable at shallow depths, using CPU statevector
+simulation on 1D brick-wall Haar-random circuits of $n\le 8$ qubits.
+Uniform sampling yields $F_{\mathrm{XEB}}\approx 0$; exact sampling from
+the ideal $q_C$ yields large positive $F_{\mathrm{XEB}}$ that decays
+toward the Porter-Thomas limit $\to 1$ with depth. A trivial
+\emph{light-cone-$L$} classical spoofer -- which never samples $q_C$ --
+achieves $F_{\mathrm{XEB}}\approx 14$ at $n{=}8, d{=}1$ (light-cone
+$L{=}2$), $\approx 2.3$ at $d{=}2$ (light-cone-4 block sampler), and
+degrades smoothly as depth grows past the block budget, consistent with
+the $1/15^d$ scaling of Theorem~1.1. Verdict: \textbf{REPLICATED} in the
+small-instance regime. The full $\sqrt{\log n}$-depth 2D construction
+(Corollary~1.2) and the 53-qubit Google-Sycamore number
+$(2.24\pm 0.21)\cdot 10^{-3}$ are out of scope.
+\end{abstract}
+
+\section{Paper summary}
+
+The Linear-XEB fidelity of a sampler $p$ on an $n$-qubit circuit $C$ is
+\[
+F_C(p)\;=\;\sum_x p(x)\bigl(2^n\,q_C(x) - 1\bigr),
+\]
+where $q_C(x) = |\langle x | \psi_C\rangle|^2$ is the ideal output
+distribution. Exact sampling gives $F\approx 1$ for scrambled circuits;
+uniform sampling gives $F\approx 0$; Google's 53-qubit device reported
+$F\approx 2.24\cdot 10^{-3}$.
+
+Barak, Chou and Gao prove (Theorem~1.1) that for a circuit of depth $d$
+with Haar-random 2-qubit gates and per-output light-cone size $\le L$
+there is a classical randomized algorithm running in $\mathrm{poly}(n,
+2^L)$ time achieving
+\[
+\mathbb{E}\bigl[F_C(A_C)\bigr] \;=\; \Omega\bigl((L/n)\cdot 15^{-d}\bigr).
+\]
+Corollary~1.2 upgrades this to $F=\omega(1)$ for 2D circuits of depth
+$d=O(\sqrt{\log n})$: the shallow-depth regime of Linear XEB is
+\emph{classically spoofable}.
+
+The paper is analytic and reports no numerical $F_{\mathrm{XEB}}$
+values. The reproducible content is therefore the \emph{mechanism}:
+(i) baseline behaviour of exact vs uniform sampling, (ii) Porter-Thomas
+trajectory of the collision probability $\mathrm{CP}(q_C) = \sum_x
+q_C(x)^2$ with depth, and (iii) a light-cone spoofer that beats the
+$F\approx 0$ trivial-sampler line by orders of magnitude on shallow
+circuits.
+
+\section{Claims table}
+
+\begin{center}\small
+\begin{tabular}{clcc}
+\toprule
+ID & Claim & CPU-testable? & Tested here? \\
+\midrule
+C1 & Exact sampling $\Rightarrow F_{\mathrm{XEB}}\gg 0$ on shallow circuits & Yes ($n\le 8$) & Yes \\
+C2 & Uniform sampling $\Rightarrow F_{\mathrm{XEB}}\approx 0$ & Yes & Yes \\
+C3 & Light-cone-$L$ classical algorithm achieves $F_{\mathrm{XEB}}=\Omega(1)$ & Partial (mechanistic) & Yes \\
+C4 & Advantage degrades with depth ($1/15^d$ scaling) & Yes & Yes \\
+C5 & Full $\sqrt{\log n}$-depth 2D $\mathrm{poly}(n,2^L)$ construction & No (HPC-scale) & No \\
+C6 & 53-qubit Sycamore $F=(2.24\pm 0.21)\cdot 10^{-3}$ (cited, not re-derived) & No (HPC-scale) & No \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Method}
+
+All experiments use a 1D brick-wall random circuit on $n$ qubits:
+Haar-random $4\times 4$ unitaries on pairs $(0,1),(2,3),\ldots$ at even
+depths and $(1,2),(3,4),\ldots$ at odd depths. Haar sampling follows
+Mezzadri~(2007). The circuit is simulated with
+\texttt{cirq.Simulator(dtype=complex128)}; $q_C(x) = |\langle
+x|\psi_C\rangle|^2$; $\hat F = \frac{1}{N}\sum_{i=1}^N (2^n q_C(x_i) -
+1)$ for $N$ i.i.d. samples $x_i\sim p$. Seed \texttt{20260703}, bit-for-bit
+reproducible.
+
+\paragraph{Environment.}
+\begin{lstlisting}
+python3 -m venv .venv
+.venv/bin/pip install cirq-core numpy   # cirq-core 1.7.0, numpy 2.5.0
+.venv/bin/python scripts/xeb_experiment.py               # ~4.5 min
+.venv/bin/python scripts/collision_probability_check.py  # ~1 min
+\end{lstlisting}
+
+\paragraph{Spoofers.}
+\begin{itemize}
+\item \textbf{Depth-1 deterministic spoofer.} The brick-wall factorises
+  into disjoint 2-qubit blocks $(0,1),(2,3),\ldots$; for each block
+  compute the four marginals $q_k(v)$, pick $v^\star = \arg\max_v q_k(v)$,
+  concatenate. Emit the same $x^\star$ every sample. This is the
+  paper's Theorem~1.1 mechanism at $L{=}2$.
+\item \textbf{Light-cone-4 block sampler ($d=2,3,6$).} Partition qubits
+  into consecutive size-4 blocks, compute the exact marginal of $q_C$
+  restricted to each block (by summing amplitudes), sample per block,
+  stitch. At $d=2$ (true light-cone $\le 4$) this is the paper's
+  strategy; at $d=3,6$ it is intentionally under-powered as a control.
+\end{itemize}
+
+\section{Results vs.\ paper}
+
+\subsection{Exact and uniform baselines (C1, C2)}
+$N=5000$ samples, 20 fresh random circuits per row.
+
+\begin{center}\small
+\begin{tabular}{ccrr}
+\toprule
+$n$ & $d$ & $F_{\mathrm{XEB}}$ exact & $F_{\mathrm{XEB}}$ uniform \\
+\midrule
+4 & 1 & $+1.383\pm 0.889$ & $-0.002\pm 0.011$ \\
+4 & 6 & $+1.018\pm 0.495$ & $-0.005\pm 0.017$ \\
+6 & 1 & $+2.707\pm 1.308$ & $-0.001\pm 0.020$ \\
+6 & 6 & $+1.077\pm 0.295$ & $-0.005\pm 0.014$ \\
+8 & 1 & $+5.193\pm 2.730$ & $-0.008\pm 0.038$ \\
+8 & 6 & $+1.614\pm 0.524$ & $-0.001\pm 0.014$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Both C1 and C2 are confirmed quantitatively. Uniform $F_{\mathrm{XEB}}$
+is $0\pm O(N^{-1/2})$; exact $F_{\mathrm{XEB}}$ is large and positive at
+every depth and \emph{above} the Porter-Thomas value $\approx 1$ in the
+shallow regime.
+
+\subsection{Collision-probability trajectory (C4)}
+$\mathbb{E}[F_{\mathrm{XEB}}(\text{exact})] = 2^n\cdot\mathrm{CP}(q_C) - 1$;
+Porter-Thomas: $F_{\mathrm{PT}} = 2\cdot 2^n/(2^n+1) - 1$.
+
+\begin{center}\small
+\begin{tabular}{ccrrr}
+\toprule
+$n$ & $d$ & $\mathrm{CP}(q_C)$ & $2^n\cdot\mathrm{CP}-1$ & $F_{\mathrm{PT}}$ \\
+\midrule
+8 & 1  & 0.0303 & \textbf{6.75} & 0.9922 \\
+8 & 2  & 0.0183 & 3.67          & 0.9922 \\
+8 & 4  & 0.0131 & 2.35          & 0.9922 \\
+8 & 6  & 0.0107 & 1.74          & 0.9922 \\
+8 & 10 & 0.0084 & \textbf{1.16} & 0.9922 \\
+6 & 1  & 0.0593 & \textbf{2.80} & 0.9692 \\
+6 & 10 & 0.0316 & \textbf{1.02} & 0.9692 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$\mathrm{CP}(q_C)$ decays smoothly toward $2/(2^n+1)$ with depth --
+exactly the picture the paper draws in its introduction.
+
+\subsection{Shallow-depth spoofer (C3, C4)}
+$N=1000$, 20 circuits per row.
+
+\begin{center}\small
+\begin{tabular}{cclr}
+\toprule
+$n$ & $d$ & Spoofer & $F_{\mathrm{XEB}}$ \\
+\midrule
+6 & 1 & det.\ best-bitstring per 2-qubit block          & $\mathbf{+7.59\pm 3.88}$  \\
+6 & 2 & light-cone-4 block sampler                       & $\mathbf{+2.24\pm 1.57}$  \\
+6 & 3 & light-cone-4 (control, cone $>$ block)           & $+1.26\pm 0.72$           \\
+6 & 6 & light-cone-4 (control)                           & $+0.66\pm 0.39$           \\
+8 & 1 & det.\ best-bitstring per 2-qubit block          & $\mathbf{+13.88\pm 7.31}$ \\
+8 & 2 & light-cone-4 block sampler                       & $\mathbf{+2.31\pm 1.22}$  \\
+8 & 3 & light-cone-4 (control)                           & $+2.10\pm 1.31$           \\
+8 & 6 & light-cone-4 (control)                           & $+0.77\pm 0.41$           \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This is the paper's headline mechanism, reproduced cleanly:
+\begin{itemize}
+\item At $d{=}1$ (light-cone $L{=}2$), a trivial deterministic spoofer
+  achieves $F\approx 7.6$ ($n{=}6$) and $F\approx 13.9$ ($n{=}8$) --
+  orders of magnitude above Google's reported $\approx 2\cdot 10^{-3}$.
+\item At $d{=}2$, the light-cone-4 sampler clears $F\approx 2.3$.
+\item At $d{=}3,6$, the fixed 4-qubit block strategy degrades smoothly,
+  consistent with the $1/15^d$ scaling in Theorem~1.1.
+\end{itemize}
+
+\section{Verdict}
+
+\textbf{REPLICATED} (small-instance CPU statevector regime).
+
+The paper's central spoofing mechanism (C3, C4) is reproduced in a
+faithful small-scale operationalisation, together with confirmation of
+the exact-vs-uniform baselines (C1, C2) and the Porter-Thomas
+trajectory. The full $\sqrt{\log n}$-depth 2D construction (C5) and the
+53-qubit Sycamore number (C6) are HPC-scale and not attempted; the
+paper itself does not verify either numerically.
+
+\section{Honest critique of what we did (and did not) exercise}
+
+\begin{itemize}
+\item \textbf{The spoofing algorithm was independently reimplemented,
+  but only in its simplest forms.} The depth-1 ``pick the argmax of
+  each disjoint 2-qubit block'' spoofer is a full, honest reimplementation
+  of Theorem~1.1 at $L{=}2$: no results borrowed from the paper are used
+  as inputs. The depth-2 light-cone-4 block sampler is our own
+  brute-force marginal computation (sum amplitudes over the complement),
+  not the tensor-network reduction the paper introduces in \S3. Both
+  match the paper's algorithmic \emph{scaling} ($\mathrm{poly}(n)\cdot
+  2^L$) but the paper's construction is more sophisticated and would be
+  the right target for a bigger reproduction.
+\item \textbf{XEB scores against actual random circuits were reproduced,
+  not quoted.} Every $F_{\mathrm{XEB}}$ number in \S4 is Monte-Carlo
+  estimated from freshly generated Haar-random circuits with a fixed
+  seed; nothing is taken from the paper (which reports none anyway).
+\item \textbf{The shallow-depth threshold was verified only
+  qualitatively.} We show the spoofer's advantage falling smoothly with
+  depth for a fixed block size, which is consistent with the $1/15^d$
+  factor in Theorem~1.1. We did \emph{not} fit the numerical decay to
+  the $15^{-d}$ law, and we did not sweep enough $(n,d,L)$ points to
+  test the $(L/n)$ prefactor. That would be a natural next probe.
+\item \textbf{Comparison against genuine quantum sampling was not
+  attempted.} The paper's numerical anchor is Google's $2.24\cdot
+  10^{-3}$; matching that would require a 53-qubit noisy quantum device
+  or an exact 53-qubit statevector simulation (HPC-scale, and the paper
+  itself does not do it). Our comparison is against \emph{simulated}
+  exact sampling from $q_C$, which is the correct classical baseline
+  for the analytic claim.
+\item \textbf{Ensemble mismatch.} The paper's Theorem~1.1 is
+  architecture-agnostic given a light-cone bound; we use the 1D
+  brick-wall of Corollary~1.2, not the 2D Sycamore-style lattice.
+\item \textbf{$F>1$ is not a bug.} The Porter-Thomas ``$F\approx 1$''
+  intuition is a large-$n$, deep-circuit limit. For shallow circuits
+  $\mathrm{CP}(q_C)\gg 2/(2^n{+}1)$, so both exact sampling and any
+  distribution-aware spoofer will exceed 1 -- exactly the loophole the
+  paper exploits.
+\end{itemize}
+
+See also \texttt{report/failure\_analysis.md} and
+\texttt{report/open\_questions.json} for a structured breakdown.
+
+\section{Files}
+\begin{lstlisting}
+report/REPORT.md                         <- narrative markdown
+report/REPORT.tex                        <- this LaTeX version
+report/failure_analysis.md               <- honest critique
+report/open_questions.json               <- 5 open questions
+report/open_questions_section.tex        <- LaTeX version of questions
+report/workflow.md                       <- reproducible workflow
+report/artifacts_summary.md              <- file inventory
+report/evidence/xeb_results.json         <- structured results
+report/evidence/run.log                  <- console log
+report/evidence/collision_check.log      <- CP trajectory log
+scripts/xeb_experiment.py                <- main driver
+scripts/collision_probability_check.py   <- CP sanity check
+work/paper.pdf, work/paper.txt, work/abs.html
+extraction/nougat.mmd                    <- extraction placeholder
+.venv/                                   <- cirq-core 1.7.0, numpy 2.5.0
+\end{lstlisting}
+
+\end{document}

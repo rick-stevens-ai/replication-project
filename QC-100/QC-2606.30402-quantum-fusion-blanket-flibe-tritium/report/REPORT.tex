@@ -1,0 +1,133 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\newcommand{\kcal}{\,\mathrm{kcal/mol}}
+\title{Replication Report:\\ \emph{Quantum Computations on Fusion Blanket Molten Salts}\\ (Das \textit{et al.}, arXiv:2606.30402)}
+\author{Ollie (OpenClaw agent) --- replication for R.~Stevens}
+\date{2026-07-08}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We replicate the heterogeneous quantum--classical workflow of Das \textit{et al.}
+(arXiv:2606.30402) for tritium binding in the fusion-blanket molten salt FLiBe
+(2LiF--BeF$_2$). The paper fragments Hartree--Fock references of 21--23-atom FLiBe clusters
+with the embedded-wavefunction (EWF) method and solves the large fragments on IBM quantum
+hardware via extended sample-based quantum diagonalization (ext-SQD). Because the exact
+AIMD cluster geometries are not deposited and we have no IBM Quantum access, this is a
+\textbf{methodological / qualitative-claims replication}: we build chemically valid FLiBe
+clusters of identical stoichiometry, charge, spin and coordination, run the full-molecule
+electronic-structure ladder (RHF, MP2, CCSD, and a DFT ladder including the AIMD functional
+PBE-D3) and the EWF fragmentation (Vayesta, IAO + MP2-BNO bath, $\eta=10^{-5}$), and solve
+each fragment with FCI, CCSD, and a \emph{simulated} ext-SQD (LUCJ + qiskit-addon-sqd on a
+statevector simulator; selected-CI for the largest fragments). We test the paper's central
+claims: single-reference character (T1 $=0.014$--$0.016$), strong ionic tritium binding of
+hundreds of $\kcal$, fragment-level ext-SQD/FCI agreement ($0.3\kcal$ MAD, $0.7\kcal$ max),
+and the dominance of the embedding (fragment-construction) error over the solver error
+($\sim$11--12$\kcal$ conformational, $\sim$110$\kcal$ binding).
+\end{abstract}
+
+\section{Paper summary}
+FLiBe is the leading blanket candidate for breeding/recovering tritium in D--T fusion.
+Predicting tritium speciation requires accurate correlated ground-state energies of
+representative molten-salt clusters. The authors sample 21--23-atom clusters from
+DFT-AIMD/MLFF trajectories (VASP NpT + kernel MLFF active learning; CP2K PBE-D3 reference;
+TZV2P-MOLOPT/GTH), partition each RHF/6-31+G(d) reference with the EWF method
+(density-matrix-embedding-rooted, IAO-localized, one atom-centered fragment per atom, MP2
+bath-natural-orbital expansion at threshold $\eta=10^{-5}$; Vayesta), and solve each fragment
+Hamiltonian classically (FCI/CCSD/TCI-8) or on the IBM Heron-r3 processor \texttt{ibm\_boston}
+via ext-SQD using a single-layer LUCJ ansatz (ffsim + Qiskit), fragments with $M\ge 13$
+orbitals going to the QPU (up to $M=33$, 66 qubits).
+
+\subsection*{Systems}
+\begin{itemize}[nosep]
+  \item \textbf{System 1 --- FLiBe:} Li$_6$Be$_3$F$_{12}$, 21 atoms, charge 0, closed-shell singlet (378 AOs / 6-31+G$^*$).
+  \item \textbf{System 2a --- FLiBeF$^-$:} [Li$_6$Be$_3$F$_{13}$]$^-$, 22 atoms, charge $-1$, singlet (396 AOs).
+  \item \textbf{System 2b --- FLiBeTF:} Li$_6$Be$_3$F$_{13}$T, 23 atoms, charge 0, singlet (398 AOs).
+\end{itemize}
+Tritium binding energy: $E_{\mathrm{bind}} = E_{\mathrm{FLiBeTF}} - E_{\mathrm{FLiBeF^-}}$,
+the neutral 23-atom cluster minus the 22-atom fluoride-terminated anion with T removed as a
+bare T$^+$ nucleus. The anion shares the FLiBeTF heavy-atom coordinates.
+
+\section{Claims tested}
+\begin{longtable}{clcc}
+\toprule
+ID & Claim & Type & Tested here? \\
+\midrule
+C1 & 378/396/398 AOs for 21/22/23-atom clusters (6-31+G$^*$) & structural & yes (exact match) \\
+C2 & All 9 clusters single-reference, T1 $=0.014$--$0.016$ & numeric & yes (own clusters) \\
+C3 & ext-SQD reproduces FCI fragment energies: $0.3\kcal$ MAD, $0.7\kcal$ max & numeric & yes (simulated SQD) \\
+C4 & EWF-CCSD reproduces EWF-FCI to within $3.0\kcal$ ($\Delta E$) & numeric & yes \\
+C5 & Full-molecule vs EWF conformational offset $\sim$11--12$\kcal$ (up to 30) & numeric & yes \\
+C6 & Tritium binding is strongly ionic, $-134$ to $-380\kcal$ across methods & numeric & yes \\
+C7 & Embedding offset in $E_{\mathrm{bind}}$ $\sim$110$\kcal$ (does not cancel) & numeric & yes \\
+C8 & Fragment construction (embedding), not fragment solver, is the dominant bias & interpretive & yes \\
+C9 & ext-SQD/LUCJ 2-qubit gate count quadratic in $M$; $M=33\to$66 qubits & hardware & partial (no QPU) \\
+\bottomrule
+\end{longtable}
+
+\section{Method (as executed)}
+\begin{enumerate}[nosep]
+  \item \textbf{Clusters} (\texttt{build\_clusters.py}, ASE): valid seed geometries for the
+  three systems with tetrahedral BeF$_4$, 1\,BeF$_2$:2\,LiF stoichiometry, and an F--T--F
+  bridge; T modeled as $^1$H (identical electronic structure; removed as bare H$^+$ for
+  $E_{\mathrm{bind}}$). Nine conformers/system via $\sim$0.15\,\AA{} thermal rattling to
+  emulate finite-$T$ sampling.
+  \item \textbf{Full-molecule ladder} (\texttt{run\_ladder.py}, PySCF 2.13.1): per conformer
+  RHF, MP2, CCSD (+T1 diagnostic), DFT \{PBE-D3, B3LYP, PBE0\}, all 6-31+G(d), density-fitted,
+  with level-shift$\to$Newton SOSCF convergence fallbacks.
+  \item \textbf{EWF} (\texttt{run\_ewf\_frag.py}, Vayesta 1.0.1): RHF $\to$ IAO fragmentation,
+  one fragment/atom, MP2 BNO bath, $\eta=10^{-5}$. Each fragment ($\to$ PySCF mean-field via
+  \texttt{RClusterHamiltonian.to\_pyscf\_mf()}) solved by CCSD, FCI (when tractable), and
+  simulated ext-SQD (LUCJ + qiskit-addon-sqd on a statevector sampler for $M\le16$;
+  selected-CI --- classical ext-SQD analogue --- for larger fragments). Dispatch mirrors the
+  paper's $M\ge13\to$ SQD boundary.
+  \item \textbf{Analysis} (\texttt{analyze.py}): T1 table, conformational relative energies,
+  $E_{\mathrm{bind}}$ per method, fragment SQD-vs-FCI MAD/max, EWF-vs-full-molecule offset.
+\end{enumerate}
+Software: PySCF 2.13.1, pyscf-dispersion 1.5.0, Vayesta 1.0.1, Qiskit 2.5.0,
+qiskit-addon-sqd 0.12.1, ffsim 0.0.80, qiskit-aer 0.17.2, ASE 3.29.0 (Python 3.11, uicgpu).
+
+\section{Results}
+\input{results_tables.tex}
+
+\section{Per-claim: what worked / what did not}
+\begin{itemize}[nosep]
+  \item \textbf{C1 (AO counts) --- reproduced exactly.} RHF/6-31+G$^*$ gave 378 AOs for
+  Li$_6$Be$_3$F$_{12}$, matching the paper; 396/398 for the 22/23-atom systems.
+  \item \textbf{C2 (single-reference) --- see Results.} T1 diagnostics for our clusters test
+  whether independently built FLiBe clusters are also single-reference in the paper's range.
+  \item \textbf{C3 (SQD$\approx$FCI) --- see Results.} Noiseless simulated ext-SQD should match
+  FCI at least as tightly as the paper's hardware ($0.3/0.7\kcal$); a tighter agreement here
+  isolates the algorithm from device noise (the paper's $+2.1$--$2.9\kcal$ absolute offset).
+  \item \textbf{C5/C7/C8 (embedding dominates) --- see Results.} We measure the EWF-CCSD vs
+  full-molecule CCSD offset for both conformational and binding energies and compare to the
+  paper's 11--12 / 110 $\kcal$ bands.
+  \item \textbf{C9 (circuit scaling) --- not testable} without QPU/transpilation campaign;
+  documented as a structural gap.
+\end{itemize}
+
+\section{Verdict}
+\input{verdict.tex}
+
+\section{Open Questions}
+See \texttt{report/open\_questions.json} for machine-readable form with next steps.
+\begin{description}[nosep]
+  \item[Q1] Sensitivity of the $\sim$110$\kcal$ embedding error in $E_{\mathrm{bind}}$ to the bath threshold $\eta$; does it converge smoothly to the full-molecule limit as $\eta\to10^{-7}$?
+  \item[Q2] Does a difference-consistent / shared-bath embedding of the FLiBeTF/FLiBeF$^-$ pair recover the cancellation that fails for independently embedded, oppositely charged endpoints?
+  \item[Q3] Do noiseless LUCJ+SQD simulations beat the paper's hardware $+2.1$--$2.9\kcal$ offset, separating device noise from ansatz/sampling incompleteness?
+  \item[Q4] What fraction of a realistic finite-$T$ FLiBe ensemble is multireference, and does the workflow degrade when T1 $>0.02$?
+  \item[Q5] Isotope effect: H vs $^3$H is exact for the electronic $E_{\mathrm{bind}}$, but nuclear-quantum/ZPE effects on the F--T--F geometry (which feeds the electronic step) are mass-dependent --- how large is that on the final chemical potential?
+\end{description}
+
+\section*{Reproducibility statement}
+Exact paper geometries are undeposited and no IBM QPU was available; all inference used
+free/open tools. See \texttt{report/failure\_analysis.md} and \texttt{report/workflow.md}.
+
+\end{document}

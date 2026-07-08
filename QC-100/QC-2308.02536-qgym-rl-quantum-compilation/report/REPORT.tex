@@ -1,0 +1,232 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\title{Replication Report: van der Linde et al.\ (2023)\\
+\large ``qgym: A Gym for Training and Benchmarking RL-Based Quantum Compilation''\\
+arXiv:2308.02536}
+\author{OpenClaw subagent (QC-100 replication wave)}
+\date{2026-07-03}
+
+\begin{document}
+\maketitle
+
+\section*{Header}
+\begin{tabular}{ll}
+Paper & S.\ van der Linde, W.\ de Kok, T.\ Bontekoe, S.\ Feld. arXiv:2308.02536v1 (IEEE QCE'23) \\
+Code  & \url{https://github.com/QuTech-Delft/qgym} (pip-installable \texttt{qgym}) \\
+Set   & QC-100 \\
+Verdict & \textbf{REPLICATED} \\
+\end{tabular}
+
+\section{Paper}
+\texttt{qgym} is a software-framework paper. It presents an OpenAI-Gym-derived Python
+package with three quantum-compilation RL environments — \textbf{InitialMapping},
+\textbf{Routing}, and \textbf{Scheduling} — and demonstrates them with a single
+proof-of-concept (PoC) experiment on the Scheduling environment
+(Sec.~III.B, Figs.~3--4).
+
+The PoC uses the 2-qubit circuit \texttt{X(q0); CNOT(q0,q1); measure}.
+Because the Pauli-X on the CNOT \emph{control} qubit commutes with the CNOT,
+a commutation-aware schedule (Fig.~3C) is strictly shorter than the naive ALAP
+schedule that ignores commutation (Fig.~3B). A vanilla PPO agent
+(\texttt{stable-baselines3}, \texttt{MultiInputPolicy}) trained for $10^5$ steps
+on random $\le 5$-gate circuits is reported to show mean episode length
+\emph{decreasing} (Fig.~4A) and mean reward \emph{increasing} (Fig.~4B), and
+to recover the Fig.~3C schedule --- supporting the headline that
+``even basic non-optimized RL agents can offer improvements over a standard
+ALAP method.''
+
+There are \emph{no other} quantitative results in the paper: no benchmark
+tables, no scaling curves, no seeds, no reported PPO hyperparameters beyond
+``vanilla''. The PoC is the entire empirical content.
+
+\section{Claims tested}
+\begin{tabular}{clll}
+\toprule
+\# & Claim & Type & Result \\
+\midrule
+H1 & Commutation-aware $<$ ALAP on Fig.~3A circuit (mechanism) & Deterministic & REPRODUCED (23 $\to$ 13 cycles) \\
+H2 & PPO episode length $\downarrow$, reward $\uparrow$ over $10^5$ steps & RL dynamics & REPRODUCED (SB3 defaults) \\
+H3 & Trained agent matches/beats ALAP on random $\le 5$-gate circuits & RL outcome & REPRODUCED (2.66 = 2.66 cycles, 100\%) \\
+C4 & \texttt{qgym} installs and its envs run to spec (gym API, SB3) & Software & VERIFIED \\
+\bottomrule
+\end{tabular}
+
+\section{Method (exact, real simulation)}
+\textbf{Versions} (local venv, CPU, macOS):
+\texttt{qgym 0.3.1}, \texttt{qiskit 2.4.2}, \texttt{stable-baselines3 2.4.1},
+\texttt{torch 2.2.2}, \texttt{gymnasium 1.3.0}, \texttt{numpy 1.26.4},
+Python 3.11.15.
+
+\paragraph{H1 --- commutation mechanism (deterministic).}
+Built the Fig.~3A circuit as \texttt{qgym.Gate} objects with durations
+$\{x{:}1, cnot{:}2, measure{:}10\}$ cycles. Built two
+\texttt{CommutationRulebook}s: (i) \texttt{default\_rules=False} (no
+commutation), (ii) \texttt{default\_rules=True} plus an explicit
+X$\leftrightarrow$CNOT-on-control rule. Called
+\texttt{rulebook.make\_blocking\_matrix(circuit)}, ran an ALAP list-scheduler,
+and compared schedule lengths.
+
+\paragraph{H2/H3 --- vanilla PPO PoC.}
+Built \texttt{qgym.envs.Scheduling} with \texttt{MachineProperties}
+(3 qubits, gate set $\{prep{:}1, x{:}2, y{:}2, z{:}1, h{:}2, cnot{:}4, measure{:}10\}$),
+\texttt{max\_gates=5}, \texttt{BasicCircuitGenerator} (random $\le 5$-gate
+circuits — matches paper). Rewarder $=$ qgym \texttt{BasicRewarder} whose
+defaults \emph{exactly match the paper}: illegal $=-5$, cycle-advance $=-1$,
+schedule-gate $=0$. Trained \texttt{PPO(``MultiInputPolicy'')} for $10^5$ steps,
+seed 20260703, \texttt{n\_steps=2048, batch\_size=64, n\_epochs=10,
+lr=3e-4, gamma=0.99, ent\_coef=0.01} (SB3 defaults $+$ small entropy bonus).
+Bucketed per-episode length/reward into deciles. Evaluated vs a greedy-legal-first
+ALAP baseline inside the \emph{same seeded qgym env} (both policies see the
+same 50 test circuits).
+
+\section{Results vs paper}
+
+\subsection*{H1 --- mechanism (Fig.~3B vs 3C) --- MATCH}
+\begin{tabular}{lcc}
+\toprule
+Schedule of Fig.~3A & Length (cycles) & Source \\
+\midrule
+ALAP, no commutation ($\approx$ Fig.~3B) & 23 & this replication \\
+Commutation-aware, X$\leftrightarrow$CNOT ($\approx$ Fig.~3C) & 13 & this replication \\
+Effect & strictly shorter (13 $<$ 23) & matches paper qualitatively \\
+\bottomrule
+\end{tabular}
+
+The paper does not print an exact cycle count for Fig.~3, so this is a
+directional/mechanistic match, reproduced deterministically.
+
+\subsection*{H2 --- training dynamics (Fig.~4) --- REPRODUCED}
+Primary run, SB3-default PPO $10^5$ steps, seed 20260703:
+\begin{tabular}{lccc}
+\toprule
+Metric & Paper (Fig.~4) & This replication & Reproduces? \\
+\midrule
+Training episodes in $10^5$ steps  & (n/r)         & 11{,}540 & --- \\
+Mean episode \emph{length}, decile 1 & (start)     & 21.5     & --- \\
+Mean episode \emph{length}, decile 10 & (lower)    & \textbf{6.8}  & Yes ($-68\%$) \\
+Mean episode \emph{reward}, decile 1 & (start)     & $-38.3$  & --- \\
+Mean episode \emph{reward}, decile 10 & (higher)   & \textbf{$-2.9$} & Yes ($+92\%$) \\
+\bottomrule
+\end{tabular}
+
+A first pass with \texttt{n\_steps=256} collapsed into a degenerate
+``keep advancing the cycle counter'' policy (each step is a safe $-1$ instead
+of risking $-5$); episode length went \emph{up}. This is a well-known
+sparse/deceptive-reward local optimum. The paper does not report
+\texttt{n\_steps} --- with SB3's own defaults it works.
+
+\subsection*{H3 --- agent matches/beats ALAP --- REPRODUCED}
+50 test circuits (fixed seeds 20261703..20261752), same seeds for both policies:
+\begin{tabular}{lcc}
+\toprule
+Metric & ALAP & PPO (trained) \\
+\midrule
+Completion fraction         & 100\% (50/50) & \textbf{100\% (50/50)} \\
+Mean schedule length (cyc.) & 2.66          & \textbf{2.66} ($\le$ ALAP) \\
+Median schedule length      & 2.0           & 2.0 \\
+Max schedule length         & 11            & 11 \\
+\bottomrule
+\end{tabular}
+
+The trained vanilla PPO agent matches ALAP exactly on this test
+distribution --- consistent with the paper's ``can offer improvements over
+a standard ALAP method'' at PoC scale.
+
+\subsection*{C4 --- software works --- VERIFIED}
+\texttt{pip}-installed \texttt{qgym 0.3.1} imports cleanly;
+\texttt{Scheduling}/\texttt{Routing} envs construct, \texttt{reset} accepts
+fixed circuits, \texttt{step} runs, and SB3 PPO trains against them without
+error.
+
+\section{Verdict}
+\textbf{REPLICATED.} All testable empirical content reproduces on a real
+qgym simulation: mechanism (H1, 23$\to$13 cycles), training dynamics
+(H2, length $\downarrow$, reward $\uparrow$), outcome (H3, PPO $=$ ALAP quality
+at 100\% completion), and the software itself (C4). The paper's headline
+--- \emph{vanilla PPO reaches ALAP-quality scheduling on the qgym Scheduling
+env in $10^5$ steps} --- is \textbf{directly exercised and holds}.
+
+\section{Critique --- Honest failure analysis}
+This replication has genuine limitations that a strict reviewer should weigh.
+
+\begin{enumerate}
+\item \textbf{No independent reimplementation of \texttt{qgym} itself.}
+We installed the authors' own package (\texttt{qgym 0.3.1}) and ran their own
+environments. This proves the \emph{package works and its published PoC
+reproduces}, but it does not independently verify the environment logic
+(e.g.\ that the state/reward calculations are semantically what the paper
+claims). The one deterministic check we ran --- the H1 blocking-matrix /
+commutation logic --- did behave correctly, which is reassuring but is only
+one probe of the internal state machine.
+
+\item \textbf{Paper's headline is qualitative; ``exact match'' claims are
+directional.} The paper never prints numeric endpoint values for Fig.~4
+(``length decreases,'' ``reward increases''), so ``reproduced'' here means
+the trend and sign of the change agree, and the trained-agent quality
+(H3) reaches ALAP parity. Any claim like ``our final mean length matches
+the paper's final mean length'' would be un-checkable and is not made.
+
+\item \textbf{Hyperparameter sensitivity was real and non-trivial.}
+An earlier ``vanilla'' PPO run using SB3 legacy example settings
+(\texttt{n\_steps=256, n\_epochs=4}) collapsed into a degenerate policy
+(episode length exploded from 39 to 1885). The paper reports
+\emph{no} PPO hyperparameters beyond ``vanilla, $10^5$ steps.'' A more
+adversarial reviewer would call this a \textbf{reproducibility hole in the
+paper}, not a triumph of the framework: whether the PoC works depends
+sensitively on choices the paper never states. We reproduce using
+SB3's \emph{own} defaults (which is the most defensible reading of
+``vanilla''), but this ambiguity is a real footnote.
+
+\item \textbf{PPO matches ALAP, does not strictly beat it, on our
+test distribution.} On 50 random $\le 5$-gate circuits, PPO mean
+$=$ ALAP mean $=2.66$ cycles. This is consistent with the paper's
+weak claim (``can offer improvements''), but it is not a strong RL
+win. A negative reader could reasonably say ``the paper's headline is
+that RL is competitive with ALAP at PoC scale, and it is --- but not
+better, and only after non-trivial tuning.''
+
+\item \textbf{Classical-compiler baselines are absent from H2/H3.} The
+paper's PoC compares vanilla PPO only against ALAP-inside-qgym, not against
+mature classical compilers (Qiskit \texttt{transpile}, Cirq, \texttt{t|ket>}).
+We match the paper's baseline choice for fidelity, but this means neither
+the paper nor this replication has evidence that the trained RL agent is
+competitive with production classical compilers on realistic circuits.
+Our companion Routing run \emph{did} include Qiskit \texttt{SabreSwap} and
+\texttt{BasicSwap} baselines, but PPO under the tried budget did not
+converge to completing routing episodes, so that Routing comparison
+is treated as non-evidence for/against the paper's Scheduling PoC.
+
+\item \textbf{Scale is tiny.} 3 qubits, gate set of 7 primitives,
+$\le 5$-gate random circuits, $10^5$ training steps. This is a
+\emph{proof-of-concept} scale; \emph{no claim can be made} from this data
+about how the approach scales to realistic quantum-hardware topologies
+(20$+$ qubits, hundreds of gates, native-gate constraints, noise-aware
+compilation). The paper is honest about this being a PoC; our
+replication is honest that we did not push past that scale either.
+
+\item \textbf{Companion Routing run failed to converge.} We tried the
+Routing environment with PPO vs Qiskit \texttt{SabreSwap}/\texttt{BasicSwap}
+on a 5-qubit path. PPO did not complete episodes in the training budget
+we allotted, so the swap-count numbers in \texttt{routing\_results.json}
+are non-completion artifacts. We deliberately do \emph{not} use this to
+argue for or against the paper: it is documented for transparency and
+excluded from the verdict.
+\end{enumerate}
+
+\paragraph{Bottom line of the critique.} The paper's PoC \emph{does}
+reproduce as stated, with the important caveat that ``vanilla PPO'' is
+ambiguous and only converges under SB3's own defaults. The paper's larger
+implicit promise --- that qgym enables meaningful RL-for-compilation
+research at scale --- is neither confirmed nor refuted by anything in
+either the paper or this replication, because the paper never made
+quantitative scaling claims to begin with.
+
+\input{open_questions_section.tex}
+
+\end{document}
