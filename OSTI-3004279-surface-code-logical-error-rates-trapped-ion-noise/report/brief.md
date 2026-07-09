@@ -1,0 +1,7 @@
+# Brief
+
+**Paper:** LeBlond, Groszkowski, Lietz, Seck, Bennink, "Logical error rates for the surface code under a mixed coherent and stochastic circuit-level noise model inspired by trapped ions," *Phys. Rev. Research* 7, 043184 (2025). DOI [10.1103/ktb3-gcxr](https://doi.org/10.1103/ktb3-gcxr) · OSTI 3004279.
+
+**What/why:** The paper computes logical error rates for the rotated surface code idle operation on a hypothetical trapped-ion QCCD (TISC), under a mixed noise model = Table I stochastic gate errors + coherent RZ dephasing from ion movement/idling, using a bespoke near-Clifford quasi-probability sampler. It reports that (a) at current-generation Quantinuum dephasing rates the fully-stochastic Pauli-twirl and the mixed coherent+stochastic diamond errors coincide up to d=11, and (b) at higher dephasing rates coherent logical rotations appear and the threshold drops (d=3–5 evidence).
+
+This replication independently rebuilds the **fully-stochastic sub-model** (Fig. 6 circles) with Stim 1.16 + PyMatching 2.4 MWPM at d = 3, 5, 7, 9, reproducing the sub-threshold suppression (Λ ≈ 7–9 per +2 distance) at the paper's H2-1E baseline and locating the threshold at ~1.4–1.5% effective two-qubit depolarizing (cross-checked against a canonical uniform-p sweep giving ~1.30–1.34%). The custom quasi-probability simulator and the mixed-model coherent-noise regime are out of scope for this night-push replication. Verdict: **PARTIAL** — full agreement on the tested stochastic baseline; the coherent-noise machinery was not reimplemented.

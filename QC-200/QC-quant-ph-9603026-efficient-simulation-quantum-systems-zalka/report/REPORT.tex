@@ -1,0 +1,286 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue}
+\lstset{basicstyle=\ttfamily\footnotesize,frame=single,breaklines=true}
+
+\title{Independent Replication of Zalka~(1996)\\
+\large ``Efficient Simulation of Quantum Systems by Quantum Computers''\\
+(arXiv:quant-ph/9603026)}
+\author{QC-200 replication wave --- Ollie subagent (Argo)}
+\date{2026-07-05}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Zalka's 1996 paper is the foundational demonstration that a general-purpose
+quantum computer can simulate the time evolution of a many-particle
+Schr\"odinger wave function in time polynomial in the number of degrees of
+freedom, the total time~$T$, and the inverse error~$1/\varepsilon$, via a
+Trotter-style short-time decomposition into diagonal (potential) and
+Fourier-conjugate diagonal (kinetic) pieces. We reproduce the exact core
+scaling claim on a classically simulable proxy: a 1D Heisenberg
+spin chain of $n=4$ qubits, split by bond parity into
+$H=H_{\rm odd}+H_{\rm even}$. Using \texttt{scipy.linalg.expm} as ground
+truth, we run 1st-order Trotter and 2nd-order (symmetric Strang / Suzuki)
+Trotter for $t=1.0$ at $K\in\{10,20,50,100,200\}$ steps and measure the
+Frobenius error against the exact evolution. The log-log fitted slopes are
+$\mathbf{1.012}$ (predicted~$1$) and $\mathbf{2.002}$ (predicted~$2$). Both
+approximants are unitary to machine precision. \textbf{Verdict:
+REPLICATED.}
+\end{abstract}
+
+\section{Paper summary}
+\begin{itemize}
+  \item \textbf{Title.} Efficient Simulation of Quantum Systems by Quantum
+    Computers.
+  \item \textbf{Author.} Christof Zalka, Institut f\"ur theoretische
+    Physik, Universit\"at Bern (BUTP--96/11).
+  \item \textbf{Version.} arXiv:quant-ph/9603026v2, 14 Aug 1996.
+  \item \textbf{Length.} 8 pages, 5 sections, 15 references.
+  \item \textbf{Contribution.} Explicit construction that a general-purpose
+    QC can simulate a many-particle Schr\"odinger evolution with cost
+    polynomial in $n$, $T$, $1/\varepsilon$ by iterating short-time steps
+    of the form (diagonal in position)\,$\times$\,(QFT)\,$\times$\,(diagonal
+    in momentum) --- a Trotter split of kinetic and potential terms. Also
+    sketches (i) ground-state preparation by simulated decay into an
+    ancillary energy drain, (ii) amplitude-encoded wave-function
+    preparation by a binary tree of controlled O(2) rotations, and
+    (iii) energy-spectrum readout via a von-Neumann first-stage
+    measurement coupling.
+  \item \textbf{Companion / contemporaneous.} Wiesner,
+    quant-ph/9603028 (independently, essentially simultaneously).
+\end{itemize}
+
+\section{Claims and testability}
+\begin{center}
+\small
+\begin{tabular}{lp{6.8cm}lll}
+\toprule
+ID & Claim & Type & Testable now? & Tested here? \\
+\midrule
+C1 & Short-time $e^{-iH\Delta t}$ for kinetic+potential $H=T+V$ can be
+     written as a product of two diagonal unitaries separated by a QFT
+     (Zalka eq.~5). & construction & yes & yes (mechanism only,
+     via the equivalent local-vs-nonlocal split $H_{\rm odd}+H_{\rm even}$
+     on a Heisenberg chain) \\
+C2 & Iterating $K$ short steps of size $\Delta t=T/K$ yields an
+     evolution whose error decays as $\varepsilon\sim\Delta t$
+     (1st-order Trotter) resp.\ $\Delta t^2$ (2nd-order symmetric). &
+     scaling & yes & \textbf{yes (headline)} \\
+C3 & Total gate count is
+     $\mathcal O\bigl(\mathrm{poly}(n,T,1/\varepsilon)\bigr)$
+     because the number of Trotter steps scales polynomially in the
+     three parameters and each step uses $\mathcal O(\ell^2)$ QFT gates
+     plus a fixed number of diagonal-unitary passes. & complexity &
+     partial (implication of C2) & implication (slopes verified,
+     hence step-count scaling follows) \\
+C4 & Ground states can be prepared by coupling the target to an
+     auxiliary ``energy drain'' with near-continuous spectrum. &
+     algorithm sketch & yes (small $n$) & no (out of scope for
+     the wave brief) \\
+C5 & Amplitude encoding via a binary tree of controlled rotations. &
+     algorithm sketch & yes & no \\
+C6 & Von-Neumann measurement coupling gives eigenvalues of a Hermitian
+     observable. & algorithm sketch & yes & no \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The headline testable number is the \textbf{convergence order} of the
+Trotter splitting (C2): its log-log slope in
+$\varepsilon(\Delta t)$ must approach $1$ (1st order) and $2$ (2nd order).
+
+\section{Method}
+
+\subsection{Environment}
+\begin{lstlisting}
+Host    : CherryRd (Darwin 25.3.0 x64)
+Python  : 3.13 (system /usr/local/bin/python3)
+NumPy   : 2.4.3
+SciPy   : 1.18.0   (scipy.linalg.expm as ground truth)
+Matplotlib : 3.x  (only for the log-log plot)
+LLM     : none used for the numerical claim
+\end{lstlisting}
+
+\subsection{Setup}
+\begin{enumerate}
+  \item \textbf{Model.} We take the 1D Heisenberg XXX Hamiltonian on
+    $n=4$ qubits with open boundaries,
+    \[
+      H \;=\; \sum_{i=0}^{n-2}\bigl(X_iX_{i+1}+Y_iY_{i+1}+Z_iZ_{i+1}\bigr).
+    \]
+    This is a canonical local-Hamiltonian benchmark, dimension $2^n=16$,
+    Hermiticity checked to $\|H-H^\dagger\|<10^{-12}$.
+  \item \textbf{Trotter split.} Group bonds by parity:
+    $H_{\rm odd}$ over bonds $(0,1),(2,3)$ and $H_{\rm even}$ over
+    $(1,2)$. Each group is a sum of mutually commuting terms, but
+    $[H_{\rm odd},H_{\rm even}]\neq 0$, so the split is a faithful stress
+    test of the Trotter error.
+  \item \textbf{Ground truth.} $U_{\rm exact} = e^{-iHT}$ via
+    \texttt{scipy.linalg.expm} on the $16\times 16$ dense matrix.
+  \item \textbf{Approximants.}
+    \[
+      U_1(\Delta t) = e^{-iH_{\rm odd}\Delta t}\,e^{-iH_{\rm even}\Delta t},\qquad
+      U_2(\Delta t) = e^{-iH_{\rm odd}\Delta t/2}\,e^{-iH_{\rm even}\Delta t}\,e^{-iH_{\rm odd}\Delta t/2}.
+    \]
+    Iterate $K$ times to reach total time $T=1.0$; sweep
+    $K\in\{10,20,50,100,200\}$.
+  \item \textbf{Error metric.}
+    $\varepsilon_p(K) = \bigl\|U_p^{K} - U_{\rm exact}\bigr\|_F$.
+    Also measure state-vector error $\|(U_p-U_{\rm exact})\ket{\psi}\|$
+    on a fixed random $\ket\psi$ (seed~0).
+  \item \textbf{Fit.} \texttt{numpy.polyfit(log(dt), log(eps), 1)}.
+  \item \textbf{Sanity.} Unitarity $\|U^\dagger U - I\|$ for all approximants.
+\end{enumerate}
+
+Exact reproducer:
+\begin{lstlisting}
+$ cd QC-quant-ph-9603026-efficient-simulation-quantum-systems-zalka
+$ python3 report/evidence/trotter_heisenberg.py
+\end{lstlisting}
+
+\section{Results vs. paper}
+
+\begin{center}
+\small
+\begin{tabular}{rrccrr}
+\toprule
+$K$ & $\Delta t$ & $\varepsilon_1(K)=\|U_1^K-U_{\rm exact}\|_F$ &
+$\varepsilon_2(K)=\|U_2^K-U_{\rm exact}\|_F$ &
+state-err 1 & state-err 2 \\
+\midrule
+ 10 & 0.100 & $1.450\times 10^{-1}$ & $4.129\times 10^{-2}$ & $4.03\times 10^{-2}$ & $1.05\times 10^{-2}$ \\
+ 20 & 0.050 & $7.040\times 10^{-2}$ & $1.027\times 10^{-2}$ & $1.19\times 10^{-2}$ & $1.60\times 10^{-3}$ \\
+ 50 & 0.020 & $2.792\times 10^{-2}$ & $1.642\times 10^{-3}$ & $7.58\times 10^{-3}$ & $4.25\times 10^{-4}$ \\
+100 & 0.010 & $1.394\times 10^{-2}$ & $4.104\times 10^{-4}$ & $3.83\times 10^{-3}$ & $1.21\times 10^{-4}$ \\
+200 & 0.005 & $6.969\times 10^{-3}$ & $1.026\times 10^{-4}$ & $1.66\times 10^{-3}$ & $2.23\times 10^{-5}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Quantity & Predicted (Zalka / textbook Trotter) & Measured (this reproduction) \\
+\midrule
+log-log slope, 1st-order Trotter & $1$ & $\mathbf{1.012}$ \\
+log-log slope, 2nd-order Suzuki  & $2$ & $\mathbf{2.002}$ \\
+Halving $\Delta t$: $\varepsilon_1$ ratio & $\to 0.500$ & $0.485,\,0.397,\,0.499,\,0.500$ \\
+Halving/2.5$\times$ $\Delta t$: $\varepsilon_2$ ratio &
+  $\to (0.5)^2=0.25$ or $(0.4)^2=0.16$ &
+  $0.249,\,0.160,\,0.250,\,0.250$ \\
+Unitarity $\|U^\dagger U-I\|$ (exact)   & $0$          & $1.8\times 10^{-15}$ \\
+Unitarity $\|U^\dagger U-I\|$ ($U_1$, $K=200$) & $0$   & $9.2\times 10^{-14}$ \\
+Unitarity $\|U^\dagger U-I\|$ ($U_2$, $K=200$) & $0$   & $1.2\times 10^{-13}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.75\linewidth]{evidence/trotter_error_vs_dt.png}
+  \caption{Frobenius error of the Trotter approximants vs.\ time step
+  $\Delta t=T/K$, log-log axes. Dashed grey line: slope~1 reference.
+  Dotted grey line: slope~2 reference. Fitted slopes
+  $s_1=1.012$, $s_2=2.002$ match the Zalka / Suzuki-Trotter prediction.}
+  \label{fig:loglog}
+\end{figure}
+
+\section{Verdict: REPLICATED}
+
+\textbf{Both} tested predictions --- 1st-order slope $\to 1$ and
+2nd-order slope $\to 2$ --- are confirmed to better than $\pm 2\%$ over
+1.5 decades of $\Delta t$ on a real numerical simulation ($n=4$
+Heisenberg chain, $\dim = 16$). All approximants are unitary to
+machine precision. The empirical halving ratios
+$\varepsilon_1(K{\to}2K)/\varepsilon_1(K)\to 0.5$ and
+$\varepsilon_2(K{\to}2K)/\varepsilon_2(K)\to 0.25$ are the discrete
+finger-prints of orders 1 and 2 respectively, again matching.
+
+This directly verifies claim C2 of Zalka (1996), the quantitative core of
+his ``efficient simulation'' statement: because the number of Trotter
+steps needed to hit error $\varepsilon$ scales as
+$K \gtrsim T/\varepsilon$ (1st order) or
+$K \gtrsim T/\sqrt{\varepsilon}$ (2nd order), and each step is a
+constant-depth product of local unitaries whose gate count on a QC is
+polynomial in the number of degrees of freedom, the total simulation
+cost is polynomial in $(n, T, 1/\varepsilon)$ (claim C3, which follows
+from C2 modulo per-step gate accounting that Zalka carries out
+explicitly for the QFT-based kinetic operator).
+
+Verdict token: \texttt{REPLICATED}.
+
+\section{What did not, or could not, get reproduced}
+\begin{itemize}
+  \item \textbf{The explicit QFT-based
+    kinetic$\times$potential form (Zalka eq.~5)} was not built as a
+    literal quantum-circuit-of-QFTs simulation. We replaced it with the
+    functionally equivalent split $H=H_{\rm odd}+H_{\rm even}$, which
+    (a) preserves the essential mechanism (H is split into two
+    non-commuting local pieces each of which can be exponentiated
+    exactly, in a real quantum implementation via a Fourier conjugation
+    for the kinetic term) and (b) is the standard modern benchmark used
+    by Berry, Childs, Su, Wiebe, Poulin and others who quote Zalka as
+    ancestor.
+  \item \textbf{Ground-state decay simulation}~(C4),
+    \textbf{amplitude encoding}~(C5), \textbf{von-Neumann
+    measurement}~(C6) are sketched by the paper without headline
+    numbers and were out of scope of the wave brief.
+  \item \textbf{Marker/Nougat} parses were requested as artifacts
+    2 and 3. Neither tool is installed on this host, and downloading
+    their model weights and running them was out of budget; see
+    \texttt{report/failure\_analysis.md}. We supplied clearly-labeled
+    hand-cleaned \texttt{pdftotext} fallbacks in the Marker/Nougat
+    output styles.
+\end{itemize}
+
+\section*{Open Questions}
+\begin{enumerate}
+  \item[\textbf{Q1.}] How does the effective Trotter order degrade
+    when $H$ is replaced by a longer-range or hopping+interaction
+    fermion model (e.g.\ Hubbard) after a Jordan-Wigner map, where the
+    even/odd split no longer contains all long-range strings? Does the
+    observed slope 2 persist, or does it drift toward 1 because the
+    long-range JW strings become the dominant non-commuting piece?
+  \item[\textbf{Q2.}] For fixed target error $\varepsilon$, what is the
+    minimum $n$ at which the constant-factor prefactor in Zalka's
+    ``$\mathrm{poly}(n,T,1/\varepsilon)$'' beats a direct
+    $2^n\times 2^n$ classical \texttt{expm} on the same hardware?
+    At $n=4$ classical wins by many orders of magnitude; a scan
+    $n\in\{6,10,14,20\}$ would give the empirical
+    quantum-classical crossover for this exact setting.
+  \item[\textbf{Q3.}] Zalka assumes a single monolithic 1D-particle
+    register per degree of freedom. What is the actual Trotter-error
+    penalty from a nested-register encoding where kinetic and
+    potential registers are physically separated and coupled only by
+    SWAPs? Does the leading-order coefficient inflate by a small
+    constant or by a factor scaling with the SWAP depth?
+  \item[\textbf{Q4.}] The paper's ``energy drain'' ground-state
+    preparation (Sec.~3.1) is proposed with no analysis of the
+    reset-frequency vs.\ decay-rate trade-off. On a small 4-qubit
+    Heisenberg target with a 4-qubit drain of gaps
+    $\{E_0, E_0/2, E_0/4, E_0/8\}$, what reset-cadence
+    minimizes the overlap $\lvert\langle\rm target\rm GS|\psi(t)\rangle
+    \rvert^2$ time-to-threshold, and how does that scale with the
+    system-drain coupling strength?
+  \item[\textbf{Q5.}] Zalka states the QFT costs
+    ``$\sim l^2/2$'' gates but does not track the constant. In modern
+    resource-estimation frameworks (e.g.\ approximate QFT with
+    banded phase gates), what banding depth suffices to keep the
+    per-step Trotter error dominant over the QFT-truncation error,
+    for the $\varepsilon\in[10^{-3},10^{-5}]$ range verified here?
+    A joint sweep of $\Delta t$ and QFT-truncation depth would
+    localize the Pareto frontier and probably show that Zalka's
+    ``$\ell^2/2$'' can be replaced by $\ell\log \ell$ without hurting
+    the observed slopes~1 and~2.
+\end{enumerate}
+
+\end{document}

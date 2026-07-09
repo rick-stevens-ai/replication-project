@@ -1,0 +1,781 @@
+                                         Differentiable multiphase flow model for
+                                         physics-informed machine learning in reservoir
+                                         pressure management
+                                         Harun Ur Rashid1,* , Aleksandra Pachalieva1 , and Daniel O’Malley1
+                                         1 Earth and Environmental Sciences Division, Los Alamos National Laboratory, Los Alamos, NM, 87545, USA
+                                         * Corresponding author(s). E-mail(s): hrashid@lanl.gov
+
+
+
+                                         ABSTRACT
+
+
+
+
+arXiv:2508.19419v1 [cs.LG] 26 Aug 2025
+                                         Accurate subsurface reservoir pressure control is extremely challenging due to geological heterogeneity and multiphase
+                                         fluid-flow dynamics. Predicting behavior in this setting relies on high-fidelity physics-based simulations that are computationally
+                                         expensive. Yet, the uncertain, heterogeneous properties that control these flows make it necessary to perform many of these
+                                         expensive simulations, which is often prohibitive. To address these challenges, we introduce a physics-informed machine
+                                         learning workflow that couples a fully differentiable multiphase flow simulator, which is implemented in the DPFEHM framework
+                                         with a convolutional neural network (CNN). The CNN learns to predict fluid extraction rates from heterogeneous permeability
+                                         fields to enforce pressure limits at critical reservoir locations. By incorporating transient multiphase flow physics into the training
+                                         process, our method enables more practical and accurate predictions for realistic injection-extraction scenarios compare to
+                                         previous works. To speed up training, we pretrain the model on single-phase, steady-state simulations and then fine-tune it on
+                                         full multiphase scenarios, which dramatically reduces the computational cost. We demonstrate that high-accuracy training
+                                         can be achieved with fewer than three thousand full-physics multiphase flow simulations – compared to previous estimates
+                                         requiring up to ten million.This drastic reduction in the number of simulations is achieved by leveraging transfer learning from
+                                         much less expensive single phase simulations.
+
+
+
+                                         Introduction
+                                         Reservoir pressure management refers to the control and maintenance of fluid pressure within a subsurface formation to optimize
+                                         injection or extraction and prevent adverse effects caused by excessive or insufficient pressure. This is typically achieved
+                                         through the injection or extraction of fluids to maintain a target pressure level within the reservoir1–3 . The importance and
+                                         application of pressure management span various fields, including carbon sequestration4–7 , oil and gas production, subsurface
+                                         gas storage8, 9 , geothermal energy extraction10–12 , and wastewater disposal13, 14 .
+                                             Reservoir pressure management is essential since uncontrolled pressure can trigger seismicity and rock fracturing. Induced
+                                         seismicity poses significant environmental and operational risks, including the potential for damaging earthquakes15, 16 . For
+                                         example, large-scale wastewater re-injection in central Oklahoma led to unexpected seismic events17–19 , while high-pressure
+                                         water injection into the Basel geothermal reservoir in Switzerland induced seismicity that ultimately forced the cancellation
+                                         of the project20–22 . Preventing induced seismicity is also critical in subsurface gas storage (e.g., CO2 and hydrogen), where
+                                         long-term caprock integrity must be maintained to prevent leakage, which poses both environmental and economic risks23–25 .
+                                             Most subsurface reservoirs are highly heterogeneous and uncertain. Their properties are often poorly characterized, fluids
+                                         exhibit complex multiphase behavior, and the domains are typically large in scale26–28 . A reliable pressure management
+                                         tool must address these challenges and provide rapid predictions. However, the complexity of subsurface physics makes
+                                         full-physics modeling expensive, and it is difficult to design a strategy that is both accurate and efficient enough for real-time
+                                         decision-making.
+                                             Many high-fidelity simulation tools are available to predict subsurface pressure when reservoir properties are known29–32 .
+                                         However, designing a robust pressure management strategy requires simulations of heterogeneous reservoir properties and
+                                         multiphase fluid behaviors across a wide range of geological scenarios. In practice, this means running high-fidelity physics-
+                                         based models on thousands of permeability realizations or more to account for the uncertainty and risk inherent to these
+                                         problems. Unfortunately, traditional reservoir simulators struggle to handle the combined challenges of reservoir heterogeneity,
+                                         multiphase flow, and uncertainty, driving computational cost so high that routine pressure modeling accounting for all these
+                                         factors becomes untenable.
+                                             To over come the high computational cost, one potential solution is the use of surrogate machine learning (ML) models,
+which promise orders-of-magnitude speedups over physics-based simulators. While numerous ML studies in the reservoir
+engineering literature have addressed CO2 storage33–40 , enhanced oil recovery41–48 , and geothermal energy49–56 , few studies
+target ML applications specifically for reservoir pressure management. Despite its critical role in preventing induced seismicity
+and caprock failure, ML in pressure reservoir management remains underdeveloped, highlighting the need for approaches that
+can learn effectively with sparse data while respecting underlying physics. Moreover, these models typically depend on large,
+high-quality datasets, such as well logs data and production histories, which are not readily available for many storage and
+disposal projects. When large datasets are available, as is often the case in the oil and gas industry, the data-driven models tend
+to perform well. However, for CO2 storage and similar applications, acquiring sufficient data is difficult, making it challenging
+to train accurate models. In addition, purely data-driven models often struggle to capture complex reservoir behavior, such as
+multiphase interactions and geological heterogeneity, because they typically lack integration with underlying physical laws57–59 .
+Trying to optimize pressures using a data-driven model is also prone to the sort of adversarial examples that plage many
+data-driven models.
+     To overcome the physics blindness in data driven models, several studies have embedded physical constraints (e.g. mass
+and momentum conservation) directly into the loss function of the neural network (NN), known as physics-informed neural
+networks (PINNs)60–65 . PINNs are often insufficient in complex reservoir settings, resulting in overly simplified or approximate
+physics constraints. PINNs only softly constrain to the physics via the loss function and gradient descent, whereas traditional
+physics simulators have hard constraints that ensure the equations are accurately solved. The soft constraints often cause models
+to converge to incorrect solutions and produce flawed pressure management strategies.
+     A promising alternative to the limited physics constrained surrogate models is embedding a full-physics numerical simulator
+directly into the machine learning training loop, which promises more accurate, physics-consisted learning. This approach
+requires the simulator to be fully differentiable. However, traditional numerical models rely on finite-difference gradient
+estimates, which are incompatible with backpropagation algorithms used in gradient-based optimization29, 30, 66 . To address this
+challenge, simulators can be developed using differentiable programming67 and automatic differentiation, enabling efficient
+and accurate gradient computation using the chain rule68 . Differentiable programming enables the backpropagation that has
+traditionally been used with NNs to be fused with the adjoint methods that have been traditionally used in solving differential
+equations. Differentiable programming structures the simulator explicitly for integration into ML workflows and can be
+implemented using computational frameworks such as PyTorch 69 and Julia 67 .
+     Despite recent advances in differentiable reservoir simulators70, 71 , their application to ML-driven pressure management
+problems remains limited. Pachalieva et al.72 recently demonstrated the use of a fully differentiable single-phase steady-state
+flow model within a physics-informed ML framework, but to date no work has tackled multiphase flow models. Given that
+multiphase behavior dominates most reservoir operations32, 73 , integrating a differentiable transient multiphase simulator into
+the ML training loop is essential for enhancing accuracy in real-world pressure-control scenarios.
+     One of the major challenges of incorporating a multiphase flow simulator into a machine learning workflow is that many
+gradient descent steps, and if implemented in the obvious way, a proportional number of multiphase simulations would need
+to be performed. Harp et al.74 identified that tens of millions of multiphase simulations would be required, which would be
+infeasible. Here, we circumvent this limitation by using transfer learning to dramatically reduce the computational cost of the
+training.
+     In this study, we introduce an ML workflow designed to determine the extraction rate required to maintain a prescribed
+pressure at critical locations in the reservoir during the injection period. Our training data consists of an ensemble of heteroge-
+neous permeability fields, and we employ a transfer learning strategy, where we pretrain the model using a fully differentiable
+steady-state single-phase simulator and then finetune it to transient multiphase flow simulator. The key contributions of our
+work are (1) embedding a fully differentiable transient multiphase flow simulator in an ML training workflow; (2) employing
+transfer-learning strategies by pretraining on single-phase steady-state models before fine-tuning on multiphase flows.
+     This work is organized as follows. In the Method section, we review the background physics and present the training
+workflow for reduced-order modeling. The Results section presents training and validation outcomes and demonstrates model
+accuracy through a case study and statistical analysis. In the Discussion section, we highlight the strengths and limitations of
+the proposed pressure management workflow and outline directions for future improvement. Finally, in the Conclusions, we
+summarize the novelty, strengths, applicability, and limitations of our approach.
+
+
+Methods
+The primary objective of this study is to develop a surrogate model capable of determining the optimal fluid extraction rate
+required to manage overpressure within a subsurface reservoir. To achieve this, we train a NN using heterogeneous permeability
+fields as input to predict the optimal extraction rate. The predicted extraction rate is then passed through a full-physics,
+differentiable simulator, which evaluates the resulting pressure at a designated critical monitoring location. The simulated
+
+
+                                                                                                                             2/15
+pressure is compared against a prescribed target value, and the resulting difference is used to compute the loss function for
+training the surrogate model.
+    In this section, we outline the complete methodology employed in this study. We begin by presenting the governing
+equations that underpin the physics-based simulator. This is followed by a description of the problem setup and the numerical
+solver used to compute the physical response of the system. We then illustrate the architecture of the NN model. Finally,
+we describe the training workflow in two stages: initially, the training loop incorporates only the multiphase simulator;
+subsequently, a transfer learning strategy is introduced, which uses a steady-state single-phase model in combination with a
+transient multiphase solver to accelerate training efficiency.
+
+Physics model
+The full-physics simulator, central to our training loop, is governed by a set of flow equations designed to capture both
+steady-state single-phase and transient multiphase dynamics. Since our workflow employs a transfer learning approach that
+integrates both steady-state single-phase flow and transient multiphase flow, we provide a detailed description of the flow
+equations, their numerical discretizations, and the corresponding simulators for each set of equations. Both physics-based
+simulators are available as open-source tools within the DPFEHM GitHub repository70 .
+    In the pretraining stage, we use a single-phase steady-state flow model, which assumes that pressure changes resulting from
+injection or extraction occur in a single-phase fluid and are independent of time75 . In heterogeneous reservoir, this leads to
+solving the following partial differential equation:
+
+      ∇ · (K(x) · ∇p) = q,                                                                                                  (1)
+
+where p is the pressure, K(x) is the spatially varying permeability field, and q represents sources and sinks. The use of the
+steady-state single-phase flow equation enables rapid evaluation of how different extraction rates influence the pressure field,
+making it particularly well-suited for efficient pretraining.
+    For the final training, the pressure change in the reservoir is calculated by considering transient multiphase fluid flow
+through a heterogeneous permeability field. Such a model involves solving the mass conservation equations for the phases
+present in the flow. Our differentiable simulator uses a sequential implicit pressure and explicit saturation (IMPES) scheme for
+incompressible and immiscible two-phase flow, as described by Hasle et al.76 . As in the Hasle et al.76 , we neglect gravity and
+capillary forces for simplicity. Based on these assumptions, we solve the following governing equations for pressure (p) and
+saturation (s) respectively:
+
+      Pressure equation:         − ∇ · K(x)λ (s)∇p = q,                                                                     (2)
+                            ∂s                 qw
+      Saturation equation: φ + ∇ · ( f (s)v) =    .                                                                         (3)
+                            ∂t                 ρw
+
+Here, λ in pressure equation is the mobility of a phase and a function of saturation. In the saturation equation the term φ
+represents the porosity of the medium, t is time , f (s)v represents the viscous force, where v is the velocity of the phase and
+f (s) is fractional flow function. On the right side of the saturation equation, qw is the wetting phase injection rate and ρw
+represents the density of wetting phase. The term ρqww represents the source. In our simulator we only inject the wetting phase.
+Therefore the source term can be modifies as follows:
+      qw
+         = max(q, 0) + f (s)min(q, 0).                                                                                      (4)
+      ρw
+
+In our model, we calculate the mobility of wetting and non-wetting phase using the following analytical expression:
+
+                 (s∗ )2
+      λw (s) =          .                                                                                                   (5)
+                  µw
+
+
+                  (1 − s∗ )2
+      λnw (s) =              ,                                                                                              (6)
+                     µo
+
+with s∗ defined as follows:
+                s − swc
+      s∗ =                  .                                                                                               (7)
+             1 − snwr − swc
+
+                                                                                                                           3/15
+Here, the term snwr represents the irreducible saturation for the non-wetting phase, which is the minimum amount of fluid that
+remain in the reservoir despite the displacement, and swc is the connate saturation saturation for the wetting phase, which is the
+minimum fluid saturation exist naturally in the pores and generally immobile due to high capillary pressure.
+   Finally we can discretize the saturation equation using finite-volume scheme:
+                                                                       !
+      sn+1
+       i   = sni + (δxt )i max(qi , 0) − ∑ f (sn )i j vi j + f (sni )min(qi , 0) ,                                                (8)
+                                            j
+
+where the superscript, n + 1 represent the value of the variable in the current time step, and n represents the value in the previous
+time step. We calculate the term (δxt )i based on the CFL (Courant–Friedrichs–Lewy) time step condition77 , which determines
+the maximum allowable timestep that ensures numerical stability and prevents non-physical oscillations or instabilities during
+simulation.
+    To solve the single-phase and multiphase flow equations, we utilize the DPFEHM framework70 . DPFEHM is an auto-
+matically differentiable Julia package that implements standard two-point flux approximation and finite volume methods for
+numerical discretization. Its built-in support for automatic differentiation enables seamless integration of the full-physics
+models into our machine learning workflow, allowing for efficient backpropagation through the simulation process.
+    Figure 1 illustrates the layout of the simulation domain. The simulation is conducted on a 2D domain measuring 1000 by
+1000 meters. The setup includes one injection and one extraction well, marked with a downward-pointing and upward-pointing
+triangle, respectively. Fluid is injected at a constant rate of 0.031688 m3 /s (approx. 1 Mt/year) at the injection location. The
+critical location is marked by a circle. Our pressure management workflow aims to maintain a prescribed pressure at this
+location throughout the injection period, which is ensured by the optimum extraction rate at the extraction well. The extraction
+well is strategically positioned between the injection and the critical locations, and is closer to the latter to maximize its control
+over the pressure in the target region. For this study, we used the simulation and geostatistical parameters listed in Table1.
+
+
+
+
+                                    400                                                      0.90
+                                                                                Injection
+                                                                                well         0.75
+                                    200
+                                                                                             0.60
+
+                                                                                                Saturation
+                                       0                        NN controlled
+                                                                extraction well              0.45
+
+                                    200                   Critical                           0.30
+                                                          location
+                                                                                             0.15
+                                    400
+                                                                                             0.00
+                                                400     200        0       200       400
+
+Figure 1. Simulation domain for the pressure management workflow, showing well locations and the saturation front of the
+injected fluid in the background. The NN–controlled extraction well withdraws a portion of the injected fluid to maintain the
+prescribed pressure at the critical location.
+
+
+Neural network model
+With the physics solver in place, we define NN architecture our surrogate model. Since the input is a two-dimensional, spatially
+varying permeability field, we employ a convolutional neural network (CNN), which is well-suited for processing structured
+spatial data. Specifically, our model builds upon the classic LeNet-5 architecture proposed by LeCun et al.78 , which combines
+convolutional encoding layers with fully connected dense layers to process spatially structured inputs. In this study, we adopt a
+slightly modified version of LeNet-5, closely following the physics-informed architecture introduced by Pachalieva et al.72 .
+    Our CNN architecture consists of two convolutional layers, each followed by a max-pooling subsampling layer, a flattening
+step, and a fully connected dense block. The convolutional layers apply 5 × 5 kernels to extract spatial features from the input
+
+
+                                                                                                                                4/15
+                                          Table 1. Parameters used in physics model
+
+                                Parameters                         Value                       Unit
+                                Boundary condition                 Dirichlet pressure          -
+                                Boundary pressure value            0                           Pa
+                                Irreducible fluid saturation       0                           -
+                                Connate fluid saturation           0                           -
+                                Porosity                           1                           -
+                                Viscosity of wetting phase         1                           Pa-s
+                                Viscosity of non-wetting phase     1                           Pa-s
+                                Variogram (Covariance) type        Matern, exponential         -
+                                Correlation length                 1                           m
+                                Sampling Method                    Karhunen–Loève (KL)         -
+                                Number of KL modes                 200                         -
+
+
+
+permeability field. The first layer outputs 6 feature maps, while the second produces 16. Each convolutional layer is followed
+by a max-pooling layers with a stride of 2, which reduces the spatial resolution by a factor of 4 across the two layers, thereby
+enhancing computational efficiency. The output of the convolutional block, originally in a four-dimensional tensor format, is
+flattened into a two-dimensional vector to interface with the subsequent dense block. This dense block consists of three fully
+connected layers containing 120, 84, and 1 neurons, respectively. Rectified Linear Unit (ReLU) activation function are applied
+to all hidden layers, defined as σ (x) = max(0, x), where x is the input and σ (x) is the activated output. The final layer yields a
+single scalar value, representing the predicted extraction rate. The NN parameters used for this study are listed in Table 2, and
+the modified CNN architecture is summarized below:
+    model = Chain(Conv((5, 5), 1=>6, relu),
+              MaxPool((2, 2)),
+              Conv((5, 5), 6=>16, relu),
+              MaxPool((2, 2)),
+              Flux.flatten,
+              Dense(144, 120, relu),
+              Dense(120, 84, relu),
+              Dense(84, 1)) |> f64
+
+
+                                        Table 2. Parameters used in training NN model
+
+                                                  Parameters             Value
+                                                  Learning rate          10−4
+                                                  Batch size             20
+                                                  Samples per batch      10
+                                                  Samples per epoch      200
+                                                  Optimizer              ADAM
+
+
+    The permeability samples used for training are randomly generated and vary in each epoch, thus the NN model never sees
+the same permeability field during training. For validation, 200 samples are fixed throughout the process, while the 10,000 test
+samples – used to evaluate the model’s performance – are also randomly generated.
+
+Quantification of prediction errors
+To evaluate model performance and quantify prediction errors, we define a loss function based on the difference between the
+simulated and prescribed pressures at the critical location. The loss function is given by:
+          Nb Ns                                        2
+      L = ∑ ∑ ∆p (qnn (θ , k j (x)), k j (x)) − ∆ptarget ,                                                                       (9)
+             i   j
+
+
+                                                                                                                               5/15
+where Nb is the number of training batches, Ns is the number of samples per batch, ptarget is the prescribed targeted pressure,
+and ∆p is the simulated pressure response based on the the predicted extraction rate, qnn (θ , k j (x)) generated by the NN model.
+The NN model predicts the extraction rate based on model parameters θ and the permeability field k j (x). During training, the
+NN minimizes the loss function by updating its parameters through backpropagation. This iterative process drives the model
+toward an optimal estimation of the extraction rate, which minimizes pressure error at the critical location.
+   To evaluate the model’s performance, we compute the root mean squared error (RMSE), defined as:
+                   s
+                      L (θ )
+      RMSE(θ ) =             .                                                                                               (10)
+                       Nb Ns
+
+The RMSE is a standard metric for evaluating model accuracy across all training samples, enabling consistent comparison and
+monitoring of convergence during the training process.
+
+Pressure management workflow
+Having set up both the physics-based simulator and the NN model, we now integrate them into a unified training workflow
+designed for pressure management in the subsurface. This workflow, illustrated in Figure 2, follows a two-stage approach con-
+sisting of pretraining and finetuning stages. Each stage begins by sampling random realizations of heterogeneous permeability
+fields and specifying a target pressure at a critical reservoir location. Each permeability realization are passed through the NN,
+which predicts the corresponding extraction rate. The predicted extraction rate is then used as input to the full-physics simulator,
+which computes the resulting pressure distribution. The pressure at the critical location is compared to the prescribed target,
+and the difference, referred to as the pressure error, is used to perform backpropagation. This error signal guides gradient-based
+optimization to iteratively improve the NN parameters.
+
+
+
+
+Figure 2. Full training workflow for the pressure management model using a transfer learning approach, which enables
+efficient incorporation of complex physics. The model is initially pre-trained using fast single-phase steady-state simulations,
+and then fine-tuned with transient multiphase simulations during the final training stage.
+
+    A similar training workflow has been explored in previous studies by Harp et al.74 , Srinivasan et al.79 , and Pachalieva et
+al.72 . However, the approaches by Harp and Srinivasan relied on simplified, differentiable analytical solutions, while Pachalieva
+et al. focused exclusively on single-phase steady-state flow. In contrast, our work is the first to integrate a fully differentiable
+
+
+                                                                                                                               6/15
+transient multiphase flow simulator as part of the training loop, enabling more realistic and physically comprehensive modeling
+of subsurface pressure dynamics.
+    We employ a transfer learning strategy in our training workflow to mitigate the high computational cost associated with
+multiphase flow simulations. In the context of deep learning, transfer learning refers to a staged training approach in which the
+model first learns based on simpler tasks or data before being exposed to more complex scenarios. This approach is inspired by
+the way humans build knowledge, starting form simpler concepts and gradually progressing towards more complex ideas. This
+allows the model to fist capture generalizable patterns and then fine-tune it’s predictions using more challenging scenarios80 .
+    In our transfer learning workflow, we first pre-train the CNN using a single-phase steady-state flow model to accelerate
+convergence and reduce computational cost. The simulation setup for this stage is illustrated in Figures 1. The primary objective
+during pretraining is to enable the model to learn the mapping from heterogeneous permeability fields to extraction rates that
+maintain the prescribed pressure at a critical location, using the simplified single-phase steady-state formulation. Once the
+model achieves satisfactory accuracy in this setting, we transition to the more complex multiphase flow regime by replacing the
+single-phase simulator with the transient multiphase flow model. This sequential training strategy is illustrated in Figure 2,
+where the left panel represents the pretraining phase using steady-state single-phase flow, and the right panel depicts the final
+training phase involving time-dependent multiphase flow.
+    In both the single-phase and multiphase settings, the NN model predicts the extraction rate based on the input permeability
+field. Due to the consistency in simulation setup and input data structure across both phases and the high-level physical
+similarity, the transition from the single-phase to the multiphase model does not degrade the model’s predictive performance too
+badly. Additionally, since the pressure error is used as the training loss, which does not differ drastically between steady-state
+and transient simulations, the model is able to maintain its accuracy during the transition.
+    However, it is important to note that this transferability may not extend as well to other flow variables such as saturation
+in a multiphase flow. In such cases, the simplifications inherent in single-phase pretraining may not be sufficient to enable
+predictive accuracy during the transition to a multiphase framework.
+
+Results
+In this section, we first present training results where we trained the NN from scratch using the transient multiphase flow
+solver to demonstrate the challenges of training directly on complex physics. Next, we show the training and validation losses
+obtained using the transfer learning workflow, which reflect the model’s ability to manage the pressure. Then, we demonstrate
+the model’s effectiveness through a case study to confirm its ability to control pressure at the critical location. Finally, we
+evaluate the model’s performance on a set of randomly generated permeability fields, comparing the predicted extraction rates
+and the resulting pressure outcomes.
+    Before applying the transfer learning strategy, we trained the NN from scratch using data generated by the transient
+multiphase flow solver. This was done to illustrate the difficulties associated with learning complex physical dynamics without
+prior knowledge. This baseline workflow mirrors the fine-tuning stage depicted in Figure 2, with the key difference that the
+NN is initialized with random weights. To ensure that the model can capture meaningful variations in the pressure field, we
+simulated one year of fluid flow. The simulated pressure at the end of the run was compared to the target pressure, and the
+resulting difference was used to compute the training loss.
+    The baseline training results confirm that the training NN models using multiphase flow simulations over extended run-time
+is computationally expensive. As shown in Figure 3, while the model begins to learn meaningful patterns, the convergence
+remains notably slow. To accelerate the process, we parallelized the training using Julia’s MPI framework, employing 40
+processors in parallel. Despite this optimization, simulating one-year injection scenario over 200 training epochs required
+approximately 11 CPU hours with an AMD EPYC 7702P 64-Core processor. Later in this section, we show that applying
+transfer learning significantly improves model accuracy, while reducing the computational cost by an order of magnitude. These
+results highlight the inefficiency of relying solely on multiphase simulations over extended run-time during the early stages of
+training.
+    Next, we used our transfer learning workflow to train NN model, which determine the extraction rate at the extraction
+well. Figure 4 presents the RMSE observed during both the training and validation stages of the transfer learning workflow.
+The red and blue lines correspond to the validation and training errors during the pretraining phase, respectively, while the
+yellow and green lines represent the validation and training errors during the final multiphase training phase. As illustrated
+in the figure, transitioning from the single-phase steady-state simulator to the transient multiphase simulator only marginally
+degrades the model’s performance. Both training and validation errors continue to decline steadily throughout the training
+process, indicating a smooth and effective transfer of learned representations between physical models. A closer examination of
+the zoomed-in final training results reveals that the model achieves its minimum error within just 20 epochs after the transition.
+    The total training time was approximately 5 CPU hours, including 1 hour for the pretraining phase and 4 hours for finetuning
+with the multiphase flow solver – highlighting a significant gain in training efficiency. Most of the loss reduction during
+
+
+                                                                                                                             7/15
+                                                          Validation RMSE
+                                                          Training RMSE
+
+
+
+
+                         Pressure RMSE, MPa   10 2
+
+
+
+
+                                                     0    25        50        75      100 125 150 175 200
+                                                                                     Epochs
+Figure 3. Training and validation RMSEs from the initial training using only the multiphase solver. The high computational
+cost of incorporating complex physics makes this approach challenging, highlighting the need for more efficient learning
+strategies.
+
+
+
+
+                                                                                                            Finetuning
+                                                         Validation RMSE (Pretraining)
+                                              10 2       Training RMSE (Pretraining)     4 × 10 4
+                                                         Validation RMSE (Finetuning)    3 × 10 4
+                                                         Training RMSE (Finetuning)
+                                                                                         2 × 10 4
+
+
+
+
+                         Pressure RMSE, MPa
+                                                                                             10 4
+                                                                                                    4000 4050 4100 4150 4200
+                                              10 3
+
+
+
+
+                                              10 4
+                                                     0           1000               2000               3000              4000
+                                                                                    Epochs
+Figure 4. Training and validation RMSEs over the course of transfer learning. The smooth convergence of both curves
+indicates a stable knowledge transfer, with error approaching to a non significant value. By the end of training, the pressure
+error falls to as low as 0.0001 MPa.
+
+
+fine-tuning occurs within the first 13 epochs, requiring only about 0.3 CPU hours. If training is halted at that point, the total
+training time drops to just 1.3 CPU hours. The results indicate that incorporating transfer learning allows the model to maintain
+high accuracy while reducing overall computational cost by an order of magnitude.
+    As shown by the training and validation errors in Figure 4, the pretrained model rapidly reaches a high level of accuracy,
+with errors dropping well below 0.0001 MPa. This level of precision indicates that the model has undergone sufficient training
+to accurately predict optimized extraction rates for a wide range of heterogeneous permeability fields. To further test this, we
+evaluate the model’s performance on a set of randomly generated permeability realizations and analyze the resulting pressure
+
+
+                                                                                                                                8/15
+responses using the predicted extraction rates. The testing procedure is described in detail in the following evaluation section.
+
+Evaluation of pressure management workflow
+After training the NN model, we employ it to predict suitable extraction rates and subsequently calculate the resulting
+overpressure at the critical location using a full physics multiphase simulation. This process allows us to evaluate the
+effectiveness of the NN model in accurately determining extraction rates to maintain the desired pressure near the critical
+location.
+    Initially, we demonstrate this approach using a sample permeability field, illustrated in Figure 5a. The corresponding
+pressure field generated by full physics simulation is shown in Figure 5b. In this figure, a negative pressure region is clearly
+observed around the extraction well, indicative of fluid withdrawal. Moreover, the pressure reaches zero around the critical
+location, which is highlighted by a red dot in the figure, matching the prescribed pressure for this location. This result confirms
+the NN model’s capability to successfully predict an extraction rate that maintains the specified pressure at a critical reservoir
+location.
+
+
+                                                      7                                                                   0.0112
+      400                                                                 400                                             0.0096
+                                                      6
+                                         Injection                                                                        0.0080
+      200                                             5                   200
+
+
+                                                      Permeability (m²)
+                                                                                                                          0.0064
+
+
+                                                                                                                                   Pressure (MPa)
+                                                      4                                                                   0.0048
+        0                                                                   0
+                           Extraction                 3                                                                   0.0032
+      200             Critical location               2                   200                                             0.0016
+                                                                                                                          0.0000
+      400                                             1                   400                                              0.0016
+             400     200     0         200   400                                 400     200     0         200   400
+
+                                 (a)                                                                 (b)
+
+Figure 5. Evaluation of the trained model. (a) Permeability field and well locations used for the test prediction case; (b),
+corresponding pressure contour from the simulation, where the red dot indicates the critical location.This single evaluation with
+a random permeability field shows that the model can successfully predict a suitable extraction rate which maintain zero
+pressure at the critical location.
+
+    Next, we analyze the distribution of the predicted extraction rates and the corresponding overpressure at the critical location.
+To generate these distributions, we pass 10,000 randomly generated heterogeneous permeability fields (training set from
+Table 2) through our trained NN model. For each case, we compute the resulting overpressure using the full physics simulation.
+The outcomes are presented in Figure 6, where the predicted extraction rates are shown in Figure 6a, and the corresponding
+overpressure values are illustrated in Figure 6b. The distribution of extraction rates is notably skewed, with 90% of the samples
+requiring an extraction rate below 0.01 m3 /s (equivalent to 0.32 Mt/year) to maintain the target pressure. The average extraction
+rate is 0.0046 m3 /s, or 0.15 Mt/year. Compared to the injection rate of approx. 1 Mt/year, the average extraction rate is about
+15%, which means for 50% of samples we need to extract 15% or less of the injected fluid. Meanwhile, the overpressure
+distribution reveals only minor deviations from the prescribed pressure of zero at the critical location for most of the samples.
+    These results ensure the model’s capability to consistently predict extraction rates that maintain the target pressure at critical
+points within the reservoirs with random heterogeneous permeability field. The pressure evaluation shows improved accuracy
+compared to past work that handled only single phase flow72 . This makes the framework highly applicable for real-field
+pressure management tasks, enabling rapid, data-driven control decisions in complex subsurface environments.
+
+Discussion
+In this study, we demonstrated that our pressure management workflow can accurately and efficiently manage pressure in
+heterogeneous subsurface reservoirs by controlling the fluid extraction rate. Similar approaches have previously been developed
+using simpler physics models, such as homogeneous permeability74 and single-phase flow72 . We incorporate more complex
+
+
+                                                                                                                                   9/15
+                                       50th percentile (median)
+                                   10th percentile                                                                                      
+                          
+                                                                                                                                            
+
+ ) U H T X H Q F \                                                                                                  ) U H T X H Q F \
+                          
+                                                                                                                                            
+                          
+
+                                                                                                                                          
+
+                                                                                                                                              
+                                                                                                                                                                                                       
+                                                    ( [ W U D F W L R Q  U D W H V  m 3 /s                                                                 3 U H V V X U H  D W  W K H  F U L W L F D O  O R F D W L R Q   0 3 D
+                                                                   (a)                                                                                                                       (b)
+
+      Figure 6. (a) Extraction rates in cubic meters per second [m3 /s]; (b) resulting pressure at the critical location in mega pascals
+      [MPa]. For input of 10,000 random permeability fields the NN model predicts extraction rates, which maintains zero or near
+      zero pressure at the critical location for most the cases. It confirms that the trained model can be used to handle uncertainty and
+      heterogeneity for pressure management in a field.
+
+
+      physics into our model to represent a more realistic approximation of field operations. Our workflow uses a heterogeneous
+      permeability field and transient multiphase flow to improve prediction accuracy, while the use of automatic differentiation
+      within the DPFEHM framework, and transfer learning enhances the efficiency of the model. This efficient and physics-based
+      approach to pressure management will enable effective control of reservoir pressure and will aid in real-time decision making
+      during injection and extraction operations in many subsurface applications, including gas storage, oil and gas production,
+      wastewater disposal, and geothermal energy extraction6, 81–86 .
+          The advantages of our workflow are as follows:
+                        • Our model successfully predicts the extraction rate and maintains prescribed pressure at critical well locations.
+                        • Due to the automatic differentiability in our background physics model, we are able to use a large number of ML
+                          parameters for training and testing.
+                        • Our workflow uses a CNN model, which is fast and produces small errors (less than 1 kPa).
+                        • We create the training and testing datasets on the fly using the fully differentiable physics model and random realizations,
+                          rather than storing and loading data like many ML approaches.
+                        • The large training data makes the model suitable for handling uncertainty in formation properties.
+                        • Our workflow successfully uses a transfer learning to reduce the high computational cost associated with complex
+                          transient and multiphase flow by several orders of magnitude, which was identified as a major bottleneck in past work74 .
+                        • By using transient multiphase flow, our model covers a wider range of applications than past work that used single-phase,
+                          steady-state flow and homogeneous properties72, 74 .
+          Although the presented workflow brings significant improvements over previous approaches and more accurately represents
+      real-world complex physics, it still has some limitations and scope for improvement. Which are listed as follows:
+                        • The current workflow is based on a simplified two-dimensionalreservoir geometry. Future work should extend this to
+                          three-dimenional models, which more accurately represent real-world CO2 storage sites.
+                        • The impact of fluid properties on the learning process remain unexplored. Future studies should investigate how variations
+                          in fluid characteristics influence the effectiveness and transferability of the trained models.
+                        • The background physics model was run for one year; however, gas storage operations typically span much longer
+                          timescales. A future study to extend the workflow should include simulation periods on the scale of years to more
+                          accurately represent field-scale pressure management.
+
+
+                                                                                                                                                                                                                                                       10/15
+Conclusions
+We have introduced a novel pressure management workflow that integrates a fully differentiable, transient multiphase reservoir
+simulator with a CNN. Unlike previous work on that rely on homogeneous properties or steady-state assumptions, our approach
+incorporates heterogeneous permeability fields and time-dependent multiphase flow, enabling high-fidelity pressure control at
+critical well locations.
+     One of the key strengths of this workflow is that by employing transfer learning from steady-state single-phase simulations
+to more complex multiphase simulations, we dramatically reduce computational cost while producing a highly accurate model.
+Another advantage of our workflow is its ability to generate large number of random training and testing data on the fly to
+effectively capture subsurface uncertainty. The use of automatic differentiation within the DPFEHM framework allows us to
+integrate of complex physics into the training process.
+     When evaluated across a wide range of randomly generated permeability field, the workflow consistently predicts near-
+optimal extraction rates and maintains target pressures. The proposed approach delivers results that are not only accurate
+but also significantly faster than those produced by full-physics simulators at inference time, making it well-suited for near
+real-time applications. This workflow represents a meaningful step toward robust, efficient, and accurate pressure management
+across a wide range of real-world reservoir operations.
+
+Data availability
+The datasets generated and/or analysed during the current study are available in the [DPFEHM] repository, [DPFEHM.jl]
+
+References
+ 1. Archer, J., Wall, C., Archer, J. & Wall, C. Secondary recovery and pressure maintenance. Petroleum Eng. Princ. Pract.
+    173–190 (1986).
+ 2. Jansen, J.-D. et al. Closed-loop reservoir management. In SPE Reservoir Simulation Conference, SPE–119098 (SPE,
+    2009).
+ 3. Jiao, Z. et al. A field demonstration of an active reservoir pressure management through fluid injection and displaced fluid
+    extraction at the rock springs uplift a priority geologic co2 storage site for wyoming. Energy Procedia 114, 2799–2811
+    (2017).
+ 4. Lal, R. Carbon sequestration. Philos. Transactions Royal Soc. B: Biol. Sci. 363, 815–830 (2008).
+ 5. Figueroa, J. D., Fout, T., Plasynski, S., McIlvried, H. & Srivastava, R. D. Advances in co2 capture technology—the us
+    department of energy’s carbon sequestration program. Int. journal greenhouse gas control 2, 9–20 (2008).
+ 6. Simmenes, T. et al. Importance of pressure management in co2 storage. In Offshore Technology Conference, OTC–23961
+    (OTC, 2013).
+ 7. Boot-Handford, M. E. et al. Carbon capture and storage update. Energy & Environ. Sci. 7, 130–189 (2014).
+ 8. Birkholzer, J. T., Cihan, A. & Zhou, Q. Impact-driven pressure management via targeted brine extraction—conceptual
+    studies of co2 storage in saline formations. Int. J. Greenh. Gas Control. 7, 168–180 (2012).
+ 9. Liu, G., Gorecki, C. D., Bremer, J. M., Klapperich, R. J. & Braunberger, J. R. Storage capacity enhancement and reservoir
+    management using water extraction: Four site case studies. Int. J. Greenh. Gas Control. 35, 82–95 (2015).
+10. Ungemach, P., Antics, M. & Papachristou, M. Sustainable geothermal reservoir management. In Proceedings World
+    Geothermal Congress, 24–29 (2005).
+11. Acuña, J. A., Stimac, J., Sirad-Azwar, L. & Pasikki, R. G. Reservoir management at awibengkok geothermal field, west
+    java, indonesia. Geothermics 37, 332–346 (2008).
+12. Ghassemi, A. A review of some rock mechanics issues in geothermal reservoir development. Geotech. Geol. Eng. 30,
+    647–664 (2012).
+13. Fragachan, F., Ovalle, A. & Shokanov, T. Pressure monitoring: key for waste management injection assurance. In SPE
+    International Oil Conference and Exhibition in Mexico, SPE–103999 (SPE, 2006).
+14. Barbour, A. J., Xue, L., Roeloffs, E. & Rubinstein, J. L. Leakage and increasing fluid pressure detected in oklahoma’s
+    wastewater disposal reservoir. J. Geophys. Res. Solid Earth 124, 2896–2919 (2019).
+15. Majer, E. L. et al. Induced seismicity associated with enhanced geothermal systems. Geothermics 36, 185–222 (2007).
+
+
+                                                                                                                          11/15
+16. Rashid, H. U. & Olorode, O. Use of controlled fractures in enhanced geothermal systems. Adv. Geo-Energy Res. 12, 35–51
+    (2024).
+17. Zoback, M. D. Managing the seismic risk posed by wastewater disposal. Earth 57, 38 (2012).
+18. Keranen, K. M., Weingarten, M., Abers, G. A., Bekins, B. A. & Ge, S. Sharp increase in central oklahoma seismicity since
+    2008 induced by massive wastewater injection. Science 345, 448–451 (2014).
+19. McNamara, D. E. et al. Earthquake hypocenters and focal mechanisms in central oklahoma reveal a complex system of
+    reactivated subsurface strike-slip faulting. Geophys. Res. Lett. 42, 2742–2749 (2015).
+20. Baer, M. et al. Earthquakes in switzerland and surrounding regions during 2006. Swiss J. Geosci. 100, 517–528 (2007).
+21. Deichmann, N. et al. Earthquakes in switzerland and surrounding regions during 2007. Swiss J. Geosci. 101, 659–667
+    (2008).
+22. Dyer, B., Schanz, U., Ladner, F., Haring, M. & Spillman, T. Microseismic imaging of a geothermal reservoir stimulation.
+    The Lead. Edge 27, 856–869 (2008).
+23. Buscheck, T. A. et al. Combining brine extraction, desalination, and residual-brine reinjection with co2 storage in saline
+    formations: Implications for pressure management, capacity, and risk mitigation. Energy Procedia 4, 4283–4290 (2011).
+24. Cihan, A., Birkholzer, J. T. & Bianchi, M. Optimal well placement and brine extraction for pressure management during
+    co2 sequestration. Int. J. Greenh. Gas Control. 42, 175–187 (2015).
+25. Harp, D. R. et al. Development of robust pressure management strategies for geologic co2 sequestration. Int. J. Greenh.
+    Gas Control. 64, 43–59 (2017).
+26. Alabert, F. & Massonnat, G. Heterogeneity in a complex turbiditic reservoir: stochastic modelling of facies and petrophysi-
+    cal variability. In SPE Annual Technical Conference and Exhibition?, SPE–20604 (SPE, 1990).
+27. Tavakoli, V. Carbonate reservoir heterogeneity: overcoming the challenges (Springer Nature, 2019).
+28. Khalili, Y. & Ahmadi, M. Reservoir modeling & simulation: Advancements, challenges, and future perspectives. J. Chem.
+    & Petroleum Eng. 57 (2023).
+29. Pruess, K. TOUGH2-A general-purpose numerical simulator for multiphase fluid and heat flow. Tech. Rep., Lawrence
+    Berkeley National Lab. (LBNL), Berkeley, CA (United States) (1991).
+30. Pettersen, Ø. Basics of reservoir simulation with the eclipse reservoir simulator. Lect. Notes. Univ. Bergen, Nor. 114
+    (2006).
+31. Dai, Z. et al. An integrated framework for optimizing co2 sequestration and enhanced oil recovery. Environ. Sci. & Technol.
+    Lett. 1, 49–54 (2014).
+32. Rashid, H. U. & Olorode, O. A continuous projection-based edfm model for flow in fractured reservoirs. SPE J. 29,
+    476–492 (2024).
+33. Chen, B., Harp, D. R., Lin, Y., Keating, E. H. & Pawar, R. J. Geologic co2 sequestration monitoring design: A machine
+    learning and uncertainty quantification based approach. Appl. energy 225, 332–345 (2018).
+34. Menad, N. A., Hemmati-Sarapardeh, A., Varamesh, A. & Shamshirband, S. Predicting solubility of co2 in brine by
+    advanced machine learning systems: Application to carbon capture and sequestration. J. CO2 Util. 33, 83–95 (2019).
+35. Sinha, S. et al. Normal or abnormal? machine learning for the leakage detection in carbon sequestration projects using
+    pressure field data. Int. journal greenhouse gas control 103, 103189 (2020).
+36. Wang, Z., Dilmore, R. M. & Harbert, W. Inferring co2 saturation from synthetic surface seismic and downhole monitoring
+    data using machine learning for leakage detection at co2 sequestration sites. Int. J. Greenh. Gas Control. 100, 103115
+    (2020).
+37. Yan, B., Harp, D. R., Chen, B., Hoteit, H. & Pawar, R. J. A gradient-based deep neural network model for simulating
+    multiphase flow in porous media. J. Comput. Phys. 463, 111277 (2022).
+38. Liu, M. et al. Prediction of co2 storage in different geological conditions based on machine learning. Energy & Fuels 38,
+    22340–22350 (2024).
+39. Alqahtani, A., He, X., Yan, B. & Hoteit, H. Uncertainty analysis of co2 storage in deep saline aquifers using machine
+    learning and bayesian optimization. Energies 16, 1684 (2023).
+40. Chu, A. K., Benson, S. M. & Wen, G. Deep-learning-based flow prediction for co2 storage in shale–sandstone formations.
+    Energies 16, 246 (2022).
+
+
+                                                                                                                        12/15
+41. Cheraghi, Y., Kord, S. & Mashayekhizadeh, V. Application of machine learning techniques for selecting the most suitable
+    enhanced oil recovery method; challenges and opportunities. J. Petroleum Sci. Eng. 205, 108761 (2021).
+42. Pirizadeh, M., Alemohammad, N., Manthouri, M. & Pirizadeh, M. A new machine learning ensemble model for class
+    imbalance problem of screening enhanced oil recovery methods. J. Petroleum Sci. Eng. 198, 108214 (2021).
+43. Krasnov, F., Glavnov, N. & Sitnikov, A. A machine learning approach to enhanced oil recovery prediction. In International
+    conference on analysis of images, social networks and texts, 164–171 (Springer, 2017).
+44. You, J. et al. Assessment of enhanced oil recovery and co2 storage capacity using machine learning and optimization
+    framework. In SPE Europec featured at EAGE Conference and Exhibition?, D041S008R006 (SPE, 2019).
+45. Kumar Pandey, R., Gandomkar, A., Vaferi, B., Kumar, A. & Torabi, F. Supervised deep learning-based paradigm to screen
+    the enhanced oil recovery scenarios. Sci. Reports 13, 4892 (2023).
+46. Mahdaviara, M., Sharifi, M. & Ahmadi, M. Toward evaluation and screening of the enhanced oil recovery scenarios for
+    low permeability reservoirs using statistical and machine learning techniques. Fuel 325, 124795 (2022).
+47. Vaziri, P. et al. Machine learning techniques in enhanced oil recovery screening using semisupervised label propagation.
+    SPE J. 29, 4557–4578 (2024).
+48. Khan, W. A. et al. Application of machine learning and optimization of oil recovery and co2 sequestration in the tight oil
+    reservoir. SPE J. 1–21 (2024).
+49. Li, Y., Júlíusson, E., Pálsson, H., Stefánsson, H. & Valfells, A. Machine learning for creation of generalized lumped
+    parameter tank models of low temperature geothermal reservoir systems. Geothermics 70, 62–84 (2017).
+50. Rezvanbehbahani, S., Stearns, L. A., Kadivar, A., Walker, J. D. & van der Veen, C. J. Predicting the geothermal heat flux
+    in greenland: A machine learning approach. Geophys. Res. Lett. 44, 12–271 (2017).
+51. Holtzman, B. K., Paté, A., Paisley, J., Waldhauser, F. & Repetto, D. Machine learning reveals cyclic changes in seismic
+    source spectra in geysers geothermal field. Sci. advances 4, eaao2929 (2018).
+52. Tut Haklidir, F. S. & Haklidir, M. Prediction of reservoir temperatures using hydrogeochemical data, western anatolia
+    geothermal systems (turkey): a machine learning approach. Nat. Resour. Res. 29, 2333–2346 (2020).
+53. Ahmmed, B. & Vesselinov, V. V. Machine learning and shallow groundwater chemistry to identify geothermal prospects in
+    the great basin, usa. Renew. Energy 197, 1034–1048 (2022).
+54. Feng, H. et al. Geothermal detection study using remote sensing data by combining machine learning and deep learning: A
+    case study of huanggang city. Geothermics 130, 103338 (2025).
+55. Yan, B., Gudala, M. & Sun, S. Robust optimization of geothermal recovery based on a generalized thermal decline model
+    and deep learning. Energy Convers. Manag. 286, 117033 (2023).
+56. He, J. et al. A machine learning methodology for predicting geothermal heat flow in the bohai bay basin, china. Nat.
+    Resour. Res. 31, 237–260 (2022).
+57. Lim, J.-S. Reservoir properties determination using fuzzy logic and neural networks from well data in offshore korea. J.
+    Petroleum Sci. Eng. 49, 182–192 (2005).
+58. Singh, V., Srivastava, A., Tiwary, D., Painuly, P. & Chandra, M. Neural networks and their applications in lithostratigraphic
+    interpretation of seismic data for reservoir characterization. The Lead. Edge 26, 1244–1260 (2007).
+59. Gaganis, V. & Varotsis, N. Machine learning methods to speed up compositional reservoir simulation (spe 154505). In
+    74th EAGE Conference and Exhibition incorporating EUROPEC 2012, cp–293 (European Association of Geoscientists &
+    Engineers, 2012).
+60. Raissi, M., Perdikaris, P. & Karniadakis, G. E. Physics-informed neural networks: A deep learning framework for solving
+    forward and inverse problems involving nonlinear partial differential equations. J. Comput. physics 378, 686–707 (2019).
+61. Yang, Y. & Perdikaris, P. Adversarial uncertainty quantification in physics-informed neural networks. J. Comput. Phys.
+    394, 136–152 (2019).
+62. Meng, X., Li, Z., Zhang, D. & Karniadakis, G. E. Ppinn: Parareal physics-informed neural network for time-dependent
+    pdes. Comput. Methods Appl. Mech. Eng. 370, 113250 (2020).
+63. Yan, B. et al. Physics-informed machine learning for noniterative optimization in geothermal energy recovery. Appl.
+    Energy 365, 123179 (2024).
+
+
+                                                                                                                           13/15
+64. Ishitsuka, K. & Lin, W. Physics-informed neural network for inverse modeling of natural-state geothermal systems. Appl.
+    Energy 337, 120855 (2023).
+65. Wang, Y.-W. et al. A hybrid physics-informed data-driven neural network for co2 storage in depleted shale reservoirs.
+    Petroleum Sci. 21, 286–301 (2024).
+66. Rashid, H., Olorode, O. & Chukwudozie, C. An iteratively coupled model for flow, deformation, and fracture propagation
+    in fractured unconventional reservoirs. J. Petroleum Sci. Eng. 214, 110468 (2022).
+67. Innes, M. et al. A differentiable programming system to bridge machine learning and scientific computing. arXiv preprint
+    arXiv:1907.07587 (2019).
+68. Baydin, A. G., Pearlmutter, B. A., Radul, A. A. & Siskind, J. M. Automatic differentiation in machine learning: a survey.
+    J. machine learning research 18, 1–43 (2018).
+69. Ketkar, N., Moolayil, J., Ketkar, N. & Moolayil, J. Introduction to pytorch. Deep. learning with python: learn best
+    practices deep learning models with PyTorch 27–91 (2021).
+70. O’Malley, D. et al. Dpfehm: a differentiable subsurface physics simulator. J. Open Source Softw. 8 (2023).
+71. Moyner, O. Jutuldarcy. jl-a fully differentiable high-performance reservoir simulator based on automatic differentiation. In
+    ECMOR 2024, 1, 1–9 (European Association of Geoscientists & Engineers, 2024).
+72. Pachalieva, A., O’Malley, D., Harp, D. R. & Viswanathan, H. Physics-informed machine learning with differentiable
+    programming for heterogeneous underground reservoir pressure management. Sci. Reports 12, 18734 (2022).
+73. Wu, Y.-S. Multiphase fluid flow in porous and fractured reservoirs (Gulf professional publishing, 2015).
+74. Harp, D. R., O’Malley, D., Yan, B. & Pawar, R. On the feasibility of using physics-informed machine learning for
+    underground reservoir pressure management. Expert. Syst. with Appl. 178, 115006 (2021).
+75. Von Rosenberg, D. U. Mechanics of steady state single-phase fluid displacement from porous media. AIChE J. 2, 55–58
+    (1956).
+76. Hasle, G., Lie, K.-A. & Quak, E. Geometric modelling, numerical simulation, and optimization (Springer, 2007).
+77. Courant, R., Friedrichs, K. & Lewy, H. Über die partiellen differenzengleichungen der mathematischen physik. Math.
+    annalen 100, 32–74 (1928).
+78. LeCun, Y. et al. Backpropagation applied to handwritten zip code recognition. Neural computation 1, 541–551 (1989).
+79. Srinivasan, S. et al. A machine learning framework for rapid forecasting and history matching in unconventional reservoirs.
+    Sci. Reports 11, 21730 (2021).
+80. Bengio, Y., Louradour, J., Collobert, R. & Weston, J. Curriculum learning. In Proceedings of the 26th annual international
+    conference on machine learning, 41–48 (2009).
+81. Ben-Haim, Y. Info-gap decision theory: decisions under severe uncertainty (Elsevier, 2006).
+82. Charnes, A., Cooper, W. W. & Rhodes, E. Measuring the efficiency of decision making units. Eur. journal operational
+    research 2, 429–444 (1978).
+83. Geng, L., Chen, Z., Chan, C. W. & Huang, G. H. An intelligent decision support system for management of petroleum-
+    contaminated sites. Expert. systems with applications 20, 251–260 (2001).
+84. Zimmermann, G., Tischner, T., Legarth, B. & Huenges, E. Pressure-dependent production efficiency of an enhanced
+    geothermal system (egs): stimulation results and implications for hydraulic fracture treatments. Rock Phys. Nat. Hazards
+    1089–1106 (2009).
+85. Zhang, L., Wu, X., Ding, L., Skibniewski, M. J. & Yan, Y. Decision support analysis for safety control in complex project
+    environments based on bayesian networks. Expert. Syst. with Appl. 40, 4273–4282 (2013).
+86. Zhou, W. et al. Managing induced seismicity risks from enhanced geothermal systems: A good practice guideline. Rev.
+    Geophys. 62, e2024RG000849 (2024).
+
+Funding
+This work is funded by the U.S. Department of Energy, Office of Science Energy Earthshot Initiative as part of the project
+“Learning reduced models under extreme data conditions for design and rapid decision-making in complex systems" under
+Award number no. DE-SC0024721. DO was partially funded by U.S. Department of Energy, Office of Science (Basic Energy
+Sciences) Early Career Award number ECA1.
+
+
+                                                                                                                          14/15
+Acknowledgments
+This material is based upon work supported by the U.S. Department of Energy, Office of Science Energy Earthshot Initiative as
+part of the project “Learning reduced models under extreme data conditions for design and rapid decision-making in complex
+systems" under Award number no. DE-SC0024721. DO was partially supported by U.S. Department of Energy, Office of
+Science (Basic Energy Sciences) Early Career Award number ECA1.
+
+Author contributions statement
+H.R.: Data curation, Formal analysis, Investigation, Methodology, Software, Validation, Visualization, Writing – original draft,
+Writing – review and editing A.P.: Methodology, Software, Writing – review and editing. D.O.: Conceptualization, Formal
+analysis, Software, Methodology, Writing – review and editing.
+
+
+
+
+                                                                                                                         15/15
+

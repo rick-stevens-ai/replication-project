@@ -1,0 +1,649 @@
+<!-- FALLBACK EXTRACTION: marker/nougat CLIs not installed on this host (CherryRd). Central corpus (~/Dropbox/XFER/pvc-nougat-ocr-tree) does not contain quant-ph/0011023. This file is a pdftotext -layout extraction as an honest fallback per REPLICATION_DIR_STANDARD_2026-07-05.md. Source PDF: arXiv:quant-ph/0011023v2 (John Watrous, University of Calgary, Jan 2001). -->
+
+                                                                Quantum algorithms for solvable groups
+
+                                                                                     John Watrous∗
+                                                                            Department of Computer Science
+                                                                                 University of Calgary
+                                                                               Calgary, Alberta, Canada
+                                                                               jwatrous@cpsc.ucalgary.ca
+
+
+
+
+arXiv:quant-ph/0011023v2 26 Jan 2001
+                                                                                        January 26, 2001
+
+
+
+                                                                                           Abstract
+                                                     In this paper we give a polynomial-time quantum algorithm for computing orders of solvable
+                                                 groups. Several other problems, such as testing membership in solvable groups, testing equality
+                                                 of subgroups in a given solvable group, and testing normality of a subgroup in a given solvable
+                                                 group, reduce to computing orders of solvable groups and therefore admit polynomial-time
+                                                 quantum algorithms as well. Our algorithm works in the setting of black-box groups, wherein
+                                                 none of these problems can be computed classically in polynomial time. As an important
+                                                 byproduct, our algorithm is able to produce a pure quantum state that is uniform over the
+                                                 elements in any chosen subgroup of a solvable group, which yields a natural way to apply
+                                                 existing quantum algorithms to factor groups of solvable groups.
+
+
+                                       1        Introduction
+                                       The focus of this paper is on quantum algorithms for group-theoretic problems. Specifically we
+                                       consider finite solvable groups, and give a polynomial-time quantum algorithm for computing or-
+                                       ders of solvable groups. Naturally this algorithm yields polynomial-time quantum algorithms for
+                                       testing membership in solvable groups and several other related problems that reduce to comput-
+                                       ing orders of solvable groups. Our algorithm is also able to produce a uniform pure state over
+                                       the elements in any chosen subgroup of a solvable groups, which yields a natural way of apply-
+                                       ing certain quantum algorithms to factor groups of solvable groups. For instance, we describe a
+                                       method by which existing quantum algorithms for abelian groups may be applied to abelian factor
+                                       groups of solvable groups, despite the fact that the factor groups generally do not satisfy an impor-
+                                       tant requirement of the existing quantum algorithms—namely, that elements have unique, succinct
+                                       classical representations.
+                                           We will be working within the context of black-box groups, wherein elements are uniquely en-
+                                       coded by strings of some given length n and the group operations are performed by a black-box (or
+                                       group oracle) at unit cost. Black-box groups were introduced by Babai and Szemerédi [7] in 1984
+                                       and have since been studied extensively [1, 2, 3, 4, 5, 6]. Any efficient algorithm that works in the
+                                       context of black-box groups of course remains efficient whenever the group oracle can be replaced
+                                       by an efficient procedure for computing the group operations. In the black-box group setting it is
+                                           ∗
+                                               Partially supported by Canada’s NSERC.
+provably impossible to compute order classically in polynomial time, even in the more restricted
+case that groups in question are abelian [7].
+    Essentially all previously identified problems for which quantum algorithms offer exponential
+speed-up over the best known classical algorithms can be stated as problems regarding abelian
+groups. In 1994, Shor [31] presented polynomial time quantum algorithms for integer factoring and
+computing discrete logarithms, and these algorithms generalize in a natural way to the setting of
+finite groups. Specifically, given elements g and h in some finite group G it is possible, in quantum
+polynomial time, to find the smallest positive integer k such that h = gk = g · g · · · g (k times),
+provided there exists such a k. In case h is the identity one obtains the order of g, to which there is
+a randomized polynomial-time reduction from factoring when the group is the multiplicative group
+of integers modulo the integer n to be factored. It should be noted that while the group G need not
+necessarily be abelian for these algorithms to work, we may view the algorithms as taking place in
+the abelian group generated by g.
+    Shor’s algorithms for integer factoring and discrete logarithms were subsequently cast in a
+different group-theoretic framework by Kitaev [25, 26]. This framework involves a problem called
+the Abelian Stabilizer Problem, which may be informally stated as follows. Let k and n be positive
+integers, and consider some group action of the additive abelian group Zk on a set X ⊆ Σn ,
+where the group action can be computed efficiently. The problem, which can be solved in quantum
+polynomial time, is to compute a basis (in Zk ) of the stabilizer (Zk )x of a given x ∈ X. Appropriate
+choice of the group action allows one to solve order finding and discrete logarithms for any finite
+group as above. In this case, the group G in question corresponds to the set X (meaning that
+elements of X are unique representations of elements of G), and the group action of Zk on X
+depends on the group structure of G.
+    Kitaev’s approach was further generalized by Brassard and Høyer [11], who formulated the
+Hidden Subgroup Problem. (See also Høyer [22] and Mosca and Ekert [28].) The Hidden Subgroup
+Problem may be informally stated as follows. Given a finitely generated group G and an efficiently
+computable function f from G to some finite set X such that f is constant and distinct on left-cosets
+of a subgroup H of finite index, find a generating set for H. Mosca and Ekert showed that Deutsch’s
+Problem [15], Simon’s Problem [32], order finding and computing discrete logarithms [31], finding
+hidden linear functions [10], testing self-shift-equivalence of polynomials [19], and the Abelian
+Stabilizer Problem [25, 26] can all be solved in polynomial time within the framework of the
+Hidden Subgroup Problem. In the black-box group setting, the Hidden Subgroup Problem can be
+solved in quantum polynomial time whenever G is abelian, as demonstrated by Mosca [27]. Mosca
+also proved that several other interesting group-theoretic problems regarding abelian black-box
+groups can be reduced to the Hidden Subgroup Problem, and thus can be computed in quantum
+polynomial time as well. For instance, given a collection of generators for a finite abelian black-box
+group, one can find the order of the group, and in fact one can decompose the group into a direct
+product of cyclic subgroups of prime power order, in polynomial time.1 (See also Cheung and
+Mosca [12] for further details.)
+    The Hidden Subgroup Problem has been considered in the non-abelian case, although with
+limited success (see, for instance, Ettinger and Høyer [16], Ettinger, Høyer, and Knill [17], Rötteler
+   1
+     This is particularly interesting from the standpoint of algebraic number theory since, assuming the Generalized
+Riemann Hypothesis, it follows that there is a polynomial-time quantum algorithm for computing class numbers
+of quadratic number fields. As there exists a reduction from factoring to the problem of computing class numbers
+for quadratic number fields—again assuming the Generalized Riemann Hypothesis—while no reduction in the other
+direction is known, the problem of computing class numbers is often considered as a candidate for a problem harder
+than integer factoring. See Cohen [14] for further information about computing in class groups.
+
+
+                                                         2
+and Beth [30], and Hallgren, Russell, and Ta-Shma [21]). No polynomial-time algorithm for the
+Hidden Subgroup Problem is known for any class of non-abelian groups except for a special class
+of groups based on wreath products considered by Rötteler and Beth. The Non-abelian Hidden
+Subgroup Problem is of particular interest as it relates to the Graph Isomorphism Problem; Graph
+Isomorphism reduces to a special case of the Hidden Subgroup Problem in which the groups in
+question are the symmetric groups. Beals [8] has shown that quantum analogues of Fourier trans-
+forms over symmetric groups can be performed in polynomial time, although thus far this has not
+proven to be helpful for solving the Graph Isomorphism Problem.
+    In this paper we move away from the Hidden Subgroup Problem and consider other group-
+theoretic problems for non-abelian groups—in particular we consider solvable groups. Our main
+algorithm finds the order of a given solvable group and, as an important byproduct, produces a
+quantum state that approximates a uniform superposition over the elements of the given group.
+
+Theorem 1 There exists a quantum algorithm operating as follows (relative to an arbitrary group
+oracle). Given generators g1 , . . . , gk such that G = hg1 , . . . , gk i is solvable, the algorithm outputs
+the order of G with probability of error bounded by ε in time polynomial in n + log(1/ε) (where n is
+the length of the strings representing the generators). Moreover,         the algorithm produces a quantum
+state ρ that approximates the pure state |Gi = |G|−1/2 g∈G |gi with accuracy ε (in the trace norm
+                                                          P
+metric).
+
+    Several other problems reduce to the problem of computing orders of solvable groups, including
+membership testing in solvable groups, testing equality of subgroups in a given solvable group, and
+testing that a given subgroup of some solvable group is normal. Thus, these problems can be solved
+in quantum polynomial time as well.
+    Since any subgroup of a solvable group is solvable, our algorithm can be applied to any subgroup
+H of a solvable group G in order to obtain a close approximation to the state |Hi. The main
+application of being able to efficiently prepare uniform superpositions over subgroups of solvable
+groups is that it gives us a simple way to apply existing quantum algorithms for abelian groups
+to abelian factor groups of solvable groups, despite the fact that we do not have unique classical
+representations for elements in these factor groups. This method discussed further in Section 4.
+    Arvind and Vinodchandran [1] have shown that several problems regarding solvable groups,
+including membership testing and order verification, are low for the complexity class PP, which
+means that an oracle for these problems is useless for PP computations. Fortnow and Rogers [18]
+proved that any problem in BQP is low for PP, and thus we have obtained an alternate proof
+that membership testing and order verification for solvable groups are both low for PP. It is left
+open whether some of the other problems proved low for PP by Arvind and Vinodchandran have
+polynomial-time quantum algorithms. An interesting example of such a problem is testing whether
+two solvable groups have a nontrivial intersection.
+    The remainder of this paper has the following organization. In Section 2 we review necessary
+background information for this paper, including a discussion of black-box groups in the context of
+quantum circuits and other information regarding computational group theory. Section 3 describes
+our quantum algorithm for finding the order of a solvable group as stated in Theorem 1, and
+Section 4 discusses other problems that can be solved by adapting this algorithm. We conclude
+with Section 5, which mentions some open problems relating to this paper.
+
+
+
+
+                                                     3
+Correction to earlier version
+In an earlier version of this paper it was claimed that our algorithm could be used to test isomor-
+phism of two solvable groups. However, this claim was based on an incorrect assumption regarding
+solvable groups (specifically that if the corresponding factor groups in the derived series of two
+solvable groups are isomorphic, then the groups themselves are necessarily isomorphic). Thus, we
+currently do not have a polynomial-time quantum algorithm for testing isomorphism of solvable
+groups. We thank Miklos Santha for bring this error to our attention.
+
+
+2    Preliminaries
+In this section we review information regarding computational group theory that is required for the
+remainder of the paper. We assume the reader is familiar with the theory of quantum computation,
+and specifically with the quantum circuit model, so we will not review this model further except to
+discuss black-box groups in the context of quantum circuits. The reader not familiar with quantum
+circuits is referred to Nielsen and Chuang [29]. We also assume the reader is familiar with the basic
+concepts of group theory (see, for example, Isaacs [23]).
+     Given a group G and elements g, h ∈ G we define the commutator of g and h, denoted [g, h], as
+[g, h] = g−1 h−1 gh, and for any two subgroups H, K ≤ G we write [H, K] to denote the subgroup
+of G generated by all commutators [h, k] with h ∈ H and k ∈ K. The derived subgroup of G is
+G′ = [G, G], and in general we write G(0) = G, G(1) = G′ , G(2) = (G′ )′ , . . . , G(j) = (G(j−1) )′ , etc.
+A group G is said to be solvable if G(m) = {1} (the group consisting of just one element) for some
+value of m. Every abelian group is solvable, since G(1) = {1} in this case, but it is not necessarily
+the case that a given solvable group is abelian (for example, S3 , the symmetric group on 3 symbols,
+is solvable but not abelian). On the other hand many groups are not solvable (for example, Sn is
+not solvable whenever n ≥ 5). An equivalent way to define what it means for a (finite) group to
+be solvable is as follows. A finite group G is solvable if there exist elements g1 , . . . , gm ∈ G such
+that if we define Hj = hg1 , . . . , gj i for each j, then {1} = H0 ⊳ H1 ⊳ · · · ⊳ Hm = G. Note that
+Hj+1 /Hj is necessarily cyclic in this case for each j. Given an arbitrary collection of generators for
+a solvable group G, a polynomial-length sequence g1 , . . . , gm as above can be found via a (classical)
+Monte Carlo algorithm in polynomial time [6] (discussed in more detail below). It is important to
+note that we allow the possibility that Hj = Hj+1 for some values of j in reference to this claim.
+     We will be working in the general context of black-box groups, which we now discuss. In a
+black-box group, each elements is uniquely encoded by some binary string, and we have at our
+disposal a black-box (or group oracle) that performs the group operations on these encodings at
+unit cost. For a given black-box group, all of the encodings are of a fixed length n, which is the
+encoding length. Thus, a black-box group with encoding length n has order bounded above by
+2n . Note that not every binary string of length n necessarily corresponds to a group element,
+and we may imagine that our group oracle has some arbitrary behavior given invalid encodings.
+(Our algorithms will never query the oracle for invalid group element encodings given valid input
+elements). When we say that a particular group or subgroup is given (to some algorithm), we mean
+that a set of strings that generate the group or subgroup is given. Note that every subgroup of a
+black-box group with encoding length n has a length O(n2 ) description.
+     Since we will be working with quantum circuits, we must describe black-box groups in this
+setting. Corresponding to a given black-box group G with encoding length n is a quantum gate
+UG acting on 2n qubits as follows: UG |gi|hi = |gi|ghi. Here we assume g and h are valid group
+
+
+                                                    4
+elements—in case any invalid encoding is given, UG may act in any arbitrary way so long as is
+remains reversible. The inverse of UG acts as follows: UG−1 |gi|hi = |gi|g−1 hi. When we say that
+a quantum circuit has access to a group oracle for G, we mean that the circuit may include the
+gates UG and UG−1 for some UG as just described. More generally, when we are discussing uniformly
+generated families of quantum circuits, a group oracle corresponds to an infinite sequence of black-
+box groups G1 , G2 , . . . (one for each encoding length), and we allow each circuit in the uniformly
+generated family to include gates of the form UGn and UG−1n for the appropriate value of n.
+    As noted by Mosca [27], the gates UG and UG−1 above can be approximated efficiently if we
+have a single gate VG acting as follows on 3n qubits: VG |gi|hi|xi = |gi|hi|x ⊕ ghi, again where we
+assume g and h are valid group elements (and x is arbitrary). Here, x ⊕ gh denotes the bitwise
+exclusive or of the string x and the string encoding the group element gh. This claim follows from
+the fact that given the gate VG , we may find the order of any element g using Shor’s algorithm, from
+which we may find the inverse of g. Once we have this, techniques in reversible computation due to
+Bennett [9] allow for straightforward simulation of UG and UG−1 . Since it is simpler to work directly
+with the gates UG and UG−1 , however, we will assume that these are the gates made available for a
+given black-box group.
+    Now we return to the topic of solvable groups, and review some known facts about solvable
+groups in the context of black-box groups. First, with respect to any given group oracle, if we are
+given generators g1 , . . . , gm of encoding length n, it is possible to test whether G = hg1 , . . . , gm i is
+solvable via a polynomial time (in nm) Monte Carlo algorithm [6]. Moreover, the same algorithm
+                                                                  (j)       (j)
+can be used to construct (with high probability) generators g1 , . . . , gk , for j = 0, . . . , n and where
+                                   (j)     (j)
+k = O(n), such that G(j) = hg1 , . . . , gk i (so that testing solvability can be done by verifying that
+ (n)          (n)
+g1 , . . . , gk are each the identity element). At this point we notice (under the assumption that
+G is solvable) that by relabeling the elements
+                          (n−1)             (n−1)     (n−2)             (n−2)            (0)          (0)
+                         g1       , . . . , gk      , g1      , . . . , gk      , . . . , g1 , . . . , gk ,
+
+as h1 , . . . , hkn (in the order given) we have the following. If Hj = hh1 , . . . , hj i for j = 0, . . . , kn,
+then {1} = H0 ⊳ H1 ⊳ · · · ⊳ Hkn = G. This follows from the fact that G(j) ⊳ G(j−1) for each j, and
+further that G(j−1) /G(j) is necessarily abelian. The fact that each factor group Hj /Hj−1 is cyclic
+will be important for our quantum algorithm in the next section.
+    The problem of computing the order of a group cannot be solved classically in polynomial time
+in the black-box setting even for abelian (and therefore for solvable) groups [7].
+
+
+3    Finding the orders of solvable groups
+In this section we describe our quantum algorithm for finding the order of a given solvable black-box
+group G and preparing a uniform superposition over the elements of G.
+    We assume we have elements g1 , . . . , gm ∈ G such that if we define Hj = hg1 , . . . , gj i for each
+j, then {1} = H0 ⊳ H1 ⊳ · · · ⊳ Hm = G. Note that we allow the possibility that Hj = Hj+1 for
+some values of j. The existence of such a chain is equivalent to the solvability of G, and given an
+arbitrary collection of generators of G such a sequence can be found via a Monte Carlo algorithm
+in polynomial time as discussed in the previous section. Calculation of the orders of the factor
+groups in this chain reveals the order of G; if
+
+                        r1 = |H1 /H0 |, r2 = |H2 /H1 |, . . . , rm = |Hm /Hm−1 |,                             (1)
+
+
+                                                                 5
+then |G| = m
+           Q
+              j=1 rj .
+   The calculation of the orders of the factor groups is based on the following idea. Suppose we
+have several copies of the state |Hi for some subgroup H of G, where |Hi denotes the state that is
+a uniform superposition over the elements of H:
+                                                  1 X
+                                           |Hi = p        |hi.
+                                                  |H| h∈H
+
+Then using a simple modification of Shor’s order finding algorithm we may find the order of g with
+respect to H, which is the smallest positive integer r such that gr ∈ H, for any g ∈ G. In case
+H = hg1 , . . . , gj−1 i and g = gj for some j, this order is precisely rj = |Hj /Hj−1 |.
+     Since this requires that we have several copies of |Hj−1 i in order to compute each rj , we must
+demonstrate how the state |Hj−1 i may be efficiently constructed. In fact, the construction of the
+states |H0 i, |H1 i, . . . is done in conjunction with the computation of r1 , r2 , . . . ; in order to prepare
+several copies of |Hj i it will be necessary to compute rj , and in turn these copies of |Hj i are
+used to compute rj+1 . This continues up the chain until rm has been computed and |Hm i has
+been prepared. More specifically, we will begin with a large (polynomial) number of copies of |H0 i
+(which are of course trivial to prepare), use some relatively small number of these states to compute
+r1 , then convert the rest of the copies of |H0 i to copies of |H1 i using a procedure described below
+(which requires knowledge of r1 ). We continue up the chain in this fashion, for each j using a
+relatively small number of copies of |Hj−1 i to compute rj , then converting the remaining copies of
+|Hj−1 i to copies of |Hj i.
+     In subsections 3.1 and 3.2 we discuss the two components (computing the rj values and con-
+verting copies of |Hj−1 i to copies of |Hj i) individually, and in subsection 3.3 we describe the main
+algorithm that combines the two components. The following notation will be used in these subsec-
+tions. Given a finite group G and a subgroup H of G, for each element g ∈ G define rH (g) to be
+the smallest positive integer r such that gr ∈ H (which we have referred to as the order of g with
+respect to H). For any positive integer m P      and k ∈ Zm we write em (k) to denote e2πik/m . Finally,
+for any finite set S we write |Si = |S|     −1/2
+                                                  g∈S |gi.
+
+
+3.1    Finding orders with respect to a subgroup
+Our method for computing the order of an element g with respect to a subgroup H (i.e., computing
+the rj values) is essentially Shor’s (order finding) algorithm, except that we begin with one of
+the registers initialized to |Hi, and during the algorithm this register is reversibly multiplied by
+an appropriate power of g. In short, initializing one of the registers to |Hi gives us an easy way
+to work over the cosets of H, the key properties being (i) that the states |gi Hi and |gj Hi are
+orthogonal whenever gi and gj are elements in different cosets of H (and of course |gi Hi = |gj Hi
+otherwise), and (ii) for Shor’s algorithm we will not need to be able to recognize which coset we
+are in (or even look at the corresponding register at all) to be able to compute the order of g with
+respect to H correctly.
+    Now we describe the method in more detail. However, since the analysis is almost identical
+to the analysis of Shor’s algorithm, we will not discuss the analysis in detail and instead refer the
+reader to Shor [31] and to other sources in which analyses of closely related techniques are given in
+detail [13, 25].
+    We assume we are working over a black-box group G with encoding length n, and that a
+quantum register R has been initialized to state |Hi for H some subgroup of G. For given g we
+
+
+                                                      6
+are trying to find r = rH (g), which is the smallest positive integer such that gr ∈ H. Let A be a
+quantum register whose basis states correspond to ZN for N to be chosen later, and assume A is
+initialized to state |0i.
+     Similar to Shor’s algorithm, we (i) perform the quantum Fourier transform modulo N (QFTN )
+on A, (ii) reversibly left-multiply the contents of R by ga , for a the number contained in A, and
+(iii) perform QFT†N on A. Multiplication by ga can easily be done reversibly in polynomial time
+using the group oracle along with repeated squaring. The state of the pair (A, R) is now
+                                     1 X X
+                                           eN (−ab)|bi|ga Hi.
+                                     N
+                                        a∈ZN b∈ZN
+
+Observation of A yields some value b ∈ ZN ; we will have with high probability that b/N is a good
+approximation to k/r (with respect to “modulo 1” distance), where k is randomly distributed in Zr .
+Assuming N is sufficiently large, we may find relatively prime integers u and v such that u/v = k/r
+with high probability via the continued fraction method—choosing N = 22n+O(log(1/ε)) allows us to
+determine u and v with probability 1 − ε. Now, to find r, we repeat this process O(log(1/ε)) times
+and compute the least common multiple of the v values, which yields r with probability at least
+1 − ε.
+
+3.2    Creating uniform superpositions over subgroups
+Next we describe how several copies of the state |Hi may be converted to several copies of the
+state |hgiHi. It is assumed that g normalizes H (i.e., gH = Hg, implying that hgiH is a group
+and that H ⊳ hgiH) and further that r = rH (g) = |hgiH/H| is known. For the main algorithm this
+corresponds to converting the copies of |Hj−1 i to copies of |Hj i. We note that this is the portion
+of the algorithm that apparently requires the normal subgroup relations in (1), as the assumption
+that g normalizes H is essential for the method.
+    Specifically, for sufficiently large l, l copies of |Hi are converted to l − 1 copies of |hgiHi with
+high probability; the procedure fails to convert just one of the copies. We assume that we have
+registers R1 , . . . , Rl , each in state |Hi. Let A1 , . . . , Al be registers whose basis states correspond
+to Zr , and assume A1 , . . . , Al are each initialized to |0i. For each i = 1, . . . , l do the following:
+(i) perform QFTr on register Ai , (ii) (reversibly) left-multiply the contents of Ri by gai , where ai
+denotes the contents of Ai , and (iii) again perform QFTr on Ai . Each pair (Ai , Ri ) is now in the
+state
+                                         1 X X
+                                                    er (ai bi )|bi i|gai Hi.
+                                         r
+                                        ai ∈Zr bi ∈Zr
+
+Now, measure A1 , . . . , Al , denoting the results by b1 , . . . , bl . Let |ψi i denote the resulting (nor-
+malized) state of Ri for each i, i.e.,
+                                             1 X
+                                     |ψi i = √   er (ai bi )|gai Hi.
+                                               r
+                                                   ai ∈Zr
+
+    Now we hope that at least one of the values bi is relatively prime to r; this fails to happen with
+probability at most ε whenever l ∈ Ω((log log r)(log 1/ε)). Assuming we are in this case, choose k
+such that bk is relatively prime to r. We will use |ψk i to “correct” the state in each of the remaining
+registers Ri , i 6= k, by doing the following: reversibly multiply the contents of Rk by f c , where f
+
+                                                        7
+denotes the group element contained in Ri and c is any integer satisfying c ≡ bi b−1 k (mod r). We
+claim at this point that Ri contains the state |hgiHi and Rk is unchanged (i.e., still contains |ψk i).
+To see this, consider an operator Mgj h that multiplies the contents of Rk by gj h (for arbitrary
+h ∈ H). As g normalizes H we have
+                 1 X                        1 X
+   Mgj h |ψk i = √   er (ak bk )|gj+ak Hi = √   er ((ak − j)bk )|gak Hi = er (−jbk )|ψk i,
+                   r                          r
+                        ak ∈Zr                                 ak ∈Zr
+
+which shows that the state |ψk i is an eigenvector of Mgj h with associated eigenvalue er (−jbk ).
+Thus, after performing the above multiplication, the state of the pair (Ri , Rk ) is
+      1     X X                                                  1     X X
+                                                                                                           ai
+  p                  er (ai bi )|gai hiM(gai h)c |ψk i =       p                er (ai bi − ai bi b−1
+                                                                                                   k bk )|g hi|ψk i
+      r|H| a ∈Zr h∈H                                             r|H| a ∈Zr h∈H
+            i                                                          i
+
+                                                                 1     X X
+                                                     =         p                |gai hi|ψk i
+                                                                 r|H| a ∈Zr h∈H
+                                                                        i
+
+                                                     = |hgiHi |ψk i.
+
+This procedure is repeated for each value of i 6= k and then Rk is discarded; this results in l − 1
+copies of |hgiHi as desired.
+    It should be noted that it is not really necessary that one of the bi values is relatively prime to
+r, but a more complicated procedure is necessary in the more general case. Since we already have a
+polynomial-time algorithm without the more complicated procedure, we will not discuss it further.
+
+3.3     The main algorithm
+As above, we assume we have elements g1 , . . . , gm ∈ G such that for Hj = hg1 , . . . , gj i for each j,
+we have
+     Qm {1} = H0 ⊳ H1 ⊳ · · · ⊳ Hm = G. Defining rj = rHj−1 (gj ) = |Hj /Hj−1 | for each j we have
+|G| = j=1 rj . Consider the algorithm in Figure 1. Here, k is a parameter to be chosen later.
+
+
+ Prepare k(m + 1) copies of the state |H0 i, where H0 = {1}.
+ Do the following for j = 1, . . . , m:
+      Using k − 1 of the copies of |Hj−1 i, compute rj = rHj−1 (gj ) (and discard these k − 1 states).
+      Use one of the copies of |Hj−1 i to convert the remaining copies of |Hj−1 i to copies of |Hj i.
+ End of for loop.
+ Output m
+         Q
+           j=1 rj .
+
+
+
+                    Figure 1: Algorithm to compute the order of a solvable group G
+
+    It is clear that the algorithm operates correctly assuming that each evaluation of rj is done
+without error, and that the copies of |Hj−1 i are converted to copies of |Hj i without error on each
+iteration of the loop. To have that the algorithm works correctly with high probability in general,
+we must simply choose parameters so that the error in all of these steps is small. If we want the
+entire process to work with probability of error less than ε, we may perform the computations of
+each of the rj values such that each computation errs with probability at most ε/(2m), and for each
+
+                                                           8
+j the copies of |Hj−1 i are converted to copies of |Hj i with error at most ε/(2m). Thus, choosing
+k = O((log n)(log m/ε)) suffices. In polynomial time we may therefore achieve an exponentially
+small probability of error by choosing k polynomial in n and computing the rj values with sufficient
+accuracy.
+
+
+4     Other problems
+In this section we discuss other problems regarding solvable groups that can be solved in quantum
+polynomial time with the help of our main algorithm. First we discuss membership testing and
+other problems that easily reduce to computing order. We then we discuss the general technique
+for computing over factor groups of solvable groups.
+
+4.1     Membership testing and simple reductions to order finding
+Suppose we are given elements g1 , . . . , gk and h in some black-box group with encoding length n.
+Clearly h ∈ hg1 , . . . , gk i if and only if |hg1 , . . . , gk i| = |hg1 , . . . , gk , hi|. Thus, if hg1 , . . . , gk , hi is solv-
+able, then the question of whether h ∈ hg1 , . . . , gk i can be computed in quantum polynomial time.
+Since there is a classical algorithm for testing solvability, it is really only necessary that hg1 , . . . , gk i
+is solvable; if hg1 , . . . , gk i is solvable but hg1 , . . . , gk , hi is not, then clearly h 6∈ hg1 , . . . , gk i.
+     Several other problems reduce to order computation or membership testing in solvable groups. A
+few examples are testing whether a given solvable group is a subgroup of another (given g1 , . . . , gk
+and h1 , . . . , hl , is it the case that hh1 , . . . , hl i ≤ hg1 , . . . , gk i?), testing equality of two solvable
+groups (given g1 , . . . , gk and h1 , . . . , hl , is it the case that hg1 , . . . , gk i = hh1 , . . . , hl i?), and test-
+ing whether a given group is a normal subgroup of a given solvable group (given g1 , . . . , gk and
+h1 , . . . , hl , do we have hh1 , . . . , hl i ⊳ hg1 , . . . , gk i?). To determine whether hh1 , . . . , hl i is a sub-
+group of hg1 , . . . , gk i, we may simply test that |hh1 , . . . , hl , g1 , . . . , gk i| = |hg1 , . . . , gk i| (or we
+may test that each hj is an element of hg1 , . . . , gk i separately), to test equality we verify that
+hg1 , . . . , gk i ≤ hh1 , . . . , hl i and hh1 , . . . , hl i ≤ hg1 , . . . , gk i, and to test normality we may verify
+that gi−1 hj gi ∈ hh1 , . . . , hl i for each i and j (as well as hh1 , . . . , hl i ≤ hg1 , . . . , gk i). See Babai [3]
+for more examples of problems reducing to order computation.
+     In another paper [33] we have shown that there exist succinct quantum certificates for various
+group-theoretic properties, including the property that a given integer divides the order of a group
+(i.e., given an integer d and generators g1 , . . . , gk in some black-box group, where G = hg1 , . . . , gk i
+is not necessarily solvable, verify that d divides |G|). We note here that our quantum algorithm
+for calculating orders of solvable groups can be used to prove the existence of succinct classical
+certificates for this property. Suppose we are given d and g1 , . . . , gk as above. Then a classical
+certificate for the property that d divides |G| may consist of descriptions of p-subgroups of G for
+the primes p dividing d. More specifically, suppose d = pa11 · · · pamm for distinct primes p1 , . . . , pm .
+                                          a
+Then for each prime power pj j , the certificate will include a description of some subgroup of G
+                     a          a
+having order pj j . If pj j indeed divides |G| there will exist such a subgroup, which is necessarily
+solvable since all groups of prime power order are solvable. Thus, the order of each given p-subgroup
+can be found using the order calculation algorithm. Since G is not necessarily solvable, however,
+testing that each of the given p-subgroups is really a subgroup of G might not be possible with our
+algorithm. However, the certificate may also include proofs of membership for each of the generators
+of the p-subgroups in G. (See Babai and Szemerédi [7] for details on proofs of membership.)
+
+
+
+                                                                 9
+4.2   Computing over abelian factor groups
+In the case of abelian black-box groups, many group-theoretic problems can be solved in poly-
+nomial time on a quantum computer. For instance, given generators g1 , . . . , gk for an abelian
+black-box group G with encoding length n, in quantum polynomial time we may compute prime
+powers q1 , . . . , qm such that G ∼  = Zq1 × · · · × Zqm . Furthermore, there exists an isomorphism
+θ : G → Zq1 × · · · × Zqm such that for any h ∈ G, θ(h) may be computed in time polynomial in
+n. Consequently, computing the order of an abelian group, testing isomorphism of abelian groups,
+and several other problems can be performed in quantum polynomial time [12, 22, 27].
+     We may apply these techniques for problems about abelian groups to problems about solvable
+groups by working over factor groups. To illustrate how this may be done, consider the following
+problem. Suppose we have a solvable group G given by generators g1 , . . . , gk , and furthermore that
+we have generators h1 , . . . , hl for a normal subgroup H of G such that G/H is abelian. We may
+hope to determine the structure of G/H using the technique for abelian groups mentioned above,
+i.e., we wish to compute prime powers q1 , . . . , qm such that G/H ∼   = Zq1 × · · · × Zqm . However,
+a complication arises since we do not have unique classical representations for elements of G/H,
+and so we cannot apply the technique directly. Instead, we will rely on the fact that we may
+efficiently construct copies of the state |Hi in polynomial time in order to work over the factor
+group G/H. Assume that r1 = order(g1 ), . . . , rk = order(gk ) have already been computed using
+Shor’s algorithm, and let N = lcm(r1 , . . . , rk ). The algorithm described in Figure 2 will allow us
+to solve the problem.
+
+
+ Prepare register R in state |Hi using the algorithm from Section 3.
+                                                       PN −1
+ Initialize registers A1 , . . . , Ak each in state √1N a=0  |ai.
+ Reversibly (left-)multiply the contents of register R by g1a1 · · · gkak , where each aj denotes the
+ contents of register Aj .
+ For j = 1, . . . , k, perform the quantum Fourier transform modulo N on register Aj .
+ Observe A1 , . . . , Ak (in the computational basis).
+
+
+            Figure 2: Quantum subroutine used for determining the structure of G/H.
+
+   To analyze the algorithm, define a mapping f : ZkN → G/H as f (a1 , . . . , ak ) = g1a1 · · · gkak H.
+The mapping f is a homomorphism with ker(f ) = {(a1 , . . . , ak ) ∈ ZkN | g1a1 · · · gkak ∈ H}. Define
+                                                                                                  
+                                         k
+                                          X                                                        
+      ker(f )⊥ = (b1 , . . . , bk ) ∈ ZkN   aj bj ≡ 0 (mod N ) for all (a1 , . . . , ak ) ∈ ker(f ) .
+                                                                                                  
+                                         j=1
+
+
+We have that ker(f )⊥ ∼= G/H, and in fact f is an isomorphism when restricted to ker(f )⊥ . A
+straightforward analysis reveals that observation of A1 , . . . , Ak will give a random element in
+ker(f )⊥ .
+    Thus, running the algorithm in Figure 2 O(k) times results in a generating set for ker(f )⊥ with
+high probability. Letting B be a matrix whose columns are the randomly generated elements of
+ker(f )⊥ , we may determine the numbers q1 , . . . , qm in polynomial time by computing the Smith
+
+
+                                                   10
+normal form of B (see Kannan and Bachem [24] and Hafner and McCurley [20] for polynomial-time
+algorithms for computing Smith normal forms).
+    This method for working over factor groups can be applied to other problems. In general,
+we may represent elements in a factor group G/H by quantum states of the form |gHi. Two
+states |gHi and |g′ Hi are of course identical whenever gH = g′ H, and are orthogonal otherwise.
+Multiplication and inversion of such states works as expected—for UG as in Section 2 we have
+UG |gHi|g′ Hi = |gHi|gg′ Hi and UG−1 |gHi|g′ Hi = |gHi|g−1 g′ Hi. (This requires H ⊳ G.) Hence
+this gives us a natural way to represent elements of factor groups by quantum states.
+
+
+5    Conclusion
+We have given a polynomial-time quantum algorithm for calculating the order and preparing a
+uniform superposition over a given solvable group, and shown how this algorithm may be used to
+solve other group-theoretic problems regarding solvable groups in polynomial time.
+    There are several other problems for solvable black-box groups that we do not have polynomial-
+time algorithms for. Examples include Group Intersection (given generating sets for two subgroups
+of a solvable black-box group, do the subgroups have a nontrivial intersection?) and Coset Inter-
+section (defined similarly). See Arvind and Vinodchandran [1] and Babai [3] for more examples
+of group-theoretic problems we may hope to solve in quantum polynomial time in the solvable
+black-box group setting.
+    Another interesting question is whether there exist polynomial-time quantum algorithms for
+similar problems for arbitrary (not necessarily solvable) finite groups. Can our methods be extended
+to non-solvable groups, and if so, to what extent? One possible approach to the particular problem
+of calculating group order is to try and develop an algorithm to find generators for the Sylow
+subgroups of the given group, and to run our algorithm on these subgroups (which are necessarily
+solvable).
+
+Acknowledgments
+I thank Eric Bach, Richard Cleve, Alexei Kitaev, Michele Mosca, and Miklos Santha for helpful
+comments and suggestions.
+
+
+References
+ [1] V. Arvind and N. V. Vinodchandran. Solvable black-box group problems are low for PP.
+     Theoretical Computer Science, 180:17–45, 1997.
+
+ [2] L. Babai. Local expansion of vertex-transitive graphs and random generation in finite groups.
+     In Proceedings of the Twenty-Third Annual ACM Symposium on Theory of Computing, pages
+     164–174, 1991.
+
+ [3] L. Babai. Bounded round interactive proofs in finite groups. SIAM Journal on Discrete Math,
+     5(1):88–111, 1992.
+
+ [4] L. Babai. Randomization in group algorithms: conceptual questions. In Groups and Com-
+     putation, II, volume 28 of DIMACS Ser. Discrete Math. Theoret. Comput. Sci., pages 1–17.
+     American Mathematical Society, 1997.
+
+
+                                                11
+ [5] L. Babai and R. Beals. A polynomial-time theory of black box groups I. In Groups St. Andrews
+     1997 in Bath, volume 260 of London Math. Soc. Lecture Note Ser. Cambridge University Press,
+     1999.
+ [6] L. Babai, G. Cooperman, L. Finkelstein, E. Luks, and Á. Seress. Fast Monte Carlo algorithms
+     for permutation groups. Journal of Computer and System Sciences, 50:296–307, 1995.
+
+ [7] L. Babai and E. Szemerédi. On the complexity of matrix group problems I. In Proceedings of
+     the 25th Annual Symposium on Foundations of Computer Science, pages 229–240, 1984.
+ [8] R. Beals. Quantum computation of Fourier transforms over symmetric groups. In Proceedings
+     of the Twenty-Ninth Annual ACM Symposium on Theory of Computing, pages 48–53, 1997.
+ [9] C. H. Bennett. Logical reversibility of computation. IBM Journal of Research and Develop-
+     ment, 17:525–532, 1973.
+[10] D. Boneh and R. Lipton. Quantum cryptanalysis of hidden linear functions. In Advances in
+     Cryptology – Crypto’95, volume 963 of Lecture Notes in Computer Science, pages 242–437.
+     Springer-Verlag, 1995.
+[11] G. Brassard and P. Høyer. An exact quantum polynomial-time algorithm for Simon’s problem.
+     In Fifth Israeli Symposium on Theory of Computing and Systems, pages 12–23, 1997.
+[12] K. Cheung and M. Mosca. Decomposing finite Abelian groups. Manuscript, 2000.
+
+[13] R. Cleve, A. Ekert, C. Macchiavello, and M. Mosca. Quantum algorithms revisited. Proceedings
+     of the Royal Society, London, A454:339–354, 1998.
+[14] H. Cohen. A Course in Computational Algebraic Number Theory. Springer-Verlag, 1993.
+[15] D. Deutsch. Quantum theory, the Church–Turing principle and the universal quantum com-
+     puter. Proceedings of the Royal Society of London, A400:97–117, 1985.
+[16] M. Ettinger and P. Høyer. On quantum algorithms for noncommutative hidden subgroups.
+     In Proceedings of the 16th Annual Symposium on Theoretical Aspects of Computer Science,
+     volume 1563 of Lecture Notes in Computer Science, pages 478–487, 1999.
+
+[17] M. Ettinger, P. Høyer, and E. Knill. Hidden subgroup states are almost orthogonal. Los
+     Alamos Preprint Archive, quant-ph/9901034, 1999.
+
+[18] L. Fortnow and J. Rogers. Complexity limitations on quantum computation. Journal of
+     Computer and System Sciences, 59(2):240–252, 1999.
+[19] D. Grigoriev. Testing shift-equivalence of polynomials using quantum machines. In Proceedings
+     of the 1996 International Symposium on Symbolic and Algebraic Computation, pages 49–54,
+     1996.
+[20] J. Hafner and K. McCurley. Asymptotically fast triangularization of matrices over rings. SIAM
+     Journal on Computing, 20(6):1068–1083, 1991.
+[21] S. Hallgren, A. Russell, and A. Ta-Shma. Normal subgroup reconstruction and quantum
+     computation using group representations. In Proceedings of the 32nd ACM Symposium on
+     Theory of Computing, pages 627–635, 2000.
+
+                                               12
+[22] P. Høyer. Quantum Algorithms. PhD thesis, Odense University, Denmark, 2000.
+
+[23] I. M. Isaacs. Algebra: a Graduate Course. Brooks/Cole, 1994.
+
+[24] R. Kannan and A. Bachem. Polynomial algorithms for computing the Smith and Hermite
+     normal forms of an integer matrix. SIAM Journal on Computing, 8(4):499–507, 1979.
+
+[25] A. Kitaev. Quantum measurements and the abelian stabilizer problem. Manuscript, 1995. Los
+     Alamos Preprint Archive, quant-ph/9511026.
+
+[26] A. Kitaev. Quantum computations: algorithms and error correction. Russian Mathematical
+     Surveys, 52(6):1191–1249, 1997.
+
+[27] M. Mosca. Quantum Computer Algorithms. PhD thesis, University of Oxford, 1999.
+
+[28] M. Mosca and A. Ekert. The hidden subgroup problem and eigenvalue estimation on a quantum
+     computer. In Proceedings of the 1st NASA International Conference on Quantum Computing
+     and Quantum Communication, volume 1509 of Lecture Notes in Computer Science, 1999. Also
+     available from the Los Alamos Preprint Archive, quant-ph/9903071.
+
+[29] M. A. Nielsen and I. L. Chuang. Quantum Computation and Quantum Information. Cambridge
+     University Press, 2000.
+
+[30] M. Rötteler and T. Beth. Polynomial-time solution to the hidden subgroup problem for a class
+     of non-abelian groups. Los Alamos Preprint Archive, quant-ph/9812070, 1999.
+
+[31] P. Shor. Polynomial-time algorithms for prime factorization and discrete logarithms on a
+     quantum computer. SIAM Journal on Computing, 26(5):1484–1509, 1997.
+
+[32] D. Simon. On the power of quantum computation. SIAM Journal on Computing, 26(5):1474–
+     1483, 1997.
+
+[33] J. Watrous. Succinct quantum proofs for properties of finite groups. In Proceedings of the 41st
+     Annual Symposium on Foundations of Computer Science, pages 537–546, 2000.
+
+
+
+
+                                                13
+

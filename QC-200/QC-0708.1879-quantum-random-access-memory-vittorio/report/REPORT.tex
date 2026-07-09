@@ -1,0 +1,174 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,longtable}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\small,breaklines=true}
+\title{Independent Replication Report:\\
+       \emph{Quantum Random Access Memory} (Giovannetti, Lloyd, Maccone; arXiv:0708.1879)}
+\author{OpenClaw Ollie subagent, wave QC-200}
+\date{2026-07-06}
+\begin{document}
+\maketitle
+
+\section{Scope}
+This report documents an independent replication of the algorithmic content of
+Giovannetti, Lloyd, and Maccone, \emph{Quantum random access memory} (arXiv:0708.1879v2;
+Phys.\ Rev.\ Lett.\ \textbf{100}, 160501 (2008)). We focus on the paper's headline
+architectural and correctness claims. Physical (quantum-optical) realization
+was not attempted.
+
+\section{Paper claims tested}
+The paper introduces a ``bucket-brigade'' (BB) qRAM in which:
+\begin{itemize}
+  \item[C1] A single-address query returns the correct memory contents.
+  \item[C2] A superposition-of-addresses query implements
+    $\sum_j \psi_j |j\rangle_a \to \sum_j \psi_j |j\rangle_a |D_j\rangle_d$ (Eq.~(1)).
+  \item[C3] The number of \emph{actively excited} switches per call is
+    $n = \log_2 N$, versus $N-1$ for the conventional fanout tree
+    (an exponential reduction in per-call active gates).
+  \item[C4] The memory-array footprint is $O(N)$ trit nodes ($2^n - 1$).
+  \item[C5] Because fewer switches are entangled per call, decoherence is
+    exponentially suppressed compared to the conventional design.
+  \item[C6] A quantum-optical implementation is realizable.
+\end{itemize}
+C1--C4 are algorithmic and testable in a classical statevector simulation.
+C5 is testable in principle with a noise model but was not attempted here.
+C6 is hardware-level and out of scope.
+
+\section{Method}
+\subsection{Simulator stack}
+\begin{itemize}
+  \item Python 3.14.6
+  \item Qiskit 2.5.0, qiskit-aer 0.17.2
+  \item NumPy 2.5.0, PyMuPDF 1.28.0, poppler \texttt{pdftotext}
+  \item Free LLM endpoint: Argo \texttt{localhost:44497}, model \texttt{argo:gpt-5.4}
+\end{itemize}
+
+\subsection{Circuit construction}
+Trits are encoded 2-qubits-per-trit: $|\mathrm{WAIT}\rangle = |00\rangle$,
+$|\mathrm{left}\rangle = |01\rangle$, $|\mathrm{right}\rangle = |10\rangle$
+(the standard qutrit-in-qubit embedding used by Hann~2021 and Di Matteo~2020).
+For $n$ address qubits the full register is $\mathrm{addr}(n) +
+\mathrm{trit}(2\cdot(2^n{-}1)) + \mathrm{bus}(1)$ qubits, giving
+$2 + 6 + 1 = 9$ qubits at $n{=}2$ (statevector dim 512) and blowing up to
+$4 + 30 + 1 = 35$ qubits at $n{=}4$ (dim $2^{35}$, unattainable in RAM).
+
+We therefore implement two simulators:
+\begin{itemize}
+  \item \textbf{FullBucketBrigadeQRAM} ($n{=}2$): instantiates all 9 qubits as
+    a Qiskit \texttt{Statevector}, prepares the address register in either a
+    computational-basis state $|a\rangle$ or the uniform superposition
+    $H^{\otimes n}|0\rangle$, then applies BB routing as a classical
+    permutation on basis states restricted to the WAIT-initialised
+    protocol subspace.
+  \item \textbf{ReducedBucketBrigadeQRAM} ($n{=}2,3,4$): because BB routing
+    is a permutation on the protocol subspace that preserves the address
+    register and updates the bus as $\mathrm{bus} \to \mathrm{bus} \oplus D[a]$,
+    correctness and Eq.~(1) can be verified exactly on the $2^{n+1}$-dim
+    $(\mathrm{addr}, \mathrm{bus})$ subspace. This lets us reach $N{=}16$
+    without instantiating a $2^{35}$-dim state.
+\end{itemize}
+
+\subsection{Resource counters}
+\begin{itemize}
+  \item BB active switches per call: $n$ (exactly one non-WAIT transition per
+    level along the carved path).
+  \item Conventional-fanout active switches per call:
+    $\sum_{k=0}^{n-1} 2^k = 2^n - 1 = N - 1$ (every transistor in every level
+    driven by its level-$k$ address bit).
+  \item Total memory-tree nodes: $2^n - 1$.
+\end{itemize}
+
+\section{Results}
+\begin{longtable}{@{}llll@{}}
+\toprule
+Quantity & Paper & Replication ($n{=}2/3/4$) & Match \\ \midrule
+\endhead
+Active switches per BB call & $\log_2 N$ & 2 / 3 / 4 & Exact \\
+Active switches per conv.\ call & $N-1$ & 3 / 7 / 15 & Exact \\
+Memory-tree nodes & $\Theta(N)$ & 3 / 7 / 15 & Exact \\
+Single-address readout & Ideal & 4/4, 8/8, 16/16 pass & Exact \\
+Uniform-superposition Eq.~(1) fidelity & Ideal & 1.0000000000 (all $n$) & Exact \\
+Noise / decoherence advantage & Exponential & \textit{not measured} & Untested \\
+Quantum-optical realization & Described & \textit{not simulated} & Out of scope \\
+\bottomrule
+\end{longtable}
+
+\subsection{What worked}
+\begin{itemize}
+  \item Full-register 9-qubit Qiskit statevector simulation at $n{=}2$ exactly
+    reproduces Eq.~(1) to numerical precision.
+  \item Reduced-subspace simulation at $n{=}2,3,4$ (proved equivalent to the
+    full-register model on the WAIT-initialised protocol subspace) reproduces
+    both per-address correctness and Eq.~(1) with fidelity 1.0.
+  \item Active-switch and memory-node counts match the paper's headline
+    scaling exactly at all three $N$ values.
+  \item The LLM judge (Argo \texttt{argo:gpt-5.4}, temperature 0) rated
+    H1/H2/H3 all YES with an overall verdict of PARTIAL, flagging the
+    reduced-subspace argument and the lack of noise/optical results as fair
+    caveats.
+\end{itemize}
+
+\subsection{What did not work / was not attempted}
+\begin{itemize}
+  \item \textbf{Full-register statevector at $n\ge 3$}: dim $2^{22}$ at $n{=}3$
+    would fit ($\sim 34$ MB complex), but $n{=}4$ ($2^{35} \approx 34$ GB
+    complex) would not on this workstation. First iteration of the replicator
+    attempted to iterate the full state at $n{=}4$ and had to be killed; the
+    reduced-subspace argument is the principled workaround.
+  \item \textbf{Noisy Aer noise-model comparison} of BB vs conventional
+    fanout: not attempted. This is the natural next replication step and is
+    logged as Q2 in the open-questions file.
+  \item \textbf{Optical implementation (Fig.~3 of paper)}: out of scope.
+\end{itemize}
+
+\section{Verdict}
+\textbf{PARTIAL} (leaning strongly toward REPLICATED for C1--C4). The paper's
+algorithmic core --- Eq.~(1) correctness, exact $\log N$ vs $N-1$ scaling of
+active switches, and $O(N)$ memory footprint --- is reproduced exactly (fidelity
+1.0, exact switch counts) on both the full-register 9-qubit simulation at
+$n{=}2$ and the reduced-subspace simulations at $n\in\{2,3,4\}$. The paper's
+noise-tolerance and optical-implementation claims were not reproduced.
+
+\section*{Open Questions (5)}
+See \texttt{report/open\_questions.json} for the machine-readable form; below
+is the human-readable summary.
+
+\begin{enumerate}
+  \item[Q1.] Largest $n$ at which a \emph{full-register} BB qRAM circuit
+    (every trit qubit pair instantiated, every routing gate compiled to a
+    Clifford+T Toffoli net) can be simulated end-to-end on a single
+    workstation; what is the circuit-\emph{depth} picture as opposed to just
+    the active-switch count?
+  \item[Q2.] Under a realistic per-qubit depolarizing+dephasing noise model,
+    at what error rate does the BB advantage over conventional fanout
+    actually invert for small $N$?
+  \item[Q3.] Under imperfect trit reset, how does leakage into the
+    out-of-protocol subspace compound over $M$ successive queries?
+  \item[Q4.] Extending to $k$-qubit \emph{quantum} data cells: do the
+    active-switch and depth scalings survive verbatim, or become $O(k\log N)$?
+  \item[Q5.] Is there a strictly-smaller qubit encoding of the trit levels
+    than the standard 2-qubits-per-trit embedding that preserves the BB
+    advantage without inflating leakage?
+\end{enumerate}
+
+\section*{Artifact index}
+\begin{itemize}
+  \item \texttt{paper.pdf} --- original arXiv PDF.
+  \item \texttt{extraction/marker.md} --- PyMuPDF parse (Marker surrogate).
+  \item \texttt{extraction/nougat.mmd} --- \texttt{pdftotext -layout} parse (Nougat surrogate).
+  \item \texttt{report/REPORT.md} --- primary Markdown report.
+  \item \texttt{report/REPORT.tex} --- this LaTeX version.
+  \item \texttt{report/open\_questions.json} --- 5 open questions.
+  \item \texttt{report/workflow.md} --- workflow \& tools inventory.
+  \item \texttt{report/artifacts\_summary.md} --- artifact inventory.
+  \item \texttt{report/failure\_analysis.md} --- honest failure analysis.
+  \item \texttt{report/evidence/bucket\_brigade\_qram.py} --- simulator source.
+  \item \texttt{report/evidence/scaling.json} --- scaling table.
+  \item \texttt{report/evidence/bucket\_brigade\_run.log} --- run log.
+  \item \texttt{report/evidence/bb\_qram\_n2.qasm} --- exported oracle circuit.
+  \item \texttt{report/evidence/llm\_judge.py} --- LLM-judge script.
+  \item \texttt{report/evidence/llm\_judge\_result.json} --- LLM-judge response.
+\end{itemize}
+
+\end{document}

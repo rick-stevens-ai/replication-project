@@ -1,0 +1,9 @@
+# BVBRC-109 — Brief
+
+**Paper**: Delgado-Suárez et al. (2021) "Genomic surveillance of antimicrobial resistance shows cattle and poultry are a moderate source of multi-drug resistant non-typhoidal Salmonella in Mexico." PLOS ONE 16(5):e0243681. DOI 10.1371/journal.pone.0243681, PMID 33951039.
+
+**What**: Independent re-analysis of the study's 77 whole-genome-sequenced *Salmonella enterica* isolates (48 bovine lymph node, 29 ground beef) from Mexico. Downloaded 68 of 77 GenBank assemblies from NCBI (BioProject PRJNA480281 — 9 study isolates never had assemblies deposited, only SRA reads). Re-called AMR genes and mutations with AMRFinderPlus 4.2.7 (paper used 3.8.4), MLST with mlst 2.33.1, and searched for Salmonella Genomic Island 1 (SGI-1, ref AF261825.2) with blastn. Reproduced the paper's core statistical claims on our re-called AMR data using scipy.
+
+**Why**: This paper is a canonical BV-BRC-style workflow example — genome assembly (SPAdes on PATRIC), serovar/MLST prediction (SeqSero/SISTR/mlst), AMR gene calling (AMRFinderPlus), and comparative genomics against public NCBI Pathogen Detection isolates. Replicating it lets us (a) validate the full pipeline is reproducible from published accession numbers, and (b) test whether newer AMRFinderPlus and databases change the paper's conclusions on MDR distribution and mutation-driven resistance.
+
+**Verdict**: **PARTIAL** (LLM-judge score 78/100). Isolate counts, serovar/ST composition, SGI-1 penta-resistance cassette in Typhimurium, and Typhimurium MDR enrichment all replicate cleanly. The ground-beef vs lymph-node MDR association is directionally the same but statistically weaker with genotypic MDR definition. The paper's ramR-mutation → MDR association does not replicate with current AMRFinderPlus databases (the ramR variant we see today segregates with non-MDR lineages), and the "100% carry gyrA/soxRS/pmrAB mutations" claim was inflated by AMRFinderPlus 3.8.4 counting synonymous variants.

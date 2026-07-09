@@ -1,0 +1,261 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,longtable}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single}
+
+\title{Independent Replication Report:\\
+\textit{The Hidden Subgroup Problem and Eigenvalue Estimation on a Quantum Computer}\\
+(Mosca \& Ekert, 1998; arXiv:quant-ph/9903071)}
+\author{Independent replication (QC-200 wave, 2026-07-05)}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We reproduce the central computational primitives of Mosca \& Ekert's 1998 paper,
+which unifies the abelian Hidden Subgroup Problem (HSP) with Kitaev's eigenvalue
+estimation via a common quantum Fourier / phase-kickback framework. We (i) implement
+Quantum Phase Estimation (QPE) for a single-qubit unitary
+$U=\mathrm{diag}(1,e^{2\pi i \varphi})$ at $\varphi\in\{1/3, 1/4, 1/8\}$ with counting
+registers of $n\in\{3,4,5,6\}$ qubits; (ii) solve the abelian HSP over $\mathbb{Z}_N$
+for $N\in\{6,8\}$ by QPE on the cyclic shift operator and by the equivalent
+period-finding QFT circuit for $f(x)=x\bmod d$ with $d\in\{2,4\}$; (iii) verify
+analytically and numerically that when the target register of the shift-QPE is
+prepared in a coset superposition, its measurement distribution is \emph{identical}
+to the QFT-view period-finding distribution --- the reduction that is the paper's
+central claim. All nine tests pass ($9/9$) on Qiskit 2.5.0 statevector simulation.
+\textbf{Verdict: REPLICATED.}
+\end{abstract}
+
+\section{Paper Summary}
+
+Mosca \& Ekert cast the abelian HSP as an instance of Kitaev's eigenvalue-estimation
+subroutine. Given a function $f:G\to X$ constant on cosets of a hidden subgroup
+$K\le G$, one constructs a unitary $U_f$ acting on the target register that
+implements the natural action of $G$. The eigenvectors of $U_f$ are Fourier
+characters of $G$; their eigenphases encode a coset of $K^\perp$ (the dual/annihilator).
+Running phase estimation on $U_f$ therefore yields random samples from $K^\perp$,
+which is enough to reconstruct $K$ by classical linear algebra. This unifies Shor's
+order finding, discrete logarithms, Simon's problem, and the abelian stabiliser
+problem. In their \S 5 the authors also observe that certain instances collapse to a
+\emph{single} control qubit (Kitaev-style iterative phase estimation), because the
+target register can be prepared directly in an eigenvector.
+
+\section{Claims Table}
+\begin{longtable}{@{}p{0.06\textwidth}p{0.42\textwidth}p{0.12\textwidth}p{0.12\textwidth}p{0.20\textwidth}@{}}
+\toprule
+\textbf{ID} & \textbf{Claim} & \textbf{Type} & \textbf{Testable?} & \textbf{Tested here?} \\
+\midrule
+C1 & QPE recovers the eigenphase $\varphi$ of a controlled unitary; the estimate is exact when $\varphi=k/2^n$ and converges as $O(2^{-n})$ otherwise. & Algorithmic / numerical & Yes & \textbf{Yes} (Exp.\ 1) \\
+C2 & Abelian HSP reduces to QPE on the natural action of the group on the target register. & Structural / algorithmic & Yes (small $N$) & \textbf{Yes} (Exp.\ 2 + 3) \\
+C3 & For $G=\mathbb{Z}_N$, the eigenvectors of the shift operator are Fourier characters with eigenphases $j/N$; QPE returns $j/N$ (approximate for $N\nmid 2^n$). & Numerical & Yes & \textbf{Yes} (Exp.\ 2) \\
+C4 & The QFT-based period-finding circuit and the QPE-based shift-eigenvalue circuit produce identical measurement distributions on the same instance (up to target-register preparation). & Theoretical + numerical & Yes & \textbf{Yes} (Exp.\ 3) \\
+C5 & \S 5: HSP instances can be solved with a single control qubit / flying qubit when the target register is pre-loaded in an eigenvector. & Structural & Yes (in principle) & \textbf{Partial} (implicit via coset-input equivalence in Exp.\ 3) \\
+C6 & The framework unifies factoring, discrete-log, order-finding, and Simon's problem. & Survey / structural & Not directly & Not tested (out of scope for a small numerical reproduction) \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+
+\subsection{Environment}
+\begin{itemize}
+\item Python 3.13 (system \texttt{/usr/local/bin/python3}).
+\item Qiskit 2.5.0, NumPy 2.5.1 (venv reused from sibling QC-200 replication).
+\item Host: \texttt{CherryRd} (macOS), CPU-only statevector simulation.
+\item No LLM inference used for the numerical result. Free Argo endpoint available for optional judge pass but not needed for this well-defined algebraic check.
+\end{itemize}
+
+\subsection{Reproducer}
+Single self-contained script \texttt{work/qpe\_and\_hsp.py} implements all three
+experiments and writes JSON evidence to \texttt{report/evidence/results.json}.
+Commands:
+\begin{lstlisting}
+VENV=~/Dropbox/REPLICATE-PROJECT/QC-200/QC-quant-ph-0301141-shor-discrete-log-elliptic-curves-proos-zalka/venv
+$VENV/bin/python work/qpe_and_hsp.py
+\end{lstlisting}
+
+\subsection{Experiment 1 --- QPE on a 1-qubit phase gate}
+The unitary is $U=\mathrm{diag}(1,e^{2\pi i\varphi})$. The target is prepared in the
+eigenvector $|1\rangle$. The counting register (size $n\in\{3,4,5,6\}$) is Hadamarded,
+followed by controlled $P(2\pi\varphi\cdot 2^k)$ gates and the inverse QFT, then
+measured. We compute the exact pre-measurement statevector and report the full
+probability distribution over $2^n$ counting outcomes. The estimate is
+$\hat\varphi = k^\star/2^n$ where $k^\star$ is the argmax outcome.
+
+\subsection{Experiment 2 --- HSP on $\mathbb{Z}_N$}
+\textbf{(2a)} QPE of the cyclic shift $T|k\rangle=|k+1\bmod N\rangle$ on
+$N\in\{6,8\}$, with target initialised in $|0\rangle$. Because $|0\rangle$ is a
+uniform superposition of the shift's eigenvectors $|\chi_j\rangle$, the counting
+register yields (up to grid rounding) uniformly random samples of the eigenphases
+$\{j/N : j=0,\dots,N-1\}$. For $N=8$ these coincide with the counting grid
+$k/2^n$ exactly; for $N=6$ they are approximated by the nearest $k/2^n$.
+
+\textbf{(2b)} Period finding as HSP over $\mathbb{Z}_8$ with $f(x)=x\bmod d$ for
+$d\in\{2,4\}$. Hidden subgroup $K=d\mathbb{Z}_8$. We build the standard oracle
+$|x\rangle|0\rangle\to|x\rangle|f(x)\rangle$, trace out the target, apply
+$\mathrm{QFT}_{\mathbb{Z}_8}$ to the input, and compute the probability
+distribution.
+
+\subsection{Experiment 3 --- HSP-as-QPE reduction}
+Same instances as (2b). We compute two distributions on the counting register:
+the Fourier-view (2b) and the QPE-view (2a). Their pointwise difference is
+recorded. We then verify analytically the paper's central identity: preparing
+the QPE target register in the coset superposition
+$\frac{1}{\sqrt{N/d}}\sum_k |c+kd\rangle$ produces the QPE distribution
+$\frac{1}{d}\sum_{m=0}^{d-1}\delta_{m N/d}$, which is exactly the Fourier-view
+period-finding distribution.
+
+\section{Results vs Paper}
+
+\subsection{Experiment 1 --- QPE convergence}
+Absolute errors $|\hat\varphi-\varphi|$ (circular distance) reported by the script:
+
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+$\varphi$ & $n=3$ & $n=4$ & $n=5$ & $n=6$ \\
+\midrule
+$1/4$ & $0$ & $0$ & $0$ & $0$ \\
+$1/8$ & $0$ & $0$ & $0$ & $0$ \\
+$1/3$ & $4.17\!\times\!10^{-2}$ & $2.08\!\times\!10^{-2}$ & $1.04\!\times\!10^{-2}$ & $5.21\!\times\!10^{-3}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For $\varphi\in\{1/4,1/8\}$, exactly representable as $k/2^n$ for $n\ge 3$, the QPE
+outcome concentrates on a single bin with probability $1$ (verified in
+\texttt{results.json}) --- matching the standard textbook property that
+Mosca--Ekert invoke as their base primitive. For $\varphi=1/3$, not
+dyadic, the error halves as $n$ increases by one, matching the expected
+$O(2^{-n})$ scaling.
+
+\subsection{Experiment 2 --- HSP on $\mathbb{Z}_N$}
+
+For $N=8$, QPE on the shift operator with $n_{\text{count}}=6$ recovers
+top-8 outcomes exactly at
+\[
+\{0,\tfrac18,\tfrac14,\tfrac38,\tfrac12,\tfrac58,\tfrac34,\tfrac78\}
+\]
+(each with probability $1/8$), reproducing the 8 eigenphases $j/8$.
+For $N=6$, top-6 outcomes cluster around $\{0, 11/64, 21/64, 32/64, 43/64, 53/64\}$
+which are the nearest $k/64$ approximations of
+$\{0,1/6,2/6,3/6,4/6,5/6\}$ (max deviation $< 2/64$, as expected for a non-dyadic
+denominator).
+
+Period finding on $\mathbb{Z}_8$ with $d=2$ produces measurement support
+$\{0,4\}$ (multiples of $N/d = 4$), each with probability $1/2$.
+With $d=4$ the support is $\{0,2,4,6\}$ (multiples of $2$), each with probability
+$1/4$. Both match the theoretical HSP output exactly.
+
+\subsection{Experiment 3 --- HSP $\equiv$ QPE numerical proof}
+
+For $\mathbb{Z}_8$, $d=2$:
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Counting outcome $k$ & Fourier-view $P(k)$ & QPE (coset input) $P(k)$ \\
+\midrule
+0 & 0.5 & 0.5 \\
+4 & 0.5 & 0.5 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For $\mathbb{Z}_8$, $d=4$: both distributions place probability $1/4$ on
+$k\in\{0,2,4,6\}$. Pointwise agreement to $<10^{-9}$. This is the
+Mosca--Ekert identity: QFT-based period-finding and QPE on the natural
+$\mathbb{Z}_N$-action are the \emph{same circuit} up to how the target
+register is prepared.
+
+\subsection{Summary of checks}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Check & Result \\
+\midrule
+QPE converges for $\varphi=1/3$ (error $<2^{-n+1}$) & PASS \\
+QPE exact for $\varphi=1/4$ at $n\in\{3,4,5,6\}$ & PASS \\
+QPE exact for $\varphi=1/8$ at $n\in\{3,4,5,6\}$ & PASS \\
+Shift-QPE recovers eigenphases $j/N$ for $N=6$ & PASS \\
+Shift-QPE recovers eigenphases $j/N$ for $N=8$ & PASS \\
+HSP period finding $\mathbb{Z}_8$, $d=2$ & PASS \\
+HSP period finding $\mathbb{Z}_8$, $d=4$ & PASS \\
+HSP $=$ QPE (coset input) on $\mathbb{Z}_8$, $d=2$ & PASS \\
+HSP $=$ QPE (coset input) on $\mathbb{Z}_8$, $d=4$ & PASS \\
+\midrule
+Total & \textbf{9/9} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Per-Claim: What Worked / What Didn't}
+
+\paragraph{C1 (QPE).} Reproduced cleanly. Exact for dyadic phases; expected
+$O(2^{-n})$ convergence for $1/3$. No caveats.
+
+\paragraph{C2--C4 (HSP $\equiv$ QPE).} Numerically confirmed on the two most
+transparent cases ($\mathbb{Z}_8$ with periods $2$ and $4$). The coset-input QPE
+distribution matches the QFT period-finding distribution exactly (to
+$10^{-9}$), which is the paper's headline structural reduction.
+
+\paragraph{C3 with $N=6$.} Non-dyadic $N$ shows the expected grid-rounding
+artefact: measured phases are the nearest $k/2^n$ approximations of $j/6$, and
+peak sharpness diminishes. The paper acknowledges this and prescribes the
+standard continued-fractions post-processing --- we did not implement CF
+recovery here since the eigenphase clustering is already visible and unambiguous
+at $n_{\text{count}}=6$.
+
+\paragraph{C5 (one control qubit).} Not directly reduced to a $1$-control-qubit
+Kitaev-style circuit here. The equivalent statement (coset-input QPE) is
+verified in Exp.\ 3. A fuller test would explicitly implement the iterative
+Kitaev variant.
+
+\paragraph{C6 (Shor / discrete-log / Simon unification).} Structural claim, not
+individually reproduced. It is a survey-level assertion of the paper.
+
+\section{Verdict}
+
+\textbf{REPLICATED.} All algorithmic primitives that the paper defines and
+claims are exhibited by real Qiskit statevector simulation, with numerical
+outputs matching the theoretical values to machine precision on the exact
+cases and to the expected $O(2^{-n})$ tolerance on the non-dyadic case. The
+central reduction --- abelian HSP $=$ QPE with a suitable target-register
+preparation --- is verified pointwise on the concrete instance
+$G=\mathbb{Z}_8$, $K=d\mathbb{Z}_8$ for $d\in\{2,4\}$.
+
+\section{Open Questions}
+
+\textbf{Q1.} For non-dyadic $N$ (e.g.\ $N=6$), our shift-QPE measurements are
+grid-approximated eigenphases $j/N$; the paper implicitly assumes continued
+fractions post-processing. What is the minimum $n_{\text{count}}$ (as a function
+of $N$) such that CF recovery is unique with probability at least $1-\varepsilon$
+for arbitrary $\varepsilon$?
+
+\textbf{Q2.} The paper claims some HSP instances need only one control qubit
+(Kitaev iterative). We verified the coset-input equivalence but did not
+explicitly build the 1-qubit Kitaev circuit. Which HSP instances admit
+a genuine 1-qubit realization when the target eigenvector cannot be prepared
+exactly (only approximately)?
+
+\textbf{Q3.} Our HSP-as-QPE identity was exact because $8$ is a power of $2$
+and $\mathrm{QFT}_{\mathbb{Z}_8}$ is exactly realizable. For $\mathbb{Z}_N$ with
+$N$ not a power of $2$, one must use approximate QFT circuits: how large is
+the fidelity penalty as a function of the QFT truncation level, and does the
+QPE-view remain uniformly better/worse than the QFT-view under those
+approximations?
+
+\textbf{Q4.} The paper is silent on the sample complexity of \emph{generating}
+$K^\perp$ once QPE has been run. In our reproduction we assumed one QPE call
+sufficed because the coset structure is small; how does the classical
+post-processing (Gaussian elimination over $\mathbb{Z}$) scale when $G$ is a
+product of many small cyclic factors, and are there noise-tolerant variants?
+
+\textbf{Q5.} Under realistic depolarizing noise on the counting register
+qubits, at what error rate does the HSP-via-QPE approach lose its polynomial
+advantage over the QFT-view period-finding circuit (given that the two are
+equivalent noiseless but may differ substantially in gate count / depth)?
+A shot-based Qiskit noise-model sweep would answer this.
+
+\end{document}

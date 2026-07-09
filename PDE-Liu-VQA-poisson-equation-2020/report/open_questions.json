@@ -1,0 +1,61 @@
+{
+  "paper": "Liu et al. 2020, Variational Quantum Algorithm for the Poisson Equation (arXiv:2012.07014, Phys. Rev. A 104, 022418)",
+  "replication_verdict": "PARTIAL",
+  "open_questions": [
+    {
+      "id": "OQ1",
+      "q": "Does the Liu VQA cost landscape remain trainable (i.e., avoid barren plateaus) as m grows beyond 6 qubits, where our replication was already compute-limited at m=6?",
+      "basis": "This replication reached fidelity >=0.99 for m=2..5 with p_min in {1,2,3,3} but did not clear 0.99 for m=6 within the swept range (best 0.9692 at p=2; p=3..8 sweep incomplete). The paper's Fig. 4 stops at m=6. McClean et al. 2018 predicts loss-landscape variance decays exponentially with qubit count for hardware-efficient ansaetze such as the RX+RZ+linear-CNOT ansatz used here (2*m*p params), so the m=6 result is exactly where susceptibility to barren plateaus should first appear. Whether that is a compute-budget artifact or an intrinsic scaling wall for this specific ansatz+cost pair is not answered by the paper or by this replication.",
+      "next_steps": [
+        "Run m=6, p=3..8 to completion (each job ~800 s serial) to actually locate p_min(m=6) instead of extrapolating.",
+        "Extend the sweep to m=7,8 on uicgpu 8xA100 with statevector (2^8 = 256-dim state is trivial; the cost is the 20-restart BFGS loop).",
+        "For each (m,p), record the gradient variance of E(theta) over the 20 random inits as a barren-plateau proxy; fit variance vs m on log axes.",
+        "Compare a paper-faithful RY+CNOT ansatz (Fig. 3 exactly) vs. the simplified RX+RZ+CNOT ansatz used here to isolate ansatz-choice effects from an intrinsic scaling claim."
+      ]
+    },
+    {
+      "id": "OQ2",
+      "q": "Does the recursive {I, sigma+, sigma-} decomposition (2m+1 and 4m+1 items) extend cleanly to variable-coefficient 1-D Poisson and to genuine 2-D/3-D Poisson operators, with the same logarithmic item count?",
+      "basis": "The paper's Appendix A sketches extensions to d-D Poisson and general tri/pentadiagonal Toeplitz matrices (claim C4 in this replication). C4 was explicitly out of scope here: we validated only the constant-coefficient 1-D case (A_m from Eq. 11 with the (-1, 2, -1) stencil). Variable-coefficient Poisson breaks Toeplitz structure. Multi-D Poisson via Kronecker sum introduces cross-axis terms that may or may not preserve the {I, sigma+, sigma-} basis efficiency.",
+      "next_steps": [
+        "Implement decompose_A_2D(m_x, m_y) via Kronecker sum A_x (x) I + I (x) A_y and count items in the {I, sigma_pm} basis for m_x=m_y=1..4; check whether it remains O(m_x + m_y) or blows up.",
+        "Repeat for 3-D on uicgpu with statevector up to (m_x, m_y, m_z) = (3,3,3) (9 qubits).",
+        "For variable-coefficient 1-D, try piecewise-constant a(x) with 2, 4, 8 pieces and measure whether item count grows linearly in the number of pieces.",
+        "Validate reconstruction error to floating-point precision at each configuration, mirroring the C1/C2 verification protocol used for the 1-D case."
+      ]
+    },
+    {
+      "id": "OQ3",
+      "q": "For a fair NISQ-era comparison, how does end-to-end wall time / gate depth / measurement budget of the Liu VQA compare to HHL and to other variational quantum linear solvers (VQLS, Bravo-Prieto et al.) on the same discretized Poisson instances?",
+      "basis": "The paper claims an O(log n) measurement cost via the {I, sigma_pm} decomposition combined with Bell measurements, but does not benchmark against HHL (which has known preconditioning and eigenvalue-inversion overheads) or against contemporaneous VQLS variants. This replication tested only the Liu algorithm in isolation on statevector; no comparative baseline was measured.",
+      "next_steps": [
+        "Implement HHL for the same A_m tridiagonal matrix on a statevector simulator up to m=5; count total gate count, T-depth, and measurement shots to reach fidelity 0.99.",
+        "Implement Bravo-Prieto VQLS with the same hardware-efficient ansatz used here and the same 20-restart optimizer for direct comparison.",
+        "Report cost as three numbers per algorithm per m: (a) two-qubit-gate depth, (b) circuit executions to reach 0.99, (c) classical optimizer iterations. Do not conflate the three.",
+        "Cross-check on a real device (or a realistic noise model) for m=3,4 where all three fit."
+      ]
+    },
+    {
+      "id": "OQ4",
+      "q": "Can the recursive 2m+1 decomposition of A_m be re-expressed in the standard Pauli basis with a similarly small count, and does that yield a smaller effective circuit depth once Bell measurement is compiled to physical gates?",
+      "basis": "Liu et al. deliberately use the {I, sigma+, sigma-} basis rather than the {I, X, Y, Z} Pauli basis, arguing it gives 2m+1 items for A vs. an unspecified count in the Pauli basis. The Pauli count for the tridiagonal (-1, 2, -1) matrix has not been minimized in either the paper or this replication. Since sigma_+ = (X + iY)/2 and sigma_- = (X - iY)/2, each sigma_+/sigma_- item becomes a sum of two Pauli terms, naively doubling the count -- but real / imaginary cancellations across the recursion may collapse it.",
+      "next_steps": [
+        "Take the 2m+1 items produced by decompose_A(m) and expand each into Pauli strings; collect like terms; measure the resulting count for m=1..8.",
+        "Compare 2m+1 (raw Liu count) vs. Pauli-collapsed count vs. Bell-measurement-block count when compiled to a fixed native gate set (e.g., {sqrt(iSWAP), 1-qubit}).",
+        "Report which basis wins on (a) number of distinct measurement bases, (b) total two-qubit gate count to prepare each measurement, (c) sample complexity to estimate <psi|A^2|psi> to +/- epsilon."
+      ]
+    },
+    {
+      "id": "OQ5",
+      "q": "How robust is the m=2..5 replicated performance (0.9955, 0.9958, 0.9955, 0.9917 fidelity) under realistic device noise -- depolarizing, dephasing, readout error at rates typical of current superconducting hardware -- and where does the fidelity fall below 0.9?",
+      "basis": "Statevector simulation (used here) is strictly stronger than the shot-based Bell measurement the paper's Eq. 20 was designed for. The paper argues the Bell-basis measurement trick keeps sample complexity manageable, but neither the paper nor this replication reports a noise-model sweep. Claim C5 (efficient Bell measurement of <X (x) A>) was explicitly not tested. Whether the algorithm survives typical NISQ noise at the m=5 threshold where it starts to matter (Rick Stevens' immediate scientific interest) is unknown.",
+      "next_steps": [
+        "Re-run m=2..5, p=p_min in Qiskit Aer or Cirq with a depolarizing channel at per-gate rates {1e-4, 1e-3, 5e-3} on all two-qubit gates.",
+        "Add readout error at rate {1e-3, 1e-2} and re-measure achievable fidelity.",
+        "Report fidelity(m, p, noise_rate) as a heatmap; identify the noise threshold at which the m=5 result drops from 0.99 to 0.9.",
+        "Compare shot budget to reach a converged fidelity estimate under the Bell-measurement protocol vs. naive Pauli-string estimation.",
+        "If a real device is available (IBM Quantum free tier), replicate m=3, p=2 on hardware and report against the noise-model prediction."
+      ]
+    }
+  ]
+}

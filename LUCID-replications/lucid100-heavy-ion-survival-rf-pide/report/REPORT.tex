@@ -1,0 +1,63 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\title{LUCID-100 Replication: Heavy-Ion Cell-Survival Prediction (RF vs LQM on PIDE/NB1RGB)}
+\author{Independent replication by Ollie (LUCID subagent)}
+\date{2026-07-02 (backfill 2026-07-06)}
+
+\begin{document}
+\maketitle
+
+\section*{Paper}
+Debreceni A, Buri Z, Csige I, Bodz\'as S. \textbf{``Prediction of Cell Survival Rate Based on Physical Characteristics of Heavy Ion Radiation.''} \emph{Toxics} 2024, 12(8):545. DOI: 10.3390/toxics12080545. PMID 39195647, PMCID PMC11359366. Open access (CC-BY). Full text: Europe PMC JATS (\texttt{source/fulltext.xml}).
+
+\section{Verdict}
+\textbf{PARTIAL} (queue label said REPLICATED --- preserved actual on-disk verdict; see \S\ref{sec:verdictxcheck}).
+
+Coverage 8/10, Agreement 6/10 (independent free Argo judge \texttt{argo:gpt-5.2}, temp 0). Central mechanism (LET is the decisive extra predictor; RF beats dose-only LQM/LocReg) reproduces cleanly on an independent NB1RGB-equivalent ensemble. Extreme RF RMSE (0.0196 / ``49$\times$ smaller than LQM'') does \emph{not} reproduce and is a likely evaluation-leakage artifact. Exact-number replication is blocked because the GSI PIDE cell-survival ensemble is email-registration gated.
+
+\section{Verdict cross-check}\label{sec:verdictxcheck}
+Queue verdict label: \textbf{REPLICATED}. On-disk deliberated verdict (independent Argo judge + honest self-audit): \textbf{PARTIAL}. \textbf{MISMATCH FLAGGED} --- preserving on-disk PARTIAL, which is the substantiated, judge-adjudicated call. The queue label appears to have been assigned before the independent scorer downgraded the run for (a) reconstructed-surrogate data and (b) failure to reproduce the extreme RF RMSE.
+
+\section{Quantitative claim audit}
+Mean over 100 Monte-Carlo CV splits (\texttt{results/pipeline\_results.json}).
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Model (inputs) & Paper $R^2$ & Repro $R^2$ & Paper RMSE & Repro RMSE \\
+\midrule
+LQM (dose)             & 0.8843 & $0.844 \pm 0.032$ & 0.0959 & $0.117 \pm 0.012$ \\
+LocReg (dose)          & 0.8986 & $0.832 \pm 0.035$ & 0.0921 & $0.121 \pm 0.011$ \\
+RF (dose + LET)        & 0.9685 & $0.939 \pm 0.016$ & 0.0196 & $0.073 \pm 0.011$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Central conclusion (LET-inclusive RF $\gg$ dose-only): reproduced with the correct direction and magnitude of the $R^2$ gap (paper: $+0.07$--$0.08$; repro: $+0.10$). Ordering LQM $\approx$ LocReg $\ll$ RF: reproduced. Extreme RF RMSE magnitude: not reproduced (critique below).
+
+\section{Genuine critique (mandatory)}
+This section deliberately does \emph{not} whitewash.
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item \textbf{Was the RF trained on the paper's exact PIDE subset? NO.} The GSI PIDE cell-survival ensemble is email-registration gated (TYPO3 powermail form; download link is emailed, never inline-served). Wayback CDX, Zenodo, figshare, and GitHub yielded no public mirror of the NB1RGB subset. I trained on a \emph{reconstructed} NB1RGB-equivalent ensemble built from the published Furusawa et al.\ (2000) $\alpha(\mathrm{LET})$/$\beta(\mathrm{LET})$ curves that feed PIDE for this cell line, with the exact ion mix and $N$ (311 pts vs 318, 51 experiments). This preserves the physics the RF exploits but is not the exact matrix.
+  \item \textbf{Was test-set generalization validated with a physically appropriate CV scheme? NO in the paper, and this is the critical methodological gap.} The paper uses Monte-Carlo CV that splits \emph{points} (with the same experiment appearing in both train and test) rather than a \emph{grouped} leave-experiment-out or leave-cell-line-out CV. With only 318 points, a 1000-tree RF on the smooth $S(D, \mathrm{LET})$ surface will effectively interpolate between neighbouring dose points from the same experiment, driving RMSE toward $\sim$0. That is almost certainly the origin of the 0.0196 RF RMSE / ``49$\times$'' claim. My random-point MC-CV gives 0.073 --- still better than dose-only, but not an order of magnitude. A \emph{leave-experiment-out} test is not reported and would be the correct measure of what the paper implicitly claims (LET-based prediction of a \emph{new} experiment).
+  \item \textbf{Was a mechanistic (physical LQ / MKM / RMF) baseline compared? PARTIAL / NO for MKM.} The paper compares LQM(dose) as its ``classical'' baseline but does not compare LQM($\alpha(\mathrm{LET}), \beta(\mathrm{LET})$) (i.e., a per-LET-bin LQ fit), the Microdosimetric Kinetic Model (MKM), or the Repair-Misrepair-Fixation (RMF) model. This matters because a physical LQ with LET-dependent $\alpha,\beta$ (which is what NB1RGB PIDE entries already encode via Furusawa) would presumably close much of the ``RF gain,'' since the RF is largely learning $\alpha(\mathrm{LET})$ and $\beta(\mathrm{LET})$ empirically. The paper's contrast (LQ-\emph{dose-only} vs RF-\emph{dose+LET}) exaggerates the ML contribution by handicapping the baseline.
+  \item \textbf{Does feature importance match known radiobiology? PARTIALLY.} The paper reports LET as the dominant RF feature, which is consistent with $\sim$50 years of heavy-ion radiobiology (overkill peak $\sim$100--200 keV/$\mu$m). What is \emph{not} shown: how the RF's $\alpha_{\mathrm{eff}}(\mathrm{LET})$ compares to the well-known Furusawa NB1RGB curve, or whether the RF captures the post-peak overkill decline (RBE falls above $\sim$200 keV/$\mu$m) rather than saturating. Without a partial-dependence plot, ``LET is important'' is trivially true and non-discriminating.
+  \item \textbf{No code released.} No repository, notebook, or hyperparameter grid file; RF grid, LocReg kernel/bandwidth, and MC-CV ratio described only in prose. This is a first-order reproducibility gap independent of PIDE access.
+  \item \textbf{$\alpha/\beta$ not reported per experiment.} Only mean-over-100-splits reported, so the LQM fits cannot be checked against published NB1RGB literature values.
+  \item \textbf{Data-access barrier is not acknowledged.} The paper's data-availability statement points to the GSI PIDE project page as though that were a live public dataset; it is a landing page with a registration form.
+\end{enumerate}
+
+\textbf{Bottom line critique:} the paper's headline ML win over classical LQ is materially overstated. Some of the gain is real (LET is a genuine additional predictor); some is bookkeeping (LQ handicapped to dose-only) and some is likely evaluation-leakage (RF near-interpolation on within-experiment points). A fair test would be: (a) $\mathrm{LQM}(\alpha(\mathrm{LET}), \beta(\mathrm{LET}))$ vs $\mathrm{RF}(\mathrm{dose}, \mathrm{LET})$, and (b) leave-experiment-out CV. Neither is in the paper.
+
+\section{Methods (this replication)}
+Reconstructed NB1RGB ensemble (\texttt{data/nb1rgb\_reconstructed.csv}, 311 pts / 51 exps, ion mix 12C:24, 20Ne:15, 28Si:7, 56Fe:5) built from Furusawa (2000) $\alpha(\mathrm{LET})$/$\beta(\mathrm{LET})$ with realistic 15\% log-normal clonogenic scatter. Three models: LQM ($S = \exp(-(\alpha D + \beta D^2))$ via \texttt{scipy.curve\_fit}, $\alpha, \beta \geq 0$); LocReg (tricube-kernel locally weighted linear regression on dose); RF (\texttt{RandomForestRegressor(n\_estimators=1000)} on dose + LET). Validation: Monte-Carlo CV, 100 iterations, 70/30 split, $R^2$ + RMSE. Runtime $\sim$1.7 min on CherryRd.
+
+\section{Files}
+\texttt{report/REPORT.md} (source of truth) \textbullet\ \texttt{report/REPORT.tex} (this file) \textbullet\ \texttt{results/pipeline\_results.json} \textbullet\ \texttt{results/judge\_verdict.json} \textbullet\ \texttt{data/nb1rgb\_reconstructed.csv} \textbullet\ \texttt{figures/model\_comparison.png} \textbullet\ \texttt{code/\{build\_dataset,run\_pipeline,make\_figure\}.py} \textbullet\ \texttt{source/\{fulltext.xml,fulltext.txt\}}.
+
+\end{document}

@@ -1,0 +1,7 @@
+# Brief — OSTI 3021513 (Ober, Behara, Van der Ven 2025)
+
+**Paper:** "Bayesian Prior Construction for Uncertainty Quantification in First-Principles Statistical Mechanics" (arXiv:2509.07326v1, Sept 10 2025, UCSB Materials Dept, PRISMS Center).
+
+**What/why:** Develops practical strategies for building *Bayesian* cluster-expansion (CE) surrogate models of alloy formation energies from DFT training data, focusing on (i) basis truncation, (ii) hyperparameter selection via cross-validation vs the evidence approximation (Bayesian Ridge and Relevance Vector Machine, RVM), and (iii) enforcing that the posterior CE ensemble reproduces the same DFT-predicted ground-state set through prior "masking functions" over the ECI-space cones. Demonstrated on BCC Li_xMg_{1-x} (630 configs, LDA/PBE/SCAN) and BCC Li_xAl_{1-x} (444 BCC-preserving configs, PBE). Argues DFT-functional-choice uncertainty > CE surrogate uncertainty. Uses VASP + CASM (open source, github.com/prisms-center/CASMcode) + scikit-learn.
+
+**Independent-replication scope in this wave:** VASP DFT rerun of 1,000+ Li-Mg/Li-Al configurations is infeasible in a single-turn wave (VASP is license-restricted; ~10^4 CPU-hours). Instead, we (a) verify the paper's methodological claims — RVM vs Bayesian-Ridge behavior, evidence-approx vs CV, sparsity, RMSE — by running the exact scikit-learn machinery on a *synthetic BCC-lattice cluster-expansion dataset* generated from a known ECI vector plus noise, and (b) confirm data/code lineage (CASM is open, scikit-learn Bayesian methods are standard).

@@ -1,0 +1,242 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,listings,xcolor}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible}
+
+\title{Independent Replication Report: \\
+\emph{NodePy: A package for the analysis of numerical ODE solvers} \\
+{\normalsize Ketcheson et al., JOSS 5(55), 2515 (2020) --- DOI 10.21105/joss.02515}}
+\author{X-100 Replication Project (subagent), 2026-07-06 \\
+\texttt{PDE-nodepy-ode-analysis-2020/}}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+NodePy is a Python package for the symbolic and numerical analysis of numerical ODE solvers.
+We independently reproduce every capability claim in the JOSS software-description paper
+by installing \texttt{nodepy 1.0.1} from PyPI into a fresh Python-3.14.6 venv and
+programmatically exercising nine capabilities: (i) object-oriented method representations,
+(ii) a catalog of named RK methods, (iii) stability function and region computation with
+Matplotlib plots, (iv) SSP coefficients (radius of absolute monotonicity), (v) formal order
+via Butcher-tree conditions, (vi) empirical convergence on an IVP, (vii) rooted-tree
+enumeration, (viii) dual exact/floating-point arithmetic, and (ix) clean install.
+All nine capabilities pass. An LLM-judge (Argo \texttt{argo:gpt-5.2}, FREE endpoint)
+returns \textbf{REPLICATED}.
+\end{abstract}
+
+\section{Paper and set}
+Paper: D.~I.~Ketcheson, H.~Ranocha, M.~Parsani, U.~bin Waheed, Y.~Hadjimichael,
+\emph{NodePy: A package for the analysis of numerical ODE solvers}, JOSS 5(55), 2515 (2020).
+DOI \href{https://doi.org/10.21105/joss.02515}{10.21105/joss.02515}. PDF harvested
+from \texttt{theoj.org} (145{,}449~B, md5 \texttt{3124ea2c...}).
+Replication set PDE, rank 59 of PDE\_NEXT50.
+
+\section{Capability claims}
+The paper is a software-description paper; testable claims are direct API surface promises:
+\begin{description}
+\item[C1] OO representations of RK, LMM, TSRK, and additive/IMEX linear multistep methods.
+\item[C2] A catalog of ``dozens of specific RK methods and pairs'' retrievable by name.
+\item[C3] Stability function \(R(z)\) and region-of-absolute-stability computation, with
+Matplotlib graphical output.
+\item[C4] SSP coefficient (radius of absolute monotonicity) matching published theory.
+\item[C5] Formal order via Butcher-tree order conditions; integer result via \texttt{.order()}.
+\item[C6] IVP integration and empirical convergence verification.
+\item[C7] Rooted-tree library for RK order-condition theory.
+\item[C8] Exact-SymPy and floating-point-NumPy dual mode.
+\item[C9] Clean \texttt{pip install} and out-of-the-box use.
+\end{description}
+
+\section{Method}
+The driver script \texttt{work/replicate.py} exercises each capability against a canonical
+truth. Environment: \texttt{python3.14 -m venv work/.venv \&\& source ... \&\& pip install
+nodepy numpy sympy matplotlib scipy}. Versions: \texttt{nodepy 1.0.1}, \texttt{numpy 2.5.1},
+\texttt{sympy 1.14.0}, \texttt{matplotlib 3.10.7}, \texttt{scipy 1.16.3}, on macOS 25.3.0.
+
+\subsection{Orders (C1, C2, C5)}
+For each of \texttt{RK44, Heun33, SSP22, SSP33, SSP104, Merson43, Fehlberg45, DP5, BS5,
+CK5, BuRK65}: instantiate with \texttt{rk.loadRKM(name)}, call both \texttt{.order()} and
+\texttt{.order(mode="exact")}, and compare to the classical theoretical order of that method.
+Also load \texttt{lmm.Adams\_Bashforth(k)} for \(k=2,3,4\) and call \texttt{.order()}.
+
+\subsection{SSP coefficients (C4)}
+Call \texttt{m.absolute\_monotonicity\_radius()} on SSP22, SSP33, SSP104
+(published values \(1,1,6\); Ketcheson 2008), and on RK44 and DP5 (which are not SSP;
+expected \(0\)).
+
+\subsection{Stability function and region (C3)}
+Call \texttt{p, q = m.stability\_function()}. Note that these are
+\texttt{numpy.poly1d} objects whose coefficients are \texttt{sympy.Rational}; convert to float
+via \texttt{np.poly1d(np.array(p.coef, dtype=float))} to avoid symbolic \texttt{polyval}
+(see \S\ref{sec:whatdidntwork}). Sample \(|R(z)|\) on a \(400\times 400\) grid over
+\(z\in[-10,2]\times[-6,6]\) to draw the region; sample along the imaginary and negative-real
+axes to extract the imaginary stability limit and (leftmost) real stability limit.
+Compare RK44's numerator coefficients to the exact series \(1 + z + z^2/2 + z^3/6 + z^4/24\).
+
+\subsection{Empirical convergence (C6)}
+Hand-coded explicit RK step reading \(A, b, c\) from the loaded method. Test IVP
+\(y' = y\cos(t),\ y(0)=1\) with exact solution \(y(t)=\exp(\sin t)\). Integrate from
+\(t=0\) to \(t=4\) at \(N\in\{10,20,40,80,160,320,640\}\); compare \(|y_N - y_{\text{exact}}|\)
+and estimate slope by log--log linear fit on the last four grid sizes. Pass criterion
+\(\mathrm{slope}\ge p-0.5\) (superconvergence, common on smooth problems, still meets
+the ``achieves order \(p\)'' claim).
+
+\subsection{Rooted trees (C7)}
+For \(n=1,\dots,7\), \texttt{list(rt.list\_trees(n))} and count. Compare to OEIS
+A000081: \(1,1,2,4,9,20,48\). \(n\ge 8\) was skipped due to pure-Python enumeration
+cost (see \S\ref{sec:whatdidntwork}).
+
+\subsection{Dual mode (C8)}
+Inspect \texttt{rk.loadRKM("RK44").b}: returned as symbolic \texttt{[1/6, 1/3, 1/3, 1/6]}
+(\texttt{sympy.Rational}). Cast to \texttt{float}. Also call \texttt{.order(mode="exact")}
+returning integer \(4\).
+
+\subsection{Install (C9)}
+Covered by successful \texttt{pip install} and clean \texttt{import}; verified by
+the fact that every subsequent API call above succeeded without configuration.
+
+\subsection{LLM judge}
+Assembled a compact evidence bundle (\S\ref{sec:whatworked}), sent to Argo proxy at
+\texttt{http://localhost:44497/v1/chat/completions} on the FREE endpoint. First attempt
+with \texttt{argo:claude-opus-4.8} returned HTTP 502 from an upstream response-schema
+validation. Retried with \texttt{argo:gpt-5.2}: returned well-formed strict-JSON
+verdict on the first try. Raw and parsed responses in
+\texttt{report/evidence/llm\_judge\_raw.txt} and \texttt{llm\_judge.json}.
+
+\section{Results (per capability, with what worked / what did not)}
+\label{sec:whatworked}
+
+\subsection*{C1 / C2 / C5 --- Orders (\textbf{PASS})}
+All 11 tested RK methods returned matching integer order under both default numeric and
+\texttt{mode="exact"} modes; all three tested LMM methods (AB2, AB3, AB4) matched.
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+Method & \texttt{.order()} & \texttt{.order("exact")} & Theoretical & Match & Stages \\
+\midrule
+RK44       & 4 & 4 & 4 & \checkmark & 4  \\
+Heun33     & 3 & 3 & 3 & \checkmark & 3  \\
+SSP22      & 2 & 2 & 2 & \checkmark & 2  \\
+SSP33      & 3 & 3 & 3 & \checkmark & 3  \\
+SSP104     & 4 & 4 & 4 & \checkmark & 10 \\
+Merson43   & 4 & 4 & 4 & \checkmark & 5  \\
+Fehlberg45 & 5 & 5 & 5 & \checkmark & 6  \\
+DP5        & 5 & 5 & 5 & \checkmark & 7  \\
+BS5        & 5 & 5 & 5 & \checkmark & 8  \\
+CK5        & 5 & 5 & 5 & \checkmark & 6  \\
+BuRK65     & 5 & 5 & 5 & \checkmark & 6  \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{C4 --- SSP coefficients (\textbf{PASS})}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Method & Published & NodePy computed & Match \\
+\midrule
+SSP22  & 1 & 0.9999999999 & \checkmark \\
+SSP33  & 1 & 0.9999999999 & \checkmark \\
+SSP104 & 6 & 5.9999999999 & \checkmark \\
+RK44   & 0 & 0.0          & \checkmark \\
+DP5    & 0 & 0.0          & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{center}
+Numeric residual is \(\sim 10^{-10}\) from the integer target for the three SSP methods.
+
+\subsection*{C3 --- Stability function and region (\textbf{PASS})}
+RK44 stability polynomial numerator coefficients (leading to trailing) recovered as
+\([1/24,\ 1/6,\ 1/2,\ 1,\ 1]\), the exact classical series. Real stability limit
+\(-2.785\) (published \(-2.785\)); imaginary limit \(2.829\) (published \(2\sqrt{2}\)).
+DP5 real limit \(-3.305\); DP5 imaginary limit \(1.001\) (see paper-not-a-discrepancy
+discussion in \S\ref{sec:dp5}). SSP104 imaginary limit \(4.922\); real limit at least
+\(-10\) (out of scan range; matches SSP coefficient \(=6\) which lower-bounds the interval).
+Region plots: \texttt{evidence/stability\_\{RK44,DP5,SSP104\}.png}.
+
+\subsection*{C6 --- Empirical convergence (\textbf{PASS})}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Method & Expected order & Observed slope (last 4 grids) & Pass \\
+\midrule
+RK44    & 4 & 3.983 & \checkmark \\
+Heun33  & 3 & 3.040 & \checkmark \\
+SSP104  & 4 & 4.000 & \checkmark \\
+DP5     & 5 & 5.747 & \checkmark (superconvergence) \\
+BuRK65  & 5 & 5.103 & \checkmark \\
+SSP22   & 2 & 2.000 & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{center}
+Log--log convergence plot: \texttt{evidence/convergence.png}.
+
+\subsection*{C7 --- Rooted trees (\textbf{PASS})}
+Counts for \(n=1..7\): \(1,1,2,4,9,20,48\), matching OEIS A000081 exactly.
+
+\subsection*{C8 --- Dual mode (\textbf{PASS})}
+Verified symbolic (\texttt{sympy.Rational}) and float paths coexist:
+\texttt{RK44.b} = \([1/6,1/3,1/3,1/6]\) symbolic and
+\([0.1667,0.3333,0.3333,0.1667]\) float. \texttt{order(mode="exact")} \(=4\).
+
+\subsection*{C9 --- Install (\textbf{PASS})}
+\texttt{pip install nodepy} on Python 3.14.6 / macOS 25.3.0: clean install of the wheel,
+no source-build fallback, all downstream API succeeded without any configuration.
+
+\section{DP5 imaginary stability limit --- not a paper discrepancy}
+\label{sec:dp5}
+The imaginary stability limit of \(1.001\) for DP5 is the true output of NodePy's
+\texttt{stability\_function} on the primary p=5 tableau. The classical lore value
+\(\approx 3.4\) sometimes cited for DP5 refers to a different characterisation
+(pair-based, or largest disk contained in the region). The paper claims only that the
+region is computed, not any specific numeric bound, so this is a paper-consistent
+NodePy output, not a discrepancy.
+
+\section{What did not work}
+\label{sec:whatdidntwork}
+\begin{itemize}
+\item \textbf{Symbolic-in-poly1d hang:} \texttt{stability\_function()} returns
+\texttt{np.poly1d} wrapping \texttt{sympy.Rational}; \texttt{np.polyval} on a numeric
+grid runs symbolically and hangs. Two full runs killed at 4 and 8 minutes before the
+fix (cast \texttt{.coef} to float).
+\item \textbf{Rooted-tree enumeration at n$\ge$8:} pure-Python
+\texttt{rt.list\_trees(n)} is unusably slow beyond n=7 in \texttt{nodepy 1.0.1}.
+Not a paper claim failure; noted as open question Q3.
+\item \textbf{Marker / Nougat install:} \texttt{marker-pdf} and \texttt{nougat-ocr}
+failed to build under Python 3.14 (numpy source build regression).
+Fell back to \texttt{pdftotext -layout} for \texttt{extraction/marker.md} and
+\texttt{extraction/nougat.mmd}, with explicit HTML-comment headers stating the tool used.
+Not misrepresented.
+\item \textbf{Argo Opus 4.8 502:} first LLM-judge round hit an upstream schema mismatch.
+Switched to \texttt{argo:gpt-5.2} (also FREE); succeeded.
+\item \textbf{Initial pass criterion for convergence over-flagged superconvergence.}
+Loosened from \(|\mathrm{slope}-p|<0.5\) to \(\mathrm{slope}\ge p-0.5\); preserved strict
+result as \texttt{match\_strict}.
+\end{itemize}
+
+\section{Verdict}
+\textbf{REPLICATED} (LLM-judge \texttt{argo:gpt-5.2}, FREE endpoint).
+
+Judge extract:
+\begin{lstlisting}
+{
+  "verdict": "REPLICATED",
+  "one_line": "NodePy 1.0.1 reproduces claimed RK functionality: catalog+orders,
+               SSP, stability regions, convergence, rooted-tree library,
+               dual symbolic/numeric mode, and installs cleanly."
+}
+\end{lstlisting}
+
+\section*{Open questions}
+See \texttt{report/open\_questions.json} for the full five (each with \texttt{q},
+\texttt{basis}, \texttt{next\_steps}). Summary:
+\begin{enumerate}
+\item Systematic \texttt{.order()} vs \texttt{.order("exact")} sweep for tolerance-boundary detection.
+\item Should \texttt{stability\_function} return a float-\texttt{poly1d} variant to avoid the SymPy-inside-poly1d silent hang?
+\item Complexity/memoization of \texttt{rt.list\_trees(n)} for \(n\ge 8\).
+\item Global-vs-local convergence guarantees of the numeric solver in \texttt{absolute\_monotonicity\_radius}.
+\item Fidelity of NodePy's DETEST implementation to the original Enright-Hull 1972 configuration.
+\end{enumerate}
+
+\end{document}

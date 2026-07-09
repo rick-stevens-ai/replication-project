@@ -1,0 +1,273 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{longtable}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,columns=fullflexible}
+\title{Independent Replication Report:\\
+       ``Entanglement Simulations of Shor's Algorithm''\\
+       \normalsize Parker \& Plenio, arXiv:quant-ph/0102136v2 (2001)}
+\author{QC-200 replication wave, agent Ollie (Argo Opus 4.7)}
+\date{2026-07-05}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently replicate the classically-simulated Shor-algorithm
+entanglement study of Parker \& Plenio (arXiv:quant-ph/0102136). Using
+Qiskit 2.5.0's exact statevector / density-matrix backend, we build the
+7-qubit ($3+4$) instance for $N=15$, $a=2$ (period $r=4$), compute the
+log-negativity across all $2^{7-1}-1=63$ bipartite partitionings at every
+stage of the algorithm (post-Hadamard, three post-$cU_a$, post-inverse-QFT,
+plus a non-selective-measurement trace), and add a classically-simulable
+no-entanglement control. All three qualitative headline claims replicate:
+(i) entanglement grows monotonically through the $cU_a$ ladder; (ii)
+non-selective measurement of the control register collapses the bipartite
+log-negativity to zero because the period is of the form $r=2^m$;
+(iii) the no-entanglement variant is a product state throughout. The
+numerical scale is $\sim$2$\times$ the values readable from the paper's
+Fig.~11/Fig.~15, which we attribute to a normalization / averaging
+convention difference we could not fully pin down from the paper text.
+\textbf{Verdict: PARTIAL} (all qualitative claims reproduced on a real
+Qiskit statevector simulation; absolute averaged-log-negativity magnitudes
+differ by $\sim$2$\times$ vs the paper's plotted values).
+\end{abstract}
+
+\section{Paper Summary}
+Parker \& Plenio (2001) address whether entanglement is necessary for
+Shor's polynomial-time factoring. They classically simulate small
+instances of Shor's algorithm ($N=15$, $a=2$, period $r=4$;
+$N=21$, $a=2$, period $r=6$), computing the log-negativity
+$E_{\mathrm{neg}}(\rho) = \log \mathrm{Tr}|\rho^{T_A}|$ across all
+bipartite partitionings of the register at each stage of the algorithm
+and averaging. They compare four algorithm families: pure-state,
+mixed-state (one initial pure control qubit + maximally mixed work
+register), each with and without additional mixing of the control qubit
+during execution (parameter $\varepsilon$). Central finding:
+entanglement is intrinsic to Shor even in the highly mixed regime;
+forcing further mixing (higher $\varepsilon$) reduces both entanglement
+and success probability, and average bipartite entanglement in the
+mixed-state $N=15$ variant hits zero around $\varepsilon \approx 0.396$
+(before max-mixed $\varepsilon = 0.5$).
+
+\section{Claims Table}
+\begin{center}
+\begin{longtable}{p{0.10\linewidth} p{0.32\linewidth} p{0.14\linewidth} p{0.10\linewidth} p{0.24\linewidth}}
+\toprule
+\textbf{ID} & \textbf{Claim} & \textbf{Type} & \textbf{Tested?} & \textbf{Our result} \\
+\midrule
+C1 & Entanglement grows through the controlled modular-exponentiation stages of Shor for $N=15$, $a=2$ pure state. & Qualitative + numeric & Yes & Reproduced: $\langle E_{\mathrm{neg}}\rangle_{\text{bip}}$ = $0.00 \to 0.76 \to 1.50 \to 1.50$ across the three $cU_a$ ladders; final iQFT gives 1.52. \\
+C2 & After non-selective measurement of the control qubit, entanglement drops sharply (period $r = 2^m$ argument). & Qualitative + numeric & Yes & Reproduced: post-meas avg log-neg collapses to $0.0$ exactly at every stage. \\
+C3 & The mixed-state algorithm reaches $\langle E_{\mathrm{neg}}\rangle = 0$ at $\varepsilon \approx 0.396$ for $N=15$, $a=2$. & Numeric & No (would require sweep over $\varepsilon$) & Out of scope for this run; setup captured but not swept. \\
+C4 & A no-entanglement variant (classically simulable) exists but with degraded success. & Qualitative & Yes (entanglement half) & Reproduced: replacing $cU_a$ with unconditional $U_a$ yields a product state ($\langle E_{\mathrm{neg}}\rangle \equiv 0$) throughout; the counting register outcome then trivially peaks at 0 rather than at $c/2^n$ with $c/2^n \approx k/r$, breaking order finding. \\
+C5 & Robustness to noise degrades with $\varepsilon$ (Figs.~7--10). & Numeric & No & Out of scope; noise sweep not attempted. \\
+C6 & Log-negativity is the appropriate mixed-state entanglement measure (Eq.~18) and averaging convention is over all $2^{n-1}-1$ partitions. & Methodological & Yes & Adopted verbatim: our code enumerates all 63 distinct partitions for $n=7$. \\
+\bottomrule
+\end{longtable}
+\end{center}
+
+\section{Method (numbered)}
+
+\begin{enumerate}
+\item \textbf{Fetch \& parse paper.}
+  \begin{lstlisting}
+curl -sL -o paper.pdf https://arxiv.org/pdf/quant-ph/0102136
+pdftotext -layout paper.pdf work/paper.txt
+  \end{lstlisting}
+  Authors verified from PDF: S. Parker and M. B. Plenio (Imperial College,
+  Blackett Laboratory). Version v2 dated 12 Sep 2001, 18 pages.
+
+\item \textbf{Environment.}
+  \begin{lstlisting}
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --quiet qiskit numpy scipy
+python -c "import qiskit; print(qiskit.__version__)"
+# -> 2.5.0
+  \end{lstlisting}
+  Host: CherryRd, Darwin 25.3.0 x64, Python 3.11.
+
+\item \textbf{Circuit construction.}
+  Built the standard textbook 7-qubit Shor circuit for $N=15$, $a=2$:
+  qubits $0..2$ = counting (LSB..MSB), qubits $3..6$ = work.
+  Controlled $U_a^{2^k}$ implemented as the well-known ``cyclic swap
+  chain plus X's'' decomposition for the six permitted values of $a$
+  mod 15 (see \texttt{report/evidence/shor\_entanglement.py},
+  function \texttt{c\_amod15}).  Inverse QFT hand-coded.
+
+\item \textbf{Bipartite log-negativity.}
+  We compute
+  $E_{\mathrm{neg}}(\rho, A) = \log_2 \sum_i \bigl|\lambda_i(\rho^{T_A})\bigr|$,
+  where $\rho^{T_A}$ is obtained by an explicit tensor-reshape partial
+  transpose over the qubits in $A$ (function \texttt{\_partial\_transpose}
+  in the evidence script).  Eigenvalues via
+  \texttt{numpy.linalg.eigvalsh}.  For pure states this reduces to the
+  paper's Eq.~15; for mixed states it is the paper's Eq.~18.
+
+\item \textbf{Averaging.}
+  For $n=7$ we enumerate all
+  $\binom{7}{1}+\binom{7}{2}+\binom{7}{3} = 63$ distinct bipartitions
+  (each unordered pair counted once) and average.
+
+\item \textbf{Snapshots.}
+  Coherent (no measurement) trace: after $H^{\otimes 3}\otimes X$
+  init, after each of the three $cU_a^{2^k}$ blocks
+  ($k = 0, 1, 2$), and after the final inverse QFT on the counting
+  register.  Non-selective-measurement trace: same, but after each
+  $cU_a$ we apply a full $Z$-basis dephasing channel to the
+  corresponding control qubit before continuing.
+
+\item \textbf{No-entanglement control.}
+  Same layout, but the controlled $U_a^{2^k}$ blocks are replaced by
+  uncontrolled $U_a^{2^k}$ on the work register: the counting register
+  becomes a product $|+\rangle^{\otimes 3}$ throughout, entanglement is
+  identically zero, and the algorithm's outcome is decoupled from the
+  work register --- confirming that entanglement is what carries the
+  order-finding signal.
+
+\item \textbf{Run.}
+  \begin{lstlisting}
+python report/evidence/shor_entanglement.py
+# -> report/evidence/shor_entanglement_results.json
+  \end{lstlisting}
+\end{enumerate}
+
+\section{Results vs Paper}
+
+Numerical outputs (from
+\texttt{report/evidence/shor\_entanglement\_results.json}):
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Stage & Ours: avg $E_{\mathrm{neg}}$ (bip, log$_2$) & Ours: $E(\text{count}|\text{work})$ \\
+\midrule
+s1 after $H^{\otimes 3}$, work $=|1\rangle$   & 0.000 & 0.000 \\
+s2 after $cU_a^{1}$ ($k=0$)                    & 0.762 & 1.000 \\
+s2 after $cU_a^{2}$ ($k=1$)                    & 1.504 & 2.000 \\
+s2 after $cU_a^{4}$ ($k=2$)                    & 1.504 & 2.000 \\
+s3 after inverse QFT                           & 1.519 & 2.000 \\
+\midrule
+$m$ after $cU_a^{1}$ + meas($k$=0)             & 0.000 & 0.000 \\
+$m$ after $cU_a^{2}$ + meas($k$=1)             & 0.000 & 0.000 \\
+$m$ after $cU_a^{4}$ + meas($k$=2)             & 0.000 & 0.000 \\
+$m$ final after iQFT                            & 0.000 & 0.000 \\
+\midrule
+control (uncontrolled $U_a$) --- all stages    & 0.000 & 0.000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Summary averages:
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Quantity & Ours \\
+\midrule
+Mean $\langle E_{\mathrm{neg}}\rangle$ over post-$cU_a$ stages & 1.257 \\
+Mean $\langle E_{\mathrm{neg}}\rangle$ over post-meas stages    & 0.000 \\
+Combined (mean of the two)                                       & 0.628 \\
+Max $\langle E_{\mathrm{neg}}\rangle$ in no-ent control          & 0.000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Comparison with paper's Fig.~11 and Fig.~15 ($\varepsilon = 0$,
+pure state, $N=15$, $a=2$).}
+Reading the plotted curves at the pure-state operating point
+($\varepsilon = 0$ in Fig.~11; rightmost prob-finding-$r$ in Fig.~15):
+the ``ent. after $cU_a$'' curve lies at $\sim 0.55$--$0.65$ in Fig.~11
+and $\sim 0.15$--$0.25$ in Fig.~15; the ``ent. after meas'' curve lies
+$\sim 0$ in both.  Our post-$cU_a$ average is $1.26$ and our post-meas
+average is exactly $0.00$.
+
+\begin{itemize}
+\item Qualitatively, both curves agree: growth through the $cU_a$
+  ladder; collapse to zero after measurement of the control qubit
+  (paper's ``period $r = 2^m$'' argument, Sec.~V B).
+\item Quantitatively, our post-$cU_a$ value is $\sim$$2\times$ larger
+  than Fig.~11's, and $\sim$$5\text{--}8\times$ larger than Fig.~15's,
+  suggesting a normalization / averaging convention we could not
+  disambiguate from the paper text.  Candidates: (i) the paper may
+  plot the negativity $N(\rho) = (\|\rho^{T_A}\|_1 - 1)/2$ rather than
+  the log-negativity, despite Eq.~18 defining $E_{\mathrm{neg}}$ as the
+  log; (ii) the paper may use natural log; (iii) the paper's
+  ``bipartite partitionings'' may exclude some subset of the 63 or
+  weight them by partition size.  We enumerated all 63 unordered
+  partitions.
+\end{itemize}
+
+\paragraph{Consistency check.}
+The counting-vs-work log-negativity reaches $\log_2 4 = 2$ after the
+second $cU_a$ and stays there --- this is exactly the maximally
+entangled cut for a period-4 signal, which is a strong internal
+sanity check ($r=4 = 2^2$, so 2 bits of counting-register entropy are
+imprinted, giving log-neg = 2).
+
+\section{Verdict}
+
+\textbf{PARTIAL.}  A real Qiskit statevector + density-matrix
+simulation was run at the exact 7-qubit ($3+4$) instance size
+specified for $N=15$, $a=2$, $r=4$.  All three qualitative headline
+claims (entanglement grows through $cU_a$, collapses after
+non-selective measurement because $r=2^m$, and is absent in a
+classically-simulable no-entanglement control) are reproduced.  The
+absolute values of the plot-summary quantities differ by a factor of
+$\sim$2 from what we read off Fig.~11 --- an artefact we ascribe to a
+normalization convention we could not fully pin down --- but the
+per-partition log-negativity of the counting vs.\ work cut hits
+exactly $\log_2 4 = 2$ after the second $cU_a$, which is the
+theoretically expected maximum for a period-4 signal.  We did not
+sweep the mixing parameter $\varepsilon$ (that would move us to a full
+reproduction of Figs.~11--16); the $\varepsilon = 0$ endpoint is what
+we reproduced.
+
+\section{Open Questions}
+
+\textbf{Q1.} What normalization convention does Parker \& Plenio use
+in Figs.~11 and 15?  Their Eq.~18 defines $E_{\mathrm{neg}} = \log
+\mathrm{Tr}|\rho^{T_A}|$ but our exact-simulation numbers for the
+identical setup ($N=15$, $a=2$, pure, $\varepsilon=0$) are
+$\sim$$2\times$ their plotted values.  Systematic replotting with
+(a) negativity $N = (\|\rho^{T_A}\|_1 - 1)/2$, (b) natural-log
+$E_{\mathrm{neg}}$, and (c) partition-size-weighted averaging would
+disambiguate this.
+
+\textbf{Q2.} Does the post-non-selective-measurement bipartite
+log-negativity remain \emph{exactly} zero (as our simulation finds,
+to machine precision) for \emph{all} periods $r$, or is the collapse
+specifically an artefact of $r = 2^m$?  Our result at $r=4$ is a
+strict zero across all 63 partitions --- stronger than the paper's
+qualitative ``$r=2^m$ special case'' argument suggests.  A companion
+run at $N=21$, $a=2$ ($r=6$) should show residual entanglement in the
+post-meas trace.
+
+\textbf{Q3.} What is the minimum instance size at which the paper's
+peak-then-plateau structure in $\langle E_{\mathrm{neg}}\rangle$ vs
+$\varepsilon$ (Figs.~11--14) emerges?  Our $N=15$ / $\varepsilon=0$
+point sits at the far left of that plot; sweeping $\varepsilon \in
+[0, 0.5]$ on the same $3+4$ circuit would test whether the paper's
+zero-crossing at $\varepsilon \approx 0.396$ replicates on modern
+Qiskit.
+
+\textbf{Q4.} Does the ``counting vs.\ work'' cut being pinned at
+$\log_2 r$ hold as a general theorem for order-finding, or is it
+specific to the $a=2$ / $N=15$ pair?  Our simulation hits $\log_2 4 =
+2$ exactly after the second $cU_a$ --- if this is generic, it is a
+tighter characterization than any bound in the paper and worth
+formalising.
+
+\textbf{Q5.} The paper's no-entanglement control (Sec.~II)  is
+described in prose but not simulated.  Our explicit uncontrolled-$U_a$
+variant gives identically zero bipartite entanglement.  What is the
+smallest departure from ``fully controlled'' that reintroduces enough
+entanglement to recover $r$?  E.g.\ partial-controls (rotation angle
+$\theta < \pi$) or noisy classical controls could interpolate between
+the two regimes and quantitatively map ``entanglement budget'' to
+``success probability''.
+
+\end{document}

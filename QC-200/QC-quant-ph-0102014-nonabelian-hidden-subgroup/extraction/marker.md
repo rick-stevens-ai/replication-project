@@ -1,0 +1,598 @@
+<!--
+FALLBACK PARSE — Marker was not available in this environment (marker-pdf install
+failed on Python 3.14 due to a numpy metadata build error, see report/failure_analysis.md).
+This file contains the pdftotext (Poppler) rendering of the paper preserved verbatim
+so that downstream tooling that expects extraction/marker.md still has structured text
+to consume. Layout is per-column reflow (no `-layout` flag) which is closer in shape to
+what Marker would emit than the raw layout dump we save as nougat.mmd.
+-->
+
+Efficient quantum algorithms for some instances of the non-Abelian
+hidden subgroup problem∗
+
+arXiv:quant-ph/0102014v1 2 Feb 2001
+
+Gábor Ivanyos†
+
+Frédéric Magniez‡
+
+Miklos Santha§
+
+October 15, 2018
+
+Abstract
+In this paper we show that certain special cases of the hidden subgroup problem can be solved
+in polynomial time by a quantum algorithm. These special cases involve finding hidden normal
+subgroups of solvable groups and permutation groups, finding hidden subgroups of groups with
+small commutator subgroup and of groups admitting an elementary Abelian normal 2-subgroup
+of small index or with cyclic factor group.
+
+1
+
+Introduction
+
+A growing trend in recent years in quantum computing is to cast quantum algorithms in a group
+theoretical setting. Group theory provides a unifying framework for several quantum algorithms,
+clarifies their key ingredients, and therefore contributes to a better understanding why they can,
+in some context, be more efficient than the best known classical ones.
+The most important unifying problem of group theory for the purpose of quantum algorithms
+turned out to be the hidden subgroup problem (HSP) which can be cast in the following broad
+terms. Let G be a finite group (given by generators), and let H be a subgroup of G. We are given
+(by an oracle) a function f mapping G into a finite set such that f is constant and distinct on
+different left cosets of H, and our task is to determine the unknown subgroup H.
+While no classical algorithm is known to solve this problem in time faster than polynomial
+in the order of the group, the biggest success of quantum computing until now is that it can be
+solved by a quantum algorithm efficiently, which means in time polynomial in the logarithm of the
+order of G, whenever the group is Abelian. The main tool for this solution is the (approximate)
+quantum Fourier transform which can be efficiently implemented by a quantum algorithm [17].
+Simon’s algorithm for finding an xor-mask [26], Shor’s seminal factorization and discrete logarithm
+finding algorithms [25], Boneh and Lipton’s algorithm for finding hidden linear functions [6] are
+all special cases of this general solution, as well as the algorithm of Kitaev [17] for the Abelian
+stabilizer problem, which was the first problem set in a general group theoretical framework. That
+all these problems are special cases of the HSP, and that an efficient solution comes easily once
+an efficient Fourier transform is at our disposal, was realized and formalized by several people,
+∗
+
+Research partially supported by the EU 5th framework programs QAIP IST-1999-11234, and RAND-APX, IST1999-14036, by OTKA Grant No. 30132, and by an NWO-OTKA grant.
+†
+
+Computer and Automation Institute, Hungarian Academy of Sciences, Lágymányosi u. 11., H-1111 Budapest,
+Hungary, e-mail: Gabor.Ivanyos@sztaki.hu.
+‡
+CNRS–LRI, UMR 8623 Université Paris–Sud, 91405 Orsay, France, e-mail: magniez@lri.fr.
+§
+CNRS–LRI, UMR 8623 Université Paris–Sud, 91405 Orsay, France, e-mail: santha@lri.fr.
+
+1
+
+including Brassard and Høyer [7], Mosca and Ekert [22] and Jozsa [15]. An excellent description of
+the general solution can be found for example in Mosca’s thesis [21].
+Addressing the HSP in the non-Abelian case is considered to be the most important challenge
+at present in quantum computing. Beside its intrinsic mathematical interest, the importance of this
+problem is enhanced by the fact that it contains as special case the graph isomorphism problem.
+Unfortunately, the non-Abelian HSP seems to be much more difficult than the Abelian case, and
+although considerable efforts were spent on it in the last years, only limited success can be reported.
+Rötteler and Beth [24] have presented an efficient quantum algorithm for the wreath products
+Zk2 ≀ Z2 . In the case of the dihedral groups, Ettinger and Høyer [9] designed a quantum algorithm
+which makes only O(log |G|) queries. However, this doesn’t make their algorithm efficient since
+the (classical) post-processing stage of the results of the queries is done in exponential time in
+O(log |G|). Actually, this result was extended by Ettinger, Høyer and Knill [10] in the sense
+that they have shown that in any group, with only O(log |G|) queries to the oracle, sufficiently
+statistical information can be obtained to solve the the HSP. However, it is not known how to
+implement efficiently these queries, and therefore even the “quantum part” of their algorithm is
+remaining exponential. Hallgren, Russel and Ta-Shma [14] proved that the generic efficient quantum
+procedure for the HSP in Abelian groups works also for non-Abelian groups to find any normal
+subgroup, under the condition that the Fourier transform on the group can efficiently be computed.
+Grigni, Schulman, Vazirani and Vazirani could show that the HSP is solvable efficiently in groups
+where the intersection of the normalizers of all subgroups is large [12]. A recent survey on the
+status of the non-Abelian HSP problem was realized by Jozsa [16].
+In a somewhat different line of research, recently several group theoretical problems have been
+considered in the context of black-box groups. The notion of black-box groups has been introduced
+by Babai and Szemerédi in [2]. In this model, the elements of a group G are encoded by words over
+a finite alphabet, and the group operations are performed by an oracle (the black box). The groups
+are assumed to be input by generators, and the encoding is not necessarily unique. There has
+been a considerable effort to develop classical algorithms for computations with them [5, 3, 20], for
+example to identify the composition factors (especially the non-commutative ones). Efficient blackbox algorithms give rise automatically to efficient algorithms whenever the black-box operations can
+be replaced by efficient procedures. Permutation groups, matrix groups over finite fields and even
+finite matrix groups over algebraic number fields fit in this model. In particular, Watrous [27] has
+recently considered solvable black-box groups in the restricted model of unique encoding, and using
+some new quantum algorithmical ideas, he could construct efficient quantum algorithms for finding
+composition series, decomposing Abelian factors, computing the order and testing membership in
+these groups.
+In this paper we will focus on the HSP, and we will show that it can be solved in polynomial
+time in several black-box groups. In particular, we will present efficient quantum algorithms for
+this problem for groups with small commutator subgroup and for groups having an elementary
+Abelian normal 2-subgroup of small index or with cyclic factor group. Our basic ingredient will be
+a series of deep algorithmical results of Beals and Babai from classical computational group theory.
+Indeed, in [5] they have shown that, up to certain computationally difficult subtasks – the so-called
+Abelian obstacles – such as factoring integers and constructive membership test in Abelian groups
+many problems related to the structure of black-box groups, such as finding composition series, can
+be solved efficiently for groups without large composition factors of Lie type, and in particular, for
+solvable groups. As quantum computers can factor integers and take discrete logarithms, and, more
+generally, perform the constructive membership test in Abelian groups efficiently, one expects that
+a large part of the Beals–Babai algorithms can be efficiently implemented by quantum algorithms.
+2
+
+Indeed, the above results of Watrous partly fulfill this task, although his algorithms are not using
+the Beals–Babai algorithms. Here we will describe efficient quantum implementations of some of
+the Beals–Babai algorithms. It turns out, that beside paving the way for solving the HSP in the
+groups mentioned previously, these implementations give also almost “for free” efficient solutions
+for finding hidden normal subgroups in many cases, including solvable groups and permutation
+groups.
+The rest of the paper is structured as follows. In Section 2 we review the necessary definitions
+about black-box groups in the quantum computing framework, and will summarize the most important results about Abelian and solvable groups. In Section 3 we state the result of Beals and Babai
+and Corollary 5 which makes explicit two hypotheses (disposability of oracles for order computing
+and for constructive membership test in elementary Abelian subgroups) under which the algorithms
+have efficient quantum implementations. Section 4 deals with these quantum implementations in
+the following cases: unique encoding (Theorem 6), modulo a hidden normal subgroup (Theorem
+7) and modulo a normal subgroup given by generators in case of unique encoding (Theorem 10).
+As a consequence, we can derive the efficient quantum solution for the normal HSP in solvable and
+permutation groups without any assumption on computability of noncommutative Fourier transforms (Theorem 8). Section 5 contains the efficient algorithm for the HSP for groups with small
+commutator subgroup (Theorem 11), and Section 6 for groups having an elementary Abelian
+normal 2-subgroup of small index or with cyclic factor group (Theorem 13).
+
+2
+
+Preliminaries
+
+In order to achieve sufficiently general results we shall work in the context of black-box groups.
+We will suppose that the elements of the group G are encoded by binary strings of length n for
+some fixed integer n, what we call the encoding length. The groups will be given by generators,
+and therefore the input size of a group is the product of the encoding length and the number of
+generators. Note that the encoding of group elements need not to be unique, a single group element
+may be represented by several strings. If the encoding is not unique, one also needs an oracle for
+identity tests. Typical examples of groups which fit in this model are factor groups G/N of matrix
+groups G, where N is a normal subgroup of G such that testing elements of G for membership
+in N can be accomplished efficiently. Also, every binary string of length n does not necessarily
+corresponds to a group element. If the black box is fed such a string, its behavior can be arbitrary
+on it.
+Since we will deal with black-box groups we shall shortly describe them in the framework of
+quantum computing (see also [21] or [27]). For a general introduction to quantum computing the
+reader might consult [13] or [23]. We will work in the quantum Turing machine model. For a group
+G of encoding length n, the black-box will be given by two oracles UG and its inverse UG−1 , both
+operating on 2n qubits. For any group elements g, h ∈ G, the effect of the oracles is the following:
+UG |gi|hi = |gi|ghi,
+and
+UG−1 |gi|hi = |gi|g −1 hi.
+The quantum algorithms we consider might make errors, but the probability of making an error
+should be bounded by some fixed constant 0 < ε < 1/2.
+Let us quote here two basic results about quantum group algorithms respectively in Abelian
+and in solvable black-box groups.
+3
+
+Theorem 1 (Cheung and Mosca [8]). Assume that G is an Abelian black-box group with unique
+encoding. Then the decomposition of G into a direct sum of cyclic groups of prime power order can
+be computed in time polynomial in the input size by a quantum algorithm.
+Theorem 2 (Watrous [27]). Assume that G is a solvable black-box group with unique encoding.
+Then computing the order of G and testing membership in G can be solved in time polynomial in
+the input size by a quantum algorithm. Moreover,
+it is possible to produce a quantum state that
+P
+approximates the pure state |Gi = |G|−1/2 g∈G |gi with accuracy ε (in the trace norm metric) in
+time polynomial in the input size + log(1/ε).
+When we address the HSP, we will suppose that a function f : {0, 1}n → {0, 1}m is given by
+an oracle, such that for some subgroup H ≤ G the function f is constant on the left cosets of H
+and takes different values on different cosets. We will say that f hides the subgroup H. The goal
+is to find generators for H in time polynomial in the size of G and m, that is we assume that m
+is also part of the input in unary. The following theorem resumes the status of this problem when
+the group is Abelian.
+Theorem 3 (Mosca [21]). Assume that G is an Abelian black-box group with unique encoding.
+Then the hidden subgroup problem can be solved in time polynomial in the input size by a quantum
+algorithm.
+
+3
+
+Group algorithms
+
+In [5] Beals and Babai described probabilistic Las Vegas algorithms for several important tasks
+related the structure of finite black-box groups. In order to state their result, we will need some
+definitions, in particular the definition of the parameter ν(G), where G is any group.
+Let us recall that a composition series of a group G is a sequence of subgroups G = G1 ✄ G2 ✄
+. . . ✄ Gt = 1 such that each Gi+1 is a proper normal subgroup in Gi , and the factor groups Gi /Gi+1
+are simple. The factors Gi /Gi+1 are called the composition factors of G. It is known that the
+composition factors of G are – up to order, but counted with multiplicities – uniquely determined
+by G. Beals and Babai define the parameter ν(G) as the smallest natural number ν such that every
+non-Abelian composition factor of G possesses a faithful permutation representation of degree at
+most ν.
+By definition, for a solvable group G the parameter ν(G) equals 1. Also, representation-theoretic
+results of [11] and [18] imply that ν(G) is polynomially bounded in the input size in many important
+special cases, such as permutation groups or even finite matrix groups over algebraic number fields.
+The constructive membership test in Abelian subgroups is the following problem. Given pairwise
+commuting group elements h1 , . . . , hr , g of a non necessarily commutative group, either express g as
+a product of powers of the hi ’s or report that no such expression exists. Babai and Szemerédi have
+shown in [2] that under some group operations oracle this problem cannot be solved in polynomial
+time by classical algorithms. This test is usually required only for elementary Abelian groups, that
+is groups which are isomorphic to Znp for some prime p and integer n.
+We can now quote part of the main results of [5].
+Theorem 4. (Beals and Babai [5], Theorem 1.2) Let G be a finite black-box group with not
+necessarily unique encoding. Assume that the followings are given:
+(a) a superset of the primes dividing the order of G,
+4
+
+(b) an oracle for taking discrete logarithms in finite fields of size at most |G|,
+(c) an oracle for the constructive membership tests in elementary Abelian subgroups of G.
+Then the following tasks can be solved by Las Vegas algorithms of running time polynomial in the
+input size + ν(G):
+(i) test membership in G,
+(ii) compute the order of G and a presentation for G,
+(iii) find generators for the center of G,
+(iv) construct a composition series G = G1 ✄ G2 ✄ . . . ✄ Gt = 1 for G, together with nice representations of the composition factors Gi /Gi+1 ,
+(v) find Sylow subgroups of G.
+A presentation of G is a sequence g1 , . . . , gs of generator elements for G, together with a set of
+group expressions in variables x1 , . . . , xs , called the relators, such that g1 , . . . , gs generate G and
+the kernel of the homomorphism from the free group F (x1 , . . . , xs ) onto G sending xi to gi is the
+smallest normal subgroup of F (x1 , . . . , xs ) containing the relators. We remark that the generators
+in the presentation may differ from the original generators of G.
+A nice representation of a factor Gi /Gi+1 means a homomorphism from Gi with kernel Gi+1
+to either a permutation group of degree polynomially bounded in the input size + ν(G) or to Zp
+where p is a prime dividing |G|. Of course, if G is solvable one can insist that the representations
+of all the cyclic factors be of the second kind.
+It turns out that for some of the tasks in the hypotheses of Theorem 4 there are efficient
+quantum algorithms. By Shor’s results [25], the oracle for computing discrete logarithms can be
+implemented by a polynomial time quantum algorithm. Also, a superset of the primes dividing
+|G| can be obtained in polynomial time by quantum algorithms in the most natural cases. For
+example, if G is a matrix group over a finite field, say G ≤ GL(n, q) then such a superset can be
+obtained by factoring the number (q n − 1)(q n − q) · · · (q n − q n−1 ), the order of the group GL(n, q).
+The same method works even for factors of matrix groups over finite fields. If G is (a factor of) a
+finite matrix group of characteristic zero, then the situation is even better because in that case the
+prime divisors of G are of polynomial size. But in any case, one can note that the superset of the
+primes dividing the order of G is only used in Theorem 4 to compute (and factorize) the orders of
+elements of G as well as those of matrices over finite fields of size at most |G|. This latter task can
+also be achieved by a quantum algorithm in polynomial time.
+In addition, we remark that the algorithm for testing membership can be understood in a
+stronger, constructive sense, (see Section 5.3 in [4]), which is the proper generalization of the
+constructive membership test in the Abelian case. For this we need the notion of a straight line
+program on a set of generators. This is a sequence of expressions e1 , . . . , es where each ei is either
+of the form xi := h where h is a member of the generating set or of the form xi = xj x−1
+k where
+0 < j, k < i. It turns out that for elements g of G one can also require that a straight line program
+expressing g in terms of the generators be returned. Therefore, one can immediately derive from
+Theorem 4 the following result.
+Corollary 5. Let G be a finite black-box group with not necessarily unique encoding. Assume that
+the following are given:
+5
+
+(a) an oracle for computing the orders of elements of G,
+(b) an oracle for the constructive membership tests in elementary Abelian subgroups of G.
+Then the following tasks can be solved by quantum algorithms of running time polynomial in the
+input size + ν(G):
+(i) constructive membership test in G,
+(ii)–(v) as in Theorem 4.
+
+4
+
+Quantum implementations
+
+In this section we will discuss several cases when the remaining tasks in the hypotheses of Corollary 5
+can also be efficiently implemented by quantum algorithms.
+
+4.1
+
+Unique encoding
+
+If we have a unique encoding for the elements of the black-box group G then we can use Shor’s order
+finding method. As we will show, in that case there is also an efficient quantum algorithm for the
+constructive membership test in elementary (and non-elementary) Abelian subgroups. Therefore
+we will get the following result.
+Theorem 6. Assume that G is a black-box group with unique encoding. Then, each of the tasks
+listed in Corollary 5 can be solved in time polynomial in the input size + ν(G) by a quantum algorithm..
+Proof. Let us prove that task (b) in Corollary 5 can be solved efficiently by a quantum algorithm. In
+fact, we can reduce the test to an instance of the Abelian hidden subgroup problem as follows. First,
+we compute the orders of the underlying elements (see [21] for example). Let the orders of h1 , . . . , hr
+and g be s1 , . . . , sr and s, respectively. Then for a tuple (α1 , . . . , αr , α) from Zs1 × · · · × Zsr × Zs , set
+φ(α1 , . . . , αr , α) = hα1 1 · · · hαr r g−α . Clearly φ is a homomorphism from Zs1 × · · · × Zsr × Zs into G,
+therefore this is an instance of the Abelian hidden subgroup problem, and its kernel can be found
+in polynomial time by a quantum algorithm. The kernel contains an element the last coordinate of
+which is relatively prime to s if and only if g is representable as a product of powers of hi ’s. Also,
+from such an element an expression for g in the desired form can be constructed efficiently.
+This result generalizes the order finding algorithm of Watrous (Theorem 2 in [27]) for solvable
+groups. Also note that, even if G is solvable, the way how quantum algorithms are used here is
+slightly different from that of Watrous.
+
+4.2
+
+Hidden normal subgroup
+
+Assume now that G is a black-box group with an encoding which is not necessarily unique, and N
+is a normal subgroup of G given as a hidden subgroup via the function f. We use the encoding of G
+for that of G/N . The function f gives us a secondary encoding for the elements of G/N . Although
+we do not have a machinery to multiply elements in the secondary encoding, Shor’s order-finding
+algorithm and even the treatment of the constructive membership test outlined above are still
+applicable.
+
+6
+
+Theorem 7. Assume that G is a black-box group with not necessarily unique encoding. Suppose
+that N is a normal subgroup given as a hidden subgroup of G. Then all the tasks listed in Corollary 5
+for G/N can be solved by quantum algorithms in time polynomial in the input size + ν(G/N ).
+Proof. The proof is similar to the one of Theorem 6, where φ(α1 , . . . , αr , α) = f (hα1 1 · · · hαr r g −α ) is
+taken.
+Let us now turn back to the original hidden subgroup problem. We are able to solve it completely
+when the hidden subgroup is normal. Note that Hallgren Russell and Ta-Shma [14] have already
+given a solution for that case under the condition that one can efficiently construct the quantum
+Fourier transform on G. The algorithm presented here does not require such a hypothesis.
+Theorem 8. Assume that G is a black-box group with not necessarily unique encoding. Suppose
+that N is a normal subgroup given as a hidden subgroup of G. Then generators for N can be found
+by a quantum algorithm in time polynomial in the input size + ν(G/N ). In particular, we can find
+hidden normal subgroups of solvable black-box groups and permutation groups in polynomial time.
+Proof. We use the presentation of G/N obtained by the algorithm of Theorem 7 to find generators
+for N . Let T be the generating set from the presentation. If T generates G then it is easy to find
+generators for N . Let R0 denote the set of elements obtained by substituting the generators in T
+into the relators, and let N0 stand for the normal closure (the smallest normal subgroup containing)
+of R0 . Then N = N0 since N0 ≤ N and G/N0 = G/N by definition of T and R0 .
+Still some care has to be taken since it is possible that T generates G only modulo N , that is
+it might generate a proper subgroup of G. Therefore some additional elements should be added to
+R0 . Let S be the generating set for G. Using the constructive membership test for G/N, we express
+the original generators from S modulo N with straight line programs in terms of the elements of T .
+For each element x ∈ S we form the quotient y −1 x where y is the element obtained by substituting
+the generators from T into the straight line program for x modulo N . Let S0 be the set of all the
+quotients formed this way. Note that T and S0 generate together G. Then one can verify that the
+normal closure of R0 ∪ S0 in G is N .
+Thus, from R0 and S0 we can find generators for N in time polynomial in the input size+ν(G/N )
+using the normal closure algorithm of [1]. We obtained the desired result.
+
+4.3
+
+Unique encoding and solvable normal subgroup
+
+We conclude this section with some results obtained as combination of the ideas presented above
+with those of Watrous described in [27]. Assume that the encoding of the elements of G is unique
+and a normal solvable subgroup N of G is given by generators. We use the encoding of G for that of
+G/N . The identity test in G/N can be implemented by an efficient quantum algorithm for testing
+membership in N due to Watrous (Theorem
+2). We are also able to produce (several copies of) the
+1 P
+√
+uniform superposition |N i =
+x∈N |xi efficiently. For solvable subgroups N , we can again
+|N |
+
+apply the result of Watrous (Theorem 2) to produce |N i in polynomial time. We will now show
+that having sufficiently many copies of |N i at hand, we can use ideas of Watrous for computing
+orders of elements of G/N and even for performing the constructive membership test in Abelian
+subgroups of G/N . Thus, we will have an efficient quantum implementation of the Beals-Babai
+algorithms for G/N . We will first state a lemma which says that we can efficiently solve the HSP
+in an Abelian group if we have an appropriate quantum oracle.
+Lemma 9. Let A be an Abelian group, and let X be a finite set. Let H ≤ A, and let f : A → CX
+(given by an oracle) such that:
+7
+
+1. For every g ∈ A, |f (g)i is a unit vector,
+2. f is constant on the left cosets of H, and maps elements from different cosets into orthogonal
+states.
+Then there exists a polynomial time quantum algorithm for finding the hidden subgroup H.
+Proof. First we extend naturally f to G/H: on a coset of H, it takes the value f (h) for an arbitrary
+member h of the coset. The algorithm is the standard quantum algorithm for the Abelian hidden
+subgroup problem. We repeat several times the following steps to find a set of generators for H.
+• Prepare the initial superposition: |1G i|0m i.
+• Apply the Abelian quantum Fourier transform in A on the first register:
+P
+• Call f : g∈A |gi|f (g)i.
+P
+• Apply again the Fourier transform in A: g∈A/H,h∈H ⊥ χh (g)|hi|f (g)i.
+
+P
+
+m
+g∈A |gi|0 i.
+
+• Observe the first register.
+By hypothesis, the states |f (g)i are orthogonal for distinct g ∈ A/H, therefore an observation of
+the first register will give a uniform probability distribution on H ⊥ . After sufficient number of
+iterations, this will give a set of generators for H ⊥ , which leads then to a set of generators for H.
+Note that in the above steps it is sufficient to compute only the approximate quantum Fourier
+transform on A which can be done in polynomial time.
+Theorem 10. Assume that G is a black-box group with a unique encoding of group elements.
+Suppose that N is a normal subgroup given by generators. Assume further that N is either solvable
+or of polynomial size. Then all the tasks listed in Corollary 5 for G/N can be solved by a quantum
+algorithm in running time polynomial in the input size + ν(G/N ).
+Proof. For applying Corollary 5, one has to verify that we can perform tasks (a)–(b) of the corollary.
+If N is of polynomial size, it is trivial. Therefore we suppose that N is solvable. We will closely
+follow the approach indicated by Watrous in [27] for dealing with factor groups.
+First, let g ∈ G. To compute the order of g in G/N , we compute the period of the quantum
+function f (k) = |g k N i, where k ∈ {1, . . . , m} for some multiple m of the order. This function can
+be computed efficiently since one can prepare the superposition |N i by Theorem 2, and for example
+we can take m as the order of g in G. Therefore by Lemma 9 one can find this period.
+Second, let g ∈ G and let h1 , . . . , hr ∈ G be pairwise commuting elements modulo N . generating
+some Abelian subgroup H ≤ G/N . We compute the orders of the underlying elements on G/N
+using the previous method. Let the orders of h1 , . . . , hr and g be s1 , . . . , sr and s, respectively.
+Then for a tuple (α1 , . . . , αr , α) from Zs1 × · · · × Zsr × Zs, set φ(α1 , . . . , αr , α) = |hα1 1 · · · hαr r g−α N i.
+Then φ is a homomorphism from Zs1 × · · · × Zsr × Zs into CG/N . From Lemma 9, the kernel of
+φ can be computed in polynomial time by a quantum algorithm. Moreover it contains an element
+the last coordinate of which is relatively prime to s if and only if g is representable as a product of
+powers of hi s. Also, from such an element an expression for g in the desired form can be constructed
+efficiently using elementary number theory.
+
+8
+
+5
+
+Groups with small commutator subgroups
+
+Assume that G is a black-box group with unique encoding of elements, and suppose that a subgroup
+H is hidden by a function f . Our next result states that one can solve the HSP in time polynomial
+in the input size + |G′ |, where G′ is the commutator subgroup of G. Let us recall the commutator
+subgroup is the smallest normal subgroup of G containing the commutators xyx−1 y −1 , for every
+x, y ∈ G.
+Theorem 11. Let G be a black-box group with unique encoding of elements. The hidden subgroup
+problem in G can be solved by a quantum algorithm in time polynomial in the input size + |G′ |.
+Proof. Let H be a hidden subgroup of G defined by the function f . We start with the following
+observation. If N is a normal subgroup of G and H1 ≤ H is such that H1 ∩ N = H ∩ N and
+H1 N = HN , then by the isomorphism theorem, H1 /(H ∩ N ) ∼
+= H1 N/N ∼
+= H/(H ∩ N ) which
+implies H1 = H. We will generate such a subgroup H1 ≤ H for N = G′ .
+As the commutator subgroup G′ of G consists of products conjugates of commutators of the
+generators of G we can enumerate G′ , and therefore also G′ ∩ H, in time polynomial in the
+input size + |G′ |. We consider the function F : x 7→ {f (xG′ )} = {f (xg)|g ∈ G′ } which can be
+computed by querying |G′ | times the function f .
+The function F hides the subgroup HG′ . Note that HG′ is normal since G/G′ is Abelian. Thus
+by Theorem 8, we can find generators for HG′ by a quantum algorithm in time polynomial in the
+size of the input + |G′ | since ν(G/HG′ ) = 1, because G/HG′ is Abelian.
+For each generator x of HG′ , we enumerate all the elements of coset xG′ and select an element
+of xG′ ∩ H. The cost of this step is again polynomial in the input size + |G′ |. We take for H1 the
+subgroup of G generated by the selected elements and H ∩ G′ . We get H1 ∩ G′ = H ∩ G′ , and by
+the definition of the selected elements H1 G′ = HG′ .
+A group G is an extra-special p-group if its commutator subgroup G′ coincides with its center,
+Therefore we get the following
+corollary from the previous theorem.
+|G′ | = p, and moreover G/G′ is an elementary Abelian p-group.
+
+Corollary 12. The hidden subgroup problem in extra-special p-groups can be solved by a quantum
+algorithm in time polynomial in input size + p.
+
+6
+
+Groups with a large elementary Abelian normal 2-subgroup
+
+Assume that N is an elementary Abelian normal 2-subgroup of a group G, and it is given by
+generators as part of the input. Our aim is to solve the HSP in G in the cases where G/N is either
+small or cyclic. Typical examples of groups of the latter type are matrix groups over a field of
+characteristic 2 of degree k + 1 generated by a single matrix of type (a), where the k × k sub-matrix
+in the upper left corner is invertible,
+together 
+with several
+matrices of type
+
+
+ (b):
+∗ ∗ ∗ ∗ 0
+1 0 0 0 ∗
+ ∗ ∗ ∗ ∗ 0 
+ 0 1 0 0 ∗ 
+
+
+
+
+
+
+
+(a) 
+ ∗ ∗ ∗ ∗ 0  , (b)  0 0 1 0 ∗  .
+ ∗ ∗ ∗ ∗ 0 
+ 0 0 0 1 ∗ 
+0 0 0 0 1
+0 0 0 0 1
+Note that the class of groups of this kind include the wreath products Zk2 ≀ Z2 in which the hidden
+subgroup problem has been shown to be solvable in polynomial time by Rötteler and Beth in [24].
+Based on a technique inspired by the idea of Ettinger and Høyer used for the dihedral groups in
+9
+
+[9], we solve the hidden subgroup problem in quantum polynomial time in this more general class
+of groups.
+Theorem 13. Let G be a black-box group with unique encoding of elements and N be a normal
+elementary Abelian 2-subgroup of G given by generators. Then the hidden subgroup problem in G
+can be solved by a quantum algorithm in time polynomial in the input size + |G/N |. If G/N is
+cyclic then the hidden subgroup problem can be solved in polynomial time.
+Proof. Let H be a subgroup of G hidden by the function f . The main line of the proof is like in
+Theorem 11: we will generate H1 ≤ H which satisfies H1 ∩ N = H ∩ N and H1 N/N = HN/N (or
+equivalently H1 N = HN ). Again we start the generation of H1 with H ∩N which can be computed
+in polynomial time in the input size by Theorem 3 since N is Abelian. The additional generators
+of H1 will be obtained from a set V ⊆ G which, for every subgroup M ≤ G/N (in particular, for
+M = HN/N ), contains some generator set for M . For each z ∈ V , we will verify if zN ∈ HN
+(equivalently zH ∩ N 6= ∅ or also zN ∩ H 6= ∅), and in the positive case we will find some u ∈ N
+such that u−1 z ∈ H. Both of these tasks will be reduced to the Abelian hidden subgroup problem,
+and the elements of the form u−1 z will be the additional generators of H1 .
+If G/N is cyclic, we use Theorem 10 to find generators for the Sylow subgroups of G/N (note
+that ν(G/N ) = 1). Each Sylow will be cyclic (and unique), therefore a random element of the
+Sylow p-subgroup will be a generator with probability 1 − 1/p ≥ 1/2. Note that one can check
+if the choosen element is really a generator by using the order finding procedure of Theorem 10.
+Then, for each p we choose a generator xp N for the Sylow p-subgroup after iterating the previous
+h
+random choice. The p-subgroups of G/N are hxp N i, . . . , hxp p N i = N/N , where php is the order of
+h
+the Sylow p-subgroup of G/N . Let V stand for the union of the sets {1, xp , . . . , xp p } over all primes
+p dividing |G/N |. Note that |V | = O(log |G/N |), and the cost of constucting V is polynomial in
+the input size. V contains a generating set for an arbitray subgroup M of G/N because for each p,
+l
+it contains a generator for the Sylow p-subgroup of M (namely xpp where lp is the smallest positive
+integer l such that xlp N ∈ M ).
+In the general case, let V be a complete set of coset representatives of G/N . V can be constructed
+by the following standard method. We start with the set V = {1}. In each round we adjoin to V
+a representative vg of a new coset, for each v ∈ V and each generator g of G, if vg 6∈ wN , for all
+w ∈ V . This membership test can be achieved using a quantum algorithm for testing membership
+of w−1 vg in the commutative group N . The procedure stops if no new element can be added.
+Then, for each z ∈ V \ {1}, we consider the function defined on Z2 × N as follows. For every
+x ∈ N , let F (0, x) = f (x) and let F (1, x) = f (xz). Obviously, for i ∈ {0, 1} and x, y ∈ N ,
+F (i, x) = F (i, y) if and only if y −1 x ∈ H ∩ N , while F (0, x) = F (1, y) if and only if y −1 x ∈ zH ∩ N .
+We claim that zH ∩ N is either empty or a coset of H ∩ N in N . Indeed, if zH ∩ N contains zh
+for some h ∈ H, then zh(H ∩ N ) ⊆ zH ∩ N , and conversely for all h′ ∈ H such that zh′ ∈ N , we
+have (zh)−1 zh′ = S
+h−1 h′ ∈ H ∩ N . It follows that in the group Z2 × N , F hides either {0} × (H ∩ N )
+or {0} × (H ∩ N ) {1} × u(H ∩ N ) for some u ∈ zH ∩ N depending on whether zH ∩ N is empty
+or not. Note that this set is indeed a subgroup because N is an elementary Abelian 2-group. We
+remark that u is determined only modulo H ∩ N .
+As Z2 × N is Abelian, we can find generators for this hidden subgroup in quantum polynomial
+time. From any generator of type (1, u) we obtain an element u−1 z ∈ zN ∩ H. Repeating this, we
+collect elements in zN ∩ H for each of z ∈ V \ {1} such that zN ∩ H 6= ∅. Let H1 be the subgroup
+of G generated by the collected elements and by H ∩ N . Then by construction H1 is a subgroup of
+H which satisfies the claimed properties.
+
+10
+
+References
+[1] L. Babai, G. Cooperman, L. Finkelstein, E. M. Luks and Á. Seress, Fast Monte Carlo algorithms
+for permutation groups, J. Computer and System Sciences, vol. 50, 1995, 263–307.
+[2] L. Babai and E. Szemerédi, On the complexity of matrix group problems I., Proc. 25th IEEE
+Foundations of Computer Science, 1984, 229–240.
+[3] L. Babai and R. Beals, A polynomial-time theory of black-box groups I., Groups St. Andrews
+1997 in Bath, I, London Math. Soc. Lecture Notes Ser., vol. 260, Cambridge Univ. Press, 1999,
+30–64.
+[4] R. Beals, Towards polynomial time algorithms for matrix groups, Groups and Computation
+Proc. 1991 DIMACS Workshop, L. Finkelstein, W. M. Kantor (eds.), DIMACS Ser. in Discr.
+Math. and Theor. Comp. Sci. Vol. 11, AMS, 1993, 31–54.
+[5] R. Beals and L. Babai, Las Vegas algorithms for matrix groups, Proc. 34th IEEE Foundations
+of Computer Science, 1993, 427–436.
+[6] D. Boneh and R. Lipton, Quantum cryptanalysis of hidden linear functions, Proc. Crypto’95,
+LNCS vol. 963, 1995, 427–437.
+[7] G. Brassard and P. Høyer, An exact quantum polynomial-time algorithm for Simon’s problem,
+Proc. 5th Israeli Symposium on Theory of Computing Systems, 1997, 12–23.
+[8] K. Cheung and M. Mosca, preprint available at http://xxx.lanl.gov/abs/quant-ph/0101004.
+[9] M. Ettinger and P. Høyer, On quantum algorithms For noncommutative hidden subgroups,
+Proc. 16th Symposium on Theoretical Aspects of Computer Science, LNCS vol 1563, 1999,
+478–487.
+[10] M. Ettinger, P. Høyer, and E. Knill, Hidden subgroup states are almost orthogonal, preprint
+available at http://xxx.lanl.gov/abs/quant-ph/9901034.
+[11] W. Feit and J. Tits, Projective representations of minimum degree of of group extensions,
+Canadian J. Math., vol. 30, 1978, 1092–1102.
+[12] M. Grigni, L. Schulman, M. Vazirani and U. Vazirani, Quantum mechanical algorithms for the
+nonabelian hidden subgroup problem, to appear in Proc. 33rd ACM Symposium on Theory of
+Computing, 2001.
+[13] J. Gruska, Quantum Computing, McGraw Hill, 1999.
+[14] S. Hallgren, A. Russell and A. Ta-Shma, Normal subgroup reconstruction and quantum computation using group representations, Proc. 32nd ACM Symposium on Theory of Computing,
+2000, 627–635.
+[15] R. Jozsa, Quantum algorithms and the Fourier transform, preprint available at
+http://xxx.lanl.gov/abs/quant-ph/9707033.
+[16] R. Jozsa, Quantum factoring, discrete logarithms and the hidden subgroup problem, preprint
+available at http://xxx.lanl.gov/abs/quant-ph/0012084.
+
+11
+
+[17] A. Kitaev, Quantum measurements and the Abelian Stabilizer Problem, preprint available at
+http://xxx.lanl.gov/abs/quant-ph/9511026.
+[18] V. Landazuri and G. M. Seitz, On the minimal degrees of projective representations of the
+finite Chevalley groups, J. Algebra vol. 32, 1974, 418–443.
+[19] E. M. Luks, Computing in solvable matrix groups, Proc. 33th IEEE Foundations of Computer
+Science, 1992, 111–120.
+[20] W. M. Kantor and Á. Seress, Black box classical groups, Manuscript.
+[21] M. Mosca, Quantum Computer Algorithms, PhD thesis, University of Oxford, 1999.
+[22] M. Mosca and A. Ekert, The hidden subgroup problem and eigenvalue estimation on a quantum
+computer, Proc. 1st NASA International Conference on Quantum Computing and Quantum
+Communication, LNCS vol. 1509, 1999.
+[23] M. Nielsen and I. Chuang, Quantum Computation and Quantum Information, Cambridge
+University Press, 2000.
+[24] M. Rötteler and T. Beth, Polynomial-time solution to the hidden subgroup problem for a class
+of non-abelian groups, preprint available at http://xxx.lanl.gov/abs/quant-ph/9812070.
+[25] P. Shor, Polynomial-time algorithms for prime factorization and discrete logarithms on a quantum computer, SIAM J. on Computing, vol. 26(5), 1997, 1484–1509.
+[26] D. Simon, On the power of quantum computation, SIAM J. on Computing, vol. 26(5), 1997,
+1474–1483.
+[27] J. Watrous, Quantum algorithms for solvable groups,
+33rd ACM Symposium on Theory of Computing, 2001.
+http://xxx.lanl.gov/abs/quant-ph/0011023.
+
+12
+
+to appear in Proc.
+Preprint available at
+
+

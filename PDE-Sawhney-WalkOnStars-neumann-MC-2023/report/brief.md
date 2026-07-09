@@ -1,0 +1,7 @@
+# Brief — Walk on Stars (Sawhney et al., SIGGRAPH/ACM TOG 2023)
+
+**Paper.** Sawhney, Miller, Gkioulekas, Crane. "Walk on Stars: A Grid-Free Monte Carlo Method for PDEs with Neumann Boundary Conditions." ACM Trans. Graph. 42(4), Art. 1, Aug 2023. DOI: [10.1145/3592398](https://doi.org/10.1145/3592398). arXiv:2302.11815.
+
+**What.** Extends the classical Walk-on-Spheres (WoS) grid-free Monte Carlo PDE solver (Muller 1956; Sawhney & Crane 2020) so it can handle *Neumann* (and mixed Neumann/Dirichlet) boundary conditions. The core idea is to replace the ball centered at the current walk position — used by WoS to sample the next step — with a *star-shaped* region bounded by the closest visibility silhouette. This lets a single random walk correctly simulate reflecting Brownian motion without discretizing the boundary or accepting bias that blows up with walk length.
+
+**Why replicate.** WoSt is a purely algorithmic contribution (Algorithm 1 is a ~30-line recursive walk). Correctness = (a) the estimator converges at the standard Monte Carlo `1/√N` rate on well-posed problems, and (b) it produces the right answer for mixed-Neumann problems where naive WoS extensions (multi-intersection or SDE reflection) either bias or blow up. Both are testable from scratch, on a small 2D problem with an analytical reference, using only free CPU compute. That gives an honest independent check of the paper's central technical claim without touching CMU's `zombie` reference implementation.

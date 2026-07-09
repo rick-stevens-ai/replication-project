@@ -1,0 +1,9 @@
+# Brief — Hussain et al. 2023 (pseudo-parabolic PDE closed-form solutions via NEDA)
+
+**Paper**: Hussain, Ali, Zaman, Abbas, "New closed form solutions of some nonlinear pseudo-parabolic models via a new extended direct algebraic method", *International Journal of Mathematics and Computer in Engineering* **2**(1), 35–58 (2024). DOI [10.2478/ijmce-2024-0004](https://doi.org/10.2478/ijmce-2024-0004). Sciendo / open access.
+
+**What we did**: Independently applied the New Extended Direct Algebraic (NEDA) method the authors describe to the OBBMB equation (Section 4). We symbolically substituted their claimed ansatz into their reduced ODE and matched coefficients of powers of h(ξ) step by step, then plugged the resulting v(x,t) into the *original* PDE. Two independent free LLM judges (Argo GPT-5.2 and Argo Opus 4.7) cross-checked the algebra.
+
+**What we found**: The paper's Section 4 constraint set (eq 48, which is structurally identical to eq 32 for BBMPB and used throughout the paper) is **algebraically invalid**. The claim `b₂ = 0` cannot be reconciled with the homogeneous balance principle: matching the h⁴ coefficient forces either `b₂ = 0` (paper's choice) or the nontrivial `b₂ = −12μω₃² ln²φ / θ`. Under `b₂ = 0`, matching the h³ coefficient forces `b₁ = 0`, collapsing the ansatz to the constant solution `U = b₀`. The paper's plotted Fig 1 solution `v₁(x,t) = 1 + tanh((3t − x)/2)` therefore does **not** satisfy the OBBMB PDE — its symbolic residual is a non-zero polynomial in tanh with constant term 9/4. My alternative (correct) NEDA cascade with the nontrivial `b₂` root does produce a genuine OBBMB solution at the same Fig 1 parameters (symbolic residual identically zero).
+
+**Verdict**: **CONTRADICTED** — the paper's central closed-form family and its Fig 1 do not solve the stated PDE.

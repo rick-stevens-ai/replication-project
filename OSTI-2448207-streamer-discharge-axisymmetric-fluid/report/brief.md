@@ -1,0 +1,5 @@
+# Brief
+
+**Paper:** Fierro, Alibalazadeh, Stephens, Moore — *Massively parallel axisymmetric fluid model for streamer discharges* (SAND2024‑12794J; Comput. Phys. Commun. 2024; OSTI 2448207; DOI 10.1016/j.cpc.2024.109345).
+
+**What/why:** The paper presents an MPI/C++ finite‑volume, electrostatic drift‑diffusion (r‑z axisymmetric) low‑temperature‑plasma code and validates it on a community streamer benchmark, with spatial‑convergence and parallel‑scaling studies. I independently replicated the *reproducible numerical core*: (1) the paper's explicit arithmetic/CFL/scaling self‑consistency claims, and (2) the central discretization‑order claim — that the base scheme (1st‑order upwind advection + 2nd‑order central diffusion) yields **first‑order (linear‑in‑dh) error reduction** — via a Method‑of‑Manufactured‑Solutions test that reimplements the paper's exact face fluxes (eqs 18/23). The full 48‑hour/64‑processor coupled streamer benchmark and the proprietary CWI reference data were out of scope (<25 min budget, free endpoints only), so those physics‑output claims are not end‑to‑end rerun. **Verdict: PARTIAL.**

@@ -1,0 +1,131 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\newcommand{\PASS}[0]{{\color{green!60!black}\textbf{PASS}}}
+\newcommand{\FAIL}[0]{{\color{red!70!black}\textbf{FAIL}}}
+\newcommand{\PARTIAL}[0]{{\color{orange!80!black}\textbf{PARTIAL}}}
+\newcommand{\BLOCKED}[0]{{\color{gray}\textbf{BLOCKED}}}
+
+\title{Independent Replication Report: OSTI 3363025 \\
+       ``Hierarchical Reinforcement Learning of a Short-Range Bond-Order Potential for Silica''}
+\author{Ollie (OpenClaw agent)\\ replication executed on UICGPU 2026-07-05 CDT}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently attempt to reproduce the $\alpha$-quartz portion of Koneru et al.\ (2026, \textit{JCTC}, DOI 10.1021/acs.jctc.5c01885), which introduces two Tersoff-form silica potentials (Q-Tersoff, ML-Tersoff) trained by hierarchical reinforcement learning on 21 IZA polymorphs. Using the exact potential files and $\alpha$-quartz seed the authors released on GitHub, and running LAMMPS 29Aug2024 on UICGPU, we find that under every relaxation protocol (verbatim \texttt{in.relax}, 0\,K \texttt{aniso}/\texttt{tri} box relaxation, and 298\,K NPT), the $\alpha$-quartz density comes out $20$--$40\%$ below experiment, versus the paper's headline claim of $\sim 0\%$ density error for Q-Tersoff. Both potentials find a non-$\alpha$-quartz global minimum where the hexagonal cell dilates $\sim 50\%$ along the $c$-axis and Si--O--Si angles drive to $168$--$175^{\circ}$. Two independent LLM judges (argo:gpt-5.1 and argo:gemini-2.5-pro) render \textbf{CONTRADICTED} verdicts on the $\alpha$-quartz subset. The full 21-polymorph benchmark cannot be tested here because the other 20 structure files were not shipped in the public repo.
+\end{abstract}
+
+\section{Paper claims and testability}
+\begin{longtable}{p{1cm} p{7cm} p{2cm} p{2cm} p{2cm}}
+\toprule
+ID & Claim (paraphrased) & Type & Testable from released files? & Outcome \\
+\midrule
+\endhead
+C1 & ML/Q-Tersoff reproduce energetic ordering across 21 IZA polymorphs, most $\Delta E \le 50$~meV/atom & numerical & partial (only $\alpha$-quartz shipped) & \BLOCKED \\
+C2 & $\alpha$-quartz Q-Tersoff density err $\sim 0\%$, Si--O--Si err $1.7^{\circ}$ & numerical & yes & \FAIL \\
+C2$'$ & $\alpha$-quartz ML-Tersoff density err $\sim 9.2\%$, Si--O--Si err $7.0^{\circ}$ & numerical & yes & \FAIL \\
+C3 & Both models $\ge 2$ orders of magnitude faster than GAP & performance & partially & \PARTIAL (plausible on timing, GAP not run) \\
+C4 & Elastic constants off by $66$--$6013\%$ (paper's own admission) & numerical & yes & \BLOCKED (not tested) \\
+C5 & ML-Tersoff amorphous $S(q)$ matches exp FSDP & numerical & yes but requires $\sim 24$~h GPU MD & \BLOCKED (not tested) \\
+C6 & SiO$_4$ tetrahedra preserved (O--Si--O err $< 2^{\circ}$ for all polymorphs) & numerical & partial ($\alpha$-quartz only) & \PARTIAL (Q-Tersoff yes, ML-Tersoff \FAIL: only 77\% 4-fold Si) \\
+\bottomrule
+\end{longtable}
+
+\section{What worked / what didn't per claim}
+
+\subsection{C2 --- $\alpha$-quartz density (\FAIL)}
+Paper's Fig.\ 4 heatmap: Q-Tersoff density error $\sim 0\%$; ML-Tersoff $\sim 9.2\%$; experimental $\rho = 2.648$~g/cm$^3$.
+
+Our measurements (5$\times$5$\times$5 replicate = 1125 atoms, LAMMPS 29Aug2024):
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+Protocol & ML-Tersoff $\rho$ & ML err (\%) & Q-Tersoff $\rho$ & Q err (\%) \\
+\midrule
+Verbatim in.relax (iso + NVE) & 1.591 & 39.9 & 1.735 & 34.5 \\
+0\,K aniso box/relax          & 1.949 & 26.4 & 2.100 & 20.7 \\
+0\,K tri  box/relax           & 1.949 & 26.4 & 2.100 & 20.7 \\
+NPT 298\,K, 20\,ps            & 1.856 & 29.9 & 2.029 & 23.4 \\
+\midrule
+\textbf{Paper claim}          & \textbf{2.404} & \textbf{9.2} & $\approx$ \textbf{2.648} & $\approx$ \textbf{0} \\
+\bottomrule
+\end{tabular}
+\end{center}
+No protocol reproduces the paper's density numbers. What worked: LAMMPS runs execute cleanly, thermodynamic output is well-converged, and different protocols agree with each other to $< 5\%$. What didn't: the potential's actual equilibrium density is $\sim 2.0$~g/cm$^3$ for both variants, not the $2.4$--$2.65$~g/cm$^3$ implied by the paper.
+
+\subsection{C2 --- $\alpha$-quartz Si--O--Si angle (\FAIL for ML-Tersoff, \PARTIAL for Q-Tersoff)}
+Experimental Si--O--Si $= 143.7^{\circ}$; O--Si--O $= 109.47^{\circ}$.
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+Model (298\,K NPT) & Si--O--Si mean $\pm\sigma$ & Si--O--Si err & O--Si--O mean $\pm\sigma$ & O--Si--O err \\
+\midrule
+Q-Tersoff (ours)    & $147.55 \pm 27.5$ & $+3.85^{\circ}$ & $108.22 \pm 26.0$ & $-1.25^{\circ}$ \\
+Q-Tersoff (paper)   & 145.4             & $1.7^{\circ}$   & 109.77            & $0.3^{\circ}$   \\
+ML-Tersoff (ours)   & $128.68 \pm 28.7$ & $\mathbf{-15.02^{\circ}}$ & $105.95 \pm 35.3$ & $-3.52^{\circ}$ \\
+ML-Tersoff (paper)  & 150.7             & $+7.0^{\circ}$  & 109.87            & $0.4^{\circ}$   \\
+\bottomrule
+\end{tabular}
+\end{center}
+Q-Tersoff: within a factor of $\sim 2$--$4$ of the paper's error, same sign, order of magnitude consistent. \PARTIAL.
+ML-Tersoff: wrong sign, doubled magnitude, distribution std $\gg$ mean displacement. \FAIL.
+
+\subsection{C6 --- tetrahedral preservation (\FAIL for ML-Tersoff)}
+Coordination-number histograms at 298\,K NPT:
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Model & \% 4-fold Si & other Si coord \\
+\midrule
+Q-Tersoff  & 97.6 & 2.4\% 5-fold \\
+ML-Tersoff & \textbf{77.0} & 11\% 3-fold, 9\% 5-fold, $\sim 3\%$ others \\
+\bottomrule
+\end{tabular}
+\end{center}
+Q-Tersoff preserves the tetrahedral network as the paper claims. ML-Tersoff does not: nearly a quarter of Si atoms are non-tetrahedral, and 8\% of O atoms have only one Si neighbour at 298\,K. This is a clear coordination-number breakdown at room temperature, not disclosed in the paper.
+
+\subsection{C3 --- timing (\PARTIAL)}
+Both potentials ran at 213 timesteps/s = 0.24~M~atom-step/s per CPU core on the 5$\times$5$\times$5 cell (1125 atoms). This is consistent with published Tersoff throughput. We did not independently run GAP, so the ``$\ge 100\times$ faster than GAP'' claim is plausible but not measured this run.
+
+\subsection{C1, C4, C5 --- \BLOCKED}
+These require additional structure files (C1: 20 IZA polymorph geometries), additional evaluation scripts (C4: finite-strain elastic-constant protocol), or long GPU runs (C5: melt-quench for amorphous silica). None of those are shipped in the released repo.
+
+\section{Method (single-line summary per step)}
+\begin{enumerate}
+\item Fetch paper via \texttt{ssh uicgpu 'source \~/env.sh \&\& curl ... 3363025'}.
+\item \texttt{pdftotext -layout paper.pdf paper.txt} \\ $\to$ enumerate 6 claims.
+\item \texttt{git clone https://github.com/miscquanta/HMRRL-tersoff-silica.git} on uicgpu.
+\item \texttt{/data/stevens/envs/lammps-cuda/bin/lmp -in in.relax} for each potential.
+\item Rerun with \texttt{fix box/relax aniso} and \texttt{tri} at 0\,K; then \texttt{fix npt tri 1 1 1} at 298\,K for 20~ps.
+\item Custom Python (\texttt{evidence/angles.py}) computes Si--O--Si, O--Si--O, coordination from \texttt{write\_data} output using triclinic minimum-image convention and 2.2~\AA{} Si--O cutoff.
+\item Ship evidence packet to \texttt{argo:gpt-5.1} and \texttt{argo:gemini-2.5-pro} via CherryRd LiteLLM \texttt{:4000} aggregator (\texttt{Bearer stevens}); both return \textbf{CONTRADICTED}.
+\end{enumerate}
+
+\section{Verdict}
+\textbf{CONTRADICTED} (scope: $\alpha$-quartz subset). Justified by:
+\begin{itemize}
+\item Density error $20$--$40\%$ (paper: $0$--$9\%$).
+\item Si--O--Si error 25--31\textdegree{} at 0~K, 4--15\textdegree{} at 298~K (paper: 1.7--7\textdegree{}).
+\item Both potentials have a non-$\alpha$-quartz global minimum.
+\item ML-Tersoff coordination breakdown: 23\% non-tetrahedral Si at 298~K.
+\item Both LLM judges (gpt-5.1, gemini-2.5-pro) independently return CONTRADICTED with matching numerical citations.
+\end{itemize}
+Full-scope replication (21 polymorphs, elastic constants, amorphous $S(q)$) is BLOCKED pending release of the other 20 IZA structure files and the evaluation scripts used for Fig.\ 4.
+
+\section{Open questions (5, per wave brief)}
+See \texttt{report/open\_questions.json} for the machine-readable form. Summary:
+\begin{enumerate}
+\item Do the GitHub .tersoff files exactly match those used for Fig.\ 4? (No commit hash / version tag.)
+\item Which LAMMPS Tersoff cross-term convention was validated?
+\item Would a 0~K global-minimum penalty in the RL reward function fix the non-$\alpha$-quartz global minimum?
+\item Is the ML-Tersoff Si--O--Si distortion an $\alpha$-quartz outlier or systematic across all 21 polymorphs?
+\item Root cause of ML-Tersoff coordination breakdown: bond-order attenuation exponent, or emergent from the low equilibrium density?
+\end{enumerate}
+\end{document}

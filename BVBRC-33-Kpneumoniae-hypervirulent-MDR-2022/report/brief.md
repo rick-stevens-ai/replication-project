@@ -1,0 +1,5 @@
+# Brief — BVBRC-33
+
+**What:** Independent replication of Altayb et al. 2022 (*Antibiotics* 11(5):596), a genomic characterization of a single multidrug-resistant hypervirulent (hypermucoviscous) *Klebsiella pneumoniae* clinical isolate ("9KP") whose headline finding is that it is hypermucoviscous yet **lacks the classic hypermucoviscous regulators rmpA/rmpA2** (instead carrying RcsAB).
+
+**Why it's replicable:** The authors deposited the actual genome (BioProject PRJNA767482, BioSample SAMN26332310, WGS JAKWFM000000000 → assembly **GCA_022511605.1**). We pulled that real assembly via NCBI Datasets and re-ran modern curated genotyping (Kleborate v3 kpsc preset for MLST/Kaptive K&O/virulence loci/rmpA-rmpA2; AMRFinderPlus v4.2.7 for the resistome; targeted BLAST + PGAP product checks), then had a free LLM judge score paper-vs-replication. Core typing + headline claim reproduce exactly; two virulome sub-claims (aerobactin iutA, salmochelin iroN) and the plasmid-borne blaCTX-M-15 do not appear in the deposited assembly. **Verdict: PARTIAL (strong), 15/18 claims = 0.83.**

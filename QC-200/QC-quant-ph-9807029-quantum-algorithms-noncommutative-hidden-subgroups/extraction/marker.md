@@ -1,0 +1,591 @@
+<!--
+FALLBACK EXTRACTION — Marker not installed on this host.
+Content below is pdftotext (poppler) output as a placeholder for the Marker artifact,
+formatted as markdown-ish so downstream tooling that expects .md still parses.
+See report/failure_analysis.md for the tool-availability gap; full paper text is preserved.
+-->
+
+# On Quantum Algorithms for Noncommutative Hidden Subgroups
+
+Mark Ettinger (Los Alamos National Laboratory), Peter Høyer (Odense University; LANL)
+Report No. LA-UR-98-2010 (May 6, 1998); arXiv:quant-ph/9807029v1
+
+                                                              On Quantum Algorithms for
+                                                           Noncommutative Hidden Subgroups
+    
+    
+    
+    
+    arXiv:quant-ph/9807029v1 10 Jul 1998
+                                                                Mark Ettinger 1,∗               Peter Høyer 2,1,†
+                                                                       1
+                                                                           Los Alamos National Laboratory
+                                                                                2
+                                                                                  Odense University
+    
+    
+    
+                                                   Report No. LA-UR-98-2010 (May 6, 1998)
+    
+    
+                                                                                    Abstract
+                                                        Quantum algorithms for factoring and discrete logarithm have pre-
+                                                    viously been generalized to finding hidden subgroups of finite Abelian
+                                                    groups. This paper explores the possibility of extending this general view-
+                                                    point to finding hidden subgroups of noncommutative groups. We present
+                                                    a quantum algorithm for the special case of dihedral groups which de-
+                                                    termines the hidden subgroup in a linear number of calls to the input
+                                                    function. We also explore the difficulties of developing an algorithm to
+                                                    process the data to explicitly calculate a generating set for the subgroup.
+                                                    A general framework for the noncommutative hidden subgroup problem
+                                                    is discussed and we indicate future research directions.
+    
+    
+                                           1        Introduction
+                                           All known quantum algorithms which run super-polynomially faster than the
+                                           most efficient probabilistic classical algorithm solve special cases of what is
+                                           called the Abelian Hidden Subgroup Problem. This general formulation in-
+                                           cludes Shor’s algorithms for factoring and finding discrete logarithms [16].
+                                           A very natural question to ask is if quantum computers can efficiently solve the
+                                           Hidden Subgroup Problem in noncommutative groups. This question has been
+                                           raised regularly [1, 11, 12, 13], and seems important for at least three reasons.
+                                               The first reason is that determining if two graphs are isomorphic reduces
+                                           to finding hidden subgroups of symmetric groups. The second reason is that
+                                               ∗
+                                                   Email: ettinger@lanl.gov.
+                                               †
+                                                   Email: u2pi@imada.ou.dk.
+    
+    
+                                                                                        1
+    the noncommutative hidden subgroup problem arguably represents a most
+    natural line of research in the area of quantum algorithmics. The third reason
+    is that an efficient quantum algorithm for a hidden subgroup problem could
+    potentially be used to show an exponential gap between quantum and classical
+    two-party probabilistic communication complexity models [7, 6].
+        The heart of the idea behind the quantum solution to the Abelian hidden
+    subgroup problem is Fourier analysis on Abelian groups. The difficulties of
+    Fourier analysis on noncommutative groups makes the noncommutative ver-
+    sion of the problem very challenging.
+        In this paper, we present the first known quantum algorithm for a noncom-
+    mutative subgroup problem. We focus on dihedral groups because they are
+    well-structured noncommutative groups, and because they contain an expo-
+    nentially large number of different subgroups of small order, making classical
+    guessing infeasible. Our main result is that there exists a quantum algorithm
+    that solves the dihedral subgroup problem using only a linear number of eval-
+    uations of the function which is given as input. This is the first time such a
+    result has been obtained for a noncommutative group. However, we hasten to
+    add that our algorithm does not run in polynomial time, even though it only
+    uses few evaluations of the given function. The reason for this is as follows:
+    The algorithm applies a certain quantum subroutine a linear number of times,
+    each time producing some output data. The collection of all the output data
+    determines the hidden subgroup with high probability. We know how to find
+    the subgroup from the data in exponential time, but we do not know if this
+    task can be done efficiently.
+        Three important questions are left open. The first question is if there exists
+    a polynomial-time algorithm (classical or quantum) to postprocess the output
+    data from our quantum subroutine. The second is whether our algorithm can
+    be used to show an exponential gap between quantum and classical probabilis-
+    tic communication complexity models, as mentioned above. Currently, the
+    state-of-the-art is an exponential separation between error-free models, and a
+    quadratic separation between probabilistic models [6]. The third open question
+    is for what other noncommutative groups similar results can be obtained.
+    
+    
+    2    Algorithm for dihedral groups
+    The Hidden Subgroup Problem is defined as follows:
+    Given: A function γ : G → R, where G is a finite group and R an arbitrary
+        finite range.
+    Promise: There exists a subgroup H ⩽ G such that γ is constant and distinct
+        on the left cosets of H.
+    
+                                            2
+    Problem: Find a generating set for H.
+    
+        We say of such a function γ that it fulfills the subgroup promise with respect
+    to H. We also say of γ that it has hidden subgroup H. Note that we are not
+    given the order of H. Without loss of generality we assume γ is constant and
+    distinct on left cosets because we may formally rename group elements and
+    convert multiplication on the right to multiplication on the left.
+        If G is Abelian, then we refer to this problem as the Abelian Subgroup
+    Problem. Similarly, if the given group is dihedral, then we refer to it as the
+    Dihedral Subgroup Problem. Classically, if γ is given as a black box, then the
+    Abelian subgroup problem is infeasible: If G = Zn2 , then just to determine if
+    H is non-trivial or not takes time exponential in n [17]. Here, Z2 denotes the
+    cyclic group of order 2. In contrast, the Abelian subgroup problem can be
+    solved efficiently on a quantum computer [3, 5, 8, 13, 16, 17].
+    
+    Theorem 1 Let γ : G → R be a function that fulfills the Abelian subgroup
+    promise with respect to H. There exists a quantum algorithm that outputs
+    a subset X ⊆ G such that X is a generating set for H with probability
+    at least 1 − 1/|G|, where |G| denotes the order of G. The algorithm uses
+    O(log |G|) evaluations of γ, and runs in time polynomial in log |G| and in the
+    time required to compute γ.
+    
+        We review the quantum solution to the Abelian subgroup problem in terms
+    of group representation theory in Section 4 below. For other reviews, see for
+    example [4, 12].
+        The dihedral group of order 2N is the symmetry group of an N –sided
+    polygon. It is a semidirect product of the two cyclic groups ZN and Z2 of
+    order N and 2, respectively. It is isomorphic to the group
+    
+                                     DN = ZN ⋊φ Z2                                (1)
+    
+    with the multiplication defined by
+                                                                      
+                      (a1 , b1 )(a2 , b2 ) = a1 + φ(b1 )(a2 ), b1 + b2 ,
+    
+    where the homomorphism φ : Z2 → Aut(ZN ) is defined by 1 7→ φ(1)(a) = −a.
+    
+    Theorem 2 (Main theorem) Let γ : DN → R be a function that fulfills the
+    dihedral subgroup promise with respect to H. There exists a quantum algorithm
+    that given γ, uses Θ(log N ) evaluations of γ and outputs a subset X ⊆ DN
+    such that X is a generating set for H with probability at least 1 − N2 .
+    
+    
+    
+                                              3
+        Theorem 2 constitutes our main result that the dihedral subgroup problem
+    can be solved with few applications of the given function γ. The essential step
+    in the proof is that it is possible to find subgroups of order 2. The dihedral
+    group DN contains N + 1 different subgroups of order 2 if N is even, and N
+    different subgroups of order 2 if N is odd.
+        So, even if we are promised that the hidden subgroup is of that order, a
+    straight-forward approach to find its generator would take time exponential
+    in log(N ). Theorem 3 entails that we can find the generator with an expected
+    number of evaluations of γ only linear in log N .
+    
+    Theorem 3 Let γ : DN → R be a function that fulfills the dihedral subgroup
+    promise with respect to H, where H is either the trivial subgroup, or H =
+    {(0, 0), (k0 , 1)} for some 0 ≤ k0 < N . There exists a quantum algorithm that
+    given γ, uses at most 89 log(N )+7 evaluations of γ and outputs either “trivial”
+    or the value k0 . If H is trivial then the output is always “trivial”, and if H is
+                                                                               1
+    non-trivial then the algorithm outputs k0 with probability at least 1 − 2N   .
+    
+       We first give the reduction of the general problem given in Theorem 2 to
+    the special case in Theorem 3.
+    
+    Proof of Theorem 2 Let γ1 denote the restriction of γ to the cyclic subgroup
+    ZN × {0} ⩽ DN of order N . Then γ1 : ZN × {0} → R fulfills the Abelian
+    subgroup promise with respect to H1 = H ∩ (ZN × {0}). By Theorem 1, we
+    can, by using O(log N ) evaluations of γ1 , find a subset X1 ⊆ H1 so that X1
+    generates H1 with probability at least 1 − 1/N .
+        The subgroup hX1 i ⩽ DN is normal in DN , and the factor group DN /hX1 i
+    is isomorphic to DM where M = min{1 ≤ j ≤ N | (j, 0) ∈ hX1 i}. Since
+    γ is constant on the cosets of hX1 i, we can consider γ a function γ2 on DM .
+    Then γ2 : DM → R fulfills the dihedral subgroup promise with respect to some
+    subgroup H2 ⩽ DM .
+        Suppose hX1 i = H1 . Then either H2 = {(0, 0)} is the trivial subgroup,
+    or H2 = {(0, 0), (k0 , 1)} for some 0 ≤ k0 < M . Further, if H2 is trivial then
+    H = hX1 i, and if H2 = {(0, 0), (k0 , 1)} then H = hX1 , (k0 , 1)i.
+        We now apply the algorithm in Theorem     3 with γ2 : DM → R, producing
+    either “trivial” or k0 . We repeat this t = log(2N )/ log(2M ) times in total,
+    ensuring we will find k0 with probability at least 1 − 1/(2M )t ≥ 1 − 1/2N ,
+    provided k0 exists. If we obtain k0 , then let X = X1 ∪ {(k0 , 1)}, and otherwise
+    let X = X1 .
+        If X1 generates H1 , then with probability at least 1 − 1/2N we have
+    H = hXi. Since X1 generates H1 with probability at least 1 − 1/N , the
+    overall success probability is at least (1 − 1/N )(1 − 1/2N ) > 1 − 2/N . The
+    
+                                            4
+    total number of evaluations of γ is at most O(log N ) + t(89 log M + 7), as each
+    evaluation of γ1 and γ2 requires one evaluation of γ.                          ⊔
+                                                                                   ⊓
+    
+       We assume that the reader is familiar with the basic notions of quantum
+    computation [2]. The quantum algorithm we shall use to prove Theorem 3 is
+                  V γ = FN ⊗ W ⊗ I ◦ Uγ ◦ F−1
+                                                               
+                                                   N  ⊗ W   ⊗ I  .          (2)
+    Here, Uγ is any unitary operator that satisfies that
+                              Uγ |ai|bi|0i = |ai|bi|γ(a, b)i                          (3)
+    for all 0 ≤ a < N and 0 ≤ b ≤ 1. The operator FN is the quantum Fourier
+    transform for ZN defined by
+                                                N −1
+                                        1 X ij
+                              FN |ii = √      ωN |ji,                                 (4)
+                                        N j=0
+                    √
+    where ωN = e2π −1/N is the N th principal root of unity. When N = 2, then
+    the Fourier transform F2 is equal to the Walsh–Hadamard transform  W which
+    maps a qubit in state |bi to the superposition √12 |0i + (−1)b |1i .
+        Suppose for a moment that we were not given a function defined on
+    the dihedral group DN = ZN ⋊φ Z2 , but instead a function defined on
+    the Abelian group ZN × Z2 . Or equivalently, suppose for the moment that
+    φ : Z2 → Aut(ZN ) is the trivial homomorphism. Then by Theorem 1, we can
+    find any hidden subgroup with probability exponentially close to 1 by applying
+    the experiment
+                              (a, b) = M1,2 ◦ V γ |0i|0i|0i                           (5)
+    a number of O(log N ) times. Here, M1,2 denotes a measurement of the first
+    two registers with outcome (a, b). A natural question to ask is, how much
+    information, if any, would we gain by performing the experiment given in
+    Equation 5 when γ is defined on DN and not on ZN × Z2 . The next lemma
+    shows that we indeed learn something.
+    
+    Lemma 4 Let γ : DN → R fulfill the subgroup promise with respect to H =
+    {(0, 0), (k0 , 1)}. Then, if we apply quantum algorithm V γ on the initial state
+    |0i|0i|0i, the probability that the outcome of a measurement of the first two
+    registers is (a, 0), is
+                       1                      1
+                                                cos2 (πk0 a/N ).
+                                           
+                         1 + cos(2πk0 a/N ) =                                         (6)
+                      2N                      N
+    Furthermore, the probability that the outcome is (a, 1), is N1 sin2 (πk0 a/N ).
+    
+                                            5
+       Let Z denote the discrete random variable defined by the probability mass
+    function
+    
+                      Prob[Z = z] = α cos2 (πk0 z/N )            (z ∈ ZN ),
+    
+    where α = 1/N if k0 = 0 or 2k0 = N , and α = 2/N otherwise. Lemma 4
+    provides us with a quantum algorithm for sampling from Z. Intuitively, since Z
+    is non-uniformly distributed on ZN depending on k0 , the more samples we draw
+    from Z, the more knowledge we gather about k0 . The crucial question therefore
+    becomes, how many samples from Z do we need to be able to identify k0
+    correctly with high probability. Theorem 5 below states that we only need a
+    logarithmic number of samples. We postpone its proof till the next section.
+    
+    Theorem 5 Let m ≥ ⌈64 ln N ⌉, and let z1 , . . . , zm beP independent samples
+    from Z. Let k̃ ∈ {1, . . . , ⌊N/2⌋} be such that the sum m i=1 cos(2π k̃zi /N ) is
+                                                                        1
+    maximal. Then k̃ = min{k0 , N − k0 } with probability at least 1 − 2N  .
+    
+    Proof of Theorem 3 The algorithm starts by disposing the possibility that
+    k0 = 0 by computing γ(0, 0) and γ(0, 1). If the two values are equal, then
+    the algorithm outputs the value 0 and stops. If N is even, then the algorithm
+    proceeds by disposing the possibility that k0 = N/2, too.
+        Now, the algorithm applies the quantum experiment given in Equation 5
+    a number of m′ = 2⌈64 ln N ⌉ times. Let m denote the number of times it
+    measures a 0 in the second register. Let {a1 , . . . , am } denote the outcomes in
+    the first register, conditioned to that the measurement of the second register
+    yields a zero.1
+        Suppose m ≥ m′ /2. The algorithm continues with            Pm classical post-
+    processing: It finds 1 ≤ k̃ ≤ ⌊N/2⌋ such that the sum i=1 cos(2π k̃ai /N )
+    is maximized. It then computes γ(k̃, 1) and compares it with the previous
+    calculated value γ(0, 0). If they are equal, it outputs k̃ and stops. Otherwise,
+    it performs the same test for γ(N − k̃, 1). If that one also fails, it outputs
+    “trivial”.
+        If m < m′ /2, then the algorithm performs the same classical post-
+    processing, except that it uses the m′ − m measurements for which the output
+    in
+    Pm the second register is 1, and except that it now seeks to maximize the sum
+       i=1 sin(2π k̃ai /N ).
+        If H is trivial, then the algorithm returns “trivial” with certainty.
+    If H = {(0, 0), (k0 , 1)}, then it outputs k0 with probability at least 1 − 1/2N
+    by Theorem 5. The total number of evaluations of γ is upper bounded
+    by m′ + 5 < 89 log N + 7.                                                        ⊔
+                                                                                     ⊓
+       1
+        Alternatively, we could apply amplitude amplification [5] to ensure that we will always
+    measure 0 in the second register, instead of as here, only with probability 1/2.
+    
+    
+                                                6
+    3    Proof of Theorem 5
+    The proof of Theorem 5 requires two lemmas, the first of them being a result
+    by Hoeffding [10] on the sum of bounded random variables. Hoeffding’s lemma
+    says that the probability that the sum of m independent samples are off from
+    its expected value by a constant fraction in m drops exponentially in m.
+    
+    Lemma 6 (Hoeffding) Let X1 , . . . , Xm be independent identically distri-
+    buted random variables with ℓ ≤ X1 ≤ u. Then, for all α > 0,
+                                                       2      2
+                         Prob[S − E[S] ≥ αm] ≤ e−2α m/(u−ℓ)
+                 Pm
+    where S =     i=1 Xi .
+    
+                                                             ?           ?
+        Let 0 < k < N , and suppose we want to test if k = k0 or k = N − k0 ,
+    where k0 is given as in Lemma 4. Clearly, we can answer that question just by
+                       ?                    ?
+    testing if γ(0, 0) = γ(k, 1) or γ(0, 0) = γ(N − k, 1). Lemma 7 provides us with
+    another probabilistic                                      m
+                         Pmmethod: First draw m samples {zi }i=1 from Z, and then
+    compute the sum i=1 cos(2πkzi /N ). Conclude that k 6= k0 and k 6= N − k0
+    if and only if that sum is at most m/4.
+    
+    Lemma 7 Let 0 < k < N . Let z1 , . . . , zm be m independent samples from Z.
+    Then with probability at most e−m/32 , we have
+                               m
+                               X
+                                     cos(2πkzi /N ) ≤ m/4
+                               i=1
+    
+    if k = k0 or k = N − k0 , and
+                               m
+                               X
+                                     cos(2πkzi /N ) ≥ m/4
+                               i=1
+    
+    otherwise.
+    
+    Proof Let f denote the function of Z defined by f (z) = cos(2πkz/N ), and
+    let X = f (Z) denote the random variable defined by f . Then −1 ≤ X ≤ 1
+    and the expected value of X is
+                          
+                          1
+                                  if 2k = 2k0 = N
+                   E[X] =     1
+                              2    if either k = k0 or k = N − k0
+                          
+                             0     otherwise.
+                          
+    
+    
+    
+                                            7
+    If k 6= k0 and k 6= N − k0 , then apply Hoeffding’s lemma on m independent
+    random variables all having the same probability distribution as X. If k = k0 or
+    k = N −k0 , then apply Hoeffding’s lemma on m independent random variables
+    all having the same probability distribution as the random variable E[X] − X.
+                                                                                  ⊔
+                                                                                  ⊓
+                                                                                    ?
+        If we are only concerned about testing for a specific 0 < k < N if k = k0
+           ?
+    or k = N − k0 , then Lemma 7 is not beneficial since we could just test if
+             ?                    ?
+    γ(0, 0) = γ(k, 1) or γ(0, 0) = γ(N − k, 1). But since we want to test all
+    possible values of k, and not only a single one, then the method yielded by
+    Lemma 7 becomes valuable, provided we can reuse the same m samples in all
+    tests. We now prove Theorem 5 byP    showing that, given a set of m samples,
+    then it is very likely that the sum m i=1 cos(2πkzi /N ) is larger than m/4 if
+    and only if k = k0 or k = N − k0 .
+    
+    Proof of Theorem 5 This is a simple      Pconsequence     of Lemma 7. Let k0′ =
+                                               m            ′
+    min{k0 , N − k0 }. The probability that i=1 cos(2πk0 zi /N ) ≤ m/4 is at most
+    e−m/32 ≤ N12 . Furthermore, for all integers 0 < k ≤ N/2 not equal to k0′ , the
+    probability that m                                             1             ′
+                     P
+                        i=1 cos(2πkzi /N ) ≥ m/4 is also at most N 2 . If k̃ 6= k0 , then
+    one of these ⌊N/2⌋ events
+                             must 1have happened, and the probability for that
+    is upper bounded by N2 N12 ≤ 2N     .                                               ⊔
+                                                                                        ⊓
+    
+    
+    4    Abelian Hidden Subgroups
+    Theorem 1 in Section 2 states that the Abelian subgroup problem can be
+    solved efficiently on a quantum computer. The algorithm which accomplishes
+    this is most easily understood using some basic representation theory for finite
+    Abelian groups which we now briefly review. For more details see the excellent
+    references [14, 15]. For any Abelian group G the group algebra C[G] is the
+    Hilbert space of all complex-valued functions on G equipped with the standard
+    inner product. A character of G is a homomorphism from G to C. The set
+    of characters admits a natural group structure via pointwise multiplication
+    and is a basis for the group algebra. The Fourier transform is the linear
+    transformation from the point mass basis of the group algebra to the basis of
+    characters. It is known  that the quantum Fourier transform may be performed
+    in time O log2 |G| . Finally, for any subgroup H ⩽ G, there exists a subgroup
+                        
+    
+    of the character group called the orthogonal subgroup H ⊥ which consists of
+    all characters χ such that χ(h) = 1 for all h ∈ H.
+        We now sketch the quantum algorithm for solving the Abelian hidden sub-
+    group problem. In the interest of clarity we omit all normalization factors in
+    
+    
+                                             8
+    our description. The state of the computer is initialized in the superposition
+                                     X
+                                        |gi|γ(g)i.
+                                       g∈G
+    
+    We then observe the second register with outcome, say, r ∈ R. This action
+    serves to place the first register into a superposition of all elements that map
+    to r under γ. Because γ is constant and distinct on cosets of H we may write
+    the state of the computer as
+                                       X
+                                           |s + hi|ri
+                                       h∈H
+    
+    for some coset s + H chosen by the observation of the second register. Since
+    we will not use the second register or its contents in the remainder of the
+    algorithm, we express theP  state of the computer as a function of the contents
+    of the first register only, h∈H |s + hi. We then apply the quantum Fourier
+    transform which results in the state
+                                      X
+                                           hh′ |si |h′ i,
+                                      h′ ∈H ⊥
+    
+    which may be verified by direct calculation. Finally, we observe the first reg-
+    ister. Notice that this results in a uniformly random sample from H ⊥ .
+        It can easily be shown that by repeating this experiment of order log |H ⊥ |
+    times, we find a generating set for H ⊥ . The hidden subgroup H ⩽ G can then
+    be calculated efficiently from H ⊥ on a classical computer, essentially by linear
+    algebra. In summary, the sole purpose of the quantum machine in the above
+    algorithm is to sample uniformly from H ⊥ .
+    
+    
+    5    A Generalized H ⊥
+    We now briefly discuss the main ideas of harmonic analysis on groups, stating
+    as facts the main results that we require. For more detailed information see
+    the excellent references [14, 15]. Let G be a (possibly noncommutative) finite
+    group. A representation of G is a homomorphism ρ : G → GL(Vρ ) where Vρ
+    is called the representation space of the representation. The dimension of Vρ ,
+    denoted dρ , is called the dimension of the representation. The representation ρ
+    is irreducible if the only invariant subspaces of Vρ are 0 and Vρ itself. Two
+    representations ρ1 and ρ2 are equivalent if there exists an invertible linear map
+    S : Vρ1 → Vρ2 such that ρ1 (g) = S −1 ρ2 (g) S for all g ∈ G.
+        Let Γ = {ρ1 , ρ2 , . . . , ρr } be a complete
+                                                 Pr set2 of inequivalent, irreducible rep-
+    resentations of G. Then the identity i=1 dρi = |G| holds. Furthermore, we
+    
+                                                9
+    may assume that the representations are unitary, i.e., that ρ(g) is a unitary
+    matrix for all g ∈ G and all ρ ∈ Γ. The functions defined by ρij = ρ(g)ij for
+    1 ≤ i, j ≤ dρ are called matrix coefficients, and by the previous identity it
+    follows that there are |G| matrix coefficients. It is a fundamental fact that
+    the set of all normalized matrix coefficients obtained from any fixed Γ is an
+    orthonormal basis of the group algebra C[G]. The Fourier transform (with
+    respect to a chosen Γ) is a change of basis transformation of the group algebra
+    from the basis of point masses to the basis of matrix coefficients.
+        If G is commutative, then these definitions reduce to those discussed in
+    the previous section, since in that case, all representations are 1-dimensional
+    and each matrix coefficient is just a character. If G is noncommutative, then
+    there exists at least 1 irreducible representation of G with higher dimension,
+    and in this case the Fourier transform depends on the choice of bases for the
+    irreducible representations. It seems as though this is what complicates the
+    extension of the quantum algorithm for commutative groups to the noncom-
+    mutative scenario.
+        It turns out that for our present application it is most useful to use an
+    equivalent notion of the Fourier transform. One may also think of the matrix
+    coefficients as collected together in matrices. In this view the Fourier transform
+    is a matrix-valued function on Γ. For each f ∈ C[G], we define the value of
+    the Fourier transform at an irreducible representation ρ ∈ Γ to be
+                                        s
+                                           dρ X
+                                fˆ(ρ) =            f (g)ρ(g).
+                                          |G|
+                                             g∈G
+    
+    If we take individual entries of these matrices, then we recover the coefficients
+    in the basis of matrix coefficients. There is a Fourier inversion formula and
+    therefore f is determined by the matrices fˆ(ρ) ρ ∈ Γ .
+       We may now describe the noncommutative version of H ⊥ . Let VρH be the
+    elements of Vρ that are pointwise fixed by H,
+    
+                          VρH = {v ∈ Vρ | ρ(h)v = v, h ∈ H}.
+    
+    Let PρH be the projection operator onto VρH . Then define
+    
+                                H ⊥ = PρH ρ ∈ Γ .
+                                       
+    
+    
+    The significance of this definition follows from the following elementary result.
+    
+    
+    Theorem 8 Let IH be the indicator function on the subgroup H ⩽ G. Then,
+    for all ρ ∈ Γ, we have that IˆH (ρ) = PρH .
+    
+                                           10
+    Corollary 9 Let sH be any coset of H ⩽ G. Then the previous theorem
+    immediately yields IˆsH (ρ) = ρ(s)PρH .
+    
+        Let us briefly summarize the role of this result in the quantum algorithm.
+    If we straight-forwardly apply the quantum algorithm described in the previ-
+    ous section to the case where G is noncommutative, then we must determine
+    the resulting probability amplitudes and the information gained by sampling
+    according to these amplitudes.
+        Recall that the state of the quantum system after the first observation is
+    a superposition of states corresponding to the members of one coset. Thus
+    the state may be described by the indicator function of a coset IsH . The final
+    observation results in observing the name of a matrix coefficient |ρ, i, ji. The
+    probability of observing |ρ, i, ji is given by |cρ,i,j |2 where cρ,i,j is the coefficient
+    of ρij in the expansion of IsH in the basis of matrix coefficients. The corollary
+    above allows us, in theory, to compute these probability amplitudes.
+        The algorithm described in the first part of this paper may be derived
+    from these general methods. For a general noncommutative group it seems
+    that these methods are necessary for an analysis of the resulting probability
+    amplitudes.
+    
+    
+    6    Acknowledgements
+    We would like to thank Dan Rockmore, David Maslen and Hans J. Munkholm
+    from whom we learned noncommutative Fourier analysis, and Richard Hughes,
+    Robert Beals and Joan Boyar for helpful conversations on this problem.
+    
+    
+    References
+     [1] Beals, Robert, “Quantum computation of Fourier transforms over sym-
+         metric groups”, Proceedings of the 29th Annual ACM Symposium on The-
+         ory of Computing — STOC, 1997, pp. 48 – 53.
+    
+     [2] Berthiaume, André, “Quantum computation”, in Complexity The-
+         ory Retrospective II, L. A. Hemaspaandra and A. L. Selman (editors),
+         Springer-Verlag, 1997.
+    
+     [3] Boneh, Dan and Richard J. Lipton, “Quantum cryptoanalysis of
+         hidden linear functions (Extended abstract)”, Proceedings of Advances
+         in Cryptology — CRYPTO, 1995, Lecture Notes of Computer Science,
+         Vol. 963, Springer–Verlag, pp. 424 – 437.
+    
+    
+                                               11
+     [4] Brassard, Gilles and Peter Høyer, “On the power of exact quantum
+         polynomial time”, unpublished, 1996. Available on Los Alamos e-Print
+         archive (http://xxx.lanl.gov) as quant-ph/9612017.
+    
+     [5] Brassard, Gilles and Peter Høyer, “An exact quantum polynomial-
+         time algorithm for Simon’s problem”, Proceedings of Fifth Israeli Sympo-
+         sium on Theory of Computing and Systems — ISTCS, 1997, IEEE Com-
+         puter Society Press, pp. 12 – 23.
+    
+     [6] Buhrman, Harry, Richard Cleve and Avi Wigderson, “Quantum vs.
+         classical communication and computation”, Proceedings of the 30th An-
+         nual ACM Symposium on Theory of Computing — STOC, 1998. To ap-
+         pear.
+    
+     [7] Cleve, Richard and Harry Buhrman, “Substituting quantum en-
+         tanglement for communication”, Physical Review A, Vol. 56, 1997,
+         pp. 1201 – 1204.
+    
+     [8] Grigoriev, Dima, “Testing shift-equivalence of polynomials by deter-
+         ministic, probabilistic and quantum machines”, Theoretical Computer
+         Science, Vol. 180, 1997, pp. 217 – 228.
+    
+     [9] Groups and Computation II, Proceedings of the 1996 DIMACS Workshop
+         in Groups and Computation, DIMACS Series in Discrete Mathematics
+         and Theoretical Computer Science, L. Finkelstein and W. Kantor (edi-
+         tors), Vol. 28, American Mathematical Society, 1997.
+    
+    [10] Hoeffding, Wassily, “Probability inequalities for sums of bounded ran-
+         dom variables”, Journal of the American Statistical Association, Vol. 58,
+         1963, pp. 13 – 30.
+    
+    [11] Høyer, Peter, “Efficient quantum transforms”, unpublished, 1997. Avail-
+         able on Los Alamos e-Print archive (http://xxx.lanl.gov) as quant-
+         ph/9702028.
+    
+    [12] Jozsa, Richard, “Quantum algorithms and the Fourier transform”, Pro-
+         ceedings of the Royal Society, London, Vol. A454, 1998, pp. 323 – 337.
+    
+    [13] Kitaev, Alexey Yu., “Quantum measurements and the Abelian stabilizer
+         problem”, unpublished, 1995. Available on Los Alamos e-Print archive
+         (http://xxx.lanl.gov) as quant-ph/9511026.
+    
+    [14] Maslen, David K. and Daniel N. Rockmore, “Generalized FFTs —
+         A survey of some recent results”, pp. 183 – 238 in [9].
+    
+    
+                                         12
+    [15] Rockmore, Daniel N., “Some applications of generalized FFTs”,
+         pp. 329 – 370 in [9].
+    
+    [16] Shor, Peter W., “Polynomial-time algorithms for prime factorization and
+         discrete logarithms on a quantum computer”, SIAM Journal on Comput-
+         ing, Vol. 26, 1997, pp. 1484 – 1509.
+    
+    [17] Simon, Daniel R., “On the power of quantum computation”, SIAM Jour-
+         nal on Computing, Vol. 26, 1997, pp. 1474 – 1483.
+    
+    
+    
+    
+                                        13
+    

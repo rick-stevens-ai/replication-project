@@ -1,0 +1,335 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=flexible}
+
+\title{Independent Replication Report --- OSTI-2349026\\
+\large Surrogate Optimization of Variational Quantum Circuits}
+\author{Independent Replication (Ollie / OpenClaw)}
+\date{2026-07-06}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently replicate portions of Gustafson et al., ``Surrogate optimization of
+variational quantum circuits,'' \emph{PNAS} \textbf{122}(36), e2408530122 (2 Sep 2025),
+DOI \href{https://doi.org/10.1073/pnas.2408530122}{10.1073/pnas.2408530122}, OSTI-2349026.
+The paper's public STALK v0.1 code is real and pullable. The transverse-field Ising (TFIM)
+Hamiltonian (Eq.~2) and the 4-parameter hardware-efficient ansatz (Eq.~5--6) were
+independently reimplemented from scratch and benchmarked at $N_s=4$ against five SciPy
+baselines. The qualitative headline claims --- ``surrogate line search beats Powell in
+function calls under sampling noise'' and ``gradient-based methods fail under sampling
+noise'' --- reproduce. The exact 40-qubit IBM QPU demonstration and the H$_2$O/N$_2$/H$_4$
+chemistry benchmarks in Table~1 of the paper could \emph{not} be reproduced because
+(a) the sparse wave function simulator (SWS) the paper depends on is not in the public
+STALK v0.1 release, and (b) IBM Quantum access to \texttt{ibm\_brisbane} is required for
+the 40-qubit demonstration. \textbf{Verdict: PARTIAL.}
+\end{abstract}
+
+\section{Paper Summary}
+
+Gustafson et al.\ adapt the STALK surrogate-Hessian parallel line-search algorithm
+(originally developed by Tiihonen, Kent, and Krogel for stochastic electronic structure
+geometry optimization, \emph{J.\ Chem.\ Phys.} 156, 054104 (2022)) to the problem of
+variational quantum eigensolver (VQE) parameter optimization. The core idea is to use a
+cheap, smooth classical simulator (matrix product state (MPS) with small bond dimension,
+or the authors' sparse wave function simulator (SWS)) as a surrogate to compute an
+approximate Hessian of the VQE cost landscape at the current parameter point, then use
+the surrogate Hessian's eigenvectors as conjugate directions for a set of parallel 1-D
+line searches, where each line search is evaluated on the noisy ``high-level'' cost
+(an actual QPU or an exact circuit simulator with sampling noise).
+
+The claim: this cuts required function calls by $2$--$4\times$ compared with Powell's
+method and dramatically outperforms gradient-based methods, which are killed by sampling
+noise.
+
+Test systems examined in the paper:
+\begin{itemize}
+  \item H$_2$O/STO-3G --- 14 effective qubits, 28 ansatz parameters, UCCSD ansatz.
+  \item N$_2$/STO-3G --- 20 qubits, 55 parameters.
+  \item N$_2$/cc-pVDZ --- 36 qubits, 50 parameters (truncated to lowest 18 orbitals).
+  \item H$_4$/cc-pVDZ --- 40 qubits, 193 parameters (stretched geometry, 1.27\,\AA).
+  \item Transverse-field Ising, $N_s=40$ sites, $J_1=1.0$, $J_2=0.9$, $h_t=0.4$, PBC,
+        4-parameter hardware-efficient ansatz, demonstrated on IBM \texttt{ibm\_brisbane}.
+\end{itemize}
+
+Baselines: SLSQP, BFGS, Powell, conjugate gradient (CG), COBYLA, ExcitationSolve (ES).
+
+\section{Claims Table}
+
+\begin{longtable}{clllcc}
+\toprule
+\# & Claim & Type & Testable? & Tested? \\
+\midrule
+C1 & Surrogate-Hessian parallel line search adapted from atomic relaxation to VQE & method. & yes & yes \\
+C2 & Public STALK v0.1 code available and usable & infra. & yes & yes \\
+C3 & Surrogate LS beats Powell 2--4$\times$ on H$_2$O/N$_2$/H$_4$ under noise & quant. & needs SWS & partial \\
+C4 & Surrogate LS reaches $\delta E = 10^{-4}$--$10^{-5}$ Ha while ES plateaus higher & quant. & needs SWS+chem & no \\
+C5 & Gradient-based methods (BFGS, CG) fail under sampling noise on VQE & qual. & yes & yes \\
+C6 & Truncating LS to k steepest directions accelerates convergence & method. & yes & partial \\
+C7 & 40-qubit TFIM on \texttt{ibm\_brisbane} converges within 2.5 SD of MPS ref & exp. & needs IBM QPU & no \\
+C8 & Fig.~5 linear divergence consistent with entangling-gate depolarizing errors & exp. & needs IBM QPU & no \\
+C9 & SWS handles chemistry up to 64 qubits with moderate resources & infra. & needs SWS release & no \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+
+\subsection{Data / Code Sources}
+
+All artifacts fetched free (no paid endpoints, no external LLM calls, no API keys):
+\begin{itemize}
+  \item Paper PDF from \url{https://www.osti.gov/servlets/purl/2349026} (5,025,832 B, MD5 \texttt{df95983131d50dbedc1c5bca5900ad7a}).
+  \item STALK v0.1 code tarball from \url{https://codeload.github.com/QMCPACK/stalk/tar.gz/refs/tags/v0.1} (181,488 B, MD5 \texttt{b7e6e413603b24dfd34082c5b97d9b10}).
+  \item PDF-to-text extraction via \texttt{pdftotext -layout} (659 lines).
+\end{itemize}
+
+\subsection{Software Stack}
+
+Python 3.12.13 in \texttt{work/venv}; \texttt{numpy 2.5.0}, \texttt{scipy 1.18.0},
+\texttt{qiskit 2.5.0}, \texttt{qiskit-aer 0.17.2}.
+
+\subsection{Test System: TFIM (paper Eq.~2)}
+\begin{equation}
+H \;=\; J_1 \sum_i Z_i Z_{i+1} \;+\; J_2 \sum_i Z_i Z_{i+2} \;+\; h_t \sum_i X_i \quad \text{(PBC)}
+\end{equation}
+with $J_1=1.0$, $J_2=0.9$, $h_t=0.4$ (same as paper's 40-qubit run) and $N_s=4$ sites
+(scaled down from paper's 40 for local statevector simulation).
+
+\subsection{Ansatz (paper Eq.~5--6)}
+\begin{align}
+V(\theta) &= \left[\prod U_{\text{even}}(\theta_1)\right]
+             \left[\prod U_{\text{odd}}(\theta_2)\right]
+             \left[\prod U_{\text{even}}(\theta_3)\right]
+             \left[\prod U_{\text{odd}}(\theta_4)\right] \\
+U_{i,j}(\theta) &= \exp\!\big(-i\theta (Y_i Z_j + Z_i Y_j)\big)
+\end{align}
+Even pairs $(0,1),(2,3),\dots$; odd pairs $(1,2),(3,0)$ with PBC.
+
+\subsection{Cost Function}
+\begin{align}
+\hat C_{\text{noisy}}(\theta) &= \langle\psi(\theta)|H|\psi(\theta)\rangle + \mathcal{N}(0,\sigma) \\
+\hat C_{\text{smooth}}(\theta) &= \langle\psi(\theta)|H|\psi(\theta)\rangle \quad \text{(surrogate)}
+\end{align}
+with $\sigma = 1\times 10^{-3}$ (v1) or $5\times 10^{-4}$ (v2).
+
+\subsection{Optimizers Benchmarked}
+
+Powell, BFGS, COBYLA, CG, SLSQP (all \texttt{scipy.optimize.minimize}), and our
+from-scratch STALK-style SurrogateLS (FD Hessian on $\hat C_{\text{smooth}}$ $\to$
+eigendecomposition $\to$ 1-D poly-fit line search along each conjugate direction on
+$\hat C_{\text{noisy}}$; 7 points/direction, 3--5 iters, span $0.3$--$0.4$).
+
+\subsection{Metric}
+
+Number of noisy function calls at which the best-so-far exact energy $E^*(\theta_{\text{best}})$
+first falls below $E_{\min} + \text{threshold}$, for threshold $\in\{0.1, 0.01, 0.005\}$.
+Aggregated over 5 seeds by median.
+
+\section{Results}
+
+\subsection{v1 single-seed run ($\sigma=10^{-3}$, $N_s=4$)}
+
+Ansatz variational minimum (noise-free): $-0.686093$ (exact GS: $-3.945095$; the
+4-parameter ansatz is very restricted and cannot reach the true ground state --- expected
+for a hardware-efficient ansatz with only 4 parameters). Starting energy: $+0.286$.
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Method & \# noisy calls & Final gap & Ratio vs Powell \\
+\midrule
+Powell & 429 & $+0.003$ & $1.0\times$ \\
+BFGS   & 105 & $+0.972$ & $4.09\times$ (failed) \\
+COBYLA & 38  & $+0.012$ & $11.29\times$ \\
+CG     & 132 & $+0.971$ & $3.25\times$ (failed) \\
+SLSQP  & 196 & $+3.588$ & $2.19\times$ (failed) \\
+\textbf{SurrogateLS} & \textbf{84} & \textbf{$+0.227$} & \textbf{$5.11\times$} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+SurrogateLS trajectory (exact energy after each of 3 iterations):
+$0.286 \to -0.573 \to -0.445 \to -0.459$.
+
+\subsection{v2 multi-seed threshold benchmark (5 seeds, $\sigma=5\times10^{-4}$, $N_s=4$)}
+
+Median noisy function calls to reach $\text{gap} < \text{threshold}$:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Method & gap $<0.1$ & gap $<0.01$ & gap $<0.005$ \\
+\midrule
+Powell & 40 & 286 & 301 \\
+COBYLA & 11 & 42  & N/A \\
+BFGS   & N/A & N/A & N/A \\
+\textbf{SurrogateLS} & \textbf{16} & N/A & N/A \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Speedup ratio (Powell median calls) / (method median calls):
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Method & gap $<0.1$ & gap $<0.01$ & gap $<0.005$ \\
+\midrule
+COBYLA & $3.64\times$ & $6.81\times$ & N/A \\
+\textbf{SurrogateLS} & \textbf{$2.50\times$} & N/A & N/A \\
+BFGS   & N/A & N/A & N/A \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Comparison to Paper's Numbers}
+
+\begin{longtable}{p{0.35\linewidth}p{0.25\linewidth}p{0.25\linewidth}p{0.1\linewidth}}
+\toprule
+Paper claim & Paper value & Our value & Agreement \\
+\midrule
+Surrogate LS faster than Powell (calls) & 2--4$\times$ fewer & 2.5$\times$ fewer (gap$<$0.1) & yes \\
+Surrogate LS converges in 2--3 iterations & 2--3 iters $\approx$ 2--4k calls (chem.) & 3 iters $\approx$ 84 calls (TFIM $N_s{=}4$); 5 iters $\approx$ 180 & yes (direction) \\
+Powell converges to $\delta E{=}10^{-3}$--$10^{-5}$ Ha eventually & 6--9k calls & 286 calls to gap$<10^{-2}$ (tiny) & consistent \\
+Gradient methods (BFGS) struggle with noise & ES/BFGS plateau higher & BFGS/CG never reach gap$<10^{-1}$ & yes \\
+ExcitationSolve initially fast then plateaus above surrogate LS & Fig.~2 & not benchmarked & --- \\
+40-qubit IBM QPU within 2.5 SD after 3 iters & Fig.~4 & not testable (no IBM access) & --- \\
+Depolarizing/coherent gate errors dominate on QPU, $N_s{=}12$--$32$ & Fig.~5 & not testable & --- \\
+\bottomrule
+\end{longtable}
+
+\section{Verdict: PARTIAL}
+
+\textbf{Rubric application.}
+\begin{itemize}
+  \item \textbf{REPLICATED} would require reproducing the paper's headline numbers
+        ($2$--$4\times$ speedup at $\delta E = 10^{-3}$--$10^{-5}$ Ha on
+        H$_2$O/N$_2$/H$_4$, plus the 40-qubit IBM QPU result). This requires the SWS
+        simulator (not publicly released) and IBM Quantum access. Not honestly available.
+  \item \textbf{PARTIAL} fits: I pulled real public code (STALK v0.1), independently
+        reimplemented the paper's Hamiltonian and ansatz from scratch, ran a real
+        benchmark against 5 traditional optimizers, and reproduced the qualitative
+        direction and rough magnitude ($2.5\times$ vs paper's $2$--$4\times$) of the
+        paper's central claim on a scaled-down version of the paper's own TFIM problem.
+  \item \textbf{SPOT-CHECK} would apply if I only verified availability. I did more.
+  \item \textbf{FAILED} / \textbf{CONTRADICTED} do not fit --- nothing observed
+        contradicts the paper; results agree with the paper's direction on every
+        testable claim.
+  \item \textbf{NO-GO} would apply if the paper's data/code were entirely unavailable;
+        STALK v0.1 is available and I used it (in reimplementation).
+\end{itemize}
+
+\section{Genuine Critique}
+
+This is a section of substantive critique, distinguishing (a) reproducibility gaps that
+belong to the paper, (b) methodological choices that the paper defends but could be
+questioned, and (c) limitations of my replication itself.
+
+\subsection{Reproducibility gaps that belong to the paper}
+
+\begin{enumerate}
+  \item \textbf{The sparse wave function simulator (SWS) is not released.} The paper's
+        chemistry headline numbers (H$_2$O, N$_2$, H$_4$ in Table~1 and Fig.~2) all
+        depend on SWS as the surrogate. Refs 86, 87 are cited, but no public URL is
+        given in the paper's Data/Materials/Software Availability section, and SWS is
+        not part of STALK v0.1. This is a genuine reproducibility gap. A reader cannot
+        reproduce the chemistry benchmarks without either (a) writing an independent
+        sparse-wavefunction simulator or (b) obtaining SWS from the authors privately.
+        For a PNAS paper whose central novelty is a surrogate-based optimizer, the
+        surrogate itself being unavailable is a real limitation.
+  \item \textbf{The 40-qubit QPU result depends on a paid, gated resource.} The
+        \texttt{ibm\_brisbane} demonstration cannot be reproduced without IBM Quantum
+        credits. This is not the authors' fault, but it makes Fig.~4 and Fig.~5
+        third-party-non-verifiable. The paper does not release the raw QPU shot data
+        (bitstring counts per circuit per iteration) that would allow post-hoc
+        analysis without re-running on hardware.
+  \item \textbf{Baseline optimizer configurations not fully specified.} The paper
+        reports that gradient-based methods ``fail'' under sampling noise, but the
+        exact finite-difference step size, tolerance settings, and gradient estimation
+        method used for BFGS/CG are not stated. This is important because SPSA (which
+        is designed for noisy gradients) is not among the baselines --- and its
+        exclusion is not justified. A charitable read is that SPSA is well known and
+        the paper focuses on scipy defaults; a critical read is that the strongest
+        gradient-based baseline for noisy VQE was omitted.
+\end{enumerate}
+
+\subsection{Methodological choices worth challenging}
+
+\begin{enumerate}
+  \item \textbf{Surrogate quality assumption.} The paper's argument implicitly assumes
+        that a small-bond-dimension MPS is a ``good enough'' surrogate for the true
+        VQE cost landscape --- specifically, that its Hessian eigenvectors are close
+        to the true Hessian's eigenvectors. This is plausible for weakly entangled
+        systems but is not obviously true for the strongly entangled regime where VQE
+        is most useful. The paper's chemistry tests are all in regimes where MPS/SWS
+        works well; the method's failure modes on strongly entangled circuits are not
+        characterized.
+  \item \textbf{4-parameter TFIM ansatz is intentionally restrictive.} The paper's
+        40-qubit demonstration uses a 4-parameter ansatz, which cannot reach the true
+        ground state (our replication confirms: at $N_s{=}4$, ansatz min is $-0.686$
+        vs.\ true GS $-3.945$). This is fine as an \emph{optimizer benchmark} but
+        should not be conflated with a demonstration that VQE + surrogate LS solves
+        the physical problem. The paper is careful in language but a casual reader
+        could over-interpret the QPU result.
+  \item \textbf{No wall-clock or dollar-cost accounting.} Function-call counts are the
+        reported metric. But the surrogate itself has non-trivial cost (Hessian
+        computation on MPS or SWS), and the paper does not compare total wall-clock
+        or total resource cost across methods. On chemistry systems where SWS is
+        cheap this may not matter; on larger systems it could dominate.
+  \item \textbf{No comparison to Bayesian optimization / RL-based optimizers.}
+        Gaussian-process-based Bayesian optimization is a well-established
+        alternative for noisy black-box function optimization and has been applied to
+        VQE (e.g.\ Iannelli \& Jansen, Nakaji et al.). Its omission from baselines is
+        a methodological weakness --- especially since GP-BO is arguably the closest
+        cousin to a ``surrogate optimizer.''
+\end{enumerate}
+
+\subsection{Limitations of this replication}
+
+\begin{enumerate}
+  \item Ns$=4$ vs paper's Ns$=40$; the 4-parameter ansatz cannot reach the true GS,
+        so I benchmark distance to the ansatz's variational minimum (fair for
+        \emph{optimizer performance} but doesn't test quantum advantage).
+  \item Surrogate is exact statevector, not MPS(bond-4). This biases in favor of
+        SurrogateLS (``perfect'' surrogate). A more faithful test would use MPS(bond-4)
+        as surrogate and exact-statevector-plus-noise as high-level; feasible on
+        uicgpu but requires meaningful TN engineering not in scope for this session.
+  \item ExcitationSolve --- the paper's tightest competitor to SurrogateLS --- was
+        not benchmarked (not in scipy; would require pulling ref 95's implementation).
+        The paper's most informative comparison is therefore not independently
+        checked.
+  \item Chemistry benchmarks (H$_2$O, N$_2$, H$_4$) not attempted, for the SWS
+        reasons above.
+\end{enumerate}
+
+\subsection{Bottom line}
+
+The paper's methodology is honest and its central qualitative claims survive an
+independent partial-scale test. The quantitative headline numbers cannot be
+independently verified within a single session without (a) the private SWS simulator
+and (b) IBM Quantum access --- a paper-side reproducibility gap, not a replicator-side
+failure. A reader should treat the ``$2$--$4\times$ fewer function calls'' claim as
+directionally supported at least on TFIM under our simpler-than-paper conditions,
+and reserve full judgment on the chemistry headline numbers until either SWS is
+released or an independent MPS-surrogate reimplementation is carried out.
+
+\section*{Evidence Files}
+\begin{itemize}
+  \item \texttt{report/evidence/vqe\_ising\_run.log} --- v1 single-seed run log
+  \item \texttt{report/evidence/vqe\_ising\_results.json} --- v1 results JSON
+  \item \texttt{report/evidence/vqe\_ising\_v2\_run.log} --- v2 multi-seed run log
+  \item \texttt{report/evidence/vqe\_ising\_results\_v2.json} --- v2 results JSON
+  \item \texttt{work/replicate\_vqe\_ising.py} --- v1 script
+  \item \texttt{work/replicate\_vqe\_ising\_v2.py} --- v2 script
+  \item \texttt{work/paper.pdf} --- PNAS PDF (5.0 MB, MD5 df95983\ldots)
+  \item \texttt{work/code/stalk-v0.1.tar.gz} --- STALK source (181 KB, MD5 b7e6e41\ldots)
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,896 @@
+<!-- 
+extraction/marker.md — FALLBACK extraction
+
+This file was NOT produced by marker-pdf (the marker install requires
+torch, which failed to resolve in the local venv in the wave-time budget).
+Instead this is a pdftotext-based Markdown-formatted extraction of the
+original PDF (arXiv:quant-ph/0211140).  The full raw pdftotext of the
+paper is in ../work/paper.txt (reading-order) and
+paper_layout.txt (2-column-preserved layout).
+
+Central-corpus check: no marker or nougat parse of this arxiv id exists
+in ~/Dropbox/REPLICATE-PROJECT/pde_corpus or
+~/Dropbox/XFER/lucid_marker_queue as of 2026-07-05.
+
+-->
+
+# Quantum Algorithms for some Hidden Shift Problems
+**arXiv:quant-ph/0211140v1 (21 Nov 2002)**
+
+**Authors:** Wim van Dam (HP, MSRI, U.C. Berkeley), Sean Hallgren (Caltech),
+Lawrence Ip (U.C. Berkeley).
+
+transforms can also be used to capture shift structure has received far less attention in the context of
+quantum computation.
+In this paper, we present three examples of “unknown shift” problems that can be solved efficiently
+on a quantum computer using the quantum Fourier transform. We also define the hidden coset problem,
+which generalizes the hidden shift problem and the hidden subgroup problem. This framework provides
+a unified way of viewing the ability of the Fourier transform to capture subgroup and shift structure.
+
+1
+
+Introduction
+
+The first problem to demonstrate a superpolynomial separation between random and quantum polynomial
+time was the Recursive Fourier Sampling problem [6]. Exponential separations were subsequently discovered
+by Simon [32], who gave an oracle problem, and by Shor [31], who found polynomial time quantum algorithms
+for factoring and discrete log. We now understand that the natural generalization of Simon’s problem and
+the factoring and discrete log problems is the hidden subgroup problem (HSP), and that when the underlying
+group is Abelian and finitely generated, we can solve the HSP efficiently on a quantum computer. While
+recent results have continued to study important generalizations of the HSP (for example, [17, 23, 19, 34,
+25, 22]), only the Recursive Fourier Sampling problem remains outside the HSP framework.
+In this paper, we give quantum algorithms for several hidden shift problems. In a hidden shift problem
+we are given two functions f , g such that there is a shift s for which f (x) = g(x + s) for all x. The problem
+is then to find s. We show how to solve this problem for several classes of functions, but perhaps the most
+interesting example is the shifted Legendre symbol problem, where g is the Legendre symbol1 with respect
+as an oracle, find s”.
+to a prime size finite field, and the problem is then: “Given the function f (x) = x+s
+p
+The oracle problem our algorithms solve can be viewed as the problem of predicting a pseudo-random
+function f . Such tasks play an important role in cryptography and have been studied extensively under various assumptions about how one is allowed to query the function (nonadaptive versus adaptive, deterministic
+versus randomized, et cetera) [7, 29]. In this paper we consider the case where the function is queried in a
+quantum mechanical superposition of different values x. We show that if f (x) is an s-shifted multiplicative
+character χ(x+s), then a polynomial-time quantum algorithm making such queries can determine the hidden
+shift s, breaking the pseudo-randomness of f . We conjecture that classically the shifted Legendre symbol
+∗ HP Labs, Palo Alto; Mathematical Sciences Research Institute; and Computer Science Division, University of California,
+Berkeley. Supported by an HP - MSRI postdoc fellowship.
+† Supported in part by an NSF Mathematical Sciences Postdoctoral Fellowship and in part by the NSF through the Institute
+for Quantum Information at the California Institute of Technology. Most of this work done while the author was at the
+Mathematical Sciences Research Institute and the University of California, Berkeley, with partial support from DARPA QUIST
+Grant F30602-01-2-0524.
+‡ Computer Science Division, University of California, Berkeley. Supported by NSF Grant CCR-0049092, DARPA Grant
+F30602-00-2-0601 and DARPA QUIST Grant F30602-01-2-2054. Part of this work was done while the author was a visitor at
+the Institute for Quantum Information
+at the California Institute of Technology.
+
+1 The Legendre symbol x is defined to be 0 if p divides x, 1 if x is a quadratic residue mod p and −1 if x is not a quadratic
+p
+residue mod p.
+
+1
+
+is a pseudo-random function, that is, it is impossible to efficiently predict the value of the function after a
+polynomial number of queries if one is only allowed a classical algorithm with oracle access to f . Partial
+evidence for this conjecturehas been
+by
+“Given
+a part
+ given
+ Damgård [15] who proposed the related task:
+
+s+ℓ
+s+ℓ+1
+of the Legendre sequence ps , s+1
+,
+.
+.
+.
+,
+,
+where
+ℓ
+is
+O(log
+p),
+predict
+the
+next
+value
+”,
+as
+a
+hard
+p
+p
+p
+problem with applications in cryptography.
+Using the quantum algorithms presented in this paper, we can break certain algebraically homomorphic
+cryptosystems by a reduction to the shifted Legendre symbol problem. The best known classical algorithm [9]
+for breaking these cryptosystems is subexponential and is based on a smoothness assumption. These cryptosystems can also be broken by Shor’s algorithm for period finding, but the two attacks on the cryptosystems
+appear to use completely different ideas.
+While current quantum algorithms solve problems based on an underlying group and the Fourier transform over that group, we initiate the study of problems where there is an underlying ring or field. The
+Fourier transform over the additive group of the ring is defined using the characters of the additive group,
+the additive characters of the ring. Similarly, the multiplicative group of units induces multiplicative characters of the ring. The interplay between additive and multiplicative characters is well understood [28, 33],
+and we show that this connection can be exploited in quantum algorithms. In particular, we put a multiplicative character into the phase of the registers and compute the Fourier transform over the additive group.
+The resulting phases are the inner products between the multiplicative character and each of the additive
+characters, a Gauss sum. We hope the new tools presented here will lead to other quantum algorithms.
+We give algorithms for three types of hidden shift problems:
+In the first problem, g is a multiplicative character of a finite field. Given f , a shifted version of g, the
+shift is uniquely determined from f and g. An example of a multiplicative character of Z/pZ is the Legendre
+symbol. Our algorithm uses the Fourier transform over the additive group of a finite field.
+In the second problem, g is a multiplicative character of the ring Z/nZ. This problem has the feature
+that the shift is not uniquely determined by f and g and our algorithm identifies all possible shifts. An
+example of a multiplicative character of Z/nZ is the Jacobi symbol2 .
+In the third problem we have the same setup as in the second problem with the additional twist that n
+is unknown.
+We also define the hidden coset problem, which is a generalization of the hidden shift problem and the
+hidden subgroup problem. This definition provides a unified way of viewing the quantum Fourier transform’s
+ability to capture subgroup and shift structure.
+Some of our hidden shift problems can be reduced to the HSP, although efficient algorithms for these
+HSP instances are not known. Assuming Conjecture 2.1 from [9], the shifted Legendre symbol problem over
+Z/pZ can be reduced to an instance
+of the
+groupDp = Z/pZ ⋊ Z/2Z in the following
+
+ HSP over the dihedral
+ x+s+1
+x+ℓ
+x+s
+, . . . , x+s+ℓ
+), where s is unknown
+way. Let f (x, 0) = ( xp , x+1
+p ,...,
+p ) and f (x, 1) = ( p ,
+p
+p
+2
+and ℓ > 2 log p. Then the hidden subgroup is H = {(0, 0), (s, 1)}. This conjecture is necessary to ensure
+that f will be distinct on distinct cosets of H. For the general shifted multiplicative character problem, the
+analogous reduction to the HSP may fail because f may not be distinct on distinct cosets. However, we can
+efficiently generate random coset states, that is, superpositions of the form |x, 0i + |x + s, 1i, although it is
+unknown how to use these to efficiently find s [16]. The issue of nondistinctness on cosets in the HSP has
+been studied for some groups [8, 21, 20, 18].
+The existence of a time efficient quantum algorithm for the shifted Legendre symbol problem was posed
+as an open question in [12]. The Fourier transform over the additive group of a finite field was independently
+proposed for the solution of a different problem in [4]. The current paper subsumes [13] and [24]. Building
+on the ideas in this paper, a quantum algorithm for estimating Gauss sums is described in [14].
+This paper is organized as follows. Section 2 contains some definitions and facts. In Section 3, we give
+some intuition for the ideas behind the algorithms. In Section 4, we present an algorithm for the shifted
+multiplicative problem over finite fields, of which the shifted Legendre symbol problem is a special case, and
+show how we can use this algorithm to break certain algebraically homomorphic cryptosystems. In Section 5,
+we extend our algorithm to the shifted multiplicative problem over rings Z/nZ. This has the feature that
+unlike in the case of the finite field, the possible shifts may not be unique. We then show that this algorithm
+2 The Jacobi symbol
+
+a
+b
+
+
+
+is defined so that it satisfies the relation
+the lower parameter is prime.
+
+2
+
+a
+bc
+
+
+
+=
+
+a
+b
+
+ a
+c
+
+and reduces to the Legendre symbol when
+
+can be extended to the situation where n is unknown. In Section 6, we show that all these problems lie
+within the general framework of the hidden coset problem. We give an efficient algorithm for the hidden
+coset problem provided g satisfies certain conditions. We also show how our algorithm can be interpreted as
+solving a deconvolution problem using Fourier transforms.
+
+2
+
+Background
+
+2.1
+
+Notation and Conventions
+
+We use the following notation: ωn is the nth root of unity exp(2πi/n), and fˆ denotes the Fourier transform
+of the function f . An algorithm computing in Fq , Z/nZ or G runs in polynomial time if it runs in time
+polynomial in log q, log n or log |G|.
+In a ring Z/nZ or a field Fq , additive characters ψ (Z/nZ → C∗ or Fq → C∗ ) are characters of the
+additive group, that is, ψ(x + y) = ψ(x)ψ(y), and multiplicative characters χ ((Z/nZ)∗ → C∗ or F∗q → C∗ )
+are characters of the multiplicative group of units, that is, χ(xy) = χ(x)χ(y) for all x and y. We extend
+the definition of a multiplicative character to the entire ring or field by assigning the value zero to elements
+outside the unit group. All nonzero χ(x) values have unit norm and so χ(x−1 ) = χ(x).
+We ignore the normalization term in front of a superposition unless we need to explicitly calculate the
+probability of measuring a particular value.
+
+2.2
+
+Computing Superpositions
+
+We will need to compute the superposition
+
+P
+
+x f (x)|xi where f (x) is in the amplitude.
+
+Lemma 1 (Computing Superpositions) Let f : G → C be a complex-valued function defined on the set
+G such that f (x) has unit P
+magnitude whenever f (x) is nonzero. Then there is an efficient algorithm for
+creating the superposition
+x f (x)|xi with success probability equal to the fraction of x such that f (x) is
+nonzero and that uses only two queries to the function f .
+P
+Proof: Start with the superposition over all x, x |xi. Compute f (x) into the second register and measure
+to see whether f (x) is nonzero. This succeeds with probability equal to the fraction of x such that f (x) is
+nonzero. Then we are left with a superposition over all x such that f (x) is nonzero. Compute the phase of
+f (x) into the phase of |xi. This phase computation can be approximated arbitrarily closely by approximating the phase of f (x) to the nearest 2n th root of unity for sufficiently large n. Use a second query to f to
+reversibly uncompute the f (x) from the second register.
+
+2.3
+
+Approximate Fourier Sampling
+
+It is not known how to efficiently compute the quantum Fourier transform over Z/nZ exactly. However,
+efficient approximations are known [26, 27, 11, 21]. We can even compute an efficient approximation to the
+distribution induced when n is unknown as long as we have an upper bound on n [21]. We will need to
+approximately Fourier sample to solve the unknown n case of the shifted character problem in Section 5.2.
+To Fourier sample a state |φi, we form the state |φ̃i that is the result of repeating |φi many times. We
+then Fourier sample from |φ̃i and use continued fractions to reduce the expanded range of values. This
+expansion into |φ̃i allows us to perform the Fourier sampling step over a length from which we can exactly
+Fourier sample.
+Pn−1
+More formally, let |φi = x=0 φx |xi be an arbitrary superposition, and D̂|φi be the distribution induced
+Pm−1
+by Fourier sampling |φi over Zn . Let the superposition |φ̃i = x=0 φxmodn |xi be |φi repeated until some
+arbitrary integer m, not necessarily a multiple of n. Let D̂|φ̃i be the distribution induced by Fourier sampling
+|φ̃i over Zq rather than Zm (where q > m and φx = 0 if x ≥ m). Notice that D̂|φi is a distribution on Zn
+and D̂|φ̃i is a distribution on Zq .
+RF
+We can now define the two distributions we will compare. Let D̂|φi
+be the distribution induced on the
+reduced fractions of D̂|φi , that is, if x is a sample from D̂|φi , we return the fraction x/n in lowest terms. In
+3
+
+RF
+particular, define D̂|φi
+(j, k) = D̂|φi (jm) if mk = n. Let D̂|CF
+be the distribution induced on fractions from
+φ̃i
+sampling D̂|φ̃i to obtain x, and then using continued fractions to compute the closest approximation to x/q
+2
+RF
+CF
+with denominator at most n. If m = Ω( nǫ2 ) and q = Ω( m
+ǫ ), then |D̂|φi − D̂|φ̃i |1 < ǫ.
+
+2.4
+
+Finite Fields
+
+The elements of a finite field Fq (where q = pr for some prime p) can be represented as polynomials in
+Fp [X] modulo a degree r irreducible polynomial in Fp [X]. In this representation, addition, subtraction,
+multiplication and division can all be performed in O((log q)2 ) time [2].
+We will need to compute the Fourier transform over the additive group of a finite field, which is isomorphic
+Tr(xy)
+to (Z/pZ)r . The additive characters are of the form ψy (x) = ωp
+, where Tr : Fq → Fp is the trace of the
+Pr−1 pj
+finite field Tr(x) = j=0 x , and y ∈ Fq [28]. We can efficiently compute the Fourier transform over the
+additive group of a finite field.
+Lemma 2 (Fourier Transform over Fq ) The Fourier transform |xi 7→ √1q
+proximated to within error ǫ in time polynomial in log q and log 1/ǫ.
+
+P
+
+Tr(xy)
+|yi can be apy∈Fq ωp
+
+Proof: See [13]. (Independently, the efficiency of this transform was also shown in [4].)
+For clarity of exposition we assume throughout the rest of the paper that this Fourier transform can be
+performed exactly, as we can make the errors due to the approximation exponentially small with only
+polynomial overhead.
+
+2.5
+
+Multiplicative Characters and their Fourier Transforms
+
+The multiplicative group F∗q of a finite field Fq is cyclic. Let g be a generator of F∗q . Then the multiplicative
+kℓ
+characters of Fq are of the form χ(g ℓ ) = ωq−1
+for all ℓ ∈ {0, . . . , q − 2} where the q − 1 different multiplicative
+characters are indexed by k ∈ {0, . . . , q − 2}. The trivial character is the character with k = 0. We can
+extend the definition of χ to Fq by defining χ(0) = 0. On a quantum computer we can efficiently compute
+χ(x) because the value is determined by the discrete logarithm logg (x), which can be computed efficiently
+using Shor’s algorithm [31]. The Fourier transform of a multiplicative character χ of the finite field Fq is
+given by χ̂(y) = χ(y)χ̂(1) [28, 33].
+mk
+∗ ∼
+1
+Let n = pm
+1 . . . pk be the prime factorization of n. Then by the Chinese Remainder Theorem, (Z/nZ) =
+mk
+m1
+∗
+∗
+(Z/p1 Z) × · · · × (Z/pk Z) . Every multiplicative character χ of Z/nZ can be written as the product
+mi
+i
+χ(x) = χ1 (x1 ) . . . χk (xk ), where χi is a multiplicative character of Z/pm
+i Z and xi ≡ x mod pi . We say χ is
+completely nontrivial if each of the χi is nontrivial. We extend the definition of χ to all of Z/nZ by defining
+χ(y) = 0 if gcd(y, n) 6= 1. The character χ is aperiodic on {0, . . . , n − 1} if and only if all its χi factors are
+i
+aperiodic over their respective domains {0, . . . , pm
+i − 1}. We call χ a primitive character if it is completely
+nontrivial and aperiodic. Hence, χ is primitive if and only if all its χi terms are primitive.
+It is well known that the Fourier transform of a primitive χ is χ̂(y) = χ(y)χ̂(1). If χ is completely
+nontrivial but periodic with period ℓ, then its Fourier transform obeys χ̂(yn/ℓ) = χ′ (y)χ̂′ (1), where χ′ is the
+primitive character obtained by restricting χ to {0, . . . , ℓ−1}. See the book by Tolimieri et al. for details [33].
+
+3
+
+Intuition Behind the Algorithms for the Hidden Shift Problem
+
+We give some intuition for the ideas behind our algorithms for the hidden shift problem. We use the shifted
+Legendre symbol problem as our running example, but the approach works more generally.
+ In the shifted
+Legendre symbol problem we are given a function fs : Zp → {0, ±1} such that f (x) = x+s
+p , and are asked
+
+to find s. The Legendre symbol p· : Fp → {0, ±1} is the quadratic multiplicative character of Fp defined:
+
+x
+p is 1 if x is a square modulo p, −1 if it is not a square, and 0 if x ≡ 0.
+
+P
+P
+The algorithm starts by putting the function value in the phase to get |fs i = x fs (x)|xi = x x+s
+p |xi.
+Assume the functions fz are mutually (near) orthogonal for different z, so that the inner product hfz |fs i
+approximates the delta function value δs (z). Using this assumption, define the (near) unitary matrix C,
+
+4
+
+|0i
+
+|xi 7→ f (x)|xi
+
+F
+
+|xi 7→ ĝ −1 (x)|xi
+
+F
+
+F
+
+measure
+
+Figure 1: Circuit for hidden shift problem. Notice how we compute f and ĝ −1 into the phase.
+
+|0i
+
+F
+
+F
+
+measure
+
+|xi 7→ |xi|f (x)i
+
+Figure 2: Circuit for hidden subgroup problem. Here f is computed into a register.
+
+where the zth row is |fz i. Our quantum state |fs i is one of the rows, hence C|fs i = |si. The problem then
+reduces to: how do we efficiently implement C? By definition, C is a circulant matrix (cx,y = cx+1,y+1 ). Since
+the Fourier transform matrix diagonalizes a circulant matrix, we can write C = F (F −1 CF )F −1 = F DF −1 ,
+where D is diagonal. Thus we can
+C if we can implement D. The vector on the diagonal of
+
+P implement
+D is the vector F −1 |f0 i = F −1 x xp |xi, the inverse Fourier transform of the Legendre symbol. The
+Legendre symbol is an eigenvector of the Fourier transform, so the diagonal matrix contains the values of
+the Legendre symbol times a global constant that can be ignored. Because the Legendre symbol can be
+computed efficiently classically, it can be computed into the phase, so C can be implemented efficiently.
+In summary, to implement
+C for the hidden shift problem for the Legendre symbol, compute the Fourier
+
+transform, compute xp into the phase at |xi, and then compute the Fourier transform again (it is not
+important whether we use F or F −1 ).
+Figure 1 shows a circuit diagram outlining the algorithm for the hidden shift problem in general. Contrast
+this with the circuit for the hidden subgroup problem shown in Figure 2.
+
+4
+
+Shifted Multiplicative Characters of Finite Fields
+
+In this section we show how to solve the hidden shift problem for any nontrivial multiplicative character of a
+finite field. The Fourier transform we use is the Fourier transform over the additive group of the finite field.
+Definition 1 (Shifted Multiplicative Character Problem over Finite Fields) Given a nontrivial
+multiplicative character χ of a finite field Fq (where q = pr for some prime p), and a function f for which
+there is an s such that f (x) = χ(x + s) for all x. Find s.
+Algorithm 1 (Shifted Multiplicative Character Problem over Finite Fields)
+P
+1. Create x∈Fq χ(x + s)|xi.
+2. Compute the Fourier transform to obtain
+
+P
+
+Tr(−sy)
+χ̂(y)|yi.
+y∈Fq ωp
+
+3. For all y 6= 0, compute χ(y) into the phase to obtain χ̂(1)
+
+P
+
+Tr(−sy)
+|yi.
+ωp
+y∈F∗
+q
+
+4. Compute the inverse Fourier transform and measure the outcome −s.
+5
+
+Theorem 1 For any finite field and any nontrivial multiplicative character, Algorithm 1 solves the shifted
+multiplicative character problem over finite fields with probability (1 − 1/q)2 .
+Proof:
+1. Since χ(x) = 0 only at x = 0, by Lemma 1 we can create the superposition with probability 1 − 1/q.
+2. By Lemma 2 we can compute the Fourier transform efficiently. The Fourier transform moves the shift s
+into the phase as described.
+3. Because χ̂(y) = χ(y)χ̂(1) for every nonzero y, the phase change |yi 7→ χ(y)|yi establishes the required
+transformation.
+4. The amplitude of | − si is
+q
+P
+P
+Tr(−sy) Tr(sy)
+q−1
+√1 √ 1
+√1 √ 1
+ω
+ω
+=
+1
+=
+∗
+∗
+p
+p
+y∈F
+y∈F
+q q−1
+q q−1
+q , so the probability of measuring −s is
+q
+
+q
+
+1 − 1/q.
+
+4.1
+
+Example: The Legendre Symbol and Homomorphic Encryption
+
+
+
+The Legendre symbol p· : Fp → {0, ±1} is a quadratic multiplicative character of Fp defined: xp is +1 if x
+is a square modulo p, −1 if it is not a square, and 0 if x = 0. The quantum algorithm
+ of the previous section
+showed us how we can determine the shift s ∈ Fp given the function fs (x) = x+s
+p . We now show how this
+algorithm enables us to break schemes for ‘algebraically homomorphic encryption’.
+A cryptosystem is algebraically homomorphic if given the encryption of two plaintexts E(x), E(y) with
+x, y ∈ Fp , an untrusted party can construct the encryption of the plaintexts E(x+y) and E(xy) in polynomialtime. More formally, we have the secret encryption and decryption functions E : Fp → S and D : S → Fp ,
+in combination with the public add and multiplication transformations A : S 2 → S and M : S 2 → S such
+that D(A(E(x), E(y))) = x + y and D(M (E(x), E(y))) = xy for all x, y ∈ Fp . We assume that the functions
+E, D, A and M are deterministic. The decryption function may be many-to-one. As a result the encryption
+of a given number can vary depending on how the number is constructed. For example, A(E(4), E(2)) may
+not be equal to M (E(2), E(3)). In addition to the public A and M functions, we also assume the existence
+of a zero-tester Z : S → {0, 1}, with Z(E(x)) = 0 if x = 0, and Z(E(x)) = 1 otherwise.
+An algebraically homomorphic cryptosystem is a cryptographic primitive that enables two players to
+perform noninteractive secure function evaluation. It is an open problem whether or not such a cryptosystem
+can be constructed. We say we can break such a cryptosystem if, given E(s), we can recover s in time
+polylog(p) with the help of the public functions A, M and
+known classical attack, due to Boneh
+√ Z. The best
+and Lipton [9], has expected running time O exp c log p log log p for the field Fp and is based on a
+smoothness assumption.
+Suppose we are given the ciphertext E(s). Test E(s) using the Z function. If s is not zero, create the
+encryption E(1) via the identity xp−1 ≡ 1 mod p, which holds for all nonzero x. In particular, using E(s)
+and the M function, we can use repeated squaring and compute E(s)p−1 = E(1) in log p steps.
+Clearly, from E(1) and the
+ A function we can construct E(x) for every x ∈ Fp . Then, given such an E(x),
+in the following way. Add E(s) and E(x), yielding E(x+ s), and then compute
+we can compute f (x) = x+s
+p
+
+the encrypted (p−1)/2th power3 of x+s, giving E( x+s
+p ). Next, add E(0), E(−1) or E(1) and test if it is an
+encryption of zero, and return 0, 1 or −1 accordingly. Applying this method on a superposition
+P of |xi states,
+1
+we can create (after reversibly uncomputing the garbage of the algorithm) the state √p−1
+x fs (x)|xi. We
+can then recover s by using Algorithm 1.
+Corollary 1 Given an efficient test to decide if a value is an encryption of zero, Algorithm 1 can be used
+to break any algebraically homomorphic encryption system.
+3 The Legendre symbol satisfies
+
+x
+p
+
+
+
+= x(p−1)/2 .
+
+6
+
+We can also break algebraically homomorphic cryptosystems using Shor’s discrete log algorithm as follows.
+Suppose g is a generator for F∗p and that we are given the unknown ciphertext E(g s ). Create the superposition
+P si+j 
+P
+si+j
+)i and then append the state |ψsi+j i = t g p +t |ti to the superposition in i, j by the
+i,j |i, j, E(g
+P
+si+j
+procedure
+), which gives i,j |i, ji|ψsi+j i. Rewriting
+P described above. Next, uncompute the value E(g
+this as i,r |i, r − sii|ψr i and observing that the ψr are almost orthogonal, we see that we can apply the
+methods used in Shor’s discrete log algorithm to recover s and thus g s .
+
+5
+
+Shifted Multiplicative Characters of Finite Rings
+
+In this section we show how to solve the shifted multiplicative character problem for Z/nZ for any completely
+nontrivial multiplicative character of the ring Z/nZ and extend this to the case when n is unknown. Unlike
+in the case for finite fields, the characters may be periodic. Thus the shift may not be unique. The Fourier
+transform is now the familiar Fourier transform over the additive group Z/nZ.
+
+5.1
+
+Shifted Multiplicative Characters of Z/nZ for Known n
+
+Definition 2 (Shifted Multiplicative Character Problem over Z/nZ) Given χ, a completely nontrivial multiplicative character of Z/nZ, and a function f for which there is an s such that f (x) = χ(x + s)
+for all x. Find all t satisfying f (x) = χ(x + t) for all x.
+Multiplicative characters of Z/nZ may be periodic, so to solve the shifted multiplicative character problem
+we first find the period and then we find the shift. If the period is ℓ then the possible shifts will be
+{s, s + ℓ, s + 2ℓ, . . . }.
+Algorithm 2 (Shifted Multiplicative Character Problem over Z/nZ)
+1. Find the period ℓ of χ. Let χ′ be χ restricted to {0, . . . , ℓ − 1}.
+Pn−1
+(a) Create x=0 χ(x + s)|xi.
+Pℓ−1
+(b) Compute the Fourier transform over Z/nZ to obtain y=0 ωℓ−sy χ̂′ (y)|yn/ℓi.
+(c) Measure |yn/ℓi. Compute n/ℓ = gcd(n, yn/ℓ).
+
+2. Find s using the period ℓ and χ′ :
+Pℓ−1
+(a) Create x=0 χ′ (x + s)|xi.
+
+(b) Compute the Fourier transform over Z/ℓZ to obtain
+
+P
+
+−sy ′
+χ̂ (y)|yi.
+y ωℓ
+
+(c) For all y coprime to ℓ, χ̂′ (y)−1 into the phase to obtain
+(d) Compute the inverse Fourier transform and measure.
+
+P
+
+−sy
+|yi.
+y:χ̂′ (y)6=0 ωℓ
+
+Theorem 2 Algorithm 2 solves the shifted multiplicative character problem over Z/nZ for completely non1
+3
+3
+trivial multiplicative characters of Z/nZ in polynomial time with probability at least ( φ(n)
+n ) = Ω(( log log n ) ).
+Proof: Note: because χ is completely nontrivial, χ′ is a primitive character of Z/ℓZ.
+1. (a) χ(x + s) is nonzero exactly when gcd(x + s, n) = 1 so by Lemma 1 we can create the superposition
+with probability φ(n)/n.
+(b) Since χ has period ℓ, the Fourier transform is nonzero only on multiples of n/ℓ.
+(c) Since χ̂′ (y) = χ′ (y)χ̂′ (1), and χ′ (y) is nonzero precisely when gcd(y, n) = 1, when we measure
+yn/ℓ we have n/ℓ = gcd(n, yn/ℓ).
+2. (a) Similar to the argument above, we can create the superposition with probability φ(ℓ)/ℓ.
+(b) The Fourier transform moves the shift s into the phase.
+
+7
+
+(c) As in the case for the finite field, this can be done by computing the phase of χ′ (y) into the phase
+of |yi.
+
+(d) Let A = {y ∈ Z/ℓZ : χ̂′ (y) 6= 0}. A = (Z/ℓZ)∗ so |A| = φ(ℓ). Then the amplitude
+of | − si
+P
+
+P
+ q
+−ys ys
+φ(ℓ)
+1
+1
+1
+1
+√
+√
+after the Fourier transform is √
+ωℓ = √
+y∈A ωℓ
+y∈A 1 =
+ℓ . So the
+φ(ℓ)
+
+ℓ
+
+φ(ℓ)
+
+ℓ
+
+probability of measuring | − si is φ(ℓ)/ℓ.
+
+Thus the algorithm succeeds with probability (φ(n)/n)(φ(ℓ)/ℓ)2 ≥ (φ(n)/n)3 , which in turn is lower bounded
+1
+3
+by Ω(( log log
+n ) ).
+
+5.2
+
+Shifted Multiplicative Characters of Z/nZ for Unknown n
+
+We now consider the case when n is unknown.
+Definition 3 (Shifted Multiplicative Character Problem over Z/nZ with Unknown n)
+Given a completely nontrivial multiplicative character χ : Z/nZ → C, for some unknown n, there is an s
+such that f (x) = χ(x + s) for all x. Find all t satisfying f (x) = χ(x + t) for all x.
+Theorem 3 Given a lower bound on the size of the period of f , we can efficiently solve the shifted multiplicative character problem over Z/nZ for unknown n on a quantum computer.
+Proof: Let ℓ be the period of f and χ′ be χ restricted to Z/ℓZ. Using the Fourier sampling algorithm described in Section 2.3, we can approximately Fourier sample f over Z/ℓZ. Because χ′ (y) is nonzero precisely
+when gcd(y, ℓ) = 1, this Fourier sampling algorithm returns y/ℓ with high probability, where y is coprime to
+ℓ. Thus we can find ℓ with high probability. Next, apply Algorithm 2 to find s mod ℓ.
+
+6
+
+The Hidden Coset Problem
+
+In this section we define the hidden coset problem and give an algorithm for solving the problem for Abelian
+groups under certain conditions. The algorithm consists of two parts, identifying the hidden subgroup and
+finding a coset representative. Finding a coset representative can be interpreted as solving a deconvolution
+problem.
+The algorithms for hidden shift problems and hidden subgroup problems can be viewed as exploiting
+different facets of the power of the quantum Fourier transform. After computing a Fourier transform, the
+subgroup structure is captured in the magnitude whereas the shift structure is captured in the phase. In
+the hidden subgroup problem we measure after computing the Fourier transform and so discard information
+about shifts. Our algorithms for hidden shift problems do additional processing to take advantage of the
+information encoded in the phase. Thus the solution to the hidden coset problem requires fully utilizing the
+abilities of the Fourier transform.
+Definition 4 (Hidden Coset Problem) Given functions f and g defined on a group G such that for
+some s ∈ G, f (x) = g(x + s) for all x in G, find the set of all t satisfying f (x) = g(x + t) for all x in G. f
+is given as an oracle, and g is known but not necessarily efficiently computable.
+Lemma 3 The answer to the hidden coset problem is a coset of some subgroup H of G, and g is constant
+on cosets of H.
+Proof: Let S = {t ∈ G : f (x) = g(x + t) for all x ∈ G} be the set of all solutions and let H be the
+largest subgroup of G such that g is constant on cosets of H. Clearly this is well defined (note H may be
+the trivial subgroup as in the Shifted Legendre Symbol Problem). Suppose t1 , t2 are in S. Then we have
+g(x + (−t2 + t1 )) = g((x − t2 ) + t1 ) = f (x − t2 ) = g((x − t2 ) + t2 ) = g(x) for all x in G, so −t2 + t1 is in
+8
+
+H. This shows S is a contained in a coset of H. Since s is in S we must have that S is contained in s + H.
+Conversely, suppose s + h is in s + H (where h is in H). Then g(x + s + h) = g(x + s) = f (x) for all x in
+G, hence s + h is in S. It follows that S = s + H. While this proof was written with additive notation, it
+carries through if the group is nonabelian.
+
+6.1
+
+Identifying the Hidden Subgroup
+
+We start by finding the subgroup H. We give two different algorithms for determining H, the “standard”
+algorithm for the hidden subgroup problem, and the algorithm we used in Section 5.
+In the standard algorithm for the hidden subgroup problem we form a superposition over all inputs,
+compute g(x) into a register, measure the function value, compute the Fourier transform and then sample.
+The standard algorithm may fail when g is not distinct on different cosets of H. In such cases, we need
+other restrictions on g to be able to find the hidden subgroup H using the standard algorithm. Boneh
+and Lipton [8], Mosca and Ekert [30], and Hales and Hallgren [21] have all given criteria under which the
+standard hidden subgroup algorithm outputs H even when g is not distinct on different cosets of H.
+In Section 5 we used a different algorithm to determine H because the function we were considering did
+not satisfy the conditions mentioned above. In this algorithm we compute the value of g into the amplitude,
+Fourier transform and then sample, whereas in the standard hidden subgroup algorithm we compute the
+value of g into a register. In general, this algorithm works when the fraction of values for which ĝ is zero is
+sufficiently small and the nonzero values of ĝ have constant magnitude.
+
+6.2
+
+Finding a Coset Representative as a Deconvolution Problem
+
+Once we have identified H, we can find a coset representative by solving the associated hidden coset problem
+for f ′ and g ′ where f ′ and g ′ are defined on the quotient group G/H and are consistent in the natural way
+with f and g. For notational convenience we assume that f and g are defined on G and that H is trivial,
+that is, the shift is uniquely defined.
+The hidden shift problem may be interpreted as a deconvolution problem. In a deconvolution problem,
+we are given functions g and f = g ⋆ h (the convolution of g with some unknown function h) and asked
+to find this h. Let δy (x) = δ(x − y) be the delta function centered at y. In the hidden shift problem, f is
+the convolution of δ−s and g, that is, f = g ⋆ δ−s . Finding s, or equivalently finding δ−s , given f and g, is
+therefore a deconvolution problem.
+Recall that under the Fourier transform convolution becomes pointwise multiplication. Thus, taking
+Fourier transforms, we have fˆ = ĝ · δ̂−s and hence δ̂−s = ĝ −1 · fˆ provided ĝ is everywhere nonzero. For the
+multiplication by ĝ −1 to be performed efficiently on a quantum computer would require ĝ to have constant
+magnitude and be everywhere nonzero. However, even if only a fraction of the values of ĝ are zero we can
+still approximate division of ĝ by only dividing when ĝ is nonzero and doing nothing otherwise. The zeros
+of ĝ correspond to loss of information about δ−s .
+Algorithm 3
+P
+1. Create x∈G g(x + s)|xi.
+
+2. Compute the Fourier transform to obtain
+group G.
+
+P
+
+y∈G ψy (s)ĝ(ψy )|yi, where ψy
+
+are the characters of the
+
+3. For all ψy for which ĝ(ψy ) is nonzero compute ĝ(ψy )−1 into the phase to obtain
+4. Compute the inverse Fourier transform and measure to obtain −s.
+
+P
+
+y,ĝ(ψy )6=0 ψy (s)|yi.
+
+Theorem 4 Suppose f and ĝ are efficiently computable, the magnitude of f (x) is constant for all values of
+x in G for which f (x) is nonzero, and the magnitude of ĝ(ψy ) is constant for all values of ψy in Ĝ for which
+ĝ(ψy ) is nonzero. Let α be the fraction of x in G for which f (x) is nonzero and β be the fraction of ψy in
+Ĝ for which ĝ(ψy ) is nonzero. Then the above algorithm outputs −s with probability αβ.
+9
+
+Proof:
+1. By Lemma 1 we can create the superposition with probability α.
+2. The Fourier transform moves the shift s into the phase.
+3. Because ĝ has constant magnitude, for values where ĝ is nonzero, ĝ(ψy )−1 = C ĝ(ψy ) for some constant
+C. So we can perform this step by computing the phase of ĝ into the phase. For the values where ĝ is
+zero we can just leave the phase unchanged as those terms are not present in the superposition.
+4. Let A = {y ∈ G : ĝ(ψy ) 6= 0}. Then the amplitude of | − si is
+
+
+X
+1 
+1
+p
+p
+ψy (s) ψy (−s)
+|A| |G| y∈A
+
+ s
+X
+1 
+1
+|A| p
+p
+= β,
+1 =
+=p
+|G|
+|A| |G|
+y∈A
+
+so we measure | − si with probability β.
+
+Thus the algorithm succeeds in identifying s with probability αβ and only requires one query of f and one
+query of ĝ.
+
+6.3
+
+Examples
+
+We show how the hidden shift problems we considered earlier fit into the framework of the hidden coset
+problem. In the shifted multiplicative character problem over finite fields, G is the additive group of Fq ,
+g = χ and H is trivial since the shift is unique for nontrivial χ. In the shifted multiplicative character
+problem over Z/nZ, G is the additive group of Z/nZ, g = χ and H is the subgroup {0, ℓ, . . . , n/ℓ}, where ℓ
+(which is a factor of n) is the period of χ. In the shifted period multiplicative character problem over Z/nZ
+for unknown n, G is the additive group of Z, g = χ and H is the infinite subgroup ℓZ.
+
+7
+
+Acknowledgments
+
+We would like to thank the anonymous referee who pointed out the application of shifted Legendre symbol
+problem to algebraically homomorphic cryptosystems and Umesh Vazirani, whose many suggestions greatly
+improved this paper. We also thank Dylan Thurston and an anonymous referee for pointing out that
+algebraically homomorphic cryptosystems can be broken using Shor’s algorithm for discrete log. Thanks to
+Lisa Hales for helpful last minute suggestions.
+
+References
+[1] Martin Abadi and Joan Feigenbaum. Secure circuit evaluation. A protocol based on hiding information
+from an oracle. Journal of Cryptology, 2(1):1–12, 1990.
+[2] Eric Bach and Jeffrey Shallit. Algorithmic Number Theory — Efficient Algorithms, volume I. MIT
+Press, Cambridge, USA, 1996.
+[3] Robert Beals. Quantum computation of Fourier transforms over symmetric groups. Proceedings of the
+Twenty-Ninth Annual ACM Symposium on Theory of Computing, pages 48–53, 1997.
+[4] J. Niel de Beaudrap, Richard Cleve, and John Watrous. Sharp quantum vs. classical query complexity
+separations. quant-ph archive no. 0011065, 2001. Journal version to appear in Algorithmica.
+
+10
+
+[5] Charles H. Bennett, Ethan Bernstein, Gilles Brassard, and Umesh Vazirani. Strengths and weaknesses
+of quantum computing. SIAM Journal on Computing, 26(5):1510–1523, 1997.
+[6] Ethan Bernstein and Umesh Vazirani. Quantum complexity theory. SIAM Journal on Computing,
+26(5):1411–1473, 1997.
+[7] Manuel Blum and Silvio Micali, How to generate cryptographically strong sequences of pseudo-random
+bits, SIAM Journal on Computing, 13(4):851–863, 1984.
+[8] Dan Boneh and Richard J. Lipton. Quantum cryptanalysis of hidden linear functions. Lecture Notes in
+Computer Science, 963:424–437, 1995.
+[9] Dan Boneh and Richard J. Lipton. Algorithms for black-box fields and their application to cryptography.
+Lecture Notes in Computer Science, 1109:283–297, 1996.
+[10] Richard Cleve, The query complexity of order-finding. Proceedings of the 15th Annual IEEE Conference
+on Computational Complexity, pages 54–59, 2000.
+[11] Richard Cleve and John Watrous. Fast parallel circuits for the quantum Fourier transform. Proceedings
+41st Annual Symposium on Foundations of Computer Science, pages 526–536, 2000.
+[12] Wim van Dam. Quantum algorithms for weighing matrices and quadratic residues. quant-ph archive
+no. 0008059, 2000. Journal version to appear in Algorithmica.
+[13] Wim van Dam and Sean Hallgren. Efficient Quantum Algorithms for Shifted Quadratic Character
+Problems. quant-ph archive no. 0011067, 2000.
+[14] Wim van Dam and Gadiel Seroussi. Efficient Quantum Algorithms for Estimating Gauss Sums. quant-ph
+archive no. 0207131, 2002.
+[15] Ivan B. Damgård. On the randomness of Legendre and Jacobi sequences, Lecture Notes in Computer
+Science, 403:163–172, 1988.
+[16] Mark Ettinger and Peter Høyer. On Quantum Algorithms for Noncommutative Hidden Subgroups.
+quant-ph archive no. 9807029, 1998.
+[17] Mark Ettinger, Peter Høyer and Emanuel Knill. Hidden subgroup states are almost orthogonal. quant-ph
+archive no. 9901034, 1999.
+[18] Katalin Friedl, Frédéric Magniez, Miklos Santha and Pranab Sen. Quantum testers for hidden group
+properties quant-ph archive no. 0208184, 2002.
+[19] Michaelangelo Grigni, Leonard Schulman, Monica Vazirani and Umesh Vazirani. Quantum mechanical
+algorithms for the nonabelian hidden subgroup problem. Proceedings of the Thirty-Third Annual ACM
+Symposium on Theory of Computing, pages 68–74, 2001.
+[20] Lisa Hales. The quantum Fourier transform and extensions of the abelian hidden subgroup problem.
+Ph.D. Thesis, U.C. Berkeley, 2002.
+[21] Lisa Hales and Sean Hallgren. An improved quantum Fourier transform and appliations. Proceedings
+41st Annual Symposium on Foundations of Computer Science, pages 515–525, 2000.
+[22] Sean Hallgren. Polynomial-time quantum algorithms for Pell’s equation and the principal ideal problem.
+Proceedings of the Thirty-Fourth Annual ACM Symposium on Theory of Computing, pages 653–658,
+2001.
+[23] Sean Hallgren, Alexander Russell, and Amnon Ta-Shma. Normal subgroup reconstruction and quantum
+computation using group representations. Proceedings of the Thirty-Second Annual ACM Symposium
+on Theory of Computing, pages 627–635, 2000.
+
+11
+
+[24] Lawrence Ip. Solving Shift Problems and the Hidden Coset Problem Using the Fourier Transform.
+quant-ph archive no. 0205034, 2002.
+[25] Gábor Ivanyos, Frédéric Magniez, and Miklos Santha. Efficient quantum algorithms for some instances
+of the non-abelian hidden subgroup problem. Proceedings of the Thirteenth Annual ACM Symposium
+on Parallel Algorithms and Architectures, pages 263–270, 2001.
+[26] Alexei Yu. Kitaev. Quantum measurements and the Abelian stabilizer problem. quant-ph archive
+no. 9511026, 1995.
+[27] Alexei Yu. Kitaev. Quantum computations: algorithms and error correction. Russian Mathematical
+Surveys, 52(6):1191–1249, 1997.
+[28] Rudolf Lidl and Harald Niederreiter. Finite Fields, volume 20 of Encyclopedia of Mathematics and Its
+Applications. Cambridge, second edition, 1997.
+[29] Alfred J. Menezes, Paul C. van Oorschot and Scott A. Vanstone. Handbook of Applied Cryptography.
+CRC Press, 1996.
+[30] Michele Mosca and Artur Ekert. The hidden subgroup problem and eigenvalue estimation on a quantum
+computer. Proceedings of the 1st NASA International Conference on Quantum Computing and Quantum
+Communication, Lecture Notes in Computer Science 1509, pages 174–188, 1999.
+[31] Peter W. Shor. Polynomial-time algorithms for prime factorization and discrete logarithms on a quantum
+computer. SIAM Journal on Computing, 26(5):1484–1509, 1997.
+[32] Daniel R. Simon. On the power of quantum computation. SIAM Journal on Computing, 26(5):1474–
+1483, 1997.
+[33] Richard Tolimieri, Myoung An, and Chao Lu. Algorithms for Discrete Fourier Transform and Convolution. Springer-Verlag, 1989.
+[34] John Watrous. Quantum algorithms for solvable groups. Proceedings of the Thirty-Third Annual ACM
+Symposium on Theory of Computing, pages 60–67, 2001.
+
+12
+

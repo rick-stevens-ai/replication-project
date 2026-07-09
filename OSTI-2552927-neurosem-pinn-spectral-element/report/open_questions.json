@@ -1,0 +1,32 @@
+{
+  "paper": "OSTI 2552927 — NeuroSEM: PINN + Spectral-Element hybrid (Shukla, Zou, Chan, Pandey, Wang, Karniadakis, CMAME 433, 117498, 2025)",
+  "generated": "2026-07-05",
+  "verdict_context": "REPLICATED at the PINN-component level; end-to-end NeuroSEM coupled-solver claims (Tables 1–3, drag/lift, Nusselt, PIV vorticity) not independently rerun because they require Nektar++ MPI + the authors' unpublished PINNBodyForce.cpp / UnsteadyAdvection.cpp patch.",
+  "open_questions": [
+    {
+      "q": "Does the reported SEM-reduces-PINN-error mechanism actually hold, or is it fortuitous cancellation between PINN and SEM residuals?",
+      "basis": "At Ra=1e5/1e6 our measured PINN T-surrogate L2 errors (0.43%, 0.64%) are ~2× the paper's reported NeuroSEM u,v end-to-end errors (0.18%, 0.34%). The paper frames SEM as a physical low-pass filter that smooths the PINN input, but without a coupled rerun we cannot distinguish 'SEM absorbs error into residual' from 'PINN error partly cancels a compensating SEM discretization error at these specific polynomial orders'.",
+      "next_steps": "Build Nektar++ 5.x + PINNBodyForce.cpp locally on uicgpu, perturb the shipped PINN surrogate by an additive noise field of controlled amplitude (0.5%, 1%, 2% RMS), rerun Case A cavity, and measure how end-to-end u,v L2 error scales with surrogate perturbation. Linear scaling → filter hypothesis; sublinear → cancellation."
+    },
+    {
+      "q": "Are the shipped Case C 5-noise-variant checkpoints actually the same checkpoints used to produce Table 3 (0.63–6.44% u,v error sweep)?",
+      "basis": "The repo ships five noise-variant .eqx files matching the five rows of Table 3, but there is no per-checkpoint provenance manifest (training seed, iteration count, noise realization RNG state) that lets an outside group confirm the mapping. Our replication did not open these checkpoints.",
+      "next_steps": "Load each of the five noise checkpoints on uicgpu, evaluate on the corresponding noisy Case C reference (if shipped) or on the clean Case B reference, and check whether the L2 errors match the Table 3 σ=0.01 through σ=0.10 rows to within 10%. If they diverge, ask the authors for a training-seed/iteration manifest."
+    },
+    {
+      "q": "Does the PINN training pipeline actually converge deterministically to the shipped weights from the documented hyperparameters (600k Adam iters, lr schedule in Appendix B)?",
+      "basis": "We reloaded shipped .eqx weights but did not retrain from scratch (budget constraint: 600k iters × 40+ checkpoints ≈ hundreds of GPU-hours). The paper's claim of reproducibility at the training level is therefore assumed, not verified.",
+      "next_steps": "Retrain the single cheapest checkpoint (Case A, Ra=1e4, T-surrogate) from scratch on uicgpu at three seeds using the shipped script and the paper's exact hyperparameters. Report final L2 vs seed. If seed variance is < 0.02 percentage-points around the shipped 0.099%, training is reproducible; if > 0.1, either the hyperparameters in Appendix B are incomplete or the shipped weights come from a favorable seed."
+    },
+    {
+      "q": "How does end-to-end NeuroSEM accuracy on the horseshoe-vortex PIV data (Re=833.33, 51 snapshots, 725,423 samples) depend on the choice of SEM polynomial order P?",
+      "basis": "The paper reports PIV-case results (Figs 17, 18) qualitatively (velocity magnitude and near-wall vorticity contours) without a P-sweep table analogous to the cylinder-flow P=1,…,6 study in Appendix B. Yet the horseshoe-vortex case is the paper's only real-experimental-data demonstration and is central to the applicability claim.",
+      "next_steps": "Once Nektar++ + PINNBodyForce.cpp is standing up, rerun the PIV horseshoe-vortex Case C using P∈{2,3,4,5,6} on a fixed mesh. Report L2 error of NeuroSEM velocity vs PIV, wall-clock, and DOF count per P. Publish the missing convergence table."
+    },
+    {
+      "q": "Is the JAX-Equinox training path and the PyTorch traced-model inference path (traced_rbc_model_*.pt consumed by Nektar++ via torch.jit::load) numerically equivalent to > 6 significant digits, or does the JAX→PyTorch trace introduce silent drift that biases end-to-end NeuroSEM error?",
+      "basis": "The repo ships both .eqx (JAX/Equinox) and traced .pt (PyTorch) versions of the same PINN. The C++ Nektar++ hook consumes .pt; our component-level replication used .eqx. If the trace step (weight copy + graph capture) introduces any numerical drift, our reported 0.099%/0.433%/0.635% Case A component errors may not be the errors actually seen by the downstream SEM solve.",
+      "next_steps": "For each of the six cavity checkpoints (Case A × 3 Ra + Case B × 3 Ra), load both .eqx and traced .pt on the same 300k SEM grid, compute pointwise |eqx − pt| and its L∞, L2 norms. Threshold: L∞ < 1e-6 = negligible drift; > 1e-4 = re-derive Case A/B numbers using the .pt path Nektar++ actually uses."
+    }
+  ]
+}

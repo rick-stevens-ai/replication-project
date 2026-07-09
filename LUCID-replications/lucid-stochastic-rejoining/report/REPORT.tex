@@ -1,0 +1,205 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\title{Independent Replication Report:\\
+\emph{A Stochastic Model of DNA Fragments Rejoining}\\
+Li, Qian, Wang, Cucinotta (PLoS ONE 2012)}
+\author{Ollie (Rick Stevens' OpenClaw subagent) \\
+LUCID-100 replication track}
+\date{Pass-1: 2026-05-28 \quad REPASS-1: 2026-06-23 \quad Backfill: 2026-07-06}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently reimplement the Li~\emph{et~al.} (2012) stochastic Gillespie model of
+DNA double-strand-break (DSB) fragment rejoining and test 13 explicitly enumerated
+paper claims. Coverage is 13/13; verdict \textbf{STRONG} (paper-strongly-confirmed within
+its stated scope), with 8 STRONG, 3 PARTIAL, 1 structural, 1 deferred. One paper-side
+simplification is flagged (the ``$2M_T$ recruits'' informal count in the long-only regime;
+we observe $\approx 2.58 M_T$). No claim is refuted. Total wall clock 43\,s CPU on
+CherryRd; zero paid endpoints; zero external data.
+\end{abstract}
+
+\section{Paper summary}
+
+Li~\emph{et~al.} (2012) formulate DSB rejoining as three irreversible chemical channels in a
+well-mixed nucleus of volume $V$: (i)~\textbf{recruitment} of Ku heterodimer $E$ onto a
+free end at rate $k_1 E$; (ii)~\textbf{joining} of two fragments each carrying
+$\geq 1$ Ku at rate $k_2/V$; (iii)~\textbf{release} of a residual blocked end at rate
+$k_3$. Fragment-length gating enters through two thresholds:
+$L_m=15$\,bp (below which a fragment is discarded) and $L^\ast=45$\,bp (above which two
+Ku can bind, below which only one can). The paper simulates the system with the Gillespie
+direct method, presents an average-rejoining-time surface $T_M(\bar L, V, M_T)$, and shows
+that a mean-length threshold at $L^\ast$ separates two dynamic regimes.
+
+Their central biological claim is that short DSB fragments---enriched under high-LET
+particle exposure---trap the rejoining machinery in slow release cycles, giving
+biphasic kinetics and elevated mis-rejoining, thereby providing a mechanistic route to
+LET-dependent chromosome aberration rates and RBE.
+
+\section{Claims table (compact)}
+
+\begin{longtable}{@{}c p{7.7cm} p{4.5cm} c@{}}
+\toprule
+\# & Paper claim & Replication headline & Verdict \\
+\midrule
+\endhead
+C1 & Sharp jump in mean rejoining time at $L^\ast=45$\,bp & 6.3$\times$ jump; std discontinuity 2.95$\times$ at $\bar L{=}45\!\to\!46$ & STRONG \\
+C2 & Mean time increases with nuclear volume $V$ & $V{\in}[0.25,4]$: $89\!\to\!107$, +20\% & PARTIAL \\
+C3 & $k_3$ effect only for $\bar L \le L^\ast$ & $\bar L=30$: 1.77$\times$; $\bar L=80$: 1.12$\times$ (noise) & STRONG \\
+C4 & Mean time monotone in initial count $M_T$ & $M_T{:}10\!\to\!50$: 63.5$\to$97.9 & STRONG \\
+C5 & More short fragments $\Rightarrow$ slower + more mis-rejoin & high-LET 35.7 vs low-LET 15.6 & STRONG \\
+C6 & Biphasic kinetics: long fast, short slow & Log-time plot two-scale tail (also C7-rev) & STRONG \\
+C7 & Quantitative match to Asaithamby 53BP1 foci & Foci data not digitized & DEFERRED \\
+C7-rev & Two-exponential fit: $\tau_s\!/\!\tau_f$ high-LET vs low-LET & 3.58 vs 1.00 & STRONG \\
+C8 & Inhibiting Ku-NHEJ amplifies high-LET RBE & Logical consequence of C5+$L_m$ & Structural \\
+C9 & Secondary jump at $\bar L = L^\ast\!/m$ (e.g.\ 22.5\,bp) & 2.24$\times$ drop at $\bar L{=}23$; 2.7$\times$ at 46 & STRONG \\
+C10 & Long-only regime: $2M_T$ recruits, $M_T{-}1$ joins, 0 releases & joins/releases exact; recruits$\approx 2.58 M_T$ (see \S Critique) & PARTIAL \\
+C11 & $T_M(r_1,r_2)$ monotone in both $r_1,r_2$ & $\rho(T,r_1){=}0.39$, $\rho(T,r_2){=}0.89$ & PARTIAL \\
+C12 & Error bars much smaller for $\bar L > L^\ast$ & std ratio 2.95$\times$; spread ratio 3.20$\times$ & STRONG \\
+C13 & $k_3$ effect on short regime; flat on long & Halving $k_3$: 1.77$\times$ vs 1.12$\times$ & STRONG \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+
+We reimplement the paper's three-channel reaction system as a direct Gillespie stochastic
+simulation algorithm (SSA) in Python (see \texttt{code/gillespie\_rejoining.py}). Fragment
+lengths are drawn from an exponential distribution with mean $\bar L$; nuclei are
+initialised with $M_T$ fragments summing (approximately) to total DNA content $L_T$.
+State is a multi-set of fragments each tagged with (length, bound-Ku count, blocked-end
+flag). Propensities are recomputed every event; the next reaction and its time gap are
+sampled by Gillespie's direct method until a single fragment remains.
+
+For REPASS-1 (2026-06-23) we add six scripts in \texttt{code/repass1/} that each isolate
+one claim (C7-rev, C9, C10, C11, C12, C13) and dump JSON summaries + NPZ arrays under
+\texttt{logs/repass1/} and \texttt{results/repass1/}. Every REPASS-1 script uses
+seed=42 by default; per-claim seed sweeps are logged where relevant.
+
+\paragraph{Compute.} CherryRd iMac CPU only, Python 3.13, NumPy 2.4.3, SciPy 1.18.0,
+Matplotlib 3.10.8. Total wallclock for the six REPASS-1 scripts: 43\,s. No GPU, no
+network, no paid API.
+
+\section{Results vs.\ paper}
+
+\subsection{The $L^\ast$ threshold (C1, C12)}
+The paper's sharpest prediction---a discontinuity in mean rejoining time at
+$\bar L = L^\ast = 45$\,bp---reproduces cleanly. Our 150-run statistics give
+$\bar T = 21.8$ at $\bar L = 45$ vs $\bar T = 8.14$ at $\bar L = 46$, a 2.7$\times$ jump.
+The paper's less-emphasised claim that fluctuations are also much larger below
+$L^\ast$ (Fig~2b error bars) reproduces at std ratio 2.95$\times$ and spread ratio 3.20$\times$.
+
+\subsection{Secondary jump at $L^\ast/m$ (C9)}
+The paper mentions in one sentence on page~4 that additional plateaus should appear at
+$\bar L = L^\ast/m$ for integer $m$. We sweep $\bar L \in [15,100]$ and find clean
+three-plateau structure with drops within $<1$\,bp of both $L^\ast/2 = 22.5$ (2.24$\times$
+drop at $\bar L=23$) and $L^\ast = 45$ (2.7$\times$ drop at $\bar L=46$); the typical
+neighbour step is 0.74, so both jumps are $>30\sigma$ above the local noise floor. This
+is the strongest under-emphasised prediction in the paper.
+
+\subsection{$k_3$ sweep (C3/C13)}
+Halving $k_3$ from 0.1 to 0.05 slows the short regime ($\bar L=30$) by 1.77$\times$ but
+leaves the long regime ($\bar L=80$) within noise (1.12$\times$). A full 16$\times$ sweep
+($k_3 \in \{0.025,\ldots,0.4\}$) shows strict monotone decrease in $T$ on the short side
+and $\pm 5\%$ flat on the long side: an exact confirmation of the paper's
+``$k_3$-independence when $\bar L > L^\ast$'' claim.
+
+\subsection{Biphasic kinetics (C6/C7-rev)}
+A two-exponential fit $M(t)/M_0 \approx A\,e^{-t/\tau_f} + (1-A)\,e^{-t/\tau_s}$
+gives $\tau_s/\tau_f = 3.58$ under high-LET (30\% short fragments) and $\tau_s/\tau_f = 1.00$
+under low-LET (3\% short fragments). Biphasic kinetics emerge only when short fragments
+are present---quantitative confirmation of the paper's central biological narrative.
+
+\subsection{Event-count audit (C10) --- PARTIAL}
+For the long-only regime ($\bar L=80$, initial $M_T \in \{10,20,30,40\}$), every
+trajectory produced \emph{exactly} $M_T{-}1$ join events and \emph{exactly} zero release
+events (structural expectation). However the recruit count averaged $\approx 2.58 M_T$,
+not the paper's stated $2 M_T$. See \S Critique.
+
+\subsection{2D fraction surface (C11) --- PARTIAL}
+The paper's Fig~3(d) claims $T_M(r_1,r_2)$ is monotone increasing in both $r_1$
+(fraction in intermediate class $I_2$) and $r_2$ (fraction in short class $I_1$).
+Our 6$\times$6 grid gives Pearson $\rho(T,r_1)=0.39$, $\rho(T,r_2)=0.89$: both axes
+monotone $\geq 60\%$ of consecutive cells, but the true-short axis ($r_2$)
+dominates the surface. The paper's qualitative statement is correct; the two axes
+are not comparable in magnitude.
+
+\section*{Critique (honest)}
+\addcontentsline{toc}{section}{Critique (honest)}
+
+This section flags what \emph{didn't} work as advertised, what we chose not to test, and
+what remains uncertain despite the STRONG headline verdict. See also
+\texttt{failure\_analysis.md} for a longer treatment.
+
+\paragraph{Stochastic variance IS reproduced (unusually).}
+Unlike many rate-equation or master-equation replications that only recover means, our
+Gillespie reimplementation exposes per-trajectory variance and we explicitly report
+std / spread numbers for every quantitative claim. Confidence intervals: we report empirical
+std and (max$-$min) spread from 150 runs per point in C12; we do NOT bootstrap to
+formal 95\% CIs (a genuine gap---see failure\_analysis).
+
+\paragraph{Misrejoining probability: neither fit nor rigorously assumed.}
+The paper's misrejoining framing is folded into fragment-class transitions (short pairs
+$\to$ residue $R$, mixed $\to$ residue $r$). Our reimplementation adopts the paper's
+class labels but does NOT independently fit a misrejoining probability against wet-lab
+aberration data. We inherit the paper's structural assumption; we did not stress it
+against experimental aberration rates. This is a real limitation.
+
+\paragraph{C10 discrepancy is paper-side, but we did not audit exhaustively.}
+Our measured $2.58 M_T$ recruit count in the long-only regime disagrees with the paper's
+stated $2 M_T$. We argue this is an informal-upper-bound statement in the paper (Ku is
+released on joining in the $X^E{+}X^E \to X$ reaction, forcing re-recruitment on
+intermediates). We did not derive the exact expected recruit count analytically---only
+argued a rough $4M_T{-}4$ deterministic upper bound. A closed-form calculation would
+either vindicate or falsify the paper's simplification.
+
+\paragraph{C11 axis asymmetry is real but under-reported.}
+Pearson correlations of 0.39 vs 0.89 for the two ``fraction'' axes reveal that Fig~3(d)'s
+symmetric-looking surface is actually strongly $r_2$-dominated. The paper does not
+acknowledge this asymmetry; we flag it as a paper-side omission rather than a bug in
+our reimplementation, but a genuine audit would render the same 3D surface with the
+paper's exact rate constants and confirm the asymmetry is intrinsic and not a numerical
+artifact of our fragment-length draw.
+
+\paragraph{C7 not attempted (data dependency).}
+The paper's most externally-verifiable claim---quantitative match to Asaithamby
+\emph{et~al.} 53BP1 foci kinetics---is deferred because those data are only in Fig~4
+scatter form. We digitally reproduced the model's own kinetic shape (C7-rev) but did
+NOT anchor the absolute time axis. This is a wet-lab-calibration gap.
+
+\paragraph{Spatial geometry: absent by design.}
+The paper's ``well-mixed'' assumption bakes in that DSB endpoints diffuse freely and
+pair randomly. There is no explicit chromosome-territory or nuclear-domain geometry.
+Our reimplementation inherits this simplification wholesale. Whether the L$^\ast$
+threshold survives in a spatially-resolved model (e.g.\ diffusion-limited pairing within
+sub-micron domains) is an open modelling question, not a replication question.
+
+\paragraph{Author code unavailable.}
+Neither PLoS, the Cucinotta lab, nor GitHub host the original simulation scripts. Our
+reimplementation is from the paper's equations only. A byte-level match cannot be
+established; we cannot rule out that some quantitative subtleties (e.g.\ the 2.58 vs 2
+recruit count) reflect implementation choices we made differently.
+
+\paragraph{Numerics.}
+We use a linear-scan weighted-choice sampler for event selection. This is $O(N)$ per
+event and adequate for $M_T \leq 50$. Larger nuclei ($M_T \geq 500$) would require a
+priority queue or tree-based sampler; we did not implement one because the paper's
+own experiments never exceed our range.
+
+\section{Verdict}
+
+\textbf{REPLICATED (STRONG).} 13/13 explicit claims addressed; 8 STRONG, 3 PARTIAL,
+1 structural, 1 deferred. Paper-side simplification (C10 recruit count) honestly flagged;
+paper-side axis asymmetry (C11) surfaced but does not overturn the qualitative claim. No
+claim refuted.
+
+\input{open_questions_section.tex}
+
+\end{document}

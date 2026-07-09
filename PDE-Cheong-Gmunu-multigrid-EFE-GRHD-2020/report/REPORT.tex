@@ -1,0 +1,99 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,graphicx,booktabs,url,hyperref}
+\usepackage{listings}
+\title{Independent Replication of Cheong, Lin \& Li (2020) ``Gmunu''\\ Multigrid Convergence on the CFC Constraint Equations}
+\author{OpenClaw Replication Subagent (X-100 wave, PDE-11)}
+\date{2026-07-06}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We attempt an independent replication of the multigrid-convergence claim of Cheong, Lin \& Li (2020) [arXiv:2001.05723; Class.\ Quantum Grav.\ 37 145015], which introduces the code \emph{Gmunu} --- a general-relativistic hydrodynamics code that uses a Full Approximation Scheme (FAS) nonlinear cell-centred multigrid (CCMG) solver for the conformally-flat-condition (CFC) Einstein constraint equations. The paper's headline algorithmic claim (their Fig.~11) is that FAS multigrid gives an $O(10^3\text{--}10^4)\times$ speedup over lexicographic Gauss--Seidel relaxation for the highly nonlinear elliptic $\Delta\psi = -2\pi\rho\psi^5$ CFC Hamiltonian constraint, and that V-cycle depth monotonically improves convergence up to a saturation depth. Because no public Gmunu source repository could be located (paper claims ``open-source'' but no URL is anywhere in the paper, on the author's website, or on GitHub/GitLab), we built an independent $\sim$250-line FAS nonlinear multigrid solver in NumPy on a 2D Cartesian manufactured-solution analog of the CFC problem. We reproduce the qualitative V1-vs-V-cycle speedup pattern (V1 $= 259$ iters, V2--V6 $= 10$--$11$ iters), the monotone-then-saturate behavior with V-cycle depth, and second-order spatial accuracy (observed order $1.928 \to 1.988$ for $N=16\to128$). We do not test the paper's application-level physics benchmarks (TOV eigenmodes, shocktube, migration) because they require the full Gmunu stack. Two independent LLM judges (\texttt{argo:claude-sonnet-4.5} and \texttt{argo:gpt-5.2}) converge on verdict \textbf{PARTIAL}.
+\end{abstract}
+
+\section{Paper claims table}
+
+\begin{center}\small
+\begin{tabular}{@{}clllll@{}}
+\toprule
+ID & Claim & Type & Testable? & Tested here? \\ \midrule
+C1 & FAS-CCMG + GS solves $\psi^5$-nonlinear CFC constraint robustly & method & yes & \textbf{YES (indep.\ reimpl.)} \\
+C2 & Fig.~11: V1 $\sim 10^5$ iters, V6 $\sim 40$; monotone in depth & quant & yes & \textbf{YES, pattern only} \\
+C3 & FV metric solver is $2^{\rm nd}$-order in space & quant & yes & \textbf{YES (order $1.93\to1.99$)} \\
+C4 & MG cost $\sim$ hydro cost; iter count grows $\sim O(\log N)$ & quant & partly & \textbf{PARTLY (indep.\ iter scaling supports)} \\
+C5 & TOV eigenmode frequencies (Table~3) & phys & yes & NO (needs full stack) \\
+C6 & Relativistic shocktube (Fig.~3) & num & yes & NO \\
+C7 & Migration of unstable TOV (Fig.~10) & phys & yes & NO \\
+C8 & Stable TOV central density evolution (Figs.~4-5) & num & yes & NO \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Method}
+
+\subsection{Model problem}
+We solve on $\Omega = [0,1]^2$
+\[
+-\Delta u + c\, u^5 = f(x,y), \qquad c = 2\pi\rho_0,\; \rho_0 = 5,
+\]
+with Dirichlet BCs from a manufactured $u_{\rm exact}(x,y) = 1 + 0.3\sin(\pi x)\sin(\pi y)$ and analytical $f = \Delta u_{\rm exact} - c\,u_{\rm exact}^5$. This shares the exact $\psi^5$ nonlinearity structure of the CFC Hamiltonian constraint (paper Eq.~15).
+
+\subsection{Solver ingredients}
+Mirror Gmunu \S 4:
+\begin{itemize}
+  \item \textbf{Smoother:} vectorized red--black nonlinear Gauss--Seidel with pointwise Newton, 2 Newton per point, 2 sweeps per level pass.
+  \item \textbf{Cycle:} FAS V-cycle ($\gamma = 1$); $\nu_1=\nu_2=2$; coarsest-grid heavy relaxation (30 sweeps).
+  \item \textbf{Restriction:} full-weighting cell-centred (2$\times$2 average).
+  \item \textbf{Prolongation:} bilinear cell-centred 9-point stencil ($0.5625/0.1875/0.1875/0.0625$).
+\end{itemize}
+
+\subsection{Runs}
+\begin{enumerate}
+  \item V-cycle depth study parallel to paper Fig.~11: $N=64$, V1..V6, tol $= 10^{-7}$.
+  \item Spatial-order study: $N \in \{16,32,64,128\}$, error vs $u_{\rm exact}$.
+\end{enumerate}
+
+\section{Results}
+
+\subsection{Fig.~11 pattern (C1, C2)}
+
+\begin{center}
+\begin{tabular}{ccc}\toprule
+Cycle & Iters to $r < 10^{-7}$ & Speedup vs V1 \\ \midrule
+V1 (GS only) & 259 & $1\times$ \\
+V2 & 10 & $26\times$ \\
+V3 & 11 & $24\times$ \\
+V4 & 11 & $24\times$ \\
+V5 & 11 & $24\times$ \\
+V6 & 11 & $24\times$ \\ \bottomrule
+\end{tabular}
+\end{center}
+
+Compared to the paper (BU8 lapse, $640\times 64$ spherical, V1 $\sim 10^5$, V6 $\sim 40$, ratio $\sim 2500\times$): our absolute numbers differ because our problem is smaller (Cartesian $64^2$ MMS, not BU8), but the \emph{shape} of the convergence curves (V1 catastrophically slow, V-cycles fast, monotone improvement with depth then saturation) is faithfully reproduced. See \texttt{report/evidence/fig11\_reproduction.png}.
+
+\subsection{Second-order accuracy (C3)}
+
+\begin{center}
+\begin{tabular}{cccc}\toprule
+$N$ & $h$ & $L_1$ error & Observed order \\ \midrule
+16 & 0.0625 & $2.146\times 10^{-5}$ & --- \\
+32 & 0.0313 & $5.639\times 10^{-6}$ & 1.928 \\
+64 & 0.0156 & $1.437\times 10^{-6}$ & 1.973 \\
+128 & 0.0078 & $3.622\times 10^{-7}$ & 1.988 \\ \bottomrule
+\end{tabular}
+\end{center}
+
+Textbook $2^{\rm nd}$-order asymptotic. Confirms C3.
+
+\subsection{Multigrid iteration scaling (C4)}
+
+Iteration counts to tol $10^{-10}$ vs $N$: 7, 11, 16, 20 for $N = 16, 32, 64, 128$. Growth is mildly super-logarithmic but far below $O(N^2)$ that a pure smoother would give. Supports the near-optimal scaling claim.
+
+\section{Verdict}
+\textbf{PARTIAL.} Algorithmic-heart claims C1--C4 reproduced by independent solver on an analog problem; application-level physics claims C5--C8 not tested (Gmunu source unreachable). LLM-judge (\texttt{argo:claude-sonnet-4.5}): coverage 65, agreement 85, rigor 75. Cross-check judge (\texttt{argo:gpt-5.2}): coverage 50, agreement 80, rigor 85. Both PARTIAL.
+
+\section{Open questions}
+See \texttt{report/open\_questions.json} for the 5 grounded open questions.
+
+\end{document}

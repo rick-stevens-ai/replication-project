@@ -1,0 +1,5 @@
+# Brief — BVBRC-48
+
+**What:** Independent replication of Harmer et al. 2022 (*J Antimicrob Chemother* 77:1851–1855, doi:10.1093/jac/dkac115), "Complete genome of the extensively antibiotic-resistant GC1 *Acinetobacter baumannii* isolate MRSN 56 reveals a novel route to fluoroquinolone resistance."
+
+**Why:** The paper reports the closed hybrid (Nanopore+Illumina) genome of the XDR global-clone-1 (GC1) isolate MRSN 56 and characterizes its resistome (chromosome-located acquired genes, no plasmid resistance), its ST/GC assignment, IS-element copy numbers, and a novel fluoroquinolone-resistance mechanism (ISAba1-driven *mar* operon + gyrA S81L). We pulled the actual deposited public replicons (GenBank CP080452–CP080456) and re-derived the genome architecture, MLST/GC1 assignment, resistome (cross-checked with AMRFinderPlus, CARD, and ResFinder), plasmid-vs-chromosome AMR localization, gyrA/parC status, ISAba1/ISAba125 copy numbers, the ISAba1-upstream-of-ampC context, and the two "identical plasmid" claims — all on real sequence data with free tools/endpoints. **Verdict: REPLICATED.**

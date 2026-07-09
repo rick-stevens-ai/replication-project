@@ -1,0 +1,270 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue}
+\lstset{basicstyle=\footnotesize\ttfamily,frame=single,breaklines=true,columns=fullflexible}
+
+\title{Independent Replication \#2 of \\
+       WaveTrain: A Python Package for Numerical Quantum Mechanics \\
+       of Chain-Like Systems Based on Tensor Trains \\
+       (Riedel, Gel\ss{}, Klein, Schmidt; J.\ Chem.\ Phys.\ 158, 164801 (2023))}
+\author{OpenClaw replication subagent \\
+        \small session \texttt{agent:main:subagent:a1c00947-\dots}}
+\date{2026-07-06 (America/Chicago)}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently re-execute the WaveTrain (Riedel et al., 2023) core Exciton-TISE
+benchmark from a fresh venv, hitting the same NumPy \texttt{same\_kind} casting
+bug in \texttt{scikit\_tt/solvers/evp.py} that a sibling replication also found,
+and derive an equivalent minimal 4-line patch independently.  We sweep chain
+length $N \in \{4,6,8,10,12\}$ and compare TT-ALS single-exciton band eigenvalues
+to the closed-form tight-binding spectrum $E_k = \alpha + 2\beta\cos(2\pi k / N)$
+(periodic ring), plus a bonus $N{=}6$ open-boundary test.  Core physics is
+recovered to $\lesssim 2\times 10^{-3}$ Ha across the sweep, but the paper's
+central TT-rank-scaling claim (C2) is only partially supported because the
+\texttt{ranks{=}15} ALS ceiling saturates at $N\ge 8$.  Verdict: PARTIAL.
+\end{abstract}
+
+\section{Paper summary}
+WaveTrain \cite{Riedel2023} is an open-source Python package for numerical solution
+of the time-independent (TISE) and time-dependent (TDSE) Schr\"odinger equations
+on quasi one-dimensional chain-like systems with nearest-neighbour (NN)
+interactions.  Both Hamiltonian operators and state vectors are represented in
+tensor-train (TT, or matrix-product-state) form using the authors' own
+\texttt{scikit\_tt} backend.  Application classes shipped in the paper cover
+pure exciton chains, pure phonon chains, coupled exciton--phonon (Holstein-like)
+chains, mixed quantum--classical (Ehrenfest) dynamics, and a Bath-Map
+open-system framework.  Time propagators include Strang--Marchuk (SM) splitting,
+symmetrised Euler, and Krylov subspace variants; ground and excited states are
+found by TT-ALS (Alternating Linear Scheme).
+
+The paper's central algorithmic claim is that for chain-like NN Hamiltonians
+the TT bond ranks of the resulting eigenstates grow only marginally with chain
+length $N$---often near-linearly---so that the numerical cost of TT-based
+methods grows only slightly more than linearly in $N$, while the full
+Hilbert-space dimension is $2^N$ (two-level sites) and hence quickly intractable.
+
+\section{Claims table (C1--C5)}
+\begin{center}
+\small
+\begin{tabular}{l p{7.5cm} l c c l}
+\toprule
+ID & Claim & Type & Testable? & Tested? & Verdict \\
+\midrule
+C1 & TT-ALS recovers single-exciton band of $N{=}6$ periodic homogeneous ring
+     (paper's bundled \texttt{tise\_1.py} config, $\alpha{=}0.1$, $\beta{=}-0.01$) &
+     Correctness & yes (analytic $E_k$) & \checkmark & Supported \\
+C2 & TT bond ranks of chain-like NN eigenstates grow only marginally with $N$
+     $\Rightarrow$ wall-clock scales $\approx$ linearly in $N$ &
+     Scaling & partially & \checkmark & Partial (rank cap saturates) \\
+C3 & Shipped software (\texttt{wave\_train} + \texttt{scikit\_tt} from GitHub)
+     is installable and runs the bundled test scripts out of the box &
+     Artifact & yes & \checkmark & Fails as stated (needs 4-line patch) \\
+C4 & Coupled exciton--phonon TDSE with SM propagator preserves norm and
+     reproduces coherent-transport observables (Fig.\ 5--7) &
+     Physics & in principle & --- & Untested (out of budget) \\
+C5 & Bath-Map methodology reproduces open-system dynamics &
+     Physics & nontrivial & --- & Untested (out of scope) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Testable claims covered: 3 of 5 (100\% of the ones directly addressed by the
+bundled Exciton test-script family).
+
+\section{Method}
+
+\subsection{Environment}
+Fresh Python 3.12.13 virtualenv on CherryRd (macOS 25.3.0).  Dependencies:
+\texttt{numpy 1.26.4} (pinned $<$2 because the paper predates NumPy 2.x and
+the codebase uses removed aliases), \texttt{scipy 1.17.1}, \texttt{matplotlib}
+(unused).  \texttt{wave\_train} at git HEAD, \texttt{scikit\_tt} at git HEAD
+plus a 4-line dtype patch (see \S\ref{sec:patch}).
+
+\subsection{Independent benchmark driver}
+Because \texttt{TISE.eigen\_values} is only populated by the \texttt{solver='qe'}
+quasi-exact code path (WaveTrain does not persist the full ALS spectrum on the
+object), we monkey-patch \texttt{TISE.update\_solve} in the bench driver to
+capture per-state energy (via \texttt{dyn.e\_est}) and \texttt{dyn.psi.ranks}
+after every iteration.  Per-state wall-clock is recorded too.
+
+The bench sweeps $N \in \{4,6,8,10,12\}$ at \texttt{n\_levels}${}=N+1$ (vacuum
+ground state plus the $N$ single-exciton band states) with fixed
+\texttt{ranks{=}15, repeats{=}20, conv\_eps{=}1e{-}8}, and compares to the
+closed-form reference
+\[
+E_k^{\rm ref} = \eta \cup \bigl\{\alpha + 2\beta\cos(2\pi k / N) : k=0,\dots,N-1\bigr\},
+\]
+sorted and truncated to \texttt{n\_levels}.  Analogous open-boundary reference
+$E_k = \alpha + 2\beta\cos(\pi k/(N+1))$ for $k=1,\dots,N$ is used for the
+bonus open-chain test.
+
+\subsection{The 4-line \texttt{scikit\_tt} patch}
+\label{sec:patch}
+The Wielandt-shift deflation in \texttt{scikit\_tt/solvers/evp.py} (line 381 of
+the HEAD version we cloned) does
+\begin{lstlisting}[language=Python]
+micro_op += shift*tmp.dot(np.conjugate(tmp.T))
+\end{lstlisting}
+with \texttt{micro\_op} initialised as real but \texttt{tmp} complex, which
+NumPy $\ge$1.20 refuses under \texttt{same\_kind} casting rules.  Independent
+fix:
+\begin{lstlisting}[language=Python]
+addend = shift*tmp.dot(np.conjugate(tmp.T))
+if np.iscomplexobj(addend) and not np.iscomplexobj(micro_op):
+    micro_op = micro_op.astype(np.complex128, copy=False)
+micro_op = micro_op + addend
+\end{lstlisting}
+Backup at \texttt{evp.py.bak}.  The sibling replication converged on the same
+fix; this run derived it independently from the traceback.
+
+\section{Results vs paper}
+
+\subsection{C1: N=6 periodic ring vs analytic tight-binding}
+For the paper's bundled \texttt{tise\_1.py} configuration
+($N{=}6, \alpha{=}0.1, \beta{=}-0.01, \eta{=}0$) at $n_{\rm levels}=7$:
+\begin{center}
+\small
+\begin{tabular}{l r r}
+\toprule
+& $E_{\rm num}$ (Ha) & $E_{\rm ref}$ (Ha) \\
+\midrule
+Vacuum   & $0.0000000$ & $0.0000000$ \\
+Band $k{=}3$ & $0.0800000$ & $0.0800000$ \\
+Band $k{=}2,4$ & $0.0900025$ & $0.0900000$ \\
+Band $k{=}2,4$ & $0.0900025$ & $0.0900000$ \\
+Band $k{=}1,5$ & $0.1100010$ & $0.1100000$ \\
+Band $k{=}1,5$ & $0.1100460$ & $0.1100000$ \\
+Band $k{=}0$ & $0.1199000$ & $0.1200000$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Max error $9.99 \times 10^{-5}$ Ha, RMS $4.38 \times 10^{-5}$ Ha.  This matches
+WaveTrain's own internally-printed ``Difference'' field (which is the paper's
+implicit accuracy target).  Claim \textbf{C1 supported}.
+
+\subsection{C2: scaling sweep}
+\begin{center}
+\small
+\begin{tabular}{r r r r r}
+\toprule
+$N$ & wall\_s & max\_err (Ha) & RMS (Ha) & max\_bond\_rank \\
+\midrule
+4  & 0.3    & $6.31\times 10^{-15}$ & $3.66\times 10^{-15}$ & 4  \\
+6  & 3.0    & $9.99\times 10^{-5}$  & $4.38\times 10^{-5}$  & 8  \\
+8  & 136.6  & $1.92\times 10^{-3}$  & $1.02\times 10^{-3}$  & 15 (saturated) \\
+10 & 112.1  & $9.67\times 10^{-15}$ & $3.35\times 10^{-15}$ & 15 (saturated) \\
+12 & 1026.4 & $2.77\times 10^{-4}$  & $1.08\times 10^{-4}$  & 15 (saturated) \\
+\midrule
+\multicolumn{5}{l}{Bonus: $N{=}6$ open chain: wall 3.6 s, max\_err $1.02\times 10^{-3}$.} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Canonical numerical values in \texttt{report/evidence/bench.json}.
+
+Observations:
+\begin{enumerate}
+\item Accuracy is \emph{non-monotone} in $N$ (N=4 and N=10 hit machine
+      precision; N=6 and N=8 do not).  Hypothesis: n\_levels${}=N{+}1$ fits
+      cleanly inside the single-exciton band exactly when $N+1 \le N+1$
+      trivially, but deflation for higher states starts pushing the ALS
+      iterate toward two-exciton subspaces whose intrinsic TT rank exceeds
+      the \texttt{ranks{=}15} ceiling.  Discussion in
+      \texttt{report/failure\_analysis.md} \S3 and open question Q2.
+\item Wall-clock grows sharply for the last few ALS eigenstates at each $N$
+      (the deflation stack grows with each found state).  At $N{=}12$ the last
+      three eigenstates each cost $\sim 150$--$200$ s.
+\item TT bond-rank profile at $N{=}12$ is
+      $[1,2,4,8,15,15,15,15,15,8,4,2,1]$: the middle bonds are saturated at
+      the user-set ceiling.  This means we can conclude
+      ``$r{=}15$ suffices for the single-exciton band across $N \in [4,12]$
+      to accuracy $\lesssim 2\times 10^{-3}$ Ha'' but not the stronger
+      ``TT ranks themselves grow only marginally with $N$'' claim.  Claim
+      \textbf{C2 partial}.
+\end{enumerate}
+
+\subsection{C3: software artifact}
+Bundled \texttt{tise\_1.py} crashes as-shipped on NumPy $\ge$1.20 with the
+casting bug detailed in \S\ref{sec:patch}.  After a 4-line patch, it runs to
+completion and reproduces the paper's expected accuracy.  Claim
+\textbf{C3 fails as-stated} (needs the patch).  Note: the sibling replication
+had already documented this, and we independently confirm.
+
+\subsection{Bonus: open-chain}
+$N{=}6$ open chain at $n_{\rm levels}{=}7$: max error $1.02\times 10^{-3}$ Ha,
+RMS $4.56\times 10^{-4}$ Ha vs the open-boundary analytic reference
+$E_k = \alpha + 2\beta\cos(\pi k/(N+1))$.  Serves as a sanity check that the
+analytic reference (and the underlying tight-binding physics) switches
+correctly under boundary-condition change.  Slightly worse accuracy than
+periodic $N{=}6$ (1e-3 vs 1e-4) is expected because open-boundary
+eigenstates have larger site-dependence and hence higher TT bond ranks.
+
+\section{Verdict}
+LLM-judge output (GPT-5.4 via localhost:44497 Argo proxy, free endpoint; Opus
+4.7/4.8 broken by upstream response-parsing bug on 2026-07-06, fallback to
+GPT-5.4 which is equally free-tier). See \texttt{report/evidence/llm\_judge.json}
+for the full rubric.
+
+\textbf{Verdict: PARTIAL.}  Coverage 100\%, agreement 67\%, confidence high.
+
+Judge's per-claim scoring:
+\begin{itemize}
+\item \textbf{C1 (partial):} Excellent at $N{=}4$ and $N{=}10$, good at $N{=}6$
+      ($\sim$1e-4), noticeably worse at $N{=}8$ (1.9e-3) and $N{=}12$ (2.8e-4).
+      Recovery of the single-exciton band is qualitative but not uniformly
+      ``high accuracy''.
+\item \textbf{C2 (partial):} Observed TT ranks capped by the ALS ceiling and
+      saturated at $N \ge 8$: shows $r{=}15$ suffices, not that intrinsic
+      ranks grow only marginally with $N$. Wall-clock rises from 0.3\,s
+      (N=4) to 1026\,s (N=12) with severe late-deflation slowdown---far from
+      near-linear over the tested range, even though vastly better than
+      brute-force diagonalisation in principle.
+\item \textbf{C3 (partial):} Bundled software does not run on Python 3.12 /
+      NumPy 1.26 as-shipped; requires 4-line patch. A real reproducibility
+      defect even though the fix is minimal.
+\end{itemize}
+
+C4 and C5 untested (TDSE and Bath-Map out of budget for a one-shot
+replication).
+
+\section{Open Questions}
+The five heavy-duty open questions this replication surfaces, with concrete
+next steps, are stored as machine-readable JSON at
+\texttt{report/open\_questions.json}.  Summaries:
+\begin{description}
+\item[Q1.] Do TT bond ranks of single-exciton eigenstates \emph{actually} grow
+      linearly in $N$, or is $r{=}15$ already a plateau?  Ranks-vs-accuracy
+      elbow study needed.
+\item[Q2.] Why is $N{=}8$ max\_err worse than $N{=}6$ and $N{=}10$?
+      Deflation into two-exciton subspaces beyond $r{=}15$ is the leading
+      hypothesis.
+\item[Q3.] Is the NumPy \texttt{same\_kind} bug historically silent (older
+      NumPy accepted the cast by discarding imaginary parts)?  If so, how much
+      accuracy did \texttt{scikit\_tt} users silently lose pre-2020?
+\item[Q4.] Does the exciton--phonon TDSE path also require this patch?
+      (Same \texttt{evp.py} code path may be reached from the
+      \texttt{Exc\_Pho\_Coupling} scripts.)
+\item[Q5.] Cross-check TT-ALS at $N{=}12$ against a direct
+      \texttt{scipy.sparse.linalg.eigsh} on the assembled 4096$\times$4096
+      Hamiltonian.
+\end{description}
+
+\begin{thebibliography}{1}
+\bibitem{Riedel2023}
+J.~Riedel, P.~Gel\ss{}, R.~Klein, B.~Schmidt,
+\newblock ``WaveTrain: A Python package for numerical quantum mechanics of
+chain-like systems based on tensor trains,''
+\newblock \emph{J.\ Chem.\ Phys.} \textbf{158}, 164801 (2023).
+\newblock DOI: \href{https://doi.org/10.1063/5.0147314}{10.1063/5.0147314}.
+\newblock arXiv preprint \href{https://arxiv.org/abs/2302.03725}{2302.03725}.
+\end{thebibliography}
+
+\end{document}

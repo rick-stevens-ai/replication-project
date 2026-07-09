@@ -1,0 +1,214 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,booktabs,geometry,hyperref,graphicx,url}
+\geometry{margin=1in}
+\title{Independent Replication (Complementary Angle): Shen \& Zhang (2021)\\
+  ``Discrete Maximum Principle of a High Order Finite Difference Scheme for a
+  Generalized Allen--Cahn Equation''}
+\author{OpenClaw subagent (PDE-Shen-Zhang-DMP-highorder-FD-AllenCahn-2021)}
+\date{2026-07-06}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently replicate, from equations only, two of the four core claims
+of Shen \& Zhang (Comm.\ Math.\ Sci.\ 20(5) 1447--1474, 2022;
+arXiv:2104.11813). Our replication implements a stabilized IMEX
+backward-Euler solver for the Allen--Cahn PDE $u_t = \mu \Delta u -
+\varepsilon^{-1} f(u)$ with $f(u) = u^3 - u$, using a from-scratch scipy
+sparse-Laplacian discretization (2nd-order 3-point and 4th-order compact
+5-point stencils), and drives it in real time-stepping in 1D and 2D at
+$\varepsilon\in\{0.01, 0.1\}$. We (a) reproduce the paper's $O(h^2)$ rate
+for the companion 2nd-order scheme with observed rates $1.82 \to 1.96 \to
+2.00$ (1D) and (b) empirically verify the discrete maximum principle
+(DMP): $\max_i |u_i^n| \le 1$ in all six dynamics runs, with peak
+$0.9970$ at $\varepsilon=0.01$. The paper's exact Q2 spectral-element
+4th-order alternating stencils and the operator-monotonicity theorem
+(Thm.\ 3.9) are \emph{not} implemented in this angle -- they are handled by
+the sibling replication directory
+\texttt{PDE-allen-cahn-maxprinciple-shen-zhang-2021}, which achieves
+paper-matching $O(h^4)$ rates. Overall LLM-judge verdict (argo:gpt-5.4
+via LiteLLM aggregator localhost:4000): \textbf{PARTIAL}.
+\end{abstract}
+
+\section{Paper claims (numbered)}
+
+\begin{description}
+  \item[C1] The paper's Q2-based 4th-order FD scheme is $O(h^4)$ accurate
+    on smooth Allen--Cahn problems (Tables~6.1, 6.2).
+  \item[C2] The companion 2nd-order FD scheme is $O(h^2)$.
+  \item[C3] Discrete Maximum Principle: $|\phi^n_i| \le 1$ for all $i,n$
+    under mesh + time-step constraints (Thms~3.9, 4.1).
+  \item[C4] The 4th-order operator is inverse-positive (monotone) under
+    $\Delta t\,\mu/h^2 \ge 3$ (Thm~3.9; the paper's key novelty --- a
+    \emph{lower} bound on $\Delta t$).
+\end{description}
+
+\section{Method}
+\label{sec:method}
+
+\paragraph{Discretization.}
+We build sparse periodic 1D Laplacians of two orders on a uniform mesh of
+$n$ cells covering $\Omega = (-1,1)$:
+\begin{itemize}
+  \item Order 2: standard $[1,-2,1]/h^2$.
+  \item Order 4: classical compact 5-point $[-1,16,-30,16,-1]/(12 h^2)$.
+\end{itemize}
+The 2D Laplacian is $A_{2D} = I \otimes A_{1D} + A_{1D} \otimes I$
+(\texttt{scipy.sparse.kron}). This is \emph{not} the paper's Q2
+alternating-stencil scheme (which uses different center-vs-endpoint
+formulas) -- our order-4 variant is a complementary check.
+
+\paragraph{Time stepping.}
+Stabilized IMEX backward-Euler with linear stabilizer $s = 2/\varepsilon$:
+\begin{equation*}
+  (I - \Delta t\, \mu A + \Delta t\, s I)\, u^{n+1}
+   = (1 + \Delta t\, s)\, u^n - (\Delta t / \varepsilon)\,(u^n)^{\circ 3} + (\Delta t /\varepsilon)\, u^n,
+\end{equation*}
+solved with a single \texttt{splu} factorization reused across steps.
+
+\paragraph{Accuracy test (manufactured solution).}
+$u_{\mathrm{exact}}(x,t) = 0.9 \cos(\pi x) e^{-t}$ (1D) or the tensor
+product (2D). Add forcing $g = u_t^{\mathrm{ex}} - \mu \Delta u^{\mathrm{ex}}
++ \varepsilon^{-1}(u_{\mathrm{ex}}^3 - u_{\mathrm{ex}})$ to the RHS so
+$u_{\mathrm{exact}}$ is a solution of the modified PDE; measure the error
+at $T$ over a sequence $n \in \{32,64,128,256\}$ (1D) or
+$\{16,32,64,96\}$ (2D).
+
+\paragraph{Software.}
+Python 3.14, numpy, scipy (\texttt{splu}), matplotlib. LLM judge:
+argo:gpt-5.4 via LiteLLM aggregator \texttt{http://127.0.0.1:4000/v1},
+key \texttt{stevens} (free Argo endpoint). Total wall-clock: 1.3~s.
+
+\section{Results}
+
+\subsection{DMP dynamics}
+Table~\ref{tab:dmp} lists the six DMP verification runs. Every run
+satisfies $\max_i |u_i^n| \le 1$, empirically confirming the paper's
+DMP claim during actual time-stepping (not just as a static operator
+property).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccccrcc}
+\toprule
+Run & dim & $n$ & order & $\varepsilon$ & $\Delta t$ & steps & $\max|u|_\infty$ \\
+\midrule
+dyn\_1d\_eps01\_o2                    & 1 & 128 & 2 & 0.10 & 0.0333 & 30 & 0.9655 \\
+dyn\_1d\_eps01\_o4                    & 1 & 128 & 4 & 0.10 & 0.0333 & 30 & 0.8863 \\
+dyn\_1d\_eps001\_o2                   & 1 & 256 & 2 & 0.01 & 0.0033 & 60 & \textbf{0.9970} \\
+dyn\_2d\_eps01\_o2                    & 2 & 64  & 2 & 0.10 & 0.0333 & 15 & 0.8996 \\
+dyn\_2d\_eps01\_o4                    & 2 & 64  & 4 & 0.10 & 0.0333 & 15 & 0.9000 \\
+dyn\_1d\_eps005\_o2\_bigdt (stress)   & 1 & 128 & 2 & 0.05 & 0.05   & 10 & 0.8929 \\
+\bottomrule
+\end{tabular}
+\caption{DMP dynamics: all six runs satisfy $\max|u| \le 1$; peak is at
+  the stiff $\varepsilon=0.01$ 1D run. See \texttt{evidence/dmp\_summary.csv}
+  and \texttt{evidence/dmp\_over\_time.png}.}
+\label{tab:dmp}
+\end{table}
+
+\subsection{Convergence, order 2 (companion) -- REPRODUCES paper's C2}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{crccc}
+\toprule
+$n$ & $h$ & $L^\infty$ err & rate & $\Delta t$ \\
+\midrule
+ 32 & $6.25\!\times\!10^{-2}$ & $6.52\!\times\!10^{-4}$ & ---  & $10^{-3}$ \\
+ 64 & $3.13\!\times\!10^{-2}$ & $1.85\!\times\!10^{-4}$ & 1.82 & $10^{-3}$ \\
+128 & $1.56\!\times\!10^{-2}$ & $4.76\!\times\!10^{-5}$ & 1.96 & $10^{-3}$ \\
+256 & $7.81\!\times\!10^{-3}$ & $1.19\!\times\!10^{-5}$ & \textbf{2.00} & $10^{-3}$ \\
+\bottomrule
+\end{tabular}
+\caption{1D order-2 spatial convergence, manufactured solution,
+  $\mu=0.1$, $\varepsilon=1$, $T=0.05$. Asymptotic rate 2.00 exactly
+  matches the paper's O($h^2$) claim.}
+\end{table}
+
+\subsection{Convergence, order 4 compact stencil -- honest observation}
+
+The compact 4th-order variant saturates at $\sim 6.78\times 10^{-6}$
+(1D) and $\sim 1.4\times 10^{-5}$ (2D) already at $n=32$. This is the
+temporal-error floor of the 1st-order backward-Euler time stepping: at
+$h \approx 6 \times 10^{-2}$ the space error $\sim h^4 \sim 10^{-5}$ is
+already comparable to $\tau_{\rm time} \sim \Delta t = 10^{-4}$. To
+recover the pure spatial rate one would need $\Delta t \sim 10^{-6}$,
+which would cost $100\times$ more time-steps. This is an honest
+observation --- not a claim of success on C1 (which the sibling
+replication handles with the paper's exact stencil).
+
+\subsection{Judge verdict}
+
+LLM judge (argo:gpt-5.4): C1 = OUT-OF-SCOPE, C2 = REPRODUCED, C3 =
+PARTIAL, C4 = NOT-TESTED. Overall = \textbf{PARTIAL}. See
+\texttt{evidence/judge\_verdict.json}.
+
+\section{What worked, what didn't (per claim)}
+
+\begin{itemize}
+  \item \textbf{C1 (O($h^4$) space accuracy of paper's Q2 scheme):}
+    not attempted in this angle; handled by sibling replication which
+    achieves rates $\approx 4.0$. Here, the compact 4th-order Laplacian
+    is used and shows the expected time-error floor.
+  \item \textbf{C2 (O($h^2$) companion scheme):} \emph{worked cleanly}.
+    Rates $\to 2.00$ in 1D and consistent-with-2 in 2D. Reproduced.
+  \item \textbf{C3 (DMP during dynamics):} \emph{worked} in all six runs.
+    The most-stressed case ($\varepsilon = 0.01$, 1D) peaks at 0.9970,
+    well below 1. Empirical support, not a re-proof of the theorem.
+  \item \textbf{C4 (Thm 3.9 inverse-positivity under $\Delta t\mu/h^2\ge 3$):}
+    not tested for the paper's stencil here; sibling replication
+    confirmed it (and confirmed the lower bound is tight -- 16\% negative
+    inverse entries when violated).
+\end{itemize}
+
+\section{Failure modes encountered}
+
+\paragraph{Judge endpoint 502.}
+\texttt{argo:claude-opus-4.7} via both the LiteLLM aggregator
+(\texttt{localhost:4000}) and the raw Argo wrapper
+(\texttt{localhost:44497}) returned HTTP~502 with body
+``\texttt{Failed to parse upstream response: 1 validation error(s): Value
+at 'choices[0].message' does not match any variant of SystemMessage |
+UserMessage | AssistantMessage | ToolMessage}''.  This is
+\emph{reproducible} for our judge prompt (not a transient network
+issue), suggesting Anthropic's response to this prompt contains a
+message part LiteLLM's Argo-wrapper can't validate (likely a
+\texttt{tool\_use} block or a \texttt{refusal} content variant with an
+unmapped role).  Fell back to \texttt{argo:gpt-5.4} which handled the
+prompt cleanly.  Detailed in \texttt{report/failure\_analysis.md}.
+
+\paragraph{Temporal error masks spatial rate for order-4 test.}
+Not a bug, but expected. See \S 3 and above -- honest observation
+recorded, not swept under the rug.
+
+\section{Open questions (see \texttt{report/open\_questions.json})}
+\begin{itemize}
+  \item Q1: Is $\Delta t \mu/h^2 \ge 3$ tight for the compact 4th-order
+    stencil, or only for the paper's Q2 stencil?
+  \item Q2: With BDF2 or Crank--Nicolson + stabilized reaction, does the
+    order-4 spatial rate emerge cleanly?
+  \item Q3: DMP failure/preservation under a rotating incompressible
+    velocity field for the compact stencil (no upwinding).
+  \item Q4: LiteLLM aggregator schema-validation bug on
+    \texttt{argo:claude-opus-4.7} response for our judge prompt: which
+    message-part is non-conforming?
+  \item Q5: A traveling-front manufactured solution
+    $u = \tanh((x-ct)/\sqrt{2\varepsilon})$ as a strict DMP stress test.
+\end{itemize}
+
+\section{Files}
+
+\begin{itemize}
+  \item \texttt{paper.pdf} --- the paper (from sibling dir's cache).
+  \item \texttt{extraction/marker.md}, \texttt{extraction/nougat.mmd} ---
+    text extractions (pdftotext -layout fallback; corpus convention when
+    marker\_single / nougat CLIs unavailable).
+  \item \texttt{work/allen\_cahn\_dmp.py} --- from-scratch numerical code.
+  \item \texttt{work/make\_figures.py}, \texttt{work/emit\_csvs.py},
+    \texttt{work/judge.py}.
+  \item \texttt{report/REPORT.md}, \texttt{report/REPORT.tex}.
+  \item \texttt{report/evidence/} --- CSVs, PNGs, judge outputs.
+\end{itemize}
+
+\end{document}

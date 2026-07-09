@@ -1,0 +1,541 @@
+# Marker parse (fallback: pdftotext -layout — Marker not installed on host at run time)
+
+Source: paper.pdf (arXiv:quant-ph/0312194 v1, 24 Dec 2003)
+
+---
+
+                                       Schrödinger cats and their power for quantum
+                                       information processing
+
+                                                         A. Gilchrist†∗ , Kae Nemoto¶, W. J. Munro§ T. C. Ralph†
+
+
+
+
+arXiv:quant-ph/0312194v1 24 Dec 2003
+                                                         S. Glancy+ , Samuel. L. Braunstein‡ and G. J. Milburn†
+                                                         † Centre for Quantum Computer Technology, University of Queensland, QLD
+                                                         4072, Australia
+                                                         ¶ National Institute of Informatics, 2-1-2 Hitotsubashi, Chiyoda-ku, Tokyo
+                                                         101-8430, Japan.
+                                                         + Department of Physics, University of Notre Dame, Notre Dame, Indiana
+
+                                                         46556, USA
+                                                         ‡ Computer Science, York University, York YO10 5DD, UK
+                                                         § Hewlett Packard Laboratories, Filton Road, Stoke Gifford, Bristol BS34 8QZ,
+                                                         U.K
+
+
+                                                         Abstract. We outline a toolbox comprised of passive optical elements,
+                                                         single photon detection and superpositions of coherent states (Schrödinger cat
+                                                         states). Such a toolbox is a powerful collection of primitives for quantum
+                                                         information processing tasks. We illustrate its use by outlining a proposal for
+                                                         universal quantum computation. We utilize this toolbox for quantum metrology
+                                                         applications, for instance weak force measurements and precise phase estimation.
+                                                         We show in both these cases that a sensitivity at the Heisenberg limit is achievable.
+
+
+
+
+                                       ∗ alexei@physics.uq.edu.au
+Schrödinger cats and their power for quantum information processing                    2
+
+1. Introduction
+
+Quantum optics has played a major role in the testing of fundamental properties of
+quantum mechanics and more recently in implementing simple quantum information
+protocols [1, 2]. This has been made possible because photons are easily produced and
+manipulated. This is especially true as the electromagnetic environment at optical
+frequencies can be regarded as a vacuum and is relatively decoherence free.
+     One of the earliest proposals for implementing a quantum logic gate was made
+by Milburn [3] and was based on encoding each qubit in two optical modes, each
+containing exactly one photon. This was a very elegant proposal, but unfortunately
+required massive and reversible non-linearities. Such reversible non-linearities are well
+beyond those presently available and hence it was thought quantum optics would
+not provide a practical path to efficient and scalable quantum computation. Knill,
+Laflamme and Milburn [4] recently challenged this orthodoxy when they showed that
+given appropriate single photon sources and detectors, linear optics alone could create
+a non-deterministic two qubit gates. Furthermore they showed that near deterministic
+gates could be created from these non-deterministic gates through a technique of
+teleporting gates [5]. This therefore provided a route for efficient and scalable quantum
+computation with only single photon sources, photon counting and linear optics.
+     This does however raise the question whether there are other architectures
+based on different encoding schemes which have similar characteristics. These other
+architectures may have advantages in that their optical circuits are less complex. We
+could trade off the complexity of the circuit in the KLM scheme for more complicated
+initial resources, for instance continuous variable multi-photon fields. The idea of
+encoding quantum information on continuous variables of multi-photon fields has
+emerged recently [6] and a number of schemes have been proposed for realizing
+quantum computation in this way [7, 8, 9]. A significant drawback of these proposals
+is that hard non-linear interactions are required in-line of the computation and make
+such proposals difficult to implement in practice. In contrast, a recent proposal [11, 10]
+details a scheme for quantum computation where the hard nonlinear interactions are
+only required for the off-line preparation of resource states. A required resource for
+this scheme is superpositions of coherent states (Schrödinger cat states).
+     In this paper we outline a toolbox of techniques and states necessary for universal
+quantum computation with coherent states. This toolbox can also be used for quantum
+metrology applications and we will examine two specific examples: the detection
+of weak tidal forces due to gravitational radiation [1, 16, 17] and improving the
+sensitivity of Ramsey fringe interferometry [18, 19]. The paper is structured as follows:
+Section (2) describes the components of the toolbox, while section (3) describes how to
+achieve a universal set of gates sufficient for quantum information processing. Finally
+Section (4) illustrates two quantum metrology examples.
+
+2. The Toolbox
+
+The base components that our toolbox will contain will be passive linear optical
+elements such as beam-splitters and phase shifters. The beam-splitter interaction
+is given by
+                 B(θ) = exp[iθ(ab† + a† b)].                                          (1)
+Schrödinger cats and their power for quantum information processing                            3
+
+Here a and b are the usual boson annihilation operators for the two electromagnetic
+field modes at the beam-splitter. The action of the beam-splitter is such that two
+coherent states |γia and |βib get transformed as
+                  B(θ)|γia |βib = |γ cos θ + iβ sin θia |β cos θ + iγ sin θib                 (2)
+A phase shifter is just a delay with respect to the local oscillator and can be described
+by the operator P (θ) = exp[iθâ† â] which just introduces a phase to the coherent state:
+P (θ)|αi = |eiθ αi. From these basic components, we can construct other operators, for
+instance, the displacement operator:
+                  D(α) = exp(αa† − α∗ a)                                                      (3)
+acting on a state |φi can be constructed by mixing that state with a strong coherent
+state on a weak beam-splitter. On coherent states the displacement operators just
+displace the coherent state: D(β)|αi = exp[(βα∗ − β ∗ α)/2]|α + βi.
+     To these passive elements we also want to add single photon counters, which
+can resolve the ‘quanta’ in the electromagnetic field, and homodyne detectors. While
+high-efficiency homodyne detection is currently achievable [12], single photon counters
+are extremely challenging but there is an active research program to construct them
+(see for instance [13, 14]).
+     Finally, to this collection of elements we add the ability to generate optical
+“Schrödinger cat” states. These are states which are coherent superpositions of
+coherent states |αi for different α. In particular, we are interested in the even and
+odd cat states:
+                             1
+                 |Ψ± i = p      [|αi ± | − αi] ,                                    (4)
+                             N±
+                           2
+where N± = 2 ± 2e−2|α| . There are several proposals on how to generate these states
+(e.g. [20, 21]). It is easy to show that the even (odd) cat states have only even (odd)
+photon number terms — which is where they get their name. From this we can see that
+the two states are orthogonal and a single photon counter will be able to distinguish
+between them.
+      One of the most powerful features of this toolbox that is not immediately obvious
+is that we now have the ability to easily   √ generate entangled
+                                                           √         states [15]. By combining
+a single mode cat state of the form | 2αi + | − 2αi with the vacuum state on a
+50/50 beam-splitter, the output state is of the form of a Bell state in the {|αi, | − αi}
+subspace:
+                             1
+                   |Ψi = √ [|αi|αi + | − αi| − αi]                                            (5)
+                             N̄
+where N̄ is the normalization constant. In this subspace we can also perform Bell-
+basis measurements by simply running the Bell state creation in reverse: we interfere
+the two modes at a beam splitter, then use photon counters to measure the number
+of photons in each output mode [9]. We can then identify the four possible results: (i)
+(even, 0), (ii) (odd, 0), (iii) (0, even), (iv) (0, odd), where (m, n) indicates counting m
+and n photons in the two modes respectively. These     √     results correspond to each  √ of the
+four Bell-cat states: (i)√   (| − α, −αi  +  |α, αi) /  2, (ii) (|
+                                                                √  − α, −αi  − |α, αi) /  2, (iii)
+(| − α, αi + |α, −αi) / 2, or (iv) (| − α, αi − |α, −αi) / 2. Note that there is also a
+fifth possibility of detecting zero photons in both modes which indicates a failure of
+                                                                                    2
+the measurement. Fortunately, this occurs with probability of only ∼ e−α , and for α
+moderately large this is insignificant.
+Schrödinger cats and their power for quantum information processing                    4
+
+     We can go further with entanglement and generate multi-mode entangled states.
+If a single mode cat state |αi + | − αi is input into one mode of an N port symmetric
+beam-splitter with the remaining input ports empty. The output state from this
+beam-splitter is then the massively entangled GHZ-like state
+                                                                               
+                         1      α     α         α          α      α          α
+                 |ψi =  √    | √   , √   ,..., √   i+|−   √  ,−  √   ,...,− √  i . (6)
+                          2      N    N         N          N       N         N
+
+3. Universal Quantum Logic Gates
+
+The first application of this toolbox that we will review is a scheme for quantum
+computation with coherent states [10, 11]. Consider an encoding of logical qubits in
+coherent states with the logical 0 and 1 states being |0iL = | − αi and |1iL = |αi
+respectively (An entirely equivalent encoding would be |0iL = |0i and |1iL = |2αi
+as discussed in [10], and these two encodings are simply related by a displacement
+D(−α)). For convenience and without loss of generality we will choose α to be real.
+These qubits are not strictly orthogonal, but the approximation is good for α even
+                                         2
+moderately large as |hα| − αi|2 = e−4α . For α ≥ 2 the overlap between the zero and
+one logic qubit states is only |hα| − αi|2 ≤ 10−6 .
+     It is well known that one set of universal gates for qubits is comprised of arbitrary
+single qubit rotations together with an entangling gate. The single qubit rotations for
+our qubits can be built from four basic single qubit gates. The first two gates are the
+bit and sign flip operations and are given as follows:
+  • A bit-flip: The logical value of a qubit can be flipped by delaying it with respect
+    to the local oscillator by half a cycle. Thus the “bit-flip” gate X is given by
+    X = P (π). For example, X(µ| − αi + ν|αi) = µ|αi + ν| − αi.
+  • A sign-flip: The sign flip gate Z can be achieved using a teleportation protocol
+    and the maximally entangled resource (5). Consider that we wish to sign flip the
+    qubit µ| − αi + ν|αi. A Bell state measurement is performed between one half of
+    the resource (5) and the qubit of interest. Depending on which of the four possible
+    outcomes are found the other half of the Bell state is projected into one of the
+    following four states with equal probability: (i) µ| − αi + ν|αi, (ii) µ| − αi − ν|αi,
+    (iii) µ|αi + ν| − αi, and (iv) µ|αi − ν| − αi.
+    The bit flips in results three and four can be corrected using the X gate above.
+    After X correction the gate has two possible outcomes: either the identity
+    has been applied, in which case we repeat the process, or else the required
+    transformation:
+                      Z(µ| − αi + ν|αi) = µ| − αi − ν|αi.                             (7)
+The teleportation trick used in the Z gate is incredibly useful and can be used to
+‘clean up’ qubits that move slightly away from the {| − αi, |αi} subspace [11]. The
+remaining two operations are arbitrary rotations about the Z and X axis and like the
+sign flip operation Z they also use a teleportation protocol to achieve the gate. These
+operations are given by:
+  • An arbitrary rotation φ about the Z axis, schematically depicted in figure 1 can
+    be implemented by first displacing our arbitrary input qubit µ| − αi + ν|αi by a
+    small amount β = αθ in the imaginary direction. This results in the state
+                             2                      2
+                      µe−iθα | − α(1 − iθ)i + νeiθα |α(1 + iθ)i                       (8)
+Schrödinger cats and their power for quantum information processing                                       5
+
+    which is a small distance outside the computational space. The teleportation then
+    projects us back into the qubit space resulting in the state
+                                  2   2         2                      2
+                              e−θ α /2 (e−i2θα µ| − αi + ei2θα ν|αi)                                      (9)
+
+
+                                             Displacement
+                |   Qin〉                                    Bell cat
+                                                                       Cla
+                                                                          ssi
+                                                                              ca
+                                                                                lI
+                                                            measure
+                                               D(iθα)         ment                    atio
+                                                                                          n
+            |   2α〉+|- 2α〉                                                         orm
+                                                                                 nf
+                                              50/50 BS
+                     |   0〉                                                  X        Z       |   Qout〉
+
+
+                         Figure 1. Schematics for implementing a rotation around Z. We begin by first
+                         shifting our qubit a small distance out of the computational basis and then using
+                         teleportation to project back into the qubit space.
+
+    This is a rotation around Z by 4θα2 . This gate is near deterministic for a
+    sufficiently small values of θ2 α2 . Repeated application of this gate can build
+    up a finite rotation with high probability.
+  • The fourth gate to consider is a rotation of π/2 about the X axis. The gate is
+    shown schematically in figure 2. For an arbitrary input state µ| − αi + ν|αi, the
+    interaction Ca Cb UBS produces the output state (after correcting with X and Z)
+                         2 2
+                              h     2          2                2        2
+                                                                               i
+                      e−θ α /4 (eiθα µ + e−iθα ν)| − αi + (e−iθα µ + eiθα ν)|αi (10)
+    where Ca and Cb represent cat state projections onto either the even or odd parity
+    cat (i.e. photon counting and conditioning on even or odd number of photons).
+    By choosing 2θα2 = π/2 the gate will implement a π/2 rotattion around the X
+    axis.
+     By combining these gates it is possible to achieve an arbitrary single qubit
+rotation. If we can supplement these gates with a single two qubit entangling operation
+between the qubits, then we have a universal set.
+  • We can implement an entangling gate in a similar way to the single qubit Z
+    rotation. A schematic circuit for the gate is depicted in figure 3. If both our
+    qubits are first mixed on a beam-splitter and are then projected back into the
+    qubit space of {| ± αi} using teleportation, we find for an arbitrary input state
+
+
+                                                             cat projector
+                |   Qin〉                            θ
+                                                                       Cla
+                                                                          ssi
+                                                                              ca
+                                                                                lI
+                                                                                          n
+                2α〉+|- 2α〉                                                            atio
+                                                                                   orm
+            |
+                                                                                 nf
+                                              50/50 BS
+                     |   0〉                                                  Z        Z       |   Qout〉
+
+
+                         Figure 2. Schematics for implementing a rotation of π/2 about the X axis.
+Schrödinger cats and their power for quantum information processing                                      6
+                                                                        X
+                     0〉
+                     |                                                             Z       Qout1〉
+                                                                                           |
+                                          50/50 BS
+
+                                                       Bell cat
+                |    2α〉+|- 2α〉                        measure
+                                                         ment
+                |   Qin1〉
+                                          cos θ/2 BS
+                |   Qin2〉                              Bell cat
+                                                                  Cla
+                                                                     ssi
+                                                                        ca
+                                                                          l   I
+                                                       measure                         n
+                |    2α〉+|- 2α〉                          ment                      atio
+                                                                                orm
+                                                                              nf
+                                          50/50 BS
+                     0〉
+                     |                                                  X          Z       |   Qout2〉
+
+
+                    Figure 3. Schematics of implementing an entangling gate. For a sufficiently small
+                    value of θ 2 α2 this gate is near deterministic. Repeated application of this gate
+                    can build up to a gate locally equivalent to a cnot gate, with high probability.
+
+
+    ν| − αia | − αib + µ|αia | − αib + τ | − αia |αib + γ|αia |αib that the resultant state is
+                                2                             2
+                            eiθα ν| − αia | − αib + e−iθα µ|αia | − αib
+                                                              2                                     2
+                                                     + e−iθα τ | − αia |αib + eiθα γ|αia |αib           (11)
+    where, as before, we have assumed orthogonality of the qubit basis state and
+    θ2 α2 ≪ 1. If we choose 2θα2 = π/2 then this gate will implement a cnot up to
+    single-qubit rotations [11].
+This then completes a universal set of gates. In reference [11] details are given
+on using further nested teleportation to make these gates deterministic without
+requiring θ2 α2 << 1. These gates can be used for both quantum computation and
+communication.
+
+4. Quantum Metrology
+
+In this section we illustrate the utility of the Schrödinger cat states for two metrology
+applications — the detection of weak forces, and high precision phase measurements.
+
+4.1. The detection of weak forces
+Before we begin our discussion of the application of Schrödinger cats states to weak
+force detection [17], it is essential to establish the best classical limit. It is well
+known that when a classical force given by F (t) acts for a fixed time on a simple
+harmonic oscillator, it displaces the complex amplitude of this oscillator in phase
+space. The resulting amplitude and phase of the displacement are determined by the
+time dependence of the force [22]. If the oscillator begins in a coherent state |α0 i
+(with α0 real) then a displacement D(iǫ) (assumed for simplicity to be orthogonal
+to the coherent amplitude of the initial state) causes the coherent state √to evolve
+to eiǫα0 |α0 + iǫi. The maximum signal to noise ratio is then SN R = S/ V = 2ǫ.
+This must be greater than unity for the displacement to be resolved and hence this
+establishes the standard quantum limit (SQL) [1] of ǫSQL ≥ 1/2.
+     It is also well known that this limit may be overcome if the oscillator is prepared
+in a non-classical state. However, what is the sensitivity achieved by (4), and does
+Schrödinger cats and their power for quantum information processing                               7
+
+this reach the ultimate (Heisenberg) limit? When a weak classical force acts on the
+even photon number cat state |αi + | − αi with α real (see figure 4a) it is displaced to
+                           1
+                 |φiout ≈ √ eiǫα |αi + e−iǫα | − αi .
+                                                     
+                                                                                    (12)
+                            2
+Our problem is thus reduced to finding the optimal readout to be able to distinguish
+(12) from |αi + | − αi. The theory of optimal parameter estimation [23] indicates
+that the limit on the precision with which the parameter ǫα can be determined is
+(δθ)2 ≥ 1/Var(σ̂x )in where Var(σ̂x )in is the variance in the generator of the rotation
+in the input state |αi + | − αi. In this case the variance
+                                                       √       is simply unity. It thus
+follows that the minimum detectable force is ǫ ≥ 1/2 n̄ where n̄ is the mean photon
+number given by n̄ = |α|2 . It is straight forward to show this ‘measurement’ is the
+Heisenberg limit for a displacement measurement. An interesting question is what
+type of measurement is required to achieve this limit. In effect we need to be able
+to distinguish the even parity cat state from the odd parity cat state. Currently this
+is experimentally challenging. However by performing a Hadamard operation (one of
+the single qubit gates discussed previously), the even and odd Schrödinger cats are
+transformed to the coherent states |αi from | − αi which can be easily distinguished
+via a standard homodyne measurement.
+
+                                                                                  a)
+                   |α〉+|-α〉            D(iε)             eiθα|α〉+e-iθα|-α〉
+
+                                     weak force                                   b)
+                                                       1/2                  1/2
+                                                   eiN       θα |α〉+ e-iN         θα |-α〉
+                   |α〉+|-α〉
+
+                                       D(iε)
+                      |0〉   {                                } 0〉
+                                                              |
+
+                                               N port BS
+                                     weak force
+
+
+                 Figure 4. Schematic diagram of the action of a weak force causing a displacement
+                 D(iǫ) on a Schrödinger cats state |αi+|−αi. In a) a single mode case is illustrated
+                 while in b) an N mode situation is considered.
+
+
+     If the weak force acts over a reasonable spatial range it would be possible to have
+a number of spatial modes of light being affected. Could this help us exceed the limit
+above, even if we constrainted the total mean photon number of the entire multimode
+system? We depict in figure 4b a schematic for the setup of a proposed experiment.
+Using a single mode cat state and an N port symmetric beam-splitter we can generate
+the state (6), which has a total mean photon number of ntot = |α|2 . We now assume
+that the weak force acts simultaneously on all modes of this N party entangled state,
+displacing them each by an amount D(iǫ) (for ǫ ≪ 1). The resulting state after the
+action of the force is
+                                √                            √
+                                                                                         
+                            1     i N ǫα α           α      −i N ǫα      α             α
+                 |ψ(θ)i = √ e           |√ , . . ., √ i + e         | − √ , . . . , − √ i , (13)
+                             2            N          N                   N             N
+where we have neglected the small displacement that occurs to the coherent state.
+The theory of optimal parameter estimation indicates that the limit on the precision
+Schrödinger cats and their power for quantum information processing                           8
+
+with which the displacement parameter ǫ be estimated is bounded by
+                              1              1
+                ǫmin = p                ∼ √                                                 (14)
+                         N [1 + 4ntot ]  2 N ntot
+for ntot ≫ 1. If however we had used N independent cat states each with a photon √
+number ntot /N then ǫmin for the entire system would have scaled as ǫmin ∼ 1/ 4ntot
+which is the same result we obtained for the single mode case. For large ntot , the
+preferred
+      √ regime to work in, we find that the N mode entangled situation gives an
+extra N improvement over the single mode cat situation for the same total mean
+photon number. Now how do we interpret such results? The effect that we are seeing
+is due to the weak force acting equally on all N modes and the state between the
+N port beam-splitters being highly entangled. Does this result in a violation of the
+                        √
+Heisenberg limit of 1/ ntot which we previously mentioned? The answer is no. A
+careful analysis using parameter estimation of this multimode situation indicates that
+our result is at the Heisenberg limit. For displacement measurements the Heisenberg
+limit does depend on the number of modes.
+     These results indicate that subject to the spatial bandwidth of the weak classical
+force it seems optimal for a cat state with fixed mean photon ntot to be split and
+entangled over as many modes as feasible. This in the absence of loss gives the
+best sensitivity. Such techniques are likely to work for other non classical continuous
+variable states.
+
+4.2. High precision phase measurements
+The second metrological example we are going to investigate is the estimation of
+phase. The classic situation to consider is Ramsey fringe interferometry which was first
+introduced by Bollinger et al. [18] in the mid nineties. In Ramsey fringe interferometry
+the objective is to detect the relative phase difference between two superposed qubit
+basis states |0i and |1i. This phase difference problem reduces to a quantum
+parameter estimation situation in which a unitary transformation U (θ) = exp[iθẐ]
+(with Ẑ = |1ih1| − |0ih0|) induces a relative phase in the specified basis. For example,
+an initial state of the form c0 |0i + c1 |1i evolves to c0 e−iθ |0i + c1 eiθ |1i under the above
+unitary operation. When can we distinguish these two states? Is there an optimal
+choice of initial state? The theory of quantum parameter estimation [23] √          indicates for
+this situation that we should choose the initial state as |ψii = (|0i + |1i)/ 2 and that
+the optimal measurement is a projective measurement in the basis |±i = |0i ± |1i.
+The probability of obtaining the result + is P (+|θ) = cos2 θ. For N repetitions      √        of
+this measurement the uncertainty in the inferred parameter θ is δθ = 1/ N . This
+is known as the standard quantum limit. It was noted by Bollinger et al. [18] that
+a more effective way to use the N two level systems is to first prepare them in the
+maximally entangled state,
+                           1
+                    |ψi = √ (|0i1 |0i2 . . . |0iN + |1i1 |1i2 . . . |1iN )                  (15)
+                            2
+and then subject the entire state to the unitary transformation U (θ) =
+QN
+   i=1 exp(−iθ Ẑi ). After the unitary transformation the state (15) evolves to
+                           1
+                   |ψi = √ (exp(−iN θ)|0i1 |0i2 . . . |0iN + exp(iN θ)|1i1 |1i2 . . . |1iN )(16)
+                            2
+The uncertainty in the estimation of the parameter θ then achieves the Heisenberg
+lower limit of δθ = 1/N . This would seem to indicate, as in the weak force case,
+Schrödinger cats and their power for quantum information processing                        9
+
+that entanglement is a critical requirement to achieve the improved sensitivity. Let us
+examine this point a little further for the phase estimation situation. The Hilbert space
+of N two level systems is a tensor product space of dimension 2N . The entangled state
+given in equation (15) however resides in a much smaller N + 1 dimensional irreducible
+subspace of permutation symmetric states [24]. We may use an SU(2) representation
+to write the entangled state 0i1 |0i2 . . . |0iN + |1i1 |1i2 . . . |1iN in the form
+                          1
+                 |ψi = √ (| − N/2iN/2 + |N/2iN/2 ).                                  (17)
+                           2
+This is just an SU(2) ‘cat state’ for N two-level atoms. Hence a single N level atom
+can achieve the same phase sensitivity as a maximally entangled GHZ state since it can
+be written in the form | − N/2iN/2 + |N/2iN/2. This would also seem to indicate that
+a superposition of coherent states (a cat state) can provide the same phase resolution.
+In figure 5 a schematic diagram is shown for the cat state yielding the Heisenberg
+
+
+             |-α〉+|α〉            e-iθa+a              e-i2θα2|-α〉+ei2θα2|α〉
+                        D(α)               D(−α)
+
+
+                          Phase Shift
+
+
+                 Figure 5. Schematics of quantum circuit illustrating how a phase shift can be
+                 seen on an input state of the form
+
+limited phase resolution. Such phase shifts could be used to resolve precisely very
+small length intervals, a quantum ruler [25] in effect. As α increases, a number of
+high visibility, narrowly spaced fringes emerge, which could enable very short length
+intervals to be accurately measured. As an example suppose our laser wavelength is
+10µm. In a standard interferometer this would enable length intervals of 5µm to be
+stepped off. However using the cat-state technique with an α of 10 leads to the fringe
+separation being reduced to 1µm.
+     The preceding disscussion shows that entanglement is not necessary to achieve
+a Heisenberg limited phase measurement. What entanglement allows however, is to
+create an effective cat state without the need to resort to creating a superposition
+between the ground state and a highly excited one.
+
+5. Concluding Remarks
+
+In the paper we have presented a toolbox of techniques that make use of superpositions
+of coherent states. Using this toolbox we have presented a quantum computation
+scheme based on encoding qubits as coherent states, and their superposition. The
+optical networks required are conceptually simple and require only linear interactions,
+homodyne measurements and photon counting. We have concentrated on the simplest
+implementation which unfortunately requires large α. However with a modest increase
+in complexity the non-deterministic operation of the gates at low α can form the basis
+of a scalable system [11]. We have also shown how the same toolbox can be used to
+achieve extremely sensitive force detection and phase measurements.
+Schrödinger cats and their power for quantum information processing                             10
+
+     An open and very interesting question is whether the toolbox of techniques and
+states we have described can be transfered to other systems where we can formulate
+coherent states, for example SQUIDs. In those systems it may be possible to augment
+or simplify the toolbox making the quantum information applications more accessible.
+
+Acknowledgments
+
+This work was supported in part by the European project RAMBOQ, the SUMIT-
+OMO foundation, EPSRC and the Australian Research Council. AG acknowledges
+support form the New Zealand Foundation for Research, Science and Technology un-
+der grant UQSL0001. SLB currently holds a Royal Society Wolfson Research Merit
+Award. We thank Tim Spiller and Ray Beausoleil for valuable discussions.
+
+ [1] See for instance: D.F. Walls and G.J. Milburn, Quantum Optics (Springer-Verlag, Berlin, 1994).
+ [2] M. Nielsen and I. Chuang, Quantum computation and quantum information (Cambridge
+        University Press, Cambridge, UK 2000).
+ [3] G.J. Milburn, Phys. Rev. Lett. 62, 2124 (1989).
+ [4] E. Knill and L. Laflamme and G.J. Milburn, Nature 409, 46 (2001).
+ [5] D. Gottesman, A. Kitaev, J. Preskill, Phys Rev A 64, 012310 (2001).
+ [6] A. Furasawa, J.L. Sørensen, S.L. Braunstein, C.A. Fuchs, H.J. Kimble and E.S. Polzik, Science
+        282, 706 (1998).
+ [7] S. Lloyd, S.L. Braunstein, Phys Rev Lett 82, 1784 (1999).
+ [8] S.D. Bartlett, Hubert de Guise, B.C. Sanders, Phys. Rev. A 65, 052316 (2002).
+ [9] H. Jeong and M.S. Kim, Phys. Rev. A 65, 042305 (2002).
+[10] T.C. Ralph, W.J. Munro and G.J. Milburn, Quantum Computation with Coherent States, Linear
+        Interactions and Superposed Resources, Hewlett Packard Labs Tech Report 2001-266.
+[11] T.C. Ralph, A. Gilchrist, G.J. Milburn, W.J. Munro and S. Glancy, Phys. Rev. A, 68, 042319
+        (2003).
+[12] E.S. Polzik, J. Carry, and H.J. Kimble, Phys. Rev. Lett. 68, 3020 (1992).
+[13] J. Kim, S. Takeuchi, Y. Yamamoto, and H.H. Hogue, Appl. Phys. Lett. 74, 902 (1999).
+[14] S. Takeuchi, J. Kim, Y. Yamamoto, and H.H. Hogue, Appl. Phys. Lett. 74, 1063 (1999).
+[15] S.J. van Enk and O. Hirota, Phys. Rev. A 64, 022313, (2001).
+[16] C.M. Caves, K.S. Thorne, R.W.P. Drever, V.D. Sandberg and M. Zimmermann, Rev. Mod.
+        Phys. 52, 341, (1980).
+[17] W.J. Munro, K. Nemoto, G.J. Milburn and S.L. Braunstein, Phys. Rev. A 66, 023819 (2002).
+[18] J.J. Bollinger, Wayne M. Itano, D.J. Wineland and D.J. Heinzen, Phys. Rev. A 54, R4649,
+        (1996).
+[19] S.F. Huelga, C. Macchiavello, T. Pellizzari, A.K. Ekert, M.B. Plenio and J.I. Cirac, Phys. Rev.
+        Lett. 79, 3865, (1997).
+[20] M. Dakna, T. Anhut, T. Opatrny, L. Knöll and D.-G. Welsch, Phys. Rev. A 55, 3184 (1997).
+[21] S. Song, C. M. Caves and B. Yurke, Phys. Rev. A 41, 5261 (1990).
+[22] V. Braginsky and F. Ya. Khalili, Quantum measurement, (Cambridge University Press,
+        Cambridge, 1992).
+[23] S.L. Braunstein , C.M. Caves and G.J. Milburn, Annals of Physics 247, 135, (1996).
+[24] R.H. Dicke, Phys. Rev. 93, 99 (1954).
+[25] T.C. Ralph, Phys. Rev. A 65, 042313 (2002).
+

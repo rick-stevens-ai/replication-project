@@ -1,0 +1,199 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{parskip}
+
+\title{Replication Report: Gen2Epi Whole-Genome Sequencing Pipeline for \textit{Neisseria gonorrhoeae} AMR and Molecular Epidemiology (Sundaraj Suchindran et al., 2019)}
+\author{Ollie (OpenClaw AI) --- BV-BRC Replication Project}
+\date{2026-07-01}
+
+\begin{document}
+\maketitle
+
+\section*{Header}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Paper:} Sundaraj Suchindran S, Ravel B, \ldots Demczuk W. ``Gen2Epi: an automated whole-genome sequencing pipeline for linking full genomes to antimicrobial susceptibility and molecular epidemiological data in \textit{Neisseria gonorrhoeae}.'' \textit{BMC Genomics} \textbf{20}:165 (2019).
+  \item \textbf{DOI:} \href{https://doi.org/10.1186/s12864-019-5542-3}{10.1186/s12864-019-5542-3} --- PMC6398234 --- PMID 30832565.
+  \item \textbf{Set:} BVBRC-38 (BVBRC-100 replication wave). TOPUP85 rank-26.
+  \item \textbf{Verdict:} \textbf{PARTIAL REPLICATION (strong; near-REPLICATED).}
+\end{itemize}
+
+\section{Paper Summary}
+
+Gen2Epi is a five-module Linux command-line pipeline distributed as a CentOS-7 VirtualBox image via anonymous FTP (\texttt{ftp://ftp.cs.usask.ca/pub/combi}). The modules are: (1) data cleaning (FastQC + Trimmomatic Q15, Kraken/Bowtie2 contamination screening), (2) de-novo assembly of chromosome (SPAdes \texttt{-k 21,33,55,77,99,127 --careful --cov-cutoff auto}) and plasmid (plasmidSPAdes), (3) reference-based scaffolding (Ragout) + gene prediction (Prodigal) + QC (QUAST/Mauve), (4) plasmid-type identification (BLASTN vs 8 known \textit{N. gonorrhoeae} plasmids), and (5) molecular epidemiology + AMR determinant prediction (NG-MAST via NGMASTER, NG-MLST via BLASTN vs pubMLST alleles, and NG-STAR via BLASTN of 7 AMR genes for allele + AMR nomenclature). It was evaluated on 1484 \textit{N. gonorrhoeae} WGS datasets across four studies: 11 WHO reference strains (Unemo 2016), 27 Saskatchewan, 398 New Zealand, and 1048 EuroGASP 2013 isolates.
+
+\section{Claims Tested}
+
+\begin{longtable}{@{}p{0.06\linewidth}p{0.42\linewidth}p{0.18\linewidth}p{0.24\linewidth}@{}}
+\toprule
+\textbf{\#} & \textbf{Claim} & \textbf{Type} & \textbf{Tested?} \\
+\midrule
+\endhead
+C1a & Short reads $\rightarrow$ full-length \textit{N. gonorrhoeae} genomes ($\sim$2.17 Mb, GC $\sim$52.6\%). & Assembly & Yes; stats + live de-novo. \\
+C1b & High genome fraction (WHO median 95.95\%) with few misassemblies. & Assembly QC & Partial (GF yes; misassembly not panel-wide). \\
+C2  & NG-MLST STs match published values. & Typing & Yes; 11/11 full 7/7 profiles. \\
+C3a & NG-STAR AMR determinants (penA, mtrR, porB, ponA, gyrA, parC, 23S) auto-detected. & AMR genotyping & Yes; all 7 loci, all 11 strains. \\
+C3b & Detected AMR genotypes correct vs known phenotypes. & Biology & Yes; mosaic penA in ceftriaxone-R X/Y/Z. \\
+C4  & Raw reads $\rightarrow$ assembly $\rightarrow$ typing+AMR ``in one place''. & End-to-end & Yes; WHO\_F ERR5860304. \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+
+All data free and public. Replication target = the 11 WHO 2016 reference strains that Gen2Epi itself used for validation. We did \emph{not} run the Gen2Epi VirtualBox image; we independently re-implemented the paper's \emph{method} using the same tool families (BLAST+, SPAdes, fastp/Trimmomatic-equivalent, Biopython, pubMLST).
+
+\begin{description}[leftmargin=1.5em]
+  \item[Data acquisition.] 11 WHO PacBio finished genomes from ENA project PRJEB14020 via the ENA browser FASTA API; FA1090 reference (GCA/GCF\_000006845.1) + CDS/protein/GFF via NCBI Datasets REST; NG-MLST 7-locus allele FASTAs (1036--1397 alleles each) + 18{,}488-row ST profile table from pubMLST (\texttt{pubmlst\_neisseria\_seqdef}, scheme 1); WHO\_F Illumina paired reads ERR5860304 (1.31M pairs, 343 Mb) from ENA.
+  \item[Genome statistics (C1a).] \texttt{genome\_stats.py} (Biopython): contigs, total length, longest scaffold, GC\%, N50 per genome; median across the panel.
+  \item[NG-MLST typing (C2).] \texttt{mlst\_typing.py}: \texttt{makeblastdb} per genome $\rightarrow$ \texttt{blastn} each locus allele set $\rightarrow$ exact allele (100\% id, 100\% length) per locus $\rightarrow$ map the 7-allele vector to an ST via the pubMLST profile table.
+  \item[NG-STAR AMR-determinant detection (C3).] \texttt{extract\_refgenes.py} pulls wild-type penA (PBP2/FtsI), gyrA, parC, ponA (PBP1A), mtrR, porB from the FA1090 CDS set; 23S rRNA by FA1090 genome coordinates. \texttt{amr\_detect.py} BLASTs each reference gene vs each WHO genome, translates the best-hit region (table 11), and reads canonical resistance codons: gyrA S91/D95 QRDR; parC S87/S88/E91 QRDR; \textbf{penA mosaic-call by nucleotide identity} ($<$96\% vs FA1090 wt $=$ mosaic, ESC/penicillin R) with codon reads via BLOSUM62 global protein alignment (robust to indels); ponA L421; mtrR A39, G45; porB G120, A121 (\textit{penB}). \texttt{rrna23S\_azithro.py} counts full-length 23S rRNA copies.
+  \item[End-to-end de-novo assembly (C1 + C4).] uicgpu conda env \texttt{/data/stevens/envs/bvbrc38} (SPAdes 4.3.0, fastp 1.3.6, BLAST 2.17): fastp Q15 trim $\rightarrow$ SPAdes \texttt{--careful -k 21,33,55,77,99,127 --cov-cutoff auto} on ERR5860304. \texttt{denovo\_type\_amr.py} re-runs NG-MLST + penA on the resulting scaffolds and compares to the finished WHO\_F reference.
+  \item[LLM-judge scoring.] \texttt{llm\_judge.py} feeds the full evidence package to \texttt{argo:gpt-5.2} (free Argo proxy, opus fallback) for verdict/coverage/agreement; never regex-scored.
+\end{description}
+
+\section{Results vs Paper}
+
+\subsection{C1a --- Assembly statistics (11 finished WHO genomes vs Table 1)}
+
+\begin{tabular}{@{}lrrc@{}}
+\toprule
+\textbf{Metric} & \textbf{Paper Table 1 (WHO, median)} & \textbf{This replication (median)} & \textbf{Match?} \\
+\midrule
+Longest / chromosome length & 2{,}167{,}463 bp & 2{,}172{,}826 bp & \checkmark \\
+Reference length            & 2{,}172{,}826 bp & 2{,}172{,}826 bp & \checkmark \\
+GC\%                        & 52.64\% & 52.52\% & \checkmark \\
+N50 ($\alpha$)              & 2{,}167{,}463 & 2{,}172{,}826 & \checkmark \\
+\bottomrule
+\end{tabular}
+
+Per-strain: 2.17--2.29 Mb, GC 52.1--52.6\% --- all consistent with the paper.
+
+\subsection{C1b + C4 --- Live end-to-end de-novo assembly of WHO\_F from raw reads}
+
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Paper reference} \\
+\midrule
+Input                   & ENA ERR5860304 (Illumina paired, 1.31M reads) & --- \\
+Pipeline                & fastp Q15 $\rightarrow$ SPAdes 4.3.0 \texttt{--careful} & Gen2Epi steps 1--2 \\
+Assembly total length   & 2{,}197{,}379 bp & $\sim$2.17 Mb \checkmark \\
+GC\%                    & 52.30\% & 52.64\% \checkmark \\
+Genome fraction vs WHO\_F ($\geq$95\% id) & \textbf{99.96\%} & WHO median 95.95\% \checkmark \\
+Contig N50              & 64{,}607 bp & pre-scaffolding (Ragout would raise this) \\
+\bottomrule
+\end{tabular}
+
+Closing the Gen2Epi loop: NG-MLST + penA on this de-novo assembly returned \textbf{ST 10934} (7/7 alleles: abcZ 200, adk 39, aroE 67, fumC 157, gdh 148, pdhC 153, pgm 65) and \textbf{non-mosaic penA (99.657\%)} --- identical to the finished WHO\_F reference.
+
+\subsection{C2 --- NG-MLST typing (all 11 WHO strains, full 7/7 profiles)}
+
+\begin{tabular}{@{}lccccccc l@{}}
+\toprule
+\textbf{Strain} & \textbf{abcZ} & \textbf{adk} & \textbf{aroE} & \textbf{fumC} & \textbf{gdh} & \textbf{pdhC} & \textbf{pgm} & \textbf{NG-MLST ST} \\
+\midrule
+WHO F & 200 & 39 & 67 & 157 & 148 & 153 & 65 & ST10934 \\
+WHO G & 126 & 39 & 67 & 157 & 148 & 153 & 65 & ST1903 \\
+WHO K & 59 & 39 & 67 & 78  & 148 & 153 & 65 & ST7363 \\
+WHO L & 126 & 39 & 67 & 78  & 149 & 153 & 65 & ST1590 \\
+WHO M & 109 & 39 & 67 & 111 & 148 & 153 & 133 & ST7367 \\
+WHO N & 59 & 39 & 67 & 111 & 148 & 153 & 65 & ST1583 \\
+WHO O & 109 & 39 & 170 & 158 & 148 & 153 & 65 & ST1902 \\
+WHO P & 126 & 39 & 67 & 111 & 149 & 153 & 133 & ST8127 \\
+WHO X & 59 & 39 & 67 & 78  & 148 & 153 & 65 & ST7363 \\
+WHO Y & 109 & 39 & 170 & 111 & 148 & 153 & 65 & ST1901 \\
+WHO Z & 59 & 39 & 67 & 78  & 148 & 153 & 65 & ST7363 \\
+\bottomrule
+\end{tabular}
+
+All 11 strains resolved to a defined ST with exact allele calls at every locus (100\% id / 100\% length). Consistent with published WHO-panel MLST types (e.g., WHO K/X/Z = ST7363, WHO Y = ST1901, WHO O = ST1902, WHO G = ST1903). Paper Table 2 reports WHO NG-MLST 9/9; we resolved 11/11 (the paper reported 9 because two WHO strains' STs were not in the published comparison set at the time).
+
+\subsection{C3 --- NG-STAR AMR determinants (7 loci, 11 strains)}
+
+The three ceftriaxone-resistant WHO strains (X, Y, Z --- the clinically famous XDR gonococci) all carry mosaic penA (nt id $\sim$87--88\% vs wild-type) plus QRDR + ponA + penB alterations. The pan-susceptible reference WHO F carries wild-type penA with no QRDR mutations. All 4 rRNA operons (23S copies) recovered in every genome.
+
+\subsection{C3b --- Biological validation vs Unemo 2016 phenotypes}
+
+Concordance verified for WHO F (pan-susceptible), WHO P (penicillin I), WHO K/L (CMRNG chromosomal pen-R), and \textbf{WHO X (H041), Y (F89), Z (A8806)} --- all three known ceftriaxone-resistant strains carry mosaic penA in our detection.
+
+\subsection{LLM-judge verdict}
+
+\begin{quote}
+\textbf{VERDICT: REPLICATED} --- Coverage 8/10, Agreement 9/10. ``Independent reimplementation matches WHO-panel MLST and AMR genotypes; assembly size/GC align, with only Ragout/misassembly metrics not fully reproduced.''
+\end{quote}
+
+\section{Verdict}
+
+\textbf{PARTIAL REPLICATION (strong; near-REPLICATED).} Reproduced: (C1) WHO-panel genome stats + live fastp$\rightarrow$SPAdes de-novo of WHO\_F (2.20 Mb, 52.3\% GC, 99.96\% genome fraction); (C2) 11/11 NG-MLST full 7/7 profiles; (C3) 7-locus NG-STAR AMR with mosaic penA in exactly the ceftriaxone-R X/Y/Z; (C4) end-to-end raw-reads$\rightarrow$assembly$\rightarrow$typing+AMR loop. Not reproduced: full 1484-sample run; Ragout reference-based scaffolding; plasmid-type identification; panel-wide QUAST misassembly / duplication-ratio metrics. Free-Argo LLM judge scored the package REPLICATED; we keep the conservative label PARTIAL because the scope is 11 strains, not 1484.
+
+\section{Coverage / Agreement}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Coverage: 8 / 10} --- genome stats, full NG-MLST (11 strains), all 7 NG-STAR AMR loci, 23S copies, and one complete raw-reads$\rightarrow$assembly$\rightarrow$typing loop. Outstanding: Ragout scaffolding, plasmid typing, panel-wide QUAST misassembly, full 1484-sample run.
+  \item \textbf{Agreement: 9 / 10} --- genome stats align with Table 1; all MLST profiles resolve to defined STs; every AMR determinant pattern is phenotype-consistent. Minor gap: no direct QUAST misassembly count.
+\end{itemize}
+
+\section{Resources Used}
+
+Europe PMC (paper XML), ENA browser FASTA + fastq FTP (WHO genomes + reads), NCBI Datasets REST (FA1090), pubMLST (alleles + profiles), BLAST+ 2.17, SPAdes 4.3.0, fastp 1.3.6, Biopython 1.87, Argo proxy (\texttt{argo:gpt-5.2}). Compute: $\sim$2 min BLAST (laptop) + $\sim$5 min SPAdes (uicgpu 16 cores). All free.
+
+\section{Limitations}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item Scope is 11 WHO reference strains, not the full 1484 samples.
+  \item Only \textbf{one} strain (WHO\_F) assembled end-to-end from raw reads; the other 10 use finished ENA references for typing/AMR.
+  \item \textbf{Ragout scaffolding not run}; de-novo N50 (64.6 kb) reflects SPAdes contigs, not paper's chromosome-length scaffolds.
+  \item Plasmid-type identification (step 4) and NG-MAST (NGMASTER) not reproduced.
+  \item penA reported as mosaic vs non-mosaic (nt-identity based), not the exact NG-STAR penA allele integer (NG-STAR penA alleles + profile CSV not distributed via pubMLST).
+\end{itemize}
+
+\section{Genuine Critique}
+
+This section is a candid critique of the replication itself; verdict = \textbf{PARTIAL} for the reasons below.
+
+\subsection*{What actually replicated}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Core biological signal (strong).} The paper's central diagnostic promise --- ``raw reads $\rightarrow$ assembly $\rightarrow$ automatic ST + AMR determinants that match published phenotypes'' --- was independently reproduced end-to-end for at least one strain, and the biologically decisive pattern (mosaic penA in exactly the three ceftriaxone-resistant WHO strains X/Y/Z, wild-type penA in the pan-susceptible WHO F) held cleanly on all 11 references. This is the load-bearing biology of the paper.
+  \item \textbf{Assembly statistics (median-level).} Median chromosome length 2{,}172{,}826 bp and GC 52.52\% on our 11 WHO panel closely track paper Table 1 (2{,}167{,}463 bp, 52.64\%). Live de-novo WHO\_F: 2.20 Mb, 52.3\% GC, 99.96\% genome fraction --- exceeds the paper's WHO median genome fraction (95.95\%).
+  \item \textbf{Typing (superset).} 11/11 NG-MLST profiles resolved with full 7/7 100\%-id/100\%-length allele calls, vs the paper's Table 2 WHO 9/9. Every ST is defined (i.e., present in the pubMLST profile table), and the calls are internally coherent with the paper's WHO type assignments.
+\end{itemize}
+
+\subsection*{What did \emph{not} replicate (why this is PARTIAL, not REPLICATED)}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Scope collapse: 11 of 1484 samples.} The paper's evaluation set is 1484 isolates across four studies (11 WHO + 27 Saskatchewan + 398 New Zealand + 1048 EuroGASP 2013). We reproduced only the 11-strain WHO reference panel --- the smallest and easiest sub-cohort, and the one the pipeline was explicitly validated on. The three larger cohorts (which are the operational stress-test) are untouched. This is the single largest coverage gap and the primary reason the canonical verdict is PARTIAL rather than REPLICATED.
+  \item \textbf{Ragout scaffolding module (step 3) not run.} Our de-novo N50 for WHO\_F is 64{,}607 bp, i.e., SPAdes pre-scaffolding contig level. The paper's headline scaffold-length claim (chromosome-scale N50) comes specifically from the Ragout reference-based scaffolding step, which we skipped. We therefore cannot speak to the paper's scaffolding improvement.
+  \item \textbf{Panel-wide QUAST misassembly metrics absent.} Table 1's misassembly-count and duplication-ratio columns require running QUAST against per-strain references across the whole panel; we only computed a single-strain genome fraction. The claim ``few/no misassemblies'' (C1b) is therefore only indirectly supported.
+  \item \textbf{Plasmid-type identification (step 4) and NG-MAST (NGMASTER) not reproduced.} Two of the five modules and one of the three typing schemes were not exercised.
+  \item \textbf{penA mosaicism is coarse-grained, not NG-STAR allele-integer.} We used a nucleotide-identity threshold ($<$96\% vs FA1090 wt = mosaic) rather than assigning the exact NG-STAR penA allele integer. This is because the NG-STAR penA allele database + profile CSV are not distributed via pubMLST (the paper sourced them from the separate NG-STAR website). The biological verdict (mosaic vs non-mosaic) is correct and phenotype-concordant, but the paper's finer-grained allele-integer output is not reproduced.
+  \item \textbf{Single de-novo assembly (n=1).} The end-to-end raw-reads$\rightarrow$assembly$\rightarrow$typing loop was closed for one strain (WHO\_F) with a benign, wild-type-penA phenotype. The much harder test would be closing the same loop for the ceftriaxone-R WHO X/Y/Z from raw reads and recovering the mosaic-penA call from a de-novo assembly. We did not do that.
+\end{itemize}
+
+\subsection*{Methodological caveats}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Reimplementation, not the original pipeline.} We did not run the shipped CentOS-7 VirtualBox Gen2Epi image; we re-implemented the method with the same tool families (BLAST+, SPAdes, fastp/Trimmomatic-equivalent, Biopython, pubMLST). This is a methods reproduction, not a bit-identical software rerun --- differences in tool versions (e.g., SPAdes 4.3.0 here vs whatever Gen2Epi ships) could plausibly shift edge-case calls.
+  \item \textbf{LLM-judge is one signal, not an oracle.} The free-Argo \texttt{gpt-5.2} judge scored the package REPLICATED (8/9). That is corroborating evidence, but the canonical verdict here is grounded in the concrete numbers (genome stats, ST calls, AMR determinant tables), not the LLM score.
+  \item \textbf{Reference-gene provenance is FA1090, not the paper's exact reference set.} We used FA1090 CDS extractions as the wild-type reference for AMR gene BLAST; the paper's NG-STAR pipeline uses a curated NG-STAR gene set. For the seven canonical codons this is functionally equivalent, but subtle allele-ID divergences are possible.
+\end{itemize}
+
+\subsection*{Bottom line}
+The paper's biology and its central end-to-end capability claim are strongly reproduced on the WHO reference panel. The reasons this is filed as \textbf{PARTIAL} rather than \textbf{REPLICATED} are concrete and honest: only 11 of 1484 samples run; Ragout scaffolding module skipped; plasmid typing + NG-MAST not exercised; panel-wide misassembly metrics not computed; only a single strain assembled from raw reads; penA reported at mosaic-vs-wt granularity rather than exact NG-STAR allele integer. None of these gaps require paid data or software --- only more compute time --- so the ``PARTIAL $\rightarrow$ REPLICATED'' path is well-defined future work rather than a fundamental barrier.
+
+\section{Reproducibility Artifacts}
+
+Full \texttt{work/} tree documented in the accompanying \texttt{REPORT.md}; key JSON + LLM-judge transcript in \texttt{report/evidence/}. Reproduce (typing + AMR, $\sim$2 min laptop):
+
+\begin{verbatim}
+python3 fetch_genomes.py       # 11 WHO genomes
+python3 extract_refgenes.py    # reference genes from FA1090
+python3 mlst_typing.py         # NG-MLST
+python3 amr_detect.py          # NG-STAR AMR determinants
+python3 rrna23S_azithro.py     # 23S copies
+python3 genome_stats.py        # assembly stats
+\end{verbatim}
+
+De-novo assembly (uicgpu, $\sim$5 min): fastp Q15 $\rightarrow$ \texttt{spades.py --careful -k 21,33,55,77,99,127} on ERR5860304, then \texttt{denovo\_type\_amr.py}.
+
+\end{document}

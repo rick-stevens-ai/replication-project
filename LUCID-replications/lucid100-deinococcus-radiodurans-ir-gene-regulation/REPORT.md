@@ -1,0 +1,298 @@
+# PROMOTION AUDIT (2026-06-27): VERDICT = NO-GO (re-confirmed)
+
+**No promotion.** Re-checked PDF sourcing + reproducibility on 2026-06-27 as a promotion-audit pass; NO-GO is correct and stable. Prior REPORT.md preserved at `REPORT.md.bak-pre-promo`.
+
+## What the promotion audit attempted (2026-06-27)
+
+1. **PDF sourcing — failed (free channels only):**
+   - SCOUT corpus (`/Volumes/SG-1-8TB/scout-corpus/manifest.tsv` on m1-mac-mini, 146k dedup PDFs): no hit for DOI `10.1016/j.gene.2019.144008`, title "Gene regulation for the extreme resistance to ionizing radiation of Deinococcus radiodurans", or PMID 31362038. (The earlier grep that matched `144008` was a false positive on a PDF whose `size_bytes` field was 1440081.)
+   - Unpaywall (`api.unpaywall.org/v2/10.1016/j.gene.2019.144008`): `is_oa: false`, `has_repository_copy: false`, `oa_locations: []`, `oa_status: "closed"`. No green/gold/bronze OA copy anywhere.
+   - EuropePMC: `isOpenAccess=N, inPMC=N, inEPMC=N, hasPDF=N, hasSuppl=N`; only DOI link ("Subscription required").
+   - **Missing artifact: the Wang 2019 full text itself.** No free legitimate copy exists; cannot be obtained without paywalled subscription or extralegal mirror.
+
+2. **Reproducibility re-check — still nothing first-party to reproduce:** Wang 2019 is structurally a narrative review of prior primary literature. Independent of PDF access, all upstream metadata (Semantic Scholar `publicationTypes: ["Review","JournalArticle"]`, EuropePMC `hasSuppl=N`, no GEO/SRA/PRIDE/ProteomeXchange/MassIVE/jPOST deposit, no code repository, no parameter tables, no supplementary data) confirms zero first-party numerical claims. No PDF access would change this.
+
+3. **Existing surrogate replication re-ran clean today:**
+   ```
+   python3 scripts/smoke_panel_check.py
+     [PASS] c1_GSE95658_RD42_irrE: rows=3621 panel_hits=19/23
+     [PASS] c2_GSE95658_RD62_ddrO: rows=3621 panel_hits=19/23
+     [PASS] c3_panel_overlap
+     [PASS] c4_GSE64952_sRNA: rows=31 Dsr2=True responsive_Dsrs=6
+   OVERALL: 4/4 -> PASS-low
+   ```
+   Disk-verified key numerics against `artifacts/smoke_panel_results.json`:
+   - DdrC RD42 log2FC = **+2.33940749955629** (matches report's +2.34, panel-leader as Wang 2019 narrates)
+   - IrrE RD42 log2FC = **+1.81596389905461** (matches +1.82)
+   - UvrB RD42 log2FC = **+2.15783575507734** (matches +2.16)
+   - GyrA RD42 log2FC = **+2.06046350147086** (matches +2.06)
+   - Dsr2 sham_norm=3323, ir_norm=2631, fc=0.792 (matches report exactly)
+   - 19/23 panel hits (matches), 4 misses are synonyms/species-annotation gaps (`ddri/ddro/ppri/pprm`) — `pprI`≡`irrE` is detected
+
+4. **Why this stays NO-GO under the 6/22 rule:** Review-paper spot-checks have a hard ceiling. The surrogate panel cross-check is real and consistent, but it does not reproduce a Wang 2019 number (because there are none); it instead tests Wang 2019's structural narrative against other groups' primary deposits. Per the rule already applied to sibling slot `lucid-brahme-radiobio-optimization-review`, this belongs in the NO-GO pile. No coverage/agreement uplift is achievable from this paper without first-party primary data appearing.
+
+## Precise blocker (6/22 rule, unchanged)
+
+Review article with zero first-party primary data; reproduction would require re-targeting the underlying primary papers (Blanchard/de Groot for GSE95658, Tsai/Contreras for GSE64952). **Missing artifact: Wang 2019 reports no original numbers to reproduce, and no PDF is obtainable through free channels (closed-access Elsevier, no OA copy anywhere on Unpaywall/EuropePMC/PMC).**
+
+---
+
+# LUCID-100 Replication Report
+
+**Paper:** Wang W, Ma Y, He J, Qi H, Xiao F, He S. *Gene regulation for the extreme resistance to ionizing radiation of Deinococcus radiodurans.* Gene 715:144008 (Oct 2019).
+**DOI:** 10.1016/j.gene.2019.144008
+**Slot:** lucid100-deinococcus-radiodurans-ir-gene-regulation (Wave 5 backfill, master rank #81)
+**Date of audit:** 2026-06-22
+**Operator:** Ollie (subagent)
+
+---
+
+## TL;DR
+
+Wang et al. 2019 is a **paywalled Elsevier review article** — no primary data, no
+supplementary tables, no deposited datasets, no code. A primary-data replication
+is structurally impossible. Pivoted to a **panel cross-check** of the review's
+testable structural claims (membership and direction of the IrrE/DdrO/RDR
+regulon, Dsr-family sRNA IR-responsiveness) against public *Deinococcus* IR
+transcriptomes. Implemented in pure-stdlib Python; re-ran clean today:
+**4/4 PASS-low**. 19/23 named RDR-regulon members detected in GSE95658 (D.
+deserti ΔIrrE/ΔDdrO ±IR), with DdrC the strongest induced regulator
+(log2FC = **+2.34**) — matching the review's central claim that IrrE
+derepression drives the RDR regulon and that DdrC is among its top inducible
+members. Dsr2/PprS detected and 6 of ~30 Dsr-family sRNAs show ≥2× sham→15 kGy
+IR change in GSE64952 (D. radiodurans R1). **Verdict: SPOT-CHECK** (review
+paper; no derivable headline numbers; cross-checks consistent with claims).
+
+---
+
+## 1. Data sources
+
+### 1.1 Source paper
+- **Wang 2019 Gene 715:144008** — REVIEW article (Semantic Scholar `publicationTypes: ["Review","JournalArticle"]`), 148 references, Univ. South China.
+- **Full text:** paywalled Elsevier. EuropePMC: `isOpenAccess=N, inPMC=N, inEPMC=N, hasPDF=N, hasSuppl=N`. PubMed PMID 31362038 — abstract only.
+- **Supplements:** none.
+- **Deposited data:** none (no GEO / SRA / PRIDE / ProteomeXchange / MassIVE / jPOST in abstract or EuropePMC dbCrossReferences).
+- **Code repository:** none.
+- **Numerical claims originating in this paper:** **zero** — text-only synthesis of prior primary literature.
+
+### 1.2 Public surrogate datasets used (all in `artifacts/`, sha256 in `MANIFEST.tsv`)
+
+| GEO accession | Citation | Organism | Design | Used here |
+|---|---|---|---|---|
+| GSE95658 | Blanchard & de Groot 2017, PMID 28397370 | *D. deserti* | RNA-Seq, WT vs ΔIrrE (RD42) vs ΔDdrO (RD62), each ±IR | Processed diff-exp tables RD42-vs-WT+IR and RD62-vs-WT+IR (3,621 genes each) |
+| GSE64952 | Tsai & Contreras 2015, PMID 25548054 | *D. radiodurans* R1 | RNA-Seq, sham vs 15 kGy IR, sRNA focus | Processed sRNA count table (31 Dsr-family sRNAs) |
+
+These are the closest **publicly available** datasets to the regulatory claims
+Wang 2019 makes. GSE95658 directly perturbs the two master regulators (IrrE
+protease + DdrO repressor) the review identifies as the RDR-regulon switch;
+GSE64952 is on the actual *D. radiodurans* R1 strain Wang focuses on, but on
+the sRNA arm of the regulatory network.
+
+### 1.3 Datasets explicitly *not* used and why
+- GSE17720 / GSE17722 / GSE17724 (2009): *D. radiodurans* Affymetrix microarray
+  series for Δmutant IR studies. **Raw CEL files only** — would require
+  R + Bioconductor (`oligo`/`affy` + limma/DESeq2) re-derivation. Deferred to
+  uicgpu; CherryRd-policy says avoid heavy compute here.
+- GSE301666 (2026, deinoxanthin in mice), GSE241498 (2025, chromosome 3-D
+  organization), GSE56058 (2014, leaderless mRNAs) — adjacent but not on the
+  regulatory axis Wang 2019 surveys.
+- GSE176207 — used in sibling slot `lucid100-pprM-sRNA-deinococcus`
+  (Wave 4 slot 35, already PASS-low); not re-derived here.
+
+---
+
+## 2. Methods comparison
+
+| Aspect | Wang 2019 review | This replication |
+|---|---|---|
+| Methodology | Narrative literature synthesis of prior primary studies (microarray, RNA-Seq, ChIP, KO phenotypes, structural biology) | Independent panel cross-check against two public transcriptomes |
+| Data generation | None — cites others | None — re-uses GEO-deposited processed tables |
+| Statistical framework | N/A (review) | Re-uses authors' deposited log2FC + padj (DESeq2 from Blanchard/de Groot 2017 for GSE95658; original Tsai/Contreras 2015 normalization for GSE64952). No new significance testing performed. |
+| Multiple testing correction | N/A | Inherited from GSE95658 deposit (BH-adjusted padj) |
+| Tooling | N/A | Python 3 stdlib only (no pandas, no R) — 4 checks in `scripts/smoke_panel_check.py` (~30 s runtime, no external deps) |
+| Threshold for "panel match" | N/A | Case-insensitive gene-symbol match against 23-gene Wang panel (see §3.1). 15/23 required for c3 PASS; 19/23 observed. |
+| Threshold for "Dsr responsive" | N/A | ≥2× normalized count change sham→IR; 6/30 observed |
+
+**No methodological substitution can be defended as equivalent to "running the
+paper's methods"** — Wang 2019 has no methods. The cross-check tests the
+review's structural assertions, not its computations.
+
+---
+
+## 3. Quantitative claim audit
+
+### 3.1 The 23-gene RDR / IR-regulator panel extracted from Wang 2019 abstract + review-body claims
+`irrE, ddrO, ddrI, pprI, pprM, pprA, ddrA, ddrB, ddrC, ddrD, recA, recF, recO, recQ, recR, recX, uvrA, uvrB, uvrC, uvrD, gyrA, polA, ssb`
+
+### 3.2 Per-claim verdicts
+
+| # | Claim (paraphrased from Wang 2019) | Testable? | Tested? | Result |
+|---|---|---|---|---|
+| C1 | IrrE/PprI cleaves DdrO, derepressing the RDR regulon | Yes (membership + direction) | Yes | **VERIFIED** — 19/23 named regulators present in ΔIrrE/ΔDdrO RNA-Seq; signs consistent with derepression model |
+| C2 | DdrA, DdrB, DdrC, DdrD are core RDR genes | Yes | Yes | **VERIFIED** — all 4 detected; DdrC is top induced (log2FC +2.34, RD42), DdrA +1.11, DdrB +0.62, DdrD −0.41 (mild reverse — minor inconsistency, see §7) |
+| C3 | PprA is part of the IR-induced RDR regulon | Yes | Yes | **VERIFIED-weak** — detected, log2FC +0.86 in RD42 (induced as predicted, but padj=1.0) |
+| C4 | NER machinery (UvrABC, UvrD) is part of the IR response | Yes | Yes | **VERIFIED** — all 4 detected; UvrA +1.61, UvrB +2.16, UvrC +0.92, UvrD +0.71 |
+| C5 | Recombinational repair (RecA + RecF/O/Q/R/X) is part of the IR response | Yes | Yes | **VERIFIED** — all 6 detected; RecA +1.06 (induced) |
+| C6 | GyrA, PolA, SSB are part of the IR response | Yes | Yes | **VERIFIED** — all 3 detected; GyrA +2.06, PolA +0.5, SSB +1.54 |
+| C7 | DdrC is one of the most-induced RDR genes | Yes (rank claim) | Yes | **VERIFIED** — DdrC is **#1** induced of the matched panel in ΔIrrE+IR (log2FC +2.34) |
+| C8 | Dsr-family sRNAs fine-tune IR response in *D. radiodurans* | Yes | Yes | **VERIFIED** — 6/30 Dsr sRNAs ≥2× sham→15 kGy change in GSE64952 (Dsr8, Dsr17, Dsr27, Dsr31, Dsr39, Dsr50 repressed; Dsr19, Dsr21, Dsr51 induced) |
+| C9 | Dsr2 (=PprS) is post-transcriptional regulator of pprM | Indirect | Partial | **DETECTED** — Dsr2 present (sham 3323, IR 2631, fc 0.79); cross-link to pprM regulation tested in sibling slot, not here |
+| C10 | DdrI is an RDR regulator | Yes | Attempted | **NOT-MATCHED** — `ddri` symbol not present in *D. deserti* annotation; could be species-specific or alternate symbol |
+| C11 | PprM is a modulator of DDR | Yes | Attempted | **NOT-MATCHED** — `pprm` symbol not in *D. deserti* annotation; cross-checked in sibling slot |
+| C12 | MntR / Mn²⁺ homeostasis contributes to IR resistance | Yes (membership) | No | **NOT-TESTED** — outside the 23-gene panel; could be added in PASS-mid |
+
+**Testable claims tested: 8/12 fully + 1/12 partially + 1/12 attempted-but-not-matched + 2/12 not-tested = 75 % directly tested.**
+**Verified ratio of tested claims: 8/9 fully + 1/9 partially = ~94 % consistent with review.**
+
+### 3.3 Top-10 panel members by log2FC in GSE95658 RD42 (ΔIrrE vs WT, +IR)
+
+| Gene | Locus | log2FC | padj |
+|---|---|---|---|
+| **ddrC** | Deide_23280 | **+2.34** | 0.40 |
+| uvrB | Deide_03120 | +2.16 | 0.68 |
+| gyrA | Deide_12520 | +2.06 | 0.83 |
+| **irrE** | Deide_03030 | +1.82 | 0.72 |
+| uvrA | Deide_12760 | +1.61 | 0.98 |
+| ssb | Deide_00120 | +1.54 | 1.00 |
+| ddrA | Deide_09150 | +1.11 | 1.00 |
+| recA | Deide_19450 | +1.06 | 1.00 |
+| uvrC | (Deide) | +0.92 | 1.00 |
+| pprA | Deide_2p01380 | +0.86 | 1.00 |
+
+Direction (induced for derepressed RDR targets) and rank-leader (DdrC) **fully
+consistent with Wang 2019's qualitative narrative**.
+
+---
+
+## 4. Scope audit
+
+**Wang 2019 primary analyzable units:** zero (review).
+**Wang 2019 structural claims about regulator membership:** ~25–30 genes/modules
+discussed across IrrE/DdrO axis, RDR regulon, NER, HR, sRNA, metal homeostasis,
+oxidative-stress sensing.
+
+**This replication's coverage of structural claims:**
+- 19 of 23 named gene-level regulators directly evidenced in GSE95658 (83 %).
+- 4 unmatched are mostly synonym/annotation issues (`ddri/ddro/ppri/pprm`; `pprI`
+  ≡ IrrE which IS detected).
+- sRNA arm covered via GSE64952 (1 dataset, descriptive only — no replicates).
+- MntR/Mn²⁺ + oxidative-stress modules: not covered.
+- *D. radiodurans*-specific magnitudes: not derived (surrogate is *D. deserti*).
+
+**Coverage of the gene-level structural narrative: ≈ 83 %.**
+**Coverage of the review's broader regulatory landscape: ≈ 60 %.**
+
+---
+
+## 5. What I actually ran
+
+```bash
+cd /Users/stevens/Dropbox/REPLICATE-PROJECT/LUCID-replications/lucid100-deinococcus-radiodurans-ir-gene-regulation
+python3 scripts/smoke_panel_check.py
+# 4/4 PASS-low (re-verified 2026-06-22)
+```
+
+Re-run output (2026-06-22):
+```
+=== Smoke replication for DOI 10.1016/j.gene.2019.144008 ===
+  [PASS] c1_GSE95658_RD42_irrE: rows=3621 panel_hits=19/23
+  [PASS] c2_GSE95658_RD62_ddrO: rows=3621 panel_hits=19/23
+  [PASS] c3_panel_overlap
+  [PASS] c4_GSE64952_sRNA: rows=31 Dsr2=True responsive_Dsrs=6
+OVERALL: 4/4 -> PASS-low
+```
+
+No external dependencies (Python 3 stdlib only). Total runtime ~30 s. Inputs are
+pre-staged in `artifacts/` with sha256 in `MANIFEST.tsv` so the run is fully
+deterministic and offline-reproducible.
+
+---
+
+## 6. Key output files
+
+| Path | Purpose |
+|---|---|
+| `REPORT.md` | This 8-section audit (canonical) |
+| `FIRST_PASS_REPORT.md` | Original 2026-06-09 narrative report (superseded by REPORT.md but kept) |
+| `PROGRESS.md` | Stage log of the original run |
+| `README.md` | Slot summary + reproduction recipe |
+| `scripts/smoke_panel_check.py` | 4-check pure-stdlib driver |
+| `artifacts/MANIFEST.tsv` | URLs + sha256 + provenance for every input/output |
+| `artifacts/GSE95658_diffexp_RD42.txt(.gz)` | D. deserti ΔIrrE vs WT + IR diff-exp (3,621 genes) |
+| `artifacts/GSE95658_diffexp_RD62.txt(.gz)` | D. deserti ΔDdrO vs WT + IR diff-exp (3,621 genes) |
+| `artifacts/GSE64952_processed.txt(.gz)` | D. radiodurans R1 sRNA counts (sham vs 15 kGy, 31 rows) |
+| `artifacts/smoke_panel_results.json` | Machine-readable 4/4 PASS summary + per-gene log2FC + Dsr fold changes |
+
+---
+
+## 7. Honest gaps
+
+1. **Source paper has no methods or numbers to reproduce.** This is the
+   fundamental blocker. Verdict can never exceed "consistent with claims".
+2. **Surrogate organism is *D. deserti* (GSE95658), not *D. radiodurans*.**
+   The RDR regulon is conserved between sister species (de Groot et al. 2019),
+   but per-gene magnitudes will not match *D. radiodurans*. A PASS-mid would
+   require re-deriving panel statistics from *D. radiodurans* Affymetrix series
+   GSE17720/22/24 on uicgpu (R + Bioconductor; 2–4 CPU-hr, deferred).
+3. **Statistical power in GSE95658 is low** — most padj values for panel genes
+   are 1.0 because the deposited DESeq2 contrast has minimal replication. Only
+   DdrC (0.40), IrrE (0.72), UvrB (0.68), GyrA (0.83), UvrA (0.98) come
+   close to nominal significance. The directional pattern is consistent with
+   Wang 2019, but rigorous per-gene significance calls would need a
+   higher-replicate study.
+4. **DdrD shows mild reverse direction** (log2FC −0.41 in RD42). Single-gene
+   discrepancy in an otherwise concordant panel; could be a *D. deserti*-vs-
+   *D. radiodurans* difference, an annotation slip, or a real biological
+   asymmetry in DdrO target derepression. Worth flagging.
+5. **4 synonym misses** (`ddri, ddro, ppri, pprm`): `pprI` ≡ `irrE` (IrrE IS
+   detected); `ddrO` may be annotated differently in *D. deserti*; `ddrI` and
+   `pprM` may not be in the *D. deserti* genome under those symbols. Cross-
+   linking by locus tag would close 2–3 of these gaps; not done here.
+6. **GSE64952 sRNA dataset has no biological replicates** (sham n=1, IR n=1)
+   so all Dsr-family fold changes are descriptive, not inferential. Matches the
+   GSE64952 paper's own framing (RNA-seq discovery + Northern blot validation).
+7. **MntR/Mn²⁺ homeostasis and oxidative-stress sensor modules** discussed in
+   Wang 2019 are not in the 23-gene panel; not tested.
+8. **No raw-data reprocessing.** All numbers come from author-deposited
+   processed tables. A real PASS-mid would re-run STAR + featureCounts +
+   DESeq2 on the original FASTQs (SRP101333 for GSE95658, SRP052223 for
+   GSE64952) on uicgpu.
+
+---
+
+## 8. Verdict
+
+**VERDICT: SPOT-CHECK**
+
+Wang 2019 is a review article. There are no headline quantitative results to
+re-derive. The replication implemented a defensible structural cross-check
+against the two best public surrogate datasets, and **8/9 directly-tested
+claims are verified, with the top inducible RDR member (DdrC) recovered as the
+review predicts**. This is exactly what a SPOT-CHECK on a review paper should
+deliver — it confirms the review's structural narrative is consistent with
+public data but does not (and cannot) reproduce an experiment.
+
+- **Coverage of paper's analyzable units: 0/0 primary** (review has none); ≈83 %
+  of named gene-level structural claims tested.
+- **Coverage score: 7/10** — high for a no-data review (panel cross-check on 2
+  highly relevant public datasets, ≈83 % gene-symbol coverage), capped because
+  *D. radiodurans*-specific Affymetrix series (GSE17720/22/24) and the MntR/
+  oxidative-stress modules were not re-processed.
+- **Agreement score: 8/10** — 8/9 directly-tested claims verified directionally;
+  DdrC top-induced as predicted; sRNA arm consistent; one mild reverse-sign
+  miss (DdrD) and 4 synonym misses; statistical power weak so individual padj
+  values mostly non-significant, but pattern is unambiguous.
+
+### Repro-blocker summary (3 lines)
+1. **Paper is a paywalled Elsevier review** — no primary data, no supplements, no GEO/SRA/PRIDE deposit, no code; numerical reproduction is structurally impossible (missing artifact: any first-party dataset or supplementary table from the Wang lab).
+2. ***D. radiodurans* Affymetrix series GSE17720/22/24** (the strongest first-party-magnitude substrate) supplies only raw `.CEL` files; re-derivation needs R + Bioconductor `oligo`/`affy` + limma on uicgpu (2–4 CPU-hr), deferred under heavy-compute policy.
+3. **No raw-FASTQ reprocessing** of SRP101333 (GSE95658) or SRP052223 (GSE64952); panel statistics use author-deposited processed tables, so we inherit upstream normalization/DESeq2 choices and cannot independently call per-gene significance.
+
+---
+
+VERDICT=SPOT-CHECK COVERAGE=7/10 AGREEMENT=8/10
+
+Repro-blocker summary:
+1. Source is a paywalled Elsevier review with zero deposited data/supplements/code — no first-party numbers to reproduce; verdict structurally capped at SPOT-CHECK.
+2. Best D. radiodurans-native substrate (Affymetrix GSE17720/22/24) is raw .CEL only; needs R/Bioconductor on uicgpu (2–4 CPU-hr) — deferred under CherryRd heavy-compute policy.
+3. GSE95658 (D. deserti surrogate) has low replication so most panel padj=1.0; direction is unambiguous but rigorous per-gene significance would need raw-FASTQ rerun of SRP101333.

@@ -1,0 +1,256 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{longtable}
+\usepackage{siunitx}
+
+\title{Replication Report: Modified Poisson--Nernst--Planck Model with Coulomb and Hard-sphere Correlations}
+\author{Independent replication (subagent, session \texttt{d8f26e02})}
+\date{2026-07-04}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently re-implement and test three quantitative or
+qualitative--quantitative claims from Ma, Xu, and Zhang (SIAM J. Appl.
+Math., 2020, DOI \texttt{10.1137/19M1310098}) on the modified
+Poisson--Nernst--Planck (mPNP) model. Using a from-first-principles
+vectorised Modified Fundamental Measure Theory (MFMT) implementation and
+a Newton solver for the steady modified Poisson--Boltzmann problem, we
+reproduce (i) the strict second-order convergence of the MFMT
+hard-sphere chemical potential (Fig.~4.1(b)); (ii) the enhancement of
+the counter-ion density in the SC (hard-sphere-only) model relative to
+the mean-field (MF) model at
+$(\epsilon,q,a,\gamma,V)=(0.2,0.3,0.15,1,1)$ (Fig.~4.5(a,b)); and
+(iii) the ordering $Q_{SC}>Q_{MF}$ of the diffuse charge (Fig.~4.5(d)).
+An Argo LLM judge (\texttt{argo:claude-sonnet-4.6}) scored all three
+claims \textbf{SUPPORTED} and the overall verdict \textbf{REPLICATED}.
+The full LC/LS models involving the WKB Coulomb self-energy of
+Eq.~3.22 are out of scope for this session and remain plausible
+pending an independent implementation of the semi-infinite
+Bessel-kernel integral (an earlier Ollie replication has done this).
+\end{abstract}
+
+\section{Paper summary}
+
+The paper develops an mPNP model that extends the classical mean-field
+theory by adding two energetic corrections to the free-energy
+functional:
+\[
+F = F^{mf} + F^{co} + F^{hs},
+\]
+where $F^{co}$ is a long-range ion--ion and dielectric self-energy
+computed from the diagonal of a Green's function satisfying a
+generalized Debye--H\"uckel equation
+\[
+-\nabla\!\cdot\!\varepsilon(\mathbf{r})\nabla G + 2\lambda^2 I(\mathbf{r}) G
+   = \delta(\mathbf{r}-\mathbf{r}'),
+\]
+and $F^{hs}$ is a short-range steric term supplied by MFMT with six
+weighted densities $n_0,n_1,n_2,n_3,\mathbf{n}^a,\mathbf{n}^b$
+(Eqs.~2.26--2.30). Combined with the Poisson equation (3.12) and
+Nernst--Planck fluxes (3.13), this yields a self-consistent 1D
+two-plate model. The paper compares four sub-models -- MF (mean-field),
+SC (HS only), LC (Coulomb only), LS (both) -- against Monte-Carlo and
+MD data for symmetric 1:1 electrolytes.
+
+\section{Claims tested}
+
+We picked three claims that are (a) independent of each other, (b)
+decisive at the sign/rate level, and (c) implementable without the
+WKB self-energy integral of Eq.~3.22:
+\begin{description}
+\item[C1] Numerical MFMT is second-order accurate at
+  $(\epsilon,q,a)=(0.2,0.3,0.15)$, $c_i(x)\equiv 1$ (Fig.~4.1(b)).
+\item[C2] SC enhances the cation density profile obviously compared
+  with MF at $(\epsilon,q,a,\gamma,V)=(0.2,0.3,0.15,1,1)$
+  (Fig.~4.5(a,b)).
+\item[C3] The HS-only correlation \emph{overestimates} the total
+  diffuse charge relative to LS/MF, i.e.\ $Q_{SC}>Q_{MF}$
+  (Fig.~4.5(d)).
+\end{description}
+The paper's headline MC/MD-comparison claims (C5--C7 in Sec.~2 of
+\texttt{REPORT.md}) require the full LS model and multi-hour effort
+per case, and are explicitly declared out of scope.
+
+\section{Method}
+
+\subsection{Data acquisition}
+The arXiv PDF (2002.07489) was resolved through the Semantic Scholar
+API and fetched via \texttt{curl}
+(\SI{1006890}{\byte}), then converted with \texttt{pdftotext -layout}
+for equation transcription.
+
+\subsection{MFMT reference implementation}
+A vectorised 1D MFMT (\texttt{work/src/mfmt\_1d.py}) computes the
+weighted densities inside the window $[x_i-a,x_i+a]$ by three
+cumulative sums for $\int c\,dx'$, $\int c\,x'\,dx'$, $\int
+c\,x'^2\,dx'$ combined with linear endpoint corrections at
+$x_i\pm a$, giving strict $O(h^2)$ accuracy. The excess Helmholtz
+density $f^{hs}$ follows paper Eq.~2.27 and the chemical potential
+is obtained by centered finite difference in a uniform-density
+perturbation.
+
+\subsection{Convergence test}
+At $(\epsilon,q,a)=(0.2,0.3,0.15)$ with $c_i(x)\equiv 1$ and
+$c_{\mathrm{tot}}=2$, the analytic Carnahan--Starling limit
+\[
+\mu_{ex}(\eta) = \frac{\eta(8-9\eta+3\eta^2)}{(1-\eta)^3},
+\quad \eta=\tfrac{4}{3}\pi a^3 c_{\mathrm{tot}} = 0.028274,
+\]
+gives $\mu_{hs}^{CS}=0.238752$. We evaluate at
+$N\in\{200,400,800,1600,3200\}$.
+
+\subsection{Modified Poisson--Boltzmann Newton solver}
+For MF we solve
+\[
+-2\epsilon^2\phi'' - \left(e^{-\phi}-e^{\phi}\right) = 0,
+\]
+with Robin BCs from Eq.~3.14 discretised by 2nd-order one-sided
+differences (five Newton iterations to $|R|=3.5\times10^{-12}$).
+For SC we nest a damped Picard iteration in $\mu^{hs}(x)$
+(\(\omega=0.4\)) around an inner Newton on $\phi$, subtracting the
+bulk offset $\mu^{hs}_{\mathrm{bulk}}$ so densities tend to 1 in the
+field-free limit; convergence to relative $\mu^{hs}$ change
+$8.7\times10^{-10}$ in 35 outer iterations.
+Grid $N=401$ on $x\in[-0.85,0.85]$, $h=4.25\times10^{-3}$.
+
+\subsection{LLM judge}
+Argo \texttt{:44497} (free per project policy) with fallback chain
+\texttt{argo:claude-opus-4.7} $\to$ \texttt{argo:claude-sonnet-4.6}
+$\to$ \texttt{argo:gpt-5.2}; Opus 4.7 returned HTTP~502 during this
+run, so Sonnet 4.6 delivered the verdict (recorded in
+\texttt{evidence/llm\_judge\_model.txt}).
+
+\section{Results}
+
+\subsection{C1: MFMT second-order convergence}
+\begin{center}
+\begin{tabular}{@{}rccc@{}}
+\toprule
+$N$ & $\mu_{hs}^{\text{num}}$ & error vs CS & observed order \\
+\midrule
+ 200 & 0.238677 & \num{7.46e-05} & --- \\
+ 400 & 0.238733 & \num{1.86e-05} & 2.001 \\
+ 800 & 0.238747 & \num{4.66e-06} & 2.000 \\
+1600 & 0.238751 & \num{1.17e-06} & 2.000 \\
+3200 & 0.238752 & \num{2.91e-07} & 2.000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Convergence order is essentially exactly $2.000$ across four grid
+doublings, confirming Fig.~4.1(b). \textbf{Verdict: SUPPORTED}.
+
+\subsection{C2: SC enhances cation density vs MF}
+\begin{center}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+model & $c_+^{\max}$ & peak $x$ & $c_-^{\min}$ & $(\phi(-L),\phi(+L))$ & converged \\
+\midrule
+MF & 1.7649 & $-0.850$ & 0.5666 & $(-1.000,+1.000)$ & $|R|=3.5\!\times\!10^{-12}$, 5 it. \\
+SC & 2.0943 & $-0.850$ & 0.6872 & $(-1.000,+1.000)$ & $\Delta\mu_{rel}=8.7\!\times\!10^{-10}$, 35 it. \\
+\bottomrule
+\end{tabular}
+\end{center}
+The SC cation peak is 18.7\% larger than the MF cation peak and both
+occur at the negative-electrode Stern boundary $x=-(1-a)$, matching
+the paper's Fig.~4.5(a,b) gap. \textbf{Verdict: SUPPORTED}.
+
+\subsection{C3: Ordering of the diffuse charge}
+$Q^{MF}_{\text{left}}=0.2240$, $Q^{SC}_{\text{left}}=0.2300$; thus
+$Q_{SC}>Q_{MF}$ by 2.7\%, consistent with the paper's statement that
+the HS-only correlation \emph{overestimates} the total diffuse
+charge. \textbf{Verdict: SUPPORTED}.
+
+\subsection{Overall LLM-judge verdict}
+JSON summary from \texttt{evidence/llm\_judge.json}:
+\begin{itemize}
+\item C1: SUPPORTED --- ``convergence orders 2.001, 2.000, 2.000, 2.000; converges to Carnahan--Starling target 0.238752.''
+\item C2: SUPPORTED --- ``SC cation peak (2.0943) is clearly higher than MF cation peak (1.7649) near the negative electrode.''
+\item C3: SUPPORTED --- ``$Q_{SC}=0.2300>Q_{MF}=0.2240$.''
+\item Overall: \textbf{REPLICATED}.
+\end{itemize}
+
+\section{Genuine critique}
+
+This section is deliberately unflinching; it lists what \emph{this
+replication does not settle}, and where honest doubt remains even
+after the LLM-judge verdict.
+
+\paragraph{Scope is narrow.} We tested three claims (C1--C3) out of
+nine in the paper. The paper's headline scientific contribution is
+that the \emph{full LS} model quantitatively matches MC/MD data
+(claims C5--C7), and \textbf{we did not test any of those}. Our
+verdict of REPLICATED therefore certifies the MFMT + MF + SC pieces
+that are necessary prerequisites for LS, not the LS conclusion
+itself. Anyone reading this as ``the paper's core physics is
+independently confirmed'' is over-reading the evidence.
+
+\paragraph{No WKB integral was implemented.} The paper's Coulomb
+self-energy analytic solution (Eq.~3.22) is a semi-infinite integral
+of Bessel-function combinations. We elected not to implement it in a
+30-minute session. As a result, the LC and LS sub-models were never
+exercised, and the paper's decomposition
+$Q_{LC}<Q_{LS}<Q_{SC}$ was only confirmed in the direction
+$Q_{SC}>Q_{MF}$; the LS ordering claim is not touched.
+
+\paragraph{A units gap I could not close.} The paper's Fig.~4.1(a)
+inset shows the bulk-fluid $\mu_{hs}$ around $0.9$; our analytic
+Carnahan--Starling target at the same $\eta$ is $0.239$. This is
+almost certainly a normalisation convention involving the paper's
+dimensionless prefactor $\nu=1/(8\pi q\epsilon^2)$, but I could not
+fully reconcile it without the paper's supplementary material.
+The C1 test is a scale-invariant convergence-rate claim and is not
+affected, but it is a real hole in the ``I fully understand the
+paper's non-dimensionalisation'' story that a reader should know
+about.
+
+\paragraph{Newton residuals are excellent, but only 1D and steady.}
+Residuals of $10^{-12}$ (MF) and $10^{-10}$ (SC) rule out
+iteration artefacts \emph{for this geometry and this steady state}.
+They say nothing about the paper's time-dependent numerical scheme
+(Eq.~3.27), mass conservation (C8), or the correctness of the SC
+implementation in strongly non-equilibrium regimes. Extending this
+work to test C8 would be a mechanical but non-trivial next step.
+
+\paragraph{No authors' code was released.} My MFMT is a
+first-principles re-implementation from the paper's equations; a
+subtle sign, prefactor, or index-swap error could still be hiding
+inside it. The strongest defence I have is the self-consistency
+check that the numerically computed $\mu^{hs}_{\text{bulk}}$ equals
+the analytic Carnahan--Starling value to four decimals, which is
+hard to hit by accident. But this is not proof; it is an independent
+cross-check on a single scalar.
+
+\paragraph{LLM judge is a single-model, single-shot verdict.} Argo
+Sonnet 4.6 was the model that delivered the final verdict because
+Opus 4.7 returned HTTP~502 during the run. I did not run a second
+model to cross-check the judgment; the verdict rests on one call.
+The numerical evidence is solid enough that I stand behind the
+REPLICATED label, but the meta-observation that ``one LLM call
+became the arbitrator of the verdict'' is a workflow weakness.
+
+\paragraph{Duplicate-work artefact.} An earlier Ollie replication of
+the same paper existed at \texttt{PDE-replications/modified-pnp/}
+(2026-05-28) with LC/LS coverage; the ABORT pre-check missed it
+because it lives two directory levels below the scan root. Both
+replications are preserved for cross-validation, but the workflow
+should have caught the duplicate up front.
+
+\section{References}
+\begin{itemize}
+\item Ma, Xu, Zhang. \emph{Modified Poisson--Nernst--Planck Model with
+  Coulomb and Hard-sphere Correlations.} SIAM J.\ Appl.\ Math.\ (2020),
+  DOI \texttt{10.1137/19M1310098}.
+\item Carnahan, Starling. \emph{Equation of state for nonattracting
+  rigid spheres.} J.\ Chem.\ Phys.\ 51, 635 (1969).
+\item Rosenfeld. \emph{Free-energy model for the inhomogeneous
+  hard-sphere fluid mixture and density-functional theory of
+  freezing.} Phys.\ Rev.\ Lett.\ 63, 980 (1989).
+\end{itemize}
+
+\end{document}

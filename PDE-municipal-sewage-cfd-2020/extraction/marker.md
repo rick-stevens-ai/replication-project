@@ -1,0 +1,586 @@
+# Marker-equivalent parse (pdftotext -layout) — Esemu et al. 2020
+
+Source: paper.pdf (10 pages, 406 KB)
+Extractor: `pdftotext -layout` (local fallback; central Marker corpus not queried for this PDE-set paper)
+Journal of Advances in Mathematics Vol 18 (2020) ISSN: 2347-1921                 https://rajpub.com/indx.php/jam
+
+
+
+                                  DOI: https://doi.org/10.24297/jam.v18i.8345
+
+ An Application of Computational Fluid Dynamics to Optimize Municipal Sewage Networks; A Case of
+                              Tororo Municipality, Eastern Uganda.
+
+ Esemu Joseph Noah1, Verdiana G. Masanja2, H. Nampala3, J. D. Lwanyaga1, R. Awichi1 and T Semwogerere1*
+
+                                   1
+                                       Faculty of Engineering, Busitema University,
+
+                        2
+                         Nelson Mandela African Institution of Science and Technology,
+
+                                                 3
+                                                  Kyambogo University
+
+                            *semwogereret@eng.busitema.ac.ug semoge15@gmail.com
+
+Abstract
+
+Two-phase pipe ﬂow is a common occurrence in many industrial applications such as sewage, water, oil, and
+gas transportation. Accurate prediction of liquid velocity, holdup and pressure drop is of vast importance to
+ensure eﬀective design and operation of ﬂuid transport systems. This paper aimed at the simulation of a two-
+phase ﬂow of air and sewage (water) using an open source software OpenFOAM. Numerical Simulations have
+been performed using varying dimensions of pipes as well as their inclinations. Specifically, a Standard k-𝜀
+turbulence model and the Volume of Fluid (VOF) free water surface model is used to solve the turbulent mixture
+flow of air and sewage (water). A two dimensional, 0.5m diameter pipe of 20m length is used for the CFD
+approach based on the Navier-Stokes equations. Results showed that the ﬂow pattern behaviour is influenced
+by the pipe diameters as well as their inclination. It is concluded that the most effective way to optimize a sewer
+network system for Tororo Municipality conditions and other similar situations, is by adjusting sewer diameters
+and slope gradients and expanding the number of sewer network connections of household and industries from
+535 (i.e., 31.2% of total) to at least 1,200 (70% of total).
+
+Keywords: Computational Fluid Dynamics (CFD); Openfoam; Optimal Design Problem; Municipal Sewer
+          Network.
+
+1. Introduction
+
+In urban development history, Municipal Sewage systems were built to collect rain runoff, wastewater, and
+sewage rapidly. These networks consist of pipes, pumping stations, force mains, manholes, and other facilities
+required to collect and transport wastewater [1]. Research on urban drainage pipelines focuses on hydraulics
+such as pipe slopes and flow rate so that sewage and faecal sludge are to be delivered efficiently [2]. The flows
+at or in the proximity of these structures are typically highly turbulent and often characterized by changes
+between the open channel (free surface) and pressurized conditions [3]. Such turbulent flows frequently involve
+complex interactions between air and water [4] as in the case of manholes with multiple in/out pipes, stepped
+spillways, and flow network structures. The latter structures are typically composed of an entrance manhole and
+inflow, overflow, and underflow conduits. The main design challenge of the network structure is the allowance
+of overflows only after underdrain capacity is exceeded while minimizing head losses that reduce the underdrain
+flow capacity. A second challenge is the prevention of significant backwater effects.
+
+In hydraulic structures such as sewers and spillways, the air in the flow is important, perhaps an indispensable
+design factor [5]. The presence of air in wastewater: Increases the bulk of the flow thus influencing the height of
+the chute sidewalls; Prevents the damage of the chute caused by cavitation; Increases the momentum when the
+air within the boundary layer reduces the shear stress and Re-oxygenates the water flow which contributes to
+the downstream river quality and the preservation of aerobic species [5].
+
+
+
+
+                                                           18
+Journal of Advances in Mathematics Vol 18 (2020) ISSN: 2347-1921                https://rajpub.com/indx.php/jam
+
+
+
+Sewer networks are considered as complex, large-scale systems since they are dependent on geographical
+distribution and decentralization with a hierarchical structure that is either on the surface or underground. Each
+sub-system is in itself composed of a large number of elements with time-varying behaviour, exhibiting
+numerous operating modes and subject to changes due to external conditions (weather) and operational
+constraints [6]. The hydraulic regime within a sewer is a function of several design parameters including pipe
+material, sewer function, diameter and gradient. It also suggests that a minimum gradient should be achieved
+for a specific diameter. As a result, some old sewers do not meet the modern requirements for self-cleansing
+that result to high blockages [7].
+
+Most cities around the world have sewage systems that combine sanitary and stormwater ﬂows within the same
+network. This is why these networks are known as Combined Sewage Systems CSS [8]. This discharge to the
+environment, known as Combined Sewage Overﬂow (CSO), contains biological and chemical contaminants that
+create major environmental and public health hazards. Therefore, an urban catchment without an effective sewer
+system may easily encounter inundation and other consequential problems.
+
+Tororo Municipal has combined sewer that experiences CSO with only two operational convectional sewerage
+treatment ponds that receive and treats wastewater from the domestic and industrial piped networks with many
+of the houses not connected to the urban sewer network [9]. It was constructed according to Bernoulli equation
+in the early 1970’s for supply of clean water, and the collection, transportation and treatment of human excreta
+and greywater within the Municipality [10, 11]. This means that the flow conditions are based on the Bernoulli
+principle. The sewer network has not been developed and expanded to meet the capacity of rapidly growing
+population and industries in Tororo town and its surroundings’. It’s common to find overflowing sewage spilling
+on the streets which poses a health risk to the residents [11, 12]. This is attributed to drainage system designs,
+rapid urbanisation and industrialisation.
+
+The open-source CFD software OpenFOAM is equipped with a well-designed C++ library that allows the
+numerical simulation of various engineering applications [13]. Through its object-orientated structure and the
+open-source code concept, OpenFOAM is flexible and can be adjusted to very specific environmental fluid flow
+problems. This study presents a Mathematical model for the optimisation of urban sewer networks using the
+open source CFD software OpenFOAM based on interFoam solver.
+
+2. Methods and Materials
+
+The study combines CFD modeling and numerical methods. The urban sewage network simulations were done
+for the free-surface flow and for the sewer pipe systems. The free Open Source CFD package, OpenFOAM, based
+on the standard k-ε model and the VOF free surface model was used to model the sewer flows, in order to
+predict maximum flow rate [14]. Structured/unstructured mesh were used with the optimum number of nodes.
+
+In CFD modeling, Navier–Stokes equations of a one-dimensional incompressible flow for velocity 𝑈 will be used
+as the Continuity Equation:
+
+∇. 𝑈 = 0                                                 (1)
+
+A transport relation for the volume fraction of each cell is solved to find the shape of the free surface (air/liquid
+interface) as the Conservation of linear momentum (Equation of motion):
+
+                             𝜕𝛼
+                                  + ∇(𝛼𝑈) = 0                                              (2)
+                             𝜕𝑡
+
+
+Where 𝛼 and 𝑈 denote the volume fraction and the average flow velocity respectively.
+
+For the given depth of open channel with a steady flow and the mean velocity 𝑈, Manning’s equation will be
+applied to find hydraulic parameters and discharge 𝑄.
+
+
+
+
+                                                         19
+Journal of Advances in Mathematics Vol 18 (2020) ISSN: 2347-1921                    https://rajpub.com/indx.php/jam
+
+
+
+                                                            1 2⁄ 1⁄
+                                                       𝑈=     𝑅 3𝑆 2
+                                                            𝑛
+
+        𝑄 = 𝐴𝑈,                                             (3)
+
+Where; 𝑅 – Hydraulic radius, the 𝐴 −wetted cross sectional area of the pipe, 𝑛 − Manning’s roughness
+coefficient, and 𝑆 − Slope of an energy gradient.
+
+An important consideration for sewer performance is the increased volume flow in sewers resulting from
+increasing sewage efficient sewer connection practices. A large amount of sewage is reliant on the flow of sewers
+as a vehicle for its movement through the system. Therefore, a reduction in flow may impede the ability of a
+sewer to efficiently and effectively remove large amounts of sewage [1]. Thus, if the benefits of optimising sewer
+networks are to be fully realised, consideration must be given to how sewer design can be updated to
+accommodate increased volumes of sewer flows [15]. This can be achieved using equation (4):
+
+ 𝜕𝜌𝑈
+       + ∇. (𝜌𝑈𝑈) = −∇𝑝 − ∇2 (2𝜇𝑈) + 𝐹                                 (4)
+  𝜕𝑡
+
+
+where 𝑈 is flow velocity, 𝜌 is density, p is pressure, 𝜇 is viscosity, and F is body force.
+
+The solution of sewer network optimization problems requires determination of pipe diameters, flow rate and
+pipe slopes [1, 16]. Finding an optimal least-cost design of sewer networks is difficult because of numerous
+complex hydraulic and engineering constraints that lead to nonlinear equations [6, 7]. Moreover, the size of
+sewer networks is generally large, therefore, leading to large scale optimization problem which is generally
+difficult to solve [1].
+
+2.1 CFD Models
+
+Computational Fluid Dynamics (CFD) is most applied to gain insights into most fluid processes and associated
+phenomena and so presents potential to add value in the analysis of urban drainage systems. CFD presents itself
+as a useful tool for investigating domain space for physical system design and performance variables, and for
+diagnosing or troubleshooting system behaviour [17]. Below are various CFD models that have been used;
+
+CFD and artiﬁcial neural network modelling of two-phase ﬂow pressure drop using diameter and slopes as
+decision variables but 2cm and 6cm diameters were only used that limited the diameters and slope for the study
+[18].
+
+CFD analysis of the effect of elbow radius on pressure drop in multiphase flow was performed in four diﬀerent
+90-degree elbows with air-water two-phase ﬂows [19]. The inside diameters of the elbows with the pressure
+drops at two diﬀerent upstream and downstream locations were investigated using empirical, experimental, and
+computational methods. The mixture models solved the continuity, motion, and the volume fraction equations
+(5) and (6);
+
+         𝜕𝜌𝑚
+               + ∇. (𝜌𝑚 𝑣𝑚 ) = 0 and 𝜌𝑚 = ∑ 𝛼𝜌 , where 𝛼 is volume fraction.                     (5)
+         𝜕𝑡
+
+                            𝜕𝜌𝑚 𝑣𝑚
+                                     + ∇. (𝜌𝑚 𝑣𝑚 𝑣𝑚 ) = −∇𝑝 + ∇. [𝜇(∇𝑣𝑚 + (∇𝑣𝑚 )𝑇 )] + 𝐹                  (6)
+                              𝜕𝑡
+
+
+Where 𝐹 is body force, 𝜌𝑚 is density of mixture, 𝑣𝑚 is volume of mixture and 𝜌 is density of water. The inside
+diameters of the elbows were restricted to 6.35mm and 12.7mm with radius to diameter ratios 𝑟/𝐷 of 1.5 to 3.0
+but this could be extended to range of diameters and 𝑟/𝐷 to obtain various flow rates and pressure drop in
+sewer pipes. However, it was unable to handle different pipe lengths that are used in sewer networks.
+
+Chen, et al., 2013 [7], suggested a CFD Modelling approach for municipal sewer system design optimization to
+minimize emissions into receiving water body. He used the CFD model that assisted in design optimization of a
+
+
+                                                             20
+Journal of Advances in Mathematics Vol 18 (2020) ISSN: 2347-1921              https://rajpub.com/indx.php/jam
+
+
+
+municipal sewage system providing detailed flow fields inside of the system and CFD techniques of the
+renormalized group (RNG) k-ε turbulence model and the VOF free surface model. For VOF and 𝛼 ranges from
+0.0 for cell with no sewage to 1.0 that’s full of sewage.
+
+Where, 𝛼, and 𝑢 denote the volume fraction and the flow velocity respectively. The estimated inlet sewer
+velocities were specified as the inlet boundary conditions with turbulence intensity (I) at the inlet boundary
+estimated based on the Reynolds number, 𝑅𝑒
+
+                                    −1⁄
+                       𝐼 = 0.16𝑅𝑒      8                                        (7)
+
+In this study methods based on Computational Fluid Dynamics will be used to design gravity or pumped sewer
+networks with fixed layout in which diameters and pipe nodal cover depths will be considered as decision
+variables. The methods of [1,18, 20] will be adapted to accommodate the typical sewer constraints facing Tororo
+municipality and other locations of similar situations. These methods are chosen because of their robustness
+and an efficient optimization algorithm for optimal design of sewer networks. In particular, the method
+adaptation will ensure that all the sewer design constraints are systematically satisfied so that pressure drops
+and construction cost function are freely minimized. An algorithm for the method will be developed in this
+study, and its codes will be written and implemented on the free Open Source CFD package OpenFOAM [13].
+
+2.2 Sewer networks Design Optimization
+
+In this section, an optimal sewer network design that aim to find pipe diameter and slopes which minimizes
+pressure drops and sewer system cost is based on model proposed by [20]. Excavation and pipe installations
+costs are the main part of construction costs which are functions of the pipe slopes and pipe diameters [1].
+
+Sewer network design is subject to the hydraulic constraints regarding full pipe condition, continuity equation,
+sewer flow velocity 𝑣, sewer pipe nodal cover depths (upstream and downstream) 𝑑, minimum sewer pipe
+slopes 𝑆, maximum and minimum relative flow depths ℎ, ratio of flow depth to pipe diameter 𝛽 , commercial
+pipe diameters 𝐷𝑐 and progressive pipe diameters 𝐷𝑙 described in equations (8) and (9) as follows.
+
+𝑣𝑚𝑖𝑛 ≤ 𝑣𝑖 ≤ 𝑣𝑚𝑎𝑥                  𝑖 = 1…𝑁                                             (8)
+
+𝑑𝑚𝑖𝑛 ≤ 𝑑𝑖 ≤ 𝑑𝑚𝑎𝑥                 𝑖 = 1…𝑁                                               (9)
+
+This constraint can be rewritten in terms of the nodal elevation as:
+
+ℎ𝑚𝑖𝑛 ≤ ℎ𝑖 ≤ ℎ𝑚𝑎𝑥                 𝑖 = 1…𝑁                                               (10)
+
+Where hi the nodal elevation of the 𝑖 𝑡ℎ node, 𝑁 is the number of nodes in the network, and ℎ𝑚𝑖𝑛 and ℎ𝑚𝑎𝑥 are
+the allowable minimum and maximum nodal elevations, respectively.
+
+𝑆𝑚𝑖𝑛 ≤ 𝑆𝑖 ≤ 𝑆𝑚𝑎𝑥                 𝑖 = 1…𝑁                                               (11)
+
+𝛽𝑚𝑖𝑛 ≤ 𝛽𝑖 ≤ 𝛽𝑚𝑎𝑥 ; 𝛽 = ℎ/𝐷      𝑖 = 1…𝑁                                               (12)
+
+𝐷 ∈ 𝐷𝑐   and,        𝐷 ≤ 𝐷𝑙 ;         𝐷 = diameter of sewer pipe, 𝑣0 = Self - Cleansing velocity.
+
+Due to the advancements in computer technology in recent years, the CFD technique has been a powerful and
+eﬀective tool to model the real life behaviour of fluids [18]. The free the open source CFD packages, OpenFOAM,
+based on the standard k-ε model and the Volume of Fluid (VOF) free surface model was used to model the
+sewer fluid flows, in order to predict maximum flow rate [13, 14]. In meshing, hexahedral mesh was used due to
+its capabilities in providing high-quality solution, with a fewer number of cells than comparable tetrahedral mesh
+for simple geometry.
+
+
+
+                                                       21
+Journal of Advances in Mathematics Vol 18 (2020) ISSN: 2347-1921                   https://rajpub.com/indx.php/jam
+
+
+
+2.2.1     Mathematical Model Equations
+
+The mass and momentum equations are solved for isothermal, incompressible and immiscible two-phase ﬂows,
+written in their conservative form:
+
+Continuity Equation:                ∇. 𝑈 = 0                                    (13)
+
+A transport relation for the volume fraction of each cell is solved to find the shape of the free surface (air/liquid
+interface) as:
+
+                              𝜕𝜌𝑈
+Equation of Motion:                 + ∇. (𝜌𝑈𝑈) = −∇𝑃 + ∇(2𝜇𝜏) + 𝜌𝑔 + 𝐹                 (14)
+                              𝜕𝑡
+
+
+where, 𝐹 is the continuum surface force (CSF) vector and 𝜏 is the deformation tensor given as follow.
+
+      1                  1
+𝜏 = (∇𝑈 + [∇𝑈]𝑇 ) = [∇. (∇𝑈) + (∇𝑈). ∇]                                                (15)
+      2                  2
+
+
+By substituting Equation (15) and replacing 𝜇 = 𝜌𝜈, Equation (14) becomes;
+
+𝜕𝜌𝑈
+      + ∇. (𝜌𝑈𝑈) − ∇. (ρν(∇𝑈)) = −∇𝑝 + (∇𝑈). ∇. (𝜌𝜈) + 𝜌𝑔 + 𝐹                      (16)
+𝜕𝑡
+
+
+The modiﬁed pressure p* (“𝑝_𝑟𝑔ℎ” in OpenFOAM code) is adopted in interFoam removing the hydrostatic
+pressure (𝜌𝑔. 𝑥) from the pressure P. This is advantageous for the speciﬁcation of pressure at the boundaries of
+the space domain. The gradient of the modified pressure is defined as:
+
+                 ∇𝑝∗ = ∇𝑃 − ∇(𝜌𝑔. 𝑥) ⟺ ∇𝑃 = ∇𝑝∗ + 𝜌𝑔 + 𝑔. 𝑥∇ρ                                 (17)
+
+The mixture density 𝜌 and viscosity 𝜇 of sewage depend on the volume fraction of the flow and they are
+calculated from the equations;
+
+            𝜌 = 𝛼𝜌𝑤𝑎𝑡𝑒𝑟 + (1 − 𝛼)𝜌𝑎𝑖𝑟 and         𝜇 = 𝛼𝜇𝑤𝑎𝑡𝑒𝑟 + (1 − 𝛼)𝜇𝑎𝑖𝑟               (18)
+
+where, α is the air volume fraction in the cell. The interface between two phases will be tracked by the volume
+fraction. Conservation of α can be represented by the interface mass balance using the following equation:
+
+            𝜕𝛼
+                 + ∇(𝛼𝑈) = 0                                                              (19)
+            𝜕𝑡
+
+
+                 𝑈 = 𝛼𝑈𝑤𝑎𝑡𝑒𝑟 + (1 − 𝛼)𝑈𝑎𝑖𝑟                                                       (20)
+
+Also, the compression velocity,
+
+𝑈𝑟 = 𝑈𝑙𝑖𝑞𝑢𝑖𝑑 − 𝑈𝑎𝑖𝑟                                                      (21)
+
+Where, 𝛼 and 𝑈 denote the volume fraction, the average flow velocity respectively. The volume fraction 𝛼 ranges
+from 0.0 for a cell with no sewage to 1.0 for a cell full of sewage.
+
+The transport/advection equation is given by Equation (22).
+
+                         𝜕𝛼
+                              + ∇. (𝛼𝑈) + ∇. (𝛼(1 − 𝛼)𝑈𝑟 ) =0                                           (22)
+                         𝜕𝑡
+
+
+where 𝑈𝑟 is compression velocity. This Equation uses an interfacial compression term included to mitigate the
+effects of numerical diffusion on the gas-liquid interface, rather than using interface reconstruction schemes.
+
+
+
+
+                                                            22
+ Journal of Advances in Mathematics Vol 18 (2020) ISSN: 2347-1921                     https://rajpub.com/indx.php/jam
+
+
+
+ The volumetric surface force function is explicitly estimated by the Continuum Surface Force (CSF) model, where
+ σ is the surface tension and κ is the surface curvature calculated as
+
+                         𝜅 = ∇. (∇𝛼/|∇𝛼|)                                                         (23)
+
+ Then
+
+                   2𝜌
+     𝐹 = 𝜎𝜅                    ∇𝛼 ≈ 𝜎𝜅∇𝛼                                             (24)
+              𝜌𝑎𝑖𝑟 + 𝜌𝑙𝑖𝑞𝑢𝑖𝑑
+
+
+ 2.2.2 Computational Geometry
+
+ The computational geometry that was used for this study is described in Figure 1. A pipe of 20𝑚 and 0.5𝑚 in
+ length and diameter respectively, was considered for the evaluation of the model.
+
+                                                 walls
+
+        Inflow                                                                     Outflow
+
+                                                                                   D = 0.5m
+
+                                           w
+
+                                                     L = 20m
+
+                                               Figure 1: Computational Geometry of the Sewer.
+
+ 3    Results and Discussion
+
+ In the market, the commercially available sewer pipe sizes are in the range from DN100mm to DN600mm and
+DN650mm to DN1200mm on request [21, 22]. These pipe sizes and slopes are important factors in the design of
+the sewer network. The recommended minimum slopes (S) for different pipe sizes (D) for sewer systems are shown
+in Table 1.
+
+                                 Table 1: The minimum slopes and pipe sizes for sewer pipes
+
+        D (mm)          150          200          250          300       375        450       525        600
+
+        S               0.00430      0.00330      0.00250      0.00190   0.00140    0.00110   0.00092    0.00077
+
+
+ 3.1 Flow pattern visualisation
+
+ The general combined standard k-ε and VOF model visualisations generated in the analysis for optimal sewer
+ flow rates are presented in Figures 2 to 10.
+
+
+
+
+                                    Figure 2: The Velocity Field Flow inside a Pipe (ms-1)
+
+
+
+
+                                                                 23
+Journal of Advances in Mathematics Vol 18 (2020) ISSN: 2347-1921           https://rajpub.com/indx.php/jam
+
+
+
+
+                            Figure 3: The Pressure Field Flow inside a Pipe (m2s-2)
+
+
+
+
+                 Figure 4: Liquid and Air Flows inside a Pipe for 1.0m Diameter at 0 degrees
+
+Flow direction
+
+
+
+
+                 Figure 5: Liquid and Air Flows inside a Pipe for 1.0m Diameter at 3 degrees
+
+
+
+
+                 Figure 6: The Pressure Field Flow inside a Pipe inclined at 3 Degrees (m2s-2)
+
+
+
+
+                            Figure 7: The Pressure Field Flow inside a Pipe (m2s-2)
+
+
+
+
+                                                      24
+Journal of Advances in Mathematics Vol 18 (2020) ISSN: 2347-1921               https://rajpub.com/indx.php/jam
+
+
+
+
+                            Figure 8: The Pressure Field Flow inside a Pipe (m2s-2)
+
+
+
+
+                 Figure 9: A Graph showing Velocity Development of Fluid in the Channel
+
+
+
+
+                      Figure 10: A Graph of Velocity Field against Time in the Channel
+
+4     Conclusions
+
+4.1    Improvement of the sewer system infrastructure
+
+The most effective way to optimize a sewer network system based on fluid pressure is by adjusting sewer
+diameters and slope gradients in order to achieve optimal flow rate to transport and deliver sewage to the
+treatment plant. It is also one of the easiest ways to control flow rate. However, specifying pipe sizes accurately
+may help to control those factors that can change over time. For example, in old metallic and reinforced concrete
+piping systems, as it is observed in the municipal records, the piping diameters should have been wider in design
+work than was initially necessary in order to account for material friction and some corrosion and/or scaling.
+
+
+
+                                                        25
+Journal of Advances in Mathematics Vol 18 (2020) ISSN: 2347-1921                 https://rajpub.com/indx.php/jam
+
+
+
+Currently, there are 535 sewer network connections of households and industries in Tororo Municipality,
+accounting for 31.2% of the total number. Therefore, they should be expanded from 31.2% to at least 70% of
+the total number by increasing the number of connections from the current 535 to at least 1200 connections to
+drastically increase the amount of collection and transportation of sewage to treatment plant by 80% of the
+current amount. This will reduce operational costs of the municipal authorities and improve the hygiene and
+health in the town.
+
+Records from both NWSC and municipal office show that UPVC (Unplasticised Polyvinyl Chloride) and HDPE
+(High Density Polyethylene) pipes are the most preferred and used as they are most effective for the
+transportation and delivery of sewage and wastewater to treatment plant when compared to metallic and
+reinforced concrete pipes. UPVC and HDPE pipes are smoother and are manufactured in various pipe sizes for
+sewage flow and can last for at least 30 years under normal temperatures from 0 - 80oC while metallic ones are
+prone to corrosion.
+
+4.2 Conclusions for improvement of the model simulations
+
+Running mesh refinements for the pipe/sewer geometries should be conducted properly through continuous
+refinements and use of well-defined boundary and initial conditions in order to achieve correct and accurate
+velocity and pressure profiles. The study therefore concludes that: InterFoam solver in Open Foam is suitable to
+be used for turbulent fluid flow simulation; The velocity profile in the straight pipe agrees well with the analytical
+solution of the classical formula. For analysing turbulent fluid flow in the complex geometry pipe, the
+unstructured mesh can be used.
+
+Finally, to optimize a sewer network system for effective fluid flow, the recommended sewer diameters and their
+corresponding slopes (see Table 1) should be adhered to during network design and construction in order to
+achieve optimal flow rate to transport and deliver sewage to the treatment plant.
+
+5. Acknowledgements
+
+This project was funded by Busitema University through the Directorate of Graduate Studies Research and
+Innovation (DGSRI). We are grateful for this financial support.
+
+References
+
+1.    Moeini, R., & Afshar, M. H. (2017). Arc Based Ant Colony Optimization Algorithm for optimal design of
+      gravitational sewer networks. Ain Shams Engineering Journal, 8(2), 207–223.
+      https://doi.org/10.1016/j.asej.2016.03.003
+
+2.    Han, P. D. (2012). Concise Environmental Engineering.
+
+3.    Choudhary, K., Jha, A.K., Mishra, L., Vandana, N. (2018). Buoyancy and Chemical Reaction Effects on MHD
+      Free Convective Slip Flow of Newtonian and Polar Fluid Through Porous Medium in the presence of
+      Thermal Radiation and Ohmic Heating with Dufour Effect, FACTA UNIVERSITATIS (NI \v{S}) Ser. Math.
+      Inform., Vol. 33, No. 1, pp. 1-29. DOI: 10.22190/FUMI1801001C
+
+4.    Rohani, M. and A. M. H. (2015). GA – GHCA model for the optimal design of pumped sewer networks,
+      (February). https://doi.org/10.1139/cjce-2014-0187
+
+5.    Leandro, J., & Carvalho, R. F. De. (2013). Free-surface flow interface and air-entrainment modelling using
+      OpenFOAM Supervisors.
+
+6.    Dufresne, M., Vazquez, J., Terfous, A., Ghenaim, A., & Poulet, J. B. (2009). Experimental investigation and
+      CFD modelling of flow, sedimentation, and solids separation in a combined sewer detention tank.
+
+
+
+                                                         26
+Journal of Advances in Mathematics Vol 18 (2020) ISSN: 2347-1921                 https://rajpub.com/indx.php/jam
+
+
+
+      Computers and Fluids, 38(5), 1042–1049. https://doi.org/10.1016/j.compfluid.2008.01.011
+
+7.     Duque, N., Duque, D., & Saldarriaga, J. (2017). Dynamic Programming over a Graph Modeling Framework
+      for the Optimal Design of Pipe Series in Sewer Systems. Procedia Engineering, 186, 61–68.
+      https://doi.org/10.1016/j.proeng.2017.03.208.
+
+8.    Chen, Z., Han, S., Zhou, F. Y., & Wang, K. (2013). A CFD Modeling Approach for Municipal Sewer System
+      Design Optimization to Minimize Emissions into Receiving Water Body. Water Resources Management,
+      27(7), 2053–2069. https://doi.org/10.1007/s11269-013-0272-9
+
+9.    Mugisha, S. (2004). Short-Term Initiatives to Improve Water Utility Performance in Uganda: The Case of
+      the National Water and Sewerage Corporation, 97(September 2002), Pgs 1–8.
+
+10.   Fund, A. D. (2008). Uganda : Kampala Sanitation Programme Environmental and Social Impact Assessment
+      summary ( ESIA ). Water and Sanitation, (July,2008).
+
+11.   National Water and Sewerage Corporation. (2010). Annual Report.
+
+12.   Ministry of Water. (2014). Water and Environment Sector Performance Report 2014. Water Development,
+      (October).
+
+13.   Greenshields, C. J. (2017). OpenFOAM, (July).
+
+14.   Khatir, Z., Thompson, H., Kapur, N., Toropov, V., & Paton, J. (2012). Multi-objective Computational Fluid
+      Dynamics (CFD) design optimisation in commercial bread-baking. Applied Thermal Engineering.
+      https://doi.org/10.1016/j.applthermaleng.2012.08.011.
+
+15.   [15] Petit-Boix, A., Roigé, N., de la Fuente, A., Pujadas, P., Gabarrell, X., Rieradevall, J., & Josa, A. (2016).
+      Integrated Structural Analysis and Life Cycle Assessment of Equivalent Trench-Pipe Systems for Sewerage.
+      Water Resources Management, 30(3), 1117–1130. https://doi.org/10.1007/s11269-015-1214-5
+
+16.   Rohani, M., & Afshar, M. (2016). Optimal design of Sewer network using Cellular Automata, 1(October),
+      1–17. Retrieved from http://article.scirea.org/pdf/57001.pdf.
+
+17.   Park, S. M. (2014). Numerical Simulation of Core- Annular Flow in a Curved Pipe, 2625(2625), 70.
+
+18.   Alizadehdakhel, A., Rahimi, M., Sanjari, J., & Alsairafi, A. A. (2009). CFD and artificial neural network
+      modeling of two-phase flow pressure drop. International Communications in Heat and Mass Transfer,
+      36(8), 850–856. https://doi.org/10.1016/j.icheatmasstransfer.2009.05.005
+
+19.   Mazumder, Q. H. (2012). CFD analysis of the effect of elbow radius on pressure drop in multiphase flow.
+      Modelling and Simulation in Engineering, 2012. https://doi.org/10.1155/2012/125405
+
+20.   Afshar, M. H., Shahidi, M., Rohani, M., & Sargolzaei, M. (2011). Application of cellular automata to sewer
+      network optimization problems. Scientia Iranica, 18(3 A), 304–312.
+      https://doi.org/10.1016/j.scient.2011.05.037
+
+21.   Afshar, M. H., Zaheri, M. M., & Kim, J. H. (2016). Improving the efficiency of Cellular Automata for sewer
+      network design optimization. Procedia Engineering, 154, 1439–1447.
+      https://doi.org/10.1016/j.proeng.2016.07.517
+
+22.   Marley, C., & Systems, P. (2009). uPVC Sewer & Drainage Systems.
+
+23.   SappcoSa Dammam, F. (2009). Upvc pipes and fittings. Publication P.3, 01(5), 1–38.
+
+
+                                                         27
+

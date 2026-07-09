@@ -1,0 +1,655 @@
+# Extraction (SURROGATE for Marker) — tool: PyMuPDF (fitz) v1.28.0
+# Paper: arXiv:quant-ph/0504012 — Andris Ambainis, 'Quantum Search Algorithms'
+
+
+## Page 1
+
+arXiv:quant-ph/0504012v1  3 Apr 2005
+Quantum Search Algorithms
+Andris Ambainis∗
+Abstract
+We review some of quantum algorithms for search problems: Grover’s search algorithm, its
+generalization to amplitude ampliﬁcation, the applications of amplitude ampliﬁcation to various
+problems and the recent quantum algorithms based on quantum walks.
+1
+Introduction
+Quantum computation explores the possibilities of applying quantum mechanics to computer sci-
+ence.
+If built, quantum computers would provide speedups over conventional computers for a
+variety of problems. The two most famous results in this area are Shor’s quantum algorithms for
+factoring and ﬁnding discrete logarithms [35] and Grover’s search algorithm [22].
+Shor’s and Grover’s algorithms have been followed by a lot of other results.
+Each of these
+two algorithms has been generalized and applied to several other problems. New algorithms and
+new algorithmic paradigms (such as adiabatic computing[21] which is the quantum counterpart of
+simulated annealing) have been discovered.
+In this column, we survey some of the results on quantum algorithms, focusing on the branch
+of quantum algorithms inspired by Grover’s search algorithm [22].
+Instead of the conventional introduction/review on quantum computing which starts with the
+backgrounds from physics, we follow a diﬀerent path. We ﬁrst describe Grover’s search result and its
+generalization, amplitude ampliﬁcation (section 2). Then, we explore what can be obtained by using
+these results as “quantum black boxes” in a combination with methods from conventional (non-
+quantum) algorithms and complexity (section 3). We give three examples of quantum algorithms
+of this type, one very simple and two more advanced ones. After that, in section 4, we show some
+examples were simple application of Grover’s search fails but more advanced quantum algorithms
+(based on quantum walks) succeed.
+2
+Grover’s search and amplitude ampliﬁcation
+Grover’s search algorithm is one of main quantum algorithms. The problem that it solves is very
+simple to state:
+Search. We have an input x1, . . . , xN ∈{0, 1} speciﬁed by a black box that answers queries.
+In a query, we input i to the black box and it outputs xi. Our task1 is to output an i : xi = 1.
+∗Institute for Quantum Computing and Department of Combinatorics and Optimization, University of Waterloo,
+e-mail: ambainis@math.uwaterloo.ca This work done at School of Mathematics, Institute for Advanced Study,
+Princeton, NJ 08540, USA. Supported by NSF Grant DMS-0111298. Any opinions, ﬁndings and conclusions expressed
+in this material are those of the author and do not necessarily reﬂect views of the National Science Foundation.
+1There are several variations of this problem. We could either require the algorithm to output “none” if there
+is no i : xi = 1 or allow any output in this situation. Or we could consider a decision version, where the algorithm
+1
+
+## Page 2
+
+Then, N queries are needed for deterministic algorithms and Ω(N) queries are needed for
+probabilistic algorithms. (This follows by considering the case when there is exactly one i such
+that xi = 1 and N −1 variables i:xi = 0.)
+Grover [22] studied the quantum version of this problem (in which the black box is quantum,
+the input to the black box is a quantum state consisting of various i and the output is the input
+state modiﬁed depending on xi). His result is
+Theorem 2.1 [22] Search can be solved with O(
+√
+N) quantum queries.
+2.1
+Is it “database search”?
+Grover’s algorithm is often called ”database search”. In this interpretation, the variables x1, . . .,
+xN correspond to N entries of the database. A variable is 1 if the corresponding entry of database
+matches our search criteria. Then, the result is that we can search an unordered database of N
+entries in time O(
+√
+N).
+This interpretation has caused some heated debates. Essentially, the issue is that, to access N
+elements, we would need quantum hardware of size Ω(N) [30, section 6.5]. Since quantum hardware
+is likely to be expensive, this may be a big obstacle.
+Nevertheless, Grover’s algorithm can be very useful in problems of a diﬀerent nature. Say we
+have an instance of an NP-complete problem, for example, satisﬁability. That is, we have a boolean
+formula F(y1, . . . , yn) and we want to know if one of 2n assignments y = (y1, . . . , yn) of values to
+the variables makes F true. The naive exhaustive search requires testing 2n assignments.
+With a quantum computer, we could instead reduce the satisﬁability to search on N = 2n
+variables x1, . . . , xN with xi = 1 if F is true for the ith candidate assignment y = (y1, . . . , yn).
+The black box that answers queries is just a circuit that takes an assignment (y1, . . . , yn) and
+checks if F is true on this assignment. Then, Grover’s algorithm allows to solve satisﬁability in
+time O(
+√
+N) = O(1.41...n) instead of N = 2n. Similar approach applies to any exhaustive search
+problem.
+A knowledgeable reader might point out that 3-SAT can be solved even faster classically, in
+time O(1.329...n) by a non-naive algorithm [33, 25, 31]. We address this issue in section 3.1.
+2.2
+Facts about Grover’s algorithm
+Since Grover’s result, the search problem has been analyzed in great detail. Here are some of results
+that we know:
+1. In general, Grover’s algorithm is bounded-error. Given a black-box x1, . . . , xN ∈{0, 1} where
+some xi are equal to 1, the algorithm might not ﬁnd any of them with a small probability.
+However, if we know that the number of i : xi = 1 is exactly k, then the algorithm can be
+tuned so that it ﬁnds one of them with certainty (probability 1) in O(
+p
+N/k) steps [14].
+2. Moreover, if we know that the number of i : xi = 1 is exactly k, the algorithm is exactly
+optimal [37]. The number of queries cannot be improved even by 1. For ﬁnding i : xi = 1
+with certainty, the minimum number of queries is known to be exactly
+
+
+π
+4 arcsin
+1
+√
+N/k
+−1
+2
+
+
+< π
+4
+s
+N
+k
+(1)
+only has to determine if there exists i : xi = 1 instead of ﬁnding i. The complexity remains almost the same for all
+variations.
+2
+
+## Page 3
+
+If the number of queries t is less than that, the best probability with which any quantum
+algorithm can ﬁnd an i : xi = 1 is exactly the one achieved by running Grover’s algorithm
+with t queries.
+3. If k is unknown, O(
+√
+N) queries are still suﬃcient. If k is unknown but it is known that
+k ≥k0, O(
+p
+N/k0) queries suﬃce [11].
+4. In this case, the algorithm is inherently bounded-error. There is no quantum algorithm with
+less than N queries that solves Grover’s problem with certainty for arbitrary x1, . . . , xN [9].
+If we have an instance x1, . . . , xN with k elements equal to 1 and would like to ﬁnd all k of
+them, Θ(
+√
+Nk) queries are suﬃcient and necessary.
+2.3
+Amplitude ampliﬁcation
+Let A be a (classical or quantum) algorithm with one sided error. If the correct answer is “no”,
+A always outputs “no”. If the correct answer is “yes”, A outputs “yes” with at least some (small)
+probability ǫ > 0.
+An example is an algorithm for SAT (or any other problem in NP) which outputs “the formula
+is satisﬁable” only if it ﬁnds a satisfying assignment. Or, a diﬀerent example is an algorithm for
+Grover’s search problem which outputs “there exists i : xi = 1” only if it has found such i.
+How many times do we need to repeat the algorithm to increase its success probability from a
+small ǫ to a constant (for example, 2/3)? algorithm to increase the success probability? Classically,
+Θ(1/ǫ) repetitions are needed. In quantum case, a generalization of Grover’s algorithm gives
+Theorem 2.2 [14] Let A be a quantum algorithm with one-sided error and success probability at
+least ǫ > 0.
+Then, there is a quantum algorithm B that solves the same problem with success
+probability 2/3 by invoking A O( 1
+√ǫ) times.
+This result is called amplitude ampliﬁcation. For more details, see [14]. Similar result is also
+known for algorithms with two-sided error but it has not found as many applications as amplitude
+ampliﬁcation for algorithms with one-sided error.
+3
+Three applications
+In this section, we show 3 examples how Grover’s algorithm and amplitude ampliﬁcation can be
+used to solve other problems. The examples are selected to be solvable by just two ideas from
+quantum computation (and some algorithmic ingenuity). The ﬁrst of two ideas is Grover’s search
+and amplitude ampliﬁcation, described in the previous section. The second idea is that any classical
+(either deterministic or probabilistic) computation can be simulated on a quantum computer [30,
+section 1.4]. More precisely,
+• In the circuit model, a classical circuit with N gates can be simulated by a quantum circuit
+with O(N) gates.
+• If the query model (when only the number of queries is counted), a classical computation
+with N queries can be simulated by a quantum computation with N queries.
+3
+
+## Page 4
+
+This greatly simpliﬁes descriptions of quantum algorithms. Instead of describing a quantum algo-
+rithm, we can describe a classical algorithm that succeeds with some small probability ǫ. Then, we
+can transform the classical algorithm to a quantum algorithm and apply the amplitude ampliﬁca-
+tion to the quantum algorithm. The result is a quantum algorithm with the running time or the
+number of queries that is O( 1
+√ǫ) times the one for the classical algorithm with which we started.
+A similar reasoning can be applied, if instead of a purely classical algorithm, we started with
+a classical algorithm that involves quantum subroutines. Such algorithms can also be transformed
+into quantum algorithms with the same complexity.
+3.1
+3-satisﬁability
+As we described in section 2.1, Grover’s algorithm can solve 3-satisﬁability in O(1.41...npoly(n))
+steps. However, the best known classical algorithm for 3-satisﬁability is faster than that, running
+in time O(1.329...n) [31]. Does this mean that Grover’s algorithm is not useful for satisﬁability?
+Not quite. The best classical algorithm can be combined with Grover’s search. The result is
+a quantum algorithm that runs in time O(1.153...npoly(n)), providing a square-root-speedup over
+[31].
+We ﬁrst describe the classical algorithm (due to Sch¨oning [33], improved by [25, 31]).
+Its
+structure is as follows:
+1. Pick a random initial assignment x1, . . . , xn.
+2. 3n times repeat:
+(a) If all clauses satisﬁed, stop.
+(b) Otherwise, ﬁnd an unsatisﬁed clause. Make it satisﬁed by choosing a variable in this
+clause uniformly at random and changing its value.
+The result of [31] is that, for an appropriate initial probability distribution in the ﬁrst step, the
+algorithm ﬁnds a satisfying assignment (if there is one) with a probability at least cn (where
+c =
+1
+1.329...). Repeating the algorithm 1.329...n times gives an algorithm that ﬁnds a satisfying
+assignment in time O(1.329...npoly(n)) with a constant success probability.
+To obtain a quantum algorithm, we just use quantum amplitude ampliﬁcation instead of clas-
+sical repetition. As described in section 2.3, amplitude ampliﬁcation allows to increase the suc-
+cess probability to a constant, repeating the algorithm O( 1
+√ǫ) times.
+In this case, this means
+O(
+√
+1.329...n) = O(1.153...n) repetitions.
+The result is very simple but it illustrates an important point. For some problems, Grover’s
+algorithm can provide a quadratic speedup not just over the naive classical algorithm (testing all
+assignments) but over better classical algorithms as well.
+3.2
+Element distinctness
+Element Distinctness. We are given f : {1, 2, . . . , N} →{1, 2, . . . , N} speciﬁed by a black box
+that, given i, answers the value of f(i). The task is to determine if there are two inputs i, j, i̸ = j
+for which f(i) = f(j).
+The measure of complexity is the number of queries to the black box. Classically, this problem
+requires Ω(N) queries. In quantum case, there are two algorithms. The ﬁrst, due to [15] uses Grover
+search in a clever two-level construction and solves the problem O(N 3/4) queries. The second, due
+4
+
+## Page 5
+
+to [5], uses a technique combining search with quantum walks and solves the problem with O(N 2/3)
+queries. This is optimal, because of an Ω(N 2/3) lower bound by Shi [34].
+In this section, we show the O(N 3/4) algorithm by Buhrman et.al. [15]. While the result is
+weaker than the later algorithm of [5], the idea is very elegant. Consider the following algorithm:
+1. Choose
+√
+N random numbers i1, . . . , i√
+N ∈{1, 2, . . . , N}. Evaluate f(i1), . . ., f(i√
+N). If two
+of them are equal, stop, output the two equal elements.
+2. Use Grover’s search to search (among remaining N −
+√
+N indices k ∈{1, 2, . . . , N}) for an
+index k such that f(k) = f(ij) for some j.
+This algorithm requires
+√
+N queries for the ﬁrst step and O(
+√
+N) queries for the second step.
+(Notice that we do not need to query f(ij) since their values are known from the ﬁrst step.) The
+total number is O(
+√
+N).
+If there is a pair i, j such that f(i) = f(j), then, with probability
+√
+N
+N
+=
+1
+√
+N , i is among
+i1, . . . , i√
+N.
+In this case, the second step will ﬁnd j (or some other element k such that f(k)
+is equal to one of f(i1), . . ., f(i√
+N)) a constant probability. Thus, the algorithm succeeds with
+probability at least const
+√
+N .
+We can now apply the amplitude ampliﬁcation, described in section 2.3. It increases the success
+probability to a constant with O( 1
+√ǫ) repetitions of the whole algorithm. Since ǫ = const
+√
+N , O(N 1/4)
+repetitions suﬃce. The total number of queries needed is O(N 1/4N 1/2) = O(N 3/4).
+3.3
+Finding global and local minima
+In this section, we describe quantum algorithms for two minimum-ﬁnding problems.
+Global Minimum. We have an integer-valued function f(i) of one variable i ∈{1, 2, . . . , N},
+speciﬁed by black box that answers queries. The input of a query is i ∈{1, 2, . . . , N}, the output
+is f(i). The task is to ﬁnd i such that f(i) ≤f(j) for any j̸ = i.
+Local Minimum.
+We have an integer-valued function f(x1, . . . , xn) of Boolean variables
+x1, . . . , xn ∈{0, 1}, speciﬁed by black box that answers queries. The input of a query is x1, . . . , xn ∈
+{0, 1}, the output is f(x1, . . . , xn). The task is to ﬁnd a local minimum: an assignment x1, . . . , xn
+such that changing any one variable does not decrease the value of the function:
+f(x1, . . . , xi−1, 1 −xi, xi+1, . . . , xn) ≥f(x1, . . . , xn).
+In both cases, the measure of complexity is the number of queries (i.e. the number of times
+that we need to evaluate f). We start by describing an algorithm for the ﬁrst problem, which will
+be used as a subroutine in the second algorithm.
+Theorem 3.1 [19] Global Minimum can be solved with O(
+√
+N) quantum queries.
+Classically, Ω(N) queries are required.
+The outline of the algorithm is as follows (some technical details are omitted, to simplify the
+presentation):
+1. Choose x uniformly at random from {1, . . . , N};
+2. Repeat:
+(a) Use Grover’s search to search for y with f(y) < f(x);
+5
+
+## Page 6
+
+(b) If search succeeds, set x = y. Otherwise, stop and output x as the minimum.
+We sketch why O(
+√
+N) queries are suﬃcient for this algorithm, on intuitive but “hand-waving”
+level. (For a more detailed and rigorous argument, see [19].) For simplicity, assume that, for all x,
+the values of f(x) are distinct. Let x0 be the value of x at the beginning of the algorithm and xi
+be the value of x after the ith Grover’s search. Since x0 is a random element of {1, . . . , N}, f(x0)
+will, on average, be the (N/2)th smallest element of {f(1), . . . , f(N)}. After the ﬁrst iteration,
+x1 is some element with f(x1) < f(x0). By inspecting Grover’s algorithm, we can ﬁnd out that
+the probabilities of algorithm outputting x1 are equal for all x1 with f(x1) < f(x0). Thus, x1
+is uniformly random among numbers with f(x1) < f(x0). Since f(x0) was, on average, be the
+(N/2)th smallest element of {f(1), . . . , f(N)}, this means that f(x1) is, on average, the (N/4)th
+smallest element. By a similar argument, f(xi) is, on average the (N/2i)th smallest element in
+{f(1), . . . , f(N)}.
+We now remember that Grover’s search uses O(
+p
+N/k) queries where k is the number of solu-
+tions. Consider repetitions of the minimum ﬁnding algorithm in the order from the last to the ﬁrst.
+By the argument above, we would expect that, in the last iteration before ﬁnding the minimum,
+k ≈1, then, in the iteration before that, k ≈2, then k ≈4 and so on. Then, the total number of
+queries in all the repetitions of Grover’s search is of order
+√
+N +
+q
+N/2 +
+q
+N/4 + . . . =
+√
+N
+
+1 + 1
+√
+2 + 1
+2 + . . .
+
+.
+(2)
+The term in brackets is a decreasing geometric progression and, therefore, sums up to a constant.
+This means that the sum of equation (2) is of order O(
+√
+N).
+We now turn to algorithms for Local Minimum.
+Classically, Θ(2n/2poly(n)) queries are
+necessary and suﬃcient [3, 1]. In quantum case,
+Theorem 3.2 [1] Local minimum can be solved with O(2n/3n1/6) quantum queries.
+The algorithm (again, in a simpliﬁed form) is as follows:
+1. Choose m assignments x = (x1, . . . , xn) uniformly at random. Use Grover’s search to ﬁnd
+one with the smallest value of f(x1, . . . , xn).
+2. 2n+1/m times repeat:
+(a) Use Grover’s search to search for (y1, . . . , yn) with f(y1, . . . , yn) < f(x1, . . . , xn), among
+n assignments (y1, . . . , yn) that diﬀer from (x1, . . . , xn) in exactly one variable.
+(b) If such (y1, . . . , yn) is found, set (x1, . . . , xn) = (y1, . . . , yn). Otherwise, stop and claim
+that (x1, . . . , xn) is a local minimum.
+The ﬁrst step requires O(√m) queries. The second step requires O(√n) queries each time it is
+repeated. The total number is O(√m + 2n
+m
+√n). The minimum of this expression is O(2n/3n1/6)
+which is achieved by setting m = 22n/3n1/3.
+The correctness of the algorithm follows from the fact that, if we pick m elements out of 2n,
+then, with high probability, one of those m elements will be among 2n+1/m smallest among all 2n
+elements (see [1] for a proof). If this is the case, the minimum of m elements is also among 2n+1/m
+smallest elements among all 2n elements. Then, the second step of the algorithm will lead to a
+local minimum in at most 2n+1/m steps because each step replaces (x1, . . . , xn) by an assignment
+with a smaller value of f and there are at most 2n+1/m assignments for which f has smaller value
+than for the starting point.
+6
+
+## Page 7
+
+4
+Local search and quantum walks
+4.1
+Two problems
+Next, we show two situations when a simple application of Grover’s algorithm does not give a good
+quantum algorithm.
+Search on grid. Consider N memory cells, arranged into
+√
+N ×
+√
+N grid. Each cell stores an
+element xi ∈{0, 1}. Our task is to ﬁnd an element i : xi = 1. At each moment of time, we are
+in some memory location. In one time step, we can either query the current location or move to
+an adjacent cell. (In the quantum version, we can be in a quantum state consisting of various
+locations. But we still require that no part of this state moves more than distance 1 in one time
+unit.)
+Grover’s algorithm ﬁnds an element i : xi = 1 with O(
+√
+N) queries. But, between any two
+queries, it needs Θ(
+√
+N) moves, since a query to one element can be followed by a query to any
+other element. The total number of steps is of order
+√
+N ×
+√
+N = N. A similar number of steps
+can be achieved by a classical algorithm that just traverses the grid row by row and queries every
+cell. That takes O(N) moves and O(N) queries, for a total of O(N) steps as well. The quantum
+advantage seems to disappear [10].
+If the N items are arranged in 3 dimensions, in a cube with side of length O(
+3√
+N), then the
+straightforward quantum search takes O(
+√
+N
+3√
+N) = O(N 5/6) which is better than classical O(N)
+but still worse than O(
+√
+N) in the usual Grover’s search when only queries are counted.
+Searching the element distinctness graph. Element distinctness reduces to search a certain
+graph. Let 1 ≤M < N. Deﬁne a bipartite graph, with the vertices being all subsets of {1, 2, . . . , N}
+of size m and size m + 1. A vertex vS corresponding to a subset S is connected to a vertex vT if
+|S| = M, |T| = M + 1 and T = S ∪{i} for some i ∈{1, 2, . . . , N}. A vertex vS is marked if the set
+S contains i, j such that i̸ = j and xi = xj. The task is to ﬁnd a marked vertex. In one step, we
+are allowed to examine the current vertex or to move to an adjacent vertex.
+If we can search this graph in f(N) steps, we can solve element distinctness with at most
+f(N) + M queries, in a following way. If we are at a vertex vS, we will know the values of all xi,
+i ∈S. Then, testing if a vertex is marked can be done with no queries and moving to an adjacent
+vertex vT can be done with 1 query by querying the only element i ∈T −S. To achieve that, we
+use the ﬁrst M queries to query all xi for i ∈S where S is the set corresponding to the starting
+vertex vS. The total number of queries is M to start the algorithm and at most one query per
+search algorithm step afterwards.
+Again, let us try to use Grover’s algorithm to search this graph. If there is exactly one pair of
+equal elements xi = xj, then the probability of a random vertex vS, |S| = M being marked is
+Pr[i ∈S]Pr[j ∈S|i ∈S] = M
+N
+M −1
+N −1 = (1 + o(1))M2
+N 2
+Amplitude ampliﬁcation implies that we can ﬁnd such set S by testing O( N
+M ) vertices which is a
+square root of what one would need classically. However, testing each vertex vS involves querying
+M elements. The total number of queries is of order N
+M M = N which is the same as if we just
+queried all N elements xi to begin with.
+Both examples illustrate the same general situation. Sometimes, we have a search space, where
+after testing an item, it is faster to test a neighboring item than an arbitrary item. This could
+come either from physical constraints on the search space (the ﬁrst example) or an algorithmic
+structure (the second example). A straightforward application of Grover’s algorithm does not do
+well on such spaces, because it does not respect the structure of the space.
+7
+
+## Page 8
+
+4.2
+Solution to two problems
+There is a recent approach, based on quantum walks (quantum counterparts of random walks) that
+overcomes this problem. (For more information on quantum walks, see the surveys [26, 6].)
+Theorem 4.1 [7] Spatial search can be solved with
+1. O(
+√
+N log N) steps in 2 dimensions, if there is a unique i : xi = 1;
+2. O(
+√
+N log2 N) steps in 2 dimensions in the general case (no assumptions on the number of
+i : xi = 1);
+3. O(
+√
+N) steps in 3 and more dimensions.
+Quantum walks also give a better search algorithm for the element distinctness graph. It can
+be searched in O(N/
+√
+M) steps, implying an algorithm for element distinctness with O(M +
+N
+√
+M )
+steps. Setting M = N 2/3 gives
+Theorem 4.2 [5] Element distinctness can be solved with O(N 2/3) queries.
+For the ﬁrst result (spatial search), there is a diﬀerent solution that involves amplitude am-
+pliﬁcation instead of quantum walks [2], giving O(
+√
+N) in 3 dimensions and O(
+√
+N log2 N) and
+O(
+√
+N log3 N) in the two 2-dimensional cases. For element distinctness, quantum walks are the
+only approach known to give O(N 2/3) algorithm.
+Szegedy [36] has generalized element distinctness and spatial search, by showing how to convert
+a general classical Markov chain into a quantum walk algorithm. His generalization of element
+distinctness is
+Theorem 4.3 [36] Let P be a symmetric Markov chain with a gap between the ﬁrst and the second
+eigenvalue being ǫ and at least δ fraction of states being marked. Assume that we can perform the
+following operations:
+• generate a uniformly random element in γ0 steps;
+• given a state x, generate a sample from P(x, y) in γ1 steps;
+• check if a state is marked in γ2 steps.
+Then, there is a quantum algorithm that ﬁnds a marked state in O(γ0 +
+1
+√
+δǫ(γ1 + γ2)) steps.
+For comparison, a classical random walk would ﬁnd a marked state in O(γ0 + 1
+δǫ(γ1 +γ2)) steps.
+The element distinctness algorithm is a special case of Theorem 4.3 where the states of Markov
+chain are sets S, |S| = M or |S| = M + 1 and, at each step, the Markov chain adds (if |S| = M)
+or removes (if |S| = M + 1) a random element from the set.
+4.3
+Applications of element distinctness
+There are several results that build on element distinctness algorithm [27, 18, 16].
+Triangle ﬁnding. A graph G with N vertices is speciﬁed by
+ N
+2
+ variables xij with xij = 1 if
+there is an edge between vertices i and j. The access to xij is by queries to a black box. The task
+is to ﬁnd if the graph G contains a triangle.
+8
+
+## Page 9
+
+Theorem 4.4 [27] Triangle ﬁnding can be solved with O(N 1.3) quantum queries.
+The construction [27] uses element distinctness as a subroutine in a clever two-level construction
+reminiscent of the O(N 3/4) algorithm for element distinctness in section 3.2. Another problem for
+which element distinctness is useful as a subroutine is
+Matrix product. Three N × N Boolean matrices A, B and C are speciﬁed by variables aij,
+bij, cij, n2 variables per matrix. The access to the variables is by queries to a black box. The task
+is to ﬁnd if AB = C, with the arithmetic operations modulo 2.
+Theorem 4.5 [16] Matrix product can be solved with O(N 5/3) quantum queries.
+5
+Conclusion and open problems
+In this column, we reviewed some of quantum algorithms for search problems: Grover’s search,
+amplitude ampliﬁcation, their applications to NP-complete problems, element distinctness and
+ﬁnding local and global minima, and improved quantum search algorithms using quantum walks.
+There are other interesting results that share similar ideas or use the number of queries as the
+complexity measure. To mention a few, [12] have constructed a quantum algorithm for collision
+problem, [13, 23, 29] have given quantum algorithms for approximate counting, ﬁnding mean and
+median, [24] studied quantum complexity of searching among N ordered items and sorting and
+there is a large amount of work on quantum lower bounds (e.g. [8, 9, 4]).
+We conclude with some related open problems.
+1. Complexity of graph problems. Complexity of several graph problems remains open in
+the query model. First, can the O(N 1.3) query triangle algorithm be improved? The best
+lower bound for this problem is Ω(N) (folklore). Second, what is the query complexity of
+ﬁnding a matching in a bipartite graph G with N vertices on each side, speciﬁed by N 2
+variables?
+There is an Ω(N 1.5) lower bound but no quantum algorithm that uses o(N 2)
+queries.
+2. Generalizing quantum walk algorithms. As we saw in section 3, amplitude ampliﬁcation
+provides an easy way to apply Grover’s technique to various problem without going into details
+of Grover’s search algorithm. Quantum walk results (theorems 4.1 and 4.2) share common
+proof ideas. Can we ﬁnd an generalization for these two results which would be as easy-to-use
+as amplitude ampliﬁcation?
+Results of Szegedy [36] (e.g. Theorem 4.3) are a major advance in this direction.
+3. Space usage in element distinctness. Both known algorithms for element distinctness
+use considerable amounts of memory which has caused some criticism [32]. The O(N 3/4)
+algorithm of [15] stores values of O(
+√
+N) variables and the O(N 2/3) algorithm of [5] stores
+O(N 2/3) variables. Is it possible to design a quantum algorithm that uses less space? Or can
+we prove a time-space lower bound saying that there is no algorithm with better space usage
+for the given number of queries?
+4. Quantum-classical relations. The quantum speedups described in this column are poly-
+nomial rather than exponential (as in Shor’s factoring algorithm). This is inherent for a wide
+class of problems. Consider computing a total Boolean function f(x1, . . . , xN), with the vari-
+ables x1, . . . , xN given by a black box that answers queries (as in most problems described in
+9
+
+## Page 10
+
+this column). Let D(f) be the number of queries needed to compute f deterministically and
+Q(f) be the number of queries needed to compute f by a (bounded-error) quantum algorithm.
+Then, D(f) and Q(f) are polynomially related: D(f) = O(Q6(f)) [9].
+The open question is: what is the biggest possible gap between D(f) and Q(f)? The best
+known result is for Grover’s search problem: D(f) = N, Q(f) = Θ(
+√
+N), D(f) = Θ(Q2(f)).
+Can we ﬁnd f with a bigger gap or improve the D(f) = O(Q6(f)) relation?
+A similar problem is open if we consider QE(f), the number of queries needed by the best
+exact quantum algorithm (an exact algorithm is one which gives correct answer with certainty,
+instead of probability 1−ǫ). Then, we know that D(f) = O(Q3
+E(f)) [28] but there is no known
+example for which QE(f) = o(D(f)). For more information on this topic, we refer the reader
+to an excellent survey by Buhrman and de Wolf [17].
+References
+[1] S. Aaronson. Lower bounds for local search by quantum arguments. Proceedings of STOC’04,
+to appear, also2 quant-ph/0307149.
+[2] S. Aaronson and A. Ambainis. Quantum search of spatial regions. In Proceedings of FOCS’03,
+pp. 200–209, 2003. Also quant-ph/0303041.
+[3] D. Aldous. Minimization algorithm and random walk on the d-cube. Annals of Probability,
+11(2):403-413, 1983.
+[4] A. Ambainis. Quantum lower bounds by quantum arguments. Journal of Computer and System
+Sciences, 64(4): 750-767, 2002. Also STOC’00 and quant-ph/0002066.
+[5] A. Ambainis. Quantum walk algorithm for element distinctness. quant-ph/03110001.
+[6] A. Ambainis. Quantum walks and their algorithmic applications. quant-ph/0403120.
+[7] A. Ambainis, J. Kempe, A. Rivosh. Coins make quantum walks faster. quant-ph/0402107.
+[8] C. Bennett, E. Bernstein, G. Brassard, U. Vazirani. Strengths and weaknesses of quantum
+computing. SIAM Journal of Computing, 26(5): 1510-1523, 1997. Also quant-ph/9701001.
+[9] R. Beals, H. Buhrman, R. Cleve, M. Mosca, R. de Wolf. Quantum lower bounds by polynomials.
+Journal of the ACM, 48(4): 778-797, 2001. Also FOCS’98 and quant-ph/9802049.
+[10] P. Benioﬀ. Space searches with a quantum robot. In Quantum computation and information
+(Washington, DC, 2000), volume 305 of AMS Series on Contemporary Mathematics, pp. 1–12.
+Also quant-ph/0003006.
+[11] M. Boyer, G. Brassard, P. Høyer, A. Tapp. Tight bounds on quantum searching. Fortsch.Phys.
+46:493-506, 1998. Also quant-ph/9605034.
+[12] G. Brassard, P. Høyer, A. Tapp. Quantum cryptanalysis of hash and claw-free functions.
+Proceedings of LATIN’98, pp. 163-169. Also quant-ph/9705002.
+2quant-ph preprints are available from http://www.arxiv.org/abs/quant-ph/xxxxxx, where xxxxxx is the 7-digit
+preprint number
+10
+
+## Page 11
+
+[13] G. Brassard, P. Høyer, A. Tapp. Quantum counting. Proceedings of ICALP’98, pp. 820-831.
+Also quant-ph/9805082.
+[14] G. Brassard. P. Høyer, M. Mosca, A. Tapp. Quantum amplitude ampliﬁcation and estimation.
+Quantum Computation and Quantum Information Science, AMS Contemporary Math Series,
+vol. 305, pp. 53–74. Also quant-ph/0005055.
+[15] H. Buhrman, C. D¨urr, M. Heiligman, P. Høyer, F. Magniez, M. Santha, R. de Wolf. Quantum
+algorithms for element distinctness. Proceedings of Complexity’01, pp. 131-137. Also quant-
+ph/0007016.
+[16] H. Buhrman, R. Spalek. Quantum veriﬁcation of matrix products, quant-ph/0409035.
+[17] H. Buhrman, R. de Wolf. Complexity measures and decision tree complexity: a survey. Theo-
+retical Computer Science, 288:21-43, 2002.
+[18] A.M. Childs and J.M. Eisenberg. Quantum algorithms for subset ﬁnding. quant-ph/0311038.
+[19] C. D¨urr, P. Høyer. A quantum algorithm for ﬁnding the minimum. quant-ph/9607014.
+[20] C. D¨urr, M. Heiligman, P. Høyer, M. Mhalla. Quantum query complexity of some graph
+problems. quant-ph/0401091.
+[21] E. Farhi, J. Goldstone, S. Gutmann, J. Lapan, A. Lundgren and D. Preda, A quantum adi-
+abatic evolution algorithm applied to random instances of an NP-complete problem, Science
+292, 472 (2001), quant-ph/0104129.
+[22] L. Grover. A fast quantum mechanical algorithm for database search. In Proceeding of
+STOC’96, pp. 212–219. Also quant-ph/9605043.
+[23] L. Grover. A framework for fast quantum mechanical algorithms. Proceedings of STOC’98, pp.
+53-62. Also quant-ph/9711043.
+[24] P. Høyer, J. Neerbek, Y. Shi. Quantum complexities of ordered searching, sorting, and element
+distinctness. Algorithmica, 34(4): 429-448, 2002. Also quant-ph/0102078.
+[25] T. Hofmeister, U. Sch¨oning, R. Schuler, O. Watanabe. A probabilistic 3-SAT algorithm further
+improved. Proceedings of STACS’02, pp. 192-202.
+[26] J. Kempe. Quantum random walks - an introductory overview, Contemporary Physics, 44
+(4):307-327, 2003. Also quant-ph/0303081.
+[27] F. Magniez, M. Santha, and M. Szegedy. Quantum algorithms for the triangle problem. quant-
+ph/0310134.
+[28] G. Midrij¯anis. Exact quantum query complexity for total Boolean functions. quant-
+ph/0403168.
+[29] A. Nayak, F. Wu. The quantum query complexity of approximating the median and related
+statistics. Proceedings of STOC’99, pp. 384-393. Also quant-ph/9804066.
+[30] M. Nielsen, I. Chuang. Quantum Computation and Quantum Information, Cambridge Univer-
+sity Press, 2000.
+11
+
+## Page 12
+
+[31] D. Rolf. 3 −SAT ∈RTIME(1.32971n). Diploma thesis, Humboldt-Universit¨at zu Berlin,
+2003.
+[32] T. Rudolph, L. Grover. How signiﬁcant are the known collision and element distinctness quan-
+tum algorithms? quant-ph/0309123.
+[33] U. Sch¨oning. A probabilistic algorithm for k-SAT and constraint satisfaction problems. Pro-
+ceedings of FOCS’99, pp. 410-414.
+[34] Y. Shi. Quantum lower bounds for the collision and the element distinctness problems. Pro-
+ceedings of FOCS’02, pp. 513-519. Also quant-ph/0112086.
+[35] P. Shor. Polynomial-time algorithms for prime factorization and discrete logarithms on a quan-
+tum computer. SIAM Journal on Computing, 26(5): 1484-1509, 1997. Also FOCS’94.
+[36] M. Szegedy. Spectra of quantized walks and a
+√
+δǫ rule, quant-ph/0401053.
+[37] C. Zalka. Grover’s quantum searching algorithm is optimal. Physical Review A, 60:27462751,
+1999. Also quant-ph/9711070.
+12

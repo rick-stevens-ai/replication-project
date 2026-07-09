@@ -1,0 +1,7 @@
+# Brief — OSTI 3363025 (Koneru et al. 2026, "Hierarchical RL for a Bond-Order Potential for Silica")
+
+**What**: Independent replication of the α-quartz portion of Koneru et al.'s hierarchical-RL-trained Tersoff potential paper for silica (Q-Tersoff and ML-Tersoff). We used the exact potentials + LAMMPS input + α-quartz seed the authors published on GitHub (miscquanta/HMRRL-tersoff-silica), ran the analysis on UICGPU (LAMMPS 29Aug2024), and compared measured density, cohesive energy, Si-O-Si and O-Si-O angles against the paper's α-quartz claims.
+
+**Why**: The paper's central promise is that a small-parameter (~26D) analytic Tersoff form, tuned by continuous-action MCTS, can reproduce silica polymorph properties at classical cost with ML-potential-like fidelity. α-Quartz is the thermodynamic reference the paper's cohesive-energy plot is anchored to — if the released code doesn't reproduce quartz, none of the downstream claims are testable from the published artifacts.
+
+**Result**: The released potentials, on their own α-quartz seed, do not have α-quartz at their zero-pressure minimum. All relaxation protocols collapse the hexagonal cell along the c-axis and drive Si–O–Si into 160–175°. Density comes out 20–40% below experiment vs. the paper's claimed 0% (Q-Tersoff) and 9.2% (ML-Tersoff). **Verdict: CONTRADICTED** on the α-quartz subset (the only portion directly testable from the released repo).

@@ -1,0 +1,7 @@
+# Brief — BVBRC-47
+
+**Paper:** Shrestha et al. (2022), *International Journal of Microbiology* 2022:5067074. "Complete Genome Sequence and Comparative Genome Analysis of *Variovorax* sp. Strains PAMC28711, PAMC26660, and PAMC28562 and Trehalose Metabolic Pathways in Antarctica Isolates." DOI [10.1155/2022/5067074](https://doi.org/10.1155/2022/5067074). PMC10232917 / PMID 37275508. Open access (CC BY).
+
+**What/why:** The paper reports complete PacBio genomes for three Antarctic *Variovorax* isolates and does a comparative-genomics survey (genome stats, ANI/dDDH taxonomy, CAZyme content, and trehalose biosynthesis/degradation gene inventory) against 16 other *Variovorax* complete genomes. Its headline biological claim: PAMC28711 and PAMC28562 each carry all three trehalose biosynthetic routes (OtsA/OtsB, TreS, TreY/TreZ), while PAMC26660 has only OtsA/OtsB — an adaptation narrative for cold/osmotic stress survival.
+
+**This replication** pulled the three actual RefSeq assemblies (GCF_001577265.1, GCF_014302995.1, GCF_014303735.1) plus a *V. paradoxus* type strain from NCBI Datasets, recomputed genome statistics, re-scanned the trehalose pathway inventory from RefSeq/PGAP annotation, re-ran ANI with fastANI, and did a blastp proteome comparison across the three strains — all on free endpoints (NCBI proxy, local BLAST/fastANI, Europe PMC XML, Argo LLM-judge). Distinct from sibling dir BVBRC-04 (Shrestha 2022 *BMC Genomic Data*, single strain PAMC28711 trehalose-pathway prediction — different journal, DOI, scope).

@@ -1,0 +1,42 @@
+# Attempt Log — BVBRC-117 (chronological, 2026-07-05 12:09 CDT start)
+
+- 12:09 — Read wave brief. Confirmed target dir does not yet exist → clean run.
+- 12:10 — Reviewed BVBRC-106 exemplar layout + 8-artifact standard doc.
+- 12:10 — Fetched PubMed esummary for PMID 32029880. Confirmed venue, authors, PMC7005296, DOI 10.1038/s41598-020-58929-0.
+- 12:10 — Created target dir + subdirs.
+- 12:10 — Attempt 1: `curl` PMC PDF from CherryRd → 1,817 B HTML interstitial. Fail.
+- 12:10 — Attempt 2: `curl` EuropePMC PDF from CherryRd → same interstitial. Fail.
+- 12:11 — Attempt 3: `curl` EuropePMC PDF from uicgpu → HTTP/2 STREAM_CLOSED. Fail.
+- 12:12 — Attempt 4: `curl --http1.1` EuropePMC PDF from uicgpu → 0-byte file silently. Fail.
+- 12:12 — Attempt 5: `curl --http1.1` Nature open-access URL from uicgpu → **3,103,797 B PDF v1.4. SUCCESS.**
+- 12:13 — scp'd PDF back to CherryRd. Ran `pdftotext -layout` → 821 lines of readable text.
+- 12:13 — Grep + read of paper.txt to build claims table + extract accessions:
+  - CP035466 (BioProject PRJNA516401) — the deposited chromosome.
+  - CP028951.1, CP024880.1, CP002824.1, CP024883.1, CP011574.1, CP001918.1, CP022148.1, CP017990.1 — 8 comparison references.
+  - Tool inventory from paper: SPAdes 3.11.1, RAST/PGAP-era annotation, ResFinder 3.1, BAGEL4, PHASTER, IslandViewer 4, CGView.
+- 12:14 — Fetched CP035466.1 nucleotide + GenBank from NCBI eutils on uicgpu. Length verified 5,062,651 bp = paper claim exact.
+- 12:14 — Fetched all 8 reference genomes on uicgpu.
+- 12:14 — Ran Python feature parser on `LU2.gb`. Genes 4986, CDS 4868, rRNA 22, tRNA 86, ncRNA 9, tmRNA 1, pseudo 127. All match paper.
+- 12:15 — `mash sketch` + `mash dist` for LU2 vs 8 references. Top-hit ranking matches paper.
+- 12:15 — `barrnap --threads 8`: 7×16S + 7×23S + 8×5S = 22 rRNA. Match.
+- 12:15 — `blastn -perc_identity 70` LU2 vs KCTC 2190: 1,970 HSPs, weighted 98.26% at 93.73% cov.
+- 12:15 — `blastn` LU2 vs E. cloacae ATCC 13047: 1,695 HSPs, weighted 82.88% at 53.87% cov.
+- 12:16 — Cloned `plasmidfinder_db` on uicgpu (488 replicon FASTA). `makeblastdb` + `blastn -perc_identity 95`. 7 raw hits, all 20-25 bp noise. **0 plasmid replicons at PlasmidFinder default cutoffs.**
+- 12:17 — Activated `micromamba amr` env; ran AMRFinderPlus 3.12.8 with DB 2024-07-22.1 on LU2. 11 hits including ampC, oqxAB, fosA, uhpT-E350Q, emrD, kdeA, fieF, iroBCN. 19 s wall clock.
+- 12:17 — Product-name grep on `LU2.gb` for reductive-TCA + glyoxylate + AMR + prophage + CRISPR machinery. All succinate-pathway enzymes present; CRISPR: 0.
+- 12:18 — Wrote `genome_features.json`, `metabolic_pathway_genes.json`.
+- 12:19 — scp'd BLAST/AMR/PlasmidFinder outputs back to CherryRd `report/evidence/`.
+- 12:20 — Attempt LLM-judge with `argo:claude-opus-4.7` at :44497 → HTTP 502 (upstream vertex parser error).
+- 12:20 — Tried `:4000` aggregator with same model → same 502.
+- 12:21 — Tried `argo:claude-opus-4.8`, `4.6`, `4.5`, `4.1`. 4.6 and below work; 4.7 and 4.8 both return 502.
+- 12:22 — Fell back to `argo:claude-opus-4.6` per wave-brief spirit ("Argo Opus family as default judge model", free endpoint). T=0, 4096 max_tokens.
+- 12:23 — LLM judge returned per-claim JSON verdict. Overall verdict: **PARTIAL**. 6 strong / 1 moderate / 2 weak / 1 blocked. Saved to `report/evidence/llm_judge_verdict.json`.
+- 12:23 — Ran Marker (`marker_single`) on uicgpu → 72 KB structured Markdown extraction. 38 s wall clock.
+- 12:24 — scp'd Marker output back to CherryRd `extraction/marker.md`.
+- 12:25 — Ran Nougat on uicgpu → 65 KB `.mmd` extraction. ~45 s wall clock.
+- 12:26 — scp'd Nougat output back.
+- 12:27 — Wrote `brief.md`, `artifact_harvest.md`, main `REPORT.md`, `open_questions.json`, `workflow.md`, `artifacts_summary.md`, `failure_analysis.md`, and this `attempt_log.md`.
+- 12:35 — Wrote `REPORT.tex` (LaTeX version of REPORT.md).
+- 12:40 — Ran completion check: all 8 required artifacts present.
+- 12:42 — Cleaned up temporary intermediates; kept everything under `report/evidence/` and `work/`.
+- 12:44 — Ready to print `WAVE_RESULT`.

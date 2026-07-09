@@ -1,0 +1,112 @@
+SYSTEM:
+You are a critical scientific-replication judge. You audit an independent
+replication attempt of a published computational-geophysics paper and issue
+ONE verdict from the fixed vocabulary:
+  REPLICATED | PARTIAL | SPOT-CHECK | NO-GO | CONTRADICTED | BLOCKED | FAILED
+Be honest and skeptical. Do not inflate. Do not accept "solid" unless the
+submitted evidence actually supports the paper's central quantitative
+claims — not just adjacent machinery.
+Reply strictly as JSON:
+  {"verdict": "...", "coverage_pct": <int 0-100>,
+   "agreement": "high|medium|low|none", "reasoning": "...",
+   "risks": "...", "one_line": "<<= 120 char summary>>"}
+
+USER:
+## Paper
+    Wollherr, Gabriel, Uphoff (2018), *"Off-fault plasticity in three-dimensional
+    dynamic rupture simulations using a modal Discontinuous Galerkin method on
+    unstructured meshes: implementation, verification and application"*,
+    Geophysical Journal International 214(3):1556-1584. doi:10.1093/gji/ggy213.
+    Central claims:
+      C1. New implementation of non-associated Drucker-Prager visco-plasticity
+          in the ADER-DG solver SeisSol, in two variants: sub-elemental
+          integration points (IP, §3.1) and nodal basis (NB, §3.2).
+      C2. NB is ~6x cheaper than IP at fine fault discretisations with
+          comparable accuracy.
+      C3. Both variants pass SCEC dynamic-rupture benchmarks TPV12 (elastic)
+          and TPV13 (plastic).
+      C4. h/p convergence for on-fault quantities is low-order (not spectral),
+          irrespective of plasticity.
+      C5. Off-fault plasticity regularises peak slip rate and increases the
+          minimum cohesive-zone width, so fault-discretisation requirements
+          are relaxed.
+      C6. Applied to 1992 Landers rupture, plasticity alters rupture-transfer
+          dynamics, and off-fault plasticity adds ~7% compute cost.
+
+    ## Independent replication (what was actually done)
+    - Retrieved the SeisSol master branch (BSD-3, github.com/SeisSol/SeisSol).
+      Located `src/Kernels/Plasticity.cpp` whose SPDX tags list Wollherr and
+      Uphoff as contributors — this IS the reference implementation of the
+      paper's algorithm. Verified `src/Model/Plasticity.h` exposes the paper's
+      Drucker-Prager parameters (cohesion x cos phi, sin phi, mu-factor) and
+      the 7 output quantities `ep_xx..ep_xz, eta`.
+    - Located `codegen/kernels/plasticity.py` which switches between
+      `plasticity-ip-matrices` and `plasticity-nb-matrices` — the paper's two
+      variants. Both matrix sets are shipped for orders 2 through 8 (14 JSON
+      files total). This is prima-facie evidence for C1.
+    - Located `SeisSol/Examples/tpv12_13/` — full public benchmark inputs:
+      parameters.par (Plasticity=1, Tv=0.03), material.yaml
+      (rho=2700, mu=29.4 GPa, plastCo=5e6, bulkFriction=0.85), fault.yaml
+      (LSW friction, nucleation patch), initial_stress.yaml (depth-dependent
+      Lua map). These are exactly the TPV13 SCEC benchmark parameters.
+    - Wrote a from-scratch NumPy implementation of the DP return-map
+      (`work/drucker_prager_return.py`) reproducing the same algorithm as
+      `Plasticity.cpp`. Four self-tests:
+
+    ```json
+    {
+  "A_elastic_unchanged": true,
+  "B_plastic_lands_on_surface": true,
+  "B_abs_error_Pa": 3.725290298461914e-09,
+  "C_max_rel_err_vs_analytic_exponential": 1.3798098550542757e-15,
+  "D_random_admissibility_pass_fraction": 1.0,
+  "D_max_over_yield_Pa": 0.0
+}
+    ```
+
+    - Ran the same kernel on the EXACT TPV13 material parameters at five
+      depths (1, 4, 8, 11, 15 km). All five samples show initial stress is
+      below yield (F<0, consistent with TPV13's dynamic-triggering design),
+      and the return map lands exactly on the yield surface after a shear
+      perturbation. Summary:
+
+    ```json
+    {
+  "phi_deg": 40.36453657309736,
+  "c_Pa": 5000000.0,
+  "mu_Pa": 29403000000.0,
+  "T_v_s": 0.03,
+  "depths_km": [
+    1.0,
+    4.0,
+    8.0,
+    11.0,
+    15.0
+  ],
+  "tau_c_MPa_per_depth": [
+    11.090670227742779,
+    32.933591144579225,
+    62.05748570036115,
+    83.9004066171976,
+    165.65703677067285
+  ],
+  "return_landed_on_surface_all_depths": true
+}
+    ```
+
+    ## Explicit non-coverage
+    - No SeisSol build/run performed. C2 (NB vs IP cost ratio), C3
+      (benchmark-passing on actual rupture output), C4 (convergence orders),
+      C5 (peak-slip-rate regularisation), and C6 (Landers rupture geometry
+      + 7% cost) all require running the full ADER-DG solver on a large
+      tetrahedral mesh — outside a 15-minute replication window.
+    - Paper PDF itself was not downloaded (Cloudflare block on OUP); the
+      abstract + SeisSol's own docs (`docs/tpv13.rst`) were used as
+      technical primary source. Both fully confirm the DP formulation.
+
+    ## Question for the judge
+    Given the above evidence, what is the honest verdict? Focus on: (i) how
+    much of the paper's claims are actually verified by rerun evidence vs
+    only by artifact existence, (ii) whether the DP return-map verification
+    is a substantive replication of C1's *implementation correctness* or
+    merely a re-derivation of a textbook formula.

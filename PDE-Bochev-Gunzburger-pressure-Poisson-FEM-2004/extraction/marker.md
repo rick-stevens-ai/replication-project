@@ -1,0 +1,1195 @@
+# Paper extraction (marker.md substitute)
+
+**Note:** neither `marker` nor `nougat` was available in this workspace at
+extraction time (2026-07-06). This file contains the `pdftotext -layout`
+extraction of the paper as a stand-in. The original PDF (paper.pdf) is 19
+pages, 202 KB. Layout is preserved where possible; equations render as
+plain text with Unicode characters (e.g. ∇, Δ, Ω, δ, ∂).
+
+## Bibliographic metadata
+
+- Title: An Absolutely Stable Pressure-Poisson Stabilized Finite Element Method for the Stokes Equations
+- Authors: Pavel Bochev, Max Gunzburger
+- Journal: SIAM J. Numer. Anal. 42(3), 1189-1207, 2004
+- DOI: 10.1137/S0036142903416547
+- Open-access PDF source: http://people.sc.fsu.edu/~mgunzburger/files_papers/gunzburger-stab4.pdf
+
+---
+
+SIAM J. NUMER. ANAL.                                 2004 Society for Industrial and Applied Mathematics
+                                                    c
+Vol. 42, No. 3, pp. 1189–1207
+
+
+
+
+    AN ABSOLUTELY STABLE PRESSURE-POISSON STABILIZED
+    FINITE ELEMENT METHOD FOR THE STOKES EQUATIONS∗
+                            PAVEL BOCHEV† AND MAX GUNZBURGER‡
+
+    Abstract. The pressure-Poisson stabilized Galerkin method for the Stokes equation requires
+the choice of a positive parameter. Existing theoretical predictions for the range of parameter values
+that yield stable discretizations seem to be very pessimistic when compared to the computational
+evidence. Motivated by this wide gap, we ﬁrst examine a continuous prototype for this class of
+schemes. We show that the prototype is absolutely stable; i.e., it is stable for all parameter values,
+and is optimally accurate. We then deﬁne a new, practical variant of the well-known pressure-
+Poisson stabilized scheme. We prove that the new method is absolutely stable just like its continuous
+prototype and that it achieves optimal convergence rates with respect to the same mesh-independent
+norms. The new method diﬀers from the standard pressure-Poisson stabilized method in several
+important aspects. First, its deﬁnition does not degrade to a penalty formulation for the lowest
+order nodal spaces. Second, the method is absolutely stable with respect to the natural norm for the
+problem, while the standard pressure-Poisson stabilized method is stable with respect to a mesh-
+dependent norm.
+
+    Key words. stabilized ﬁnite element methods, mixed methods, Stokes problem
+
+    AMS subject classiﬁcations. 76D05, 76D07, 65F10, 65F30
+
+    DOI. 10.1137/S0036142903416547
+
+
+     1. Introduction. The stable and accurate ﬁnite element solution of the Stokes
+problem requires pairs of velocity and pressure spaces that satisfy the inf-sup (or LBB)
+compatibility condition; see, e.g., [7, 15, 16]. In the past two decades, the formulation
+of ﬁnite element methods that either circumvent or ameliorate this restrictive con-
+dition has attracted signiﬁcant attention. Examples include augmented Lagrangian
+methods [12], least-squares ﬁnite element methods [4], and a group of methods col-
+lectively known as consistently stabilized Galerkin methods; see [1, 3, 8, 11, 13, 14,
+17, 18, 19]. In what follows, we will refer to the members of the latter group as the
+standard stabilized methods.
+     In this paper, we develop and analyze a new stabilized formulation that can be
+related to one of the standard methods originally proposed in [18] and widely known
+as the pressure-Poisson stabilized Galerkin method. To demonstrate the connection
+between the new and the standard methods, we introduce the notion of continuous
+stabilized prototypes. Continuous prototypes are idealized ﬁnite element methods
+that are not necessarily practical. Their role is to provide a template that reveals
+the proper functional settings and guides the development of practical schemes. In
+   ∗ Received by the editors October 21, 2002; accepted for publication (in revised form) September
+
+10, 2003; published electronically September 18, 2004. This work was performed by an employee of
+the U.S. Government or under U.S. Government contract. The U.S. Government retains a nonex-
+clusive, royalty-free license to publish or reproduce the published form of this contribution, or allow
+others to do so, for U.S. Government purposes. Copyright is owned by SIAM to the extent not
+limited by these rights.
+    http://www.siam.org/journals/sinum/42-3/41654.html
+    † Computational Mathematics and Algorithms Department, Sandia National Laboratories, Al-
+
+buquerque, NM 87185-1110 (pbboche@sandia.gov). Sandia is a multiprogram laboratory operated
+by Sandia Corporation, a Lockheed-Martin Company, for the United States Department of Energy’s
+National Nuclear Security Administration under contract DE-AC-94AL85000.
+    ‡ School of Computational Science and Information Technology, Florida State University, Talla-
+
+hassee, FL 32306-4120 (gunzburg@csit.fsu.edu). The research of this author was supported in part
+by CSRI, Sandia National Laboratories under contract 18407.
+                                                 1189
+1190                   PAVEL BOCHEV AND MAX GUNZBURGER
+
+
+addition, prototypes serve as a gauge to measure the deviation of practical methods
+from the idealized mathematical setting. All practical methods associated with a
+particular prototype form a class of methods. Here, we will derive the prototypes that
+engender the three most commonly used stabilized methods for the Stokes problem.
+For reasons that will be explained later, we call the three classes the GLS, SGLS, and
+RGLS method classes.
+     Consistently stabilized methods contain a positive parameter that must be set to
+deﬁne the method. It is well known that standard stabilized methods can be divided
+into those that are conditionally stable and those that are absolutely stable, i.e., those
+that are stable only for a set of restricted values of the parameter and those that are
+stable for all values of the parameter, respectively. According to previous theoretical
+analyses, the standard Galerkin least-squares [17] and pressure-Poisson [18] methods
+fall into the ﬁrst category while the method of [11] is an example of an absolutely
+stable method. Stability classiﬁcations of stabilized methods are based on suﬃcient
+(weak or strong) coercivity conditions for the corresponding forms. Thus, in principle,
+they represent the worst case scenario and, in practice, there may be a gap between
+the theoretically predicted stability range of a method and the stability range observed
+in computational implementations. For the GLS method this gap is very narrow if
+it exists at all; see [13] or [2]. In other words, for this method, the stability range
+predicted by existing theory agrees with great accuracy with its practical stability
+range.
+     The main focus of this paper will be on the SGLS class which contains the stan-
+dard pressure-Poisson stabilized method. Our interest in this class is not incidental.
+In [2], we reported an unusually large discrepancy between the well-known theoretical
+stability analysis of [8] and the actual, computationally observed stability range of
+the standard pressure-Poisson Galerkin method. In fact, what was observed compu-
+tationally indicates that this method is actually absolutely stable. In this paper, we
+show that there are indeed grounds for such a stability pattern. Most notably, we
+prove that the continuous SGLS prototype is absolutely stable. Then we deﬁne a new
+discrete member of this class which also turns out to be absolutely stable.
+     Our new method diﬀers from the standard pressure-Poisson Galerkin formulation
+in several important aspects. First, its deﬁnition does not degrade to a penalty
+formulation for the lowest-order nodal spaces. Second, we show that our method is
+absolutely stable with respect to the natural norm on H1 (Ω) × L20 (Ω), while stability
+of the standard method is with respect to a mesh-dependent norm. Last, while the
+new method is not fully consistent, it is weakly inconsistent in the sense that ﬁnite
+element approximations converge to all smooth solutions at the best possible rate.
+     Our analysis suggests that the new, implementable SGLS method is a potentially
+strong contender in the ﬁeld of stabilized formulations for the Stokes problem. The
+absolute stability makes it an attractive alternative to GLS methods that, both the-
+oretically and practically, are known to be only conditionally stable. Compared with
+the absolutely stable RGLS methods, the new formulation avoids the appearance of
+local biharmonic terms that in principle should lead to better conditioned matrices.
+This conjecture is supported by our studies in [2] which suggest that Krylov subspace
+solvers generally tend to perform better for members of the SGLS family of stabilized
+methods. Nevertheless, further numerical studies will be needed to reach a deﬁni-
+tive conclusion about the practical performance of our new method. These will be
+reported in a forthcoming paper.
+     We have organized the paper as follows. In section 2, we summarize notations
+               AN ABSOLUTELY STABLE PRESSURE-POISSON METHOD                         1191
+
+and quote technical results that are used throughout the paper. Section 3 develops
+the notion of continuous stabilized prototypes starting from a penalized Lagrangian
+formulation of the Stokes problem. Sections 4 and 5 are the core of this paper.
+Their focus is on the SGLS class of stabilized methods. In section 4, we consider
+the continuous prototype of this class and show that it is absolutely stable. Then, in
+section 5, we proceed to deﬁne a new discrete member of the SGLS class and establish
+its absolute stability and optimal convergence. In section 6, we conclude the paper
+with several remarks concerning implementation of the new method.
+    2. Quotation of results. Let Ω denote a bounded region in Rn , n = 2, 3, with a
+Lipschitz continuous boundary Γ = ∂Ω. For p > 0, H p (Ω) denotes a Sobolev space of
+order p with norm and inner product denoted by  · p and (·, ·)p , respectively. When
+p = 0 we use the standard notation L2 (Ω). The symbol | · |k , 0 ≤ k ≤ p, denotes
+the kth seminorm on H p (Ω). We recall the subspace L20 (Ω) of all square integrable
+functions with vanishing mean and the subspace H01 (Ω) of all H 1 (Ω) functions with
+vanishing trace. The Poincaré’s inequality
+
+(2.1)                 CP φ0 ≤ ∇φ0        ∀ φ ∈ H p (Ω) ∩ H01 (Ω)
+
+implies that the seminorm |φ|1 = ∇φ0 is an equivalent norm on H01 (Ω). Vector
+analogues of the Sobolev spaces along with vector-valued functions are denoted by
+upper and lower case bold face font, respectively, e.g., H1 (Ω), L2 (Ω), and u. For
+vectors in Euclidean spaces, we use vector notation, e.g., x and y. Matrices are
+denoted by block letters, e.g., A and B.
+    Vh and S h will denote a pair of ﬁnite element subspaces of H10 (Ω) and L20 (Ω),
+respectively. We assume that these spaces are deﬁned with respect to the same reg-
+ular triangulation Th of the domain Ω into ﬁnite elements K, where h denotes some
+measure of the grid size. For example, K can be hexahedrons or tetrahedrons in three
+dimensions or triangles or quadrilaterals in two dimensions. We will use C to denote
+a generic constant that is independent of h but whose value may change from place
+to place. Let r > 0 and s > 0 be two integers. It is further assumed that for every
+u ∈ Hr+1 (Ω) and p ∈ H s+1 (Ω), there exist functions uhI ∈ Vh and phI ∈ S h such that
+
+(2.2)                 u − uhI 0 + hu − uhI 1 ≤ Chr+1 ur+1
+
+and
+
+(2.3)                  p − phI 0 + hp − phI 1 ≤ Chs+1 ps+1 ,
+
+respectively. We recall the inverse inequalities
+
+(2.4)          uh 1 ≤ CI h−1 uh 0        and      ph 1 ≤ CI h−1 ph 0
+
+that hold for ﬁnite element spaces on regular triangulations; see [10] or [15].
+      2.1. Negative norm and inner product. Let H−1 (Ω) denote the dual of
+H10 (Ω). Using the equivalence of | · |1 and  · 1 on H10 (Ω), we equip H−1 (Ω) with the
+norm
+                                           (f , φ)0
+(2.5)                  f −1 =     sup               ∀ f ∈ H−1 (Ω).
+                                  φ∈H10 (Ω) |φ|1
+1192                   PAVEL BOCHEV AND MAX GUNZBURGER
+
+
+    The following representation results hold (cf. [5, 6]).
+    Lemma 2.1. For all f ∈ H−1 (Ω), we have
+
+                                     f 2−1 = (Sf , f )0 ,
+
+where S : H−1 (Ω) → H10 (Ω) is the solution operator for the vector Poisson equation
+
+                      − u=f         in Ω       and        u=0     on Γ,
+
+i.e., u = Sf if and only if
+
+                          (∇u, ∇v)0 = (f , v)0       ∀ v ∈ H10 (Ω).
+
+If (·, ·)−1 is the inner product associated with  · −1 , then
+
+(2.6)              (f , g)−1 = (Sf , g)0 = (f , Sg)0     ∀ f , g ∈ H−1 (Ω).
+
+    Using (2.6), it is not diﬃcult to show that
+
+(2.7)             (− u, v)−1 = (u, v)0        ∀ u ∈ H10 (Ω), v ∈ H−1 (Ω).
+
+We also recall the well-known result (cf. [15, p. 20]) that for any connected Ω there
+exists a CN > 0 such that
+
+(2.8)                         CN p0 ≤ ∇p−1       ∀ p ∈ L20 (Ω).
+
+    3. Stabilization of mixed methods for the Stokes problem. We consider
+the Stokes equations
+
+(3.1)                             − u + ∇p = f         in Ω,
+                                        ∇ · u = 0 in Ω,
+                                            u = 0 on Γ.
+
+A weak formulation of the Stokes problem is to seek (u, p) ∈ H10 (Ω) × L20 (Ω) such that
+
+(3.2)                  A(u, v) + B(v, p) = F (v) ∀ v ∈ H10 (Ω),
+(3.3)                            B(u, q) = 0 ∀ q ∈ L20 (Ω),
+
+where A(·, ·), B(·, ·), and F (·) are deﬁned by
+                                                                              
+ A(u, v) =      ∇u : ∇v dΩ, B(v, p) = −         p∇ · v dΩ,        and F (v) =       f · v dΩ,
+              Ω                                  Ω                              Ω
+
+respectively. We recall that (3.2)–(3.3) is the optimality system for the saddle-point
+(u, p) of the Lagrangian functional
+                                     1
+(3.4)                    L(v, q) =     A(v, v) − F (v) + B(v, q).
+                                     2
+Therefore, the pressure p is the Lagrange multiplier that is introduced into (3.4) to
+enforce the (weak) incompressibility constraint (3.3). The restriction of (3.2)–(3.3) to
+a pair of ﬁnite element subspaces Vh ⊂ H10 (Ω) and S h ⊂ L20 (Ω) yields the Galerkin
+mixed method: seek (uh , ph ) ∈ Vh × S h such that
+                AN ABSOLUTELY STABLE PRESSURE-POISSON METHOD                           1193
+
+
+
+(3.5)                A(uh , vh ) + B(vh , ph ) = F (vh ) ∀ vh ∈ Vh ,
+(3.6)                              B(uh , q h ) = 0 ∀ q h ∈ S h .
+   For continuous pressure approximations and for velocity ﬁelds that vanish on the
+boundary, B(·, ·) can be replaced by the equivalent bilinear form
+                                           
+                              B ∗ (v, p) =   v · ∇p dΩ.
+                                              Ω
+
+It is easy to see that (3.5)–(3.6) is equivalent to the symmetric, indeﬁnite linear
+algebraic system
+                                         
+                                A BT      u      f
+(3.7)                                         =  ,
+                                B 0       p      0
+where the elements of u and p are the coeﬃcients in the representation in terms of
+bases of the ﬁnite element pair (uh , ph ); the matrices A and B are deduced in the usual
+manner, using the bases for Vh and S h , from the bilinear forms A(·, ·) and B(·, ·) (or
+B ∗ (·, ·)), respectively.
+      The problems (3.5)–(3.6) and (3.7) are equivalent representations of the optimal-
+ity system for the saddle-point (uh , ph ) of (3.4) out of Vh × S h ; i.e., they represent a
+discrete saddle-point problem. As a result, they lead to stable and accurate approx-
+imations of (u, p) if and only if the pair (Vh , S h ) satisﬁes the following conditions:
+ﬁrst, the inf-sup condition (see [7, 15, 16]) there exists C > 0, independent of h, such
+that
+                               B(vh , q h )
+                          sup               ≥ Cq h 0   ∀ qh ∈ S h ,
+                        vh ∈Vh  vh 1
+
+and second, A(·, ·) is coercive on Zh ×Zh , where Zh = {vh ∈ Vh | B(q h , vh ) = 0 ∀ q ∈
+S h } is the subspace of discretely solenoidal functions belonging to Vh . Examples of
+unstable pairs include all equal order interpolation spaces deﬁned with respect to
+the same triangulation of Ω into ﬁnite elements, as well as such combinations as the
+bilinear-constant pair; see [15, 16].
+     3.1. Continuous stabilized prototypes. In the literature, the term ﬁnite el-
+ement stabilization is commonly applied to describe the application of various regu-
+larization techniques either to (3.4) or directly to (3.5)–(3.6) in order to circumvent
+the inf-sup condition. Stabilization leads to ﬁnite element methods that allow for an
+unrestricted choice of velocity and pressure spaces, including the choice of equal order
+interpolation. Consistent stabilization is one of the most popular types of regulariza-
+tion because it avoids penalty errors and can, in principle, be extended to achieve an
+arbitrarily high order of accuracy. Typically, consistently stabilized methods are de-
+ﬁned at the discrete level and employ mesh-dependent norms and inner products. In
+this section, we formulate continuous prototypes for these methods. The prototypes
+represent idealized variational problems that can be used to derive practical ﬁnite
+element schemes. The origin of the continuous prototypes can be best understood
+by considering ﬁrst the regularization of (3.4) by penalty. The relevant penalized
+Lagrangian functional is
+                                 1
+(3.8)                L(v, q) =     A(v, v) − F (v) + B(v, q) − δq20 .
+                                 2
+1194                     PAVEL BOCHEV AND MAX GUNZBURGER
+
+
+The optimality system for (3.8) is to seek (u, p) ∈ H10 (Ω) × L20 (Ω) such that
+
+(3.9)                    A(u, v) + B(v, p) = F (v) ∀ v ∈ H10 (Ω),
+(3.10)                    B(u, q) − δM (p, q) = 0 ∀ q ∈ L20 (Ω),
+
+where M (p, q) = (p, q)0 . Thus, the eﬀect emanating from the penalty term in (3.8)
+is to relax the constraint in (3.3). In terms of algebraic problems, this means that
+instead of the indeﬁnite problem (3.7), now ﬁnite element discretization yields a linear
+system of the form
+                                                   
+                                     A      B      u   f
+(3.11)                                                =  ,
+                                     BT    −δM     p   0
+
+having a “deﬁnite” coeﬃcient matrix.1 As a result, one can show that a ﬁnite element
+method based on (3.8) is stable for any conforming choice of Vh and S h . The trouble
+                                                                                  √
+with (3.8) is the penalty error that limits the order of approximation to O( δ),
+regardless of the interpolation order of the pair (Vh , S h ).
+    The idea of consistent stabilization is to modify (3.2) and (3.3) to a problem like
+(3.9) and (3.10) but without incurring a penalty error. This requires a term that will
+generate the desired stabilizing contribution but will vanish on all suﬃciently smooth
+exact solutions. To construct such a term, note that thanks to (2.8)
+
+                                 CP p0 ≤ ∇p−1 ≤ Cp0 ,
+
+i.e., ∇p−1 is an equivalent norm on L20 (Ω). As a result, ∇p2−1 will have the same
+stabilization eﬀect as p20 . However, unlike the latter, ∇p2−1 can be included via
+the residual of (3.1) and so, when added to (3.2)–(3.3), the term
+
+                             δ(− u + ∇p − f , −α v + ∇q)−1
+
+will generate the appropriate stabilizing contribution but without the penalty error.
+This leads to a family of continuous stabilized prototypes: seek (uh , ph ) ∈ Vh × S h
+such that
+
+(3.12)                         Qβα (uh , ph ; vh , q h ) = Fαβ (vh , q h )
+
+for all (vh , q h ) ∈ Vh × S h , where
+
+                    Qβα (u, p; v, q) = A(u, v) + B(v, p) + βB(u, q)
+(3.13)
+                                          −δ(− u + ∇p, −α v + β∇q)−1
+
+and
+
+(3.14)                   Fαβ (v, q) = F (v) − δ(f , −α v + β∇q)−1
+
+   1 The matrix in (3.11) is deﬁnite in the sense that
+
+                                                          
+                                                A     B
+                                                         ,
+                                               −BT   +δM
+
+which is obtained from the coeﬃcient matrix in (3.11) by multiplying the lower block of equations
+by −1, is real, positive deﬁnite.
+                   AN ABSOLUTELY STABLE PRESSURE-POISSON METHOD                               1195
+
+are a bilinear form [H10 (Ω) × L2 (Ω)]2 → R and a linear functional H10 (Ω) × L2 (Ω) → R
+parametrized by α, β, and δ. In (3.13) and (3.14), α and β take on the values {−1, 0, 1}
+and {−1, 1}, respectively, and δ is a positive, real valued parameter. A method is
+called absolutely stable if the form Qα  β is weakly or strongly coercive for all values of
+δ. If this is true only for selected values of δ, the method is called conditionally stable.
+In what follows, we will work exclusively with continuous pressure approximations, in
+which case we can write
+
+                Qβα (uh , ph ; vh , q h ) ≡ A(uh , vh ) + B ∗ (vh , ph ) + βB ∗ (uh , q h )
+(3.15)
+                                           −δ(− uh + ∇ph , −α vh + β∇q h )−1 .
+
+We call (3.12) prototypes because the H−1 (Ω) inner product is not computable so
+that (3.13) or (3.15) and (3.14) cannot be used directly in a ﬁnite element method.
+However, if the H−1 (Ω) inner product appearing in (3.13) or (3.15) and (3.14) is
+replaced by a discrete approximation, each prototype will give rise to a practical
+method. All methods that can be associated with a particular prototype by virtue of
+such a substitution form the stabilized class generated by this prototype.
+    Remark 3.1. While the stabilized problem (3.12) is a modiﬁcation of an equation
+that represents an optimality system, it is not necessarily itself an optimality system
+of some modiﬁed Lagrangian. Many of the methods deﬁned by (3.12) can only be
+derived as modiﬁcations of (3.5) and (3.6); i.e., they cannot be formulated starting
+from a modiﬁcation of (3.4) and then deriving the associated optimality system.
+    Remark 3.2. If u is approximated by piecewise linear or bilinear ﬁnite element
+functions, the second order derivative terms in (3.13) vanish and the prototypes (3.12)
+reduce to a penalized formulation in which the Lagrangian functional (3.4) is penalized
+by −δ∇q2−1 .
+    Introducing the bilinear forms
+
+                  D(u, v) = δ(− u, − v)−1 ,                 C(v, q) = δ( v, ∇q)−1 ,
+
+and
+
+                                        K(p, q) = δ(∇p, ∇q)−1
+
+deﬁned on H10 (Ω) × H10 (Ω), H10 (Ω) × L2 (Ω), and L2 (Ω) × L2 (Ω), respectively, we can
+write (3.15) in the form
+
+      Qβα (uh , ph ; vh , q h ) = A(uh , vh ) + B ∗ (vh , ph ) + βB ∗ (uh , q h )
+                                −αD(uh , vh ) + αC(vh , ph ) + βC(uh , q h ) − βK(ph , q h ).
+
+It is then easy to see that the discrete system (3.12) is equivalent to a family of linear
+algebraic systems of the form
+                                                 
+                            A − αD      B + αC     u       f
+(3.16)                                                  = 1 ,
+                           β(B + C)T      −βK      p        f2
+
+where the matrices C, D, and K are respectively deduced in the usual manner from
+the bilinear forms C(·, ·), D(·, ·), and K(·, ·).
+    Choosing diﬀerent α and β gives rise to diﬀerent bilinear forms in (3.13) and to
+diﬀerent matrices in (3.16). It is easy to see that the choices {α, β} and {α, −β}
+deﬁne variational problems that can be derived from one another by simply changing
+1196                      PAVEL BOCHEV AND MAX GUNZBURGER
+
+
+the pressure test function in (3.12) from q h to −q h . Likewise, the linear system (3.16)
+generated by the choice {α, −β} can be derived from that for the choice {α, β} by
+simply scaling the second row of blocks by −1. Therefore, the linear systems produced
+by the two choices {α, β} and {α, −β} are equivalent in the sense that they have
+exactly the same solution. 2 We will call these variational problems, along with their
+associated bilinear forms and linear algebraic systems, complementary. The choice of
+α determines the class of complementary forms while the two forms within each class
+are generated by selecting β equal to either 1 or −1.
+    For consistency with the established terminology, we call the prototype corre-
+sponding to α = 1 Galerkin least-squares, or GLS. Since taking α = 0 “simpliﬁes” the
+weighting function, we call this class of methods simpliﬁed Galerkin least-squares, or
+SGLS. Finally, choosing α = −1 “reﬂects” the sign of the second order term and so
+we refer to this prototype as reﬂected Galerkin least-squares, or RGLS.
+    The standard members of the GLS, SGLS, and RGLS classes of methods are ob-
+tained when the H−1 (Ω) inner product appearing in (3.15) and (3.14) is approximated
+by a weighted L2 inner product in the following manner:
+
+       Qβα,h (uh , ph ; vh , q h ) = A(uh , vh ) + B ∗ (vh , ph ) + βB ∗ (uh , q h )
+(3.17)                                 
+                                     −       δh2K (− uh + ∇ph , −α vh + β∇q h )0,K
+                                      K∈Th
+
+and
+                 β
+                                               
+(3.18)          Fα,h (vh , q h ) = F (vh ) −          δh2K (f , −α vh + β∇q h )0,K ,
+                                               K∈Th
+
+respectively. When α = 1 and β = 1, we recover from (3.17) and (3.18) the original
+GLS method of [17]. For α = 0 and β = −1, they give the original pressure-Poisson
+stabilized mixed method of [18]. The case α = −1 and β = 1 gives the method of
+[11].
+     The weighted L2 norm is not a particularly accurate approximation of the negative
+norm. Its main defect is that
+
+                          C1 (huh 0 ) ≤ uh −1 ≤ C2 h−1 (huh 0 ).
+
+This equivalence relation, including the factor h−1 in the upper bound, is sharp,
+and means that (3.17) is stable with respect to a mesh-dependent norm that is not
+uniformly (in h) equivalent to the norm on H1 (Ω) × L2 (Ω). A more sophisticated but
+also more complicated approximation is to use a discrete equivalent proposed in [6]
+in the context of least-squares ﬁnite element methods. For stabilized methods based
+on this norm, we refer to [9].
+     Analyses of the standard GLS and RGLS methods in [17] and [11], respectively,
+classify the ﬁrst one as a conditionally stable scheme and the second one as an abso-
+lutely stable scheme. This means that for α = 1, the choice of δ in (3.17) and (3.18)
+is restricted to some ﬁnite interval 0 < δ0 ≤ δ ≤ δmax , while for α = −1, the form
+in (3.17) is stable for any positive δ. In both cases, theoretical classiﬁcations agree
+well with the practical stability of the respective ﬁnite element methods; see [13] and
+    2 Although the choices {α, β} and {α, −β} yield the same solution, the algebraic properties of the
+
+corresponding coeﬃcient matrices can be vastly diﬀerent. As a result, the performance of iterative
+solution techniques can also be vastly diﬀerent; cf. [2].
+                AN ABSOLUTELY STABLE PRESSURE-POISSON METHOD                           1197
+
+[2]. However, this is not so for the standard SGLS method. The formal analysis of
+[8] classiﬁed this method as conditionally stable, with a stability range estimate very
+close to that of the standard GLS method. In practice, after extensive numerical ex-
+periments, we found that the standard SGLS behaves much more like the absolutely
+stabilized RGLS method; see [2]. This unexpected practical stability prompted us
+to reexamine the SGLS class starting from its continuous prototype. Thus, for the
+remainder of this paper, our focus will be on SGLS methods.
+    4. Continuous SGLS. In this section, we show that the continuous SGLS pro-
+totype
+
+       Q±                           ∗          ∗
+        0 (u, p; v, q) = A(u, v) + B (v, p) ± B (u, q) − δ(− u + ∇p, ±∇q)−1
+
+is absolutely stable.
+     Theorem 4.1. Let Vh ⊂ H10 (Ω) and S h ⊂ L20 (Ω) ∩ H 1 (Ω). Then Q−          0 (·; ·) is
+coercive for 0 < δ < 4 and Q±
+                            0 (·; ·) are weakly coercive for any δ ≥ 4; i.e., there  exists
+C > 0, independent of h, such that
+
+                 Q−
+                  0 (u , p ; u , p ) ≥ C u 1 + p 0
+                      h h     h h          h 2     h 2
+                                                               ∀0 < δ < 4
+
+and
+                                                                     ⎫
+                             Q±    h h    h h
+                              0 (u , p ; v , q )                     ⎪
+                  sup                            ≥ C(u 1 + p 0 ) ⎪
+                                                       h       h
+                                                                     ⎪
+                                                                     ⎪
+          (vh ,q h )∈Vh ×S h  u 1 + p 0
+                                 h        h                          ⎬
+                                                                            ∀δ ≥ 4
+                             Q±    h h    h h                         ⎪
+                                                                      ⎪
+                              0 (v , q ; u , p )                      ⎪
+                  sup                            >0                   ⎪
+                                                                      ⎭
+          (vh ,q h )∈Vh ×S h  v 1 + q h 0
+                                 h
+
+
+for any (uh , ph ) ∈ Vh × S h .
+    Proof. Since complementary forms can be obtained from one another by changing
+the sign of the pressure test functions, it suﬃces to carry out the proofs for only one
+of the forms. Here, we choose to work with the minus form Q−       0 . Using (2.7), the
+stabilizing term in Q−0 simpliﬁes to
+
+               δ(− uh + ∇ph , ∇q h )−1 = δ((uh , ∇q h )0 + (∇ph , ∇q h )−1 ).
+
+As a result,
+
+ Q−
+  0 (u , p ; v , q ) = A(u , v ) + (∇p , v )0 + (δ − 1)(∇q , u )0 + δ(∇p , ∇q )−1 .
+      h h     h h         h   h       h   h               h   h         h    h
+
+
+    To prove strong the coercivity result, let δ be a number between 0 and 4 and
+consider Q−   h h     h h
+          0 (u , p ; u , p ). Using Cauchy’s inequality and the  inequality,
+
+           Q−
+            0 (u , p ; u , p ) = A(u , u ) + δ(∇p , u )0 + δ(∇p , ∇p )−1
+                h h     h h          h    h          h   h        h      h
+
+                               ≥ |u |1 + δ∇p −1 − δ∇p −1 |u |1
+                                   h 2         h 2           h     h
+                                         
+                                        δ                  
+                               ≥ 1−         |uh |21 + δ 1 −    ∇ph 2−1 .
+                                       2                   2
+
+To ensure coercivity, both coeﬃcients above must be positive. Therefore, δ and 
+must satisfy the inequalities
+
+                                0 < δ < 2 and  < 2.
+1198                    PAVEL BOCHEV AND MAX GUNZBURGER
+
+
+This is always possible when 0 < δ < 4. Since ph ∈ L20 (Ω) and uh ∈ H10 (Ω), the ﬁnal
+bound
+
+                  Q−
+                   0 (u , p ; u , p ) ≥ C(δ, CP , CN ) u 1 + p0
+                       h h     h h                       h 2      2
+
+
+follows from (2.8) and (2.1).
+     To show that Q−0 is weakly coercive for δ ≥ 4, let (
+                                                         vh , qh ) = (uh , γph ) for some
+positive γ. Then
+
+        Q−   h h
+                     h , qh ) = |uh |21 + γδ∇ph 2−1 + (1 + γ(δ − 1))(∇ph , uh )0 .
+         0 (u , p ; v
+
+Letting γ = 1/(δ − 1), the Cauchy and  inequalities further give
+                                                δ
+            Q−   h h
+                         h , qh ) ≥ |uh |21 +
+             0 (u , p ; v                            ∇ph 2−1 − 2∇ph −1 |uh |1
+                                              δ−1
+                                                                 
+                                                         δ      1
+                                   ≥ (1 − )|uh |21 +         −     ∇ph 2−1 .
+                                                        δ−1     
+Since δ ≥ 4, we can always choose a positive  such that
+                                         δ−1
+                                             <  < 1.
+                                          δ
+This makes both coeﬃcients in the lower bound positive and we can conclude that
+there exists C(δ, CP , CN ), independent of h, such that
+
+                 Q−   h h
+                              h , qh ) ≥ C(δ, CP , CN ) uh 21 + ph 20 .
+                  0 (u , p ; v
+
+To complete the proof of the ﬁrst weak coercivity condition, we note that 
+                                                                           v h 1 +
+
+ q 0 = u 1 + δ−1 p 0 so that the last inequality can be recast into
+  h       h      1    h
+
+
+        Q−   h h
+                     h , qh ) ≥ C(δ, CP , CN ) uh 1 + ph 0
+         0 (u , p ; v                                              
+                                                                    vh 1 + 
+                                                                             q h 0 .
+
+To prove the second weak coercivity condition, we choose vh = −S(∇ph ) and q h ≡ ph .
+Using Lemma 2.1
+
+        A(−S(∇ph ), uh ) = −(∇ph , uh )           and     −    (−S(∇ph )) = −∇ph .
+
+It is now easy to see that
+
+             Q−
+              0 (−S(∇p ), p ; u , p ) = (S(∇p ), ∇p )0 = ∇p −1 > 0,
+                      h    h   h h           h     h        h 2
+
+
+where the last identity follows again from Lemma 2.1.
+     It is a straightforward matter to demonstrate that Q± 0 is continuous. Then stan-
+dard ﬁnite element arguments can be used to show that the method is optimally
+accurate.
+     Theorem 4.2. Let (u, p) ∈ H10 (Ω) ∩ Hr+1 (Ω) × L20 (Ω) ∩ H s+1 (Ω) denote a
+solution of the Stokes problem and let (uh , ph ) solve (3.12) for α = 0. Then there
+exists a constant C > 0 independent of h such that
+
+                u − uh 1 + p − ph 0 ≤ C(hr ur+1 + hs+1 ps+1 ).
+
+    We note for future reference that the stability and error estimates of the SGLS
+prototype are given in terms of the natural mesh-independent norm of H1 (Ω)×L2 (Ω).
+               AN ABSOLUTELY STABLE PRESSURE-POISSON METHOD                       1199
+
+     5. Discrete SGLS. While the continuous SGLS prototype is not a practical
+method, its analysis hints at a possibility that members of the SGLS family of methods
+may have far better stability properties than previously thought. In this section we
+will deﬁne a new member of this family that not only is practical but also inherits the
+absolute stability of its continuous prototype in terms of the same mesh-independent
+norms. In addition, the new method is also optimally accurate and converges at the
+same rate as the continuous prototype. To formulate and analyze the new method,
+we will make use of several discrete operators along with their relevant properties.
+These are reviewed next.
+    5.1. Discrete operators. Given a ﬁnite element subspace Vh ⊂ H10 (Ω), we
+deﬁne the discrete Laplace operator − h as the mapping − h : H10 (Ω) → Vh such
+that − h u = zh if and only if
+
+(5.1)                   (zh , vh )0 = (∇u, ∇vh )0      ∀ vh ∈ Vh .
+
+The discrete inverse Laplace operator Sh is the mapping Sh : H−1 (Ω) → Vh such
+that Sh u = zh if and only if
+
+(5.2)                   (∇zh , ∇vh )0 = (u, vh )0      ∀ vh ∈ Vh .
+
+The last operator that we will need is the L2 projection operator onto Vh . This
+operator is the mapping Qh : L2 (Ω) → Vh such that Qh u = zh if and only if
+
+(5.3)                     (zh , vh )0 = (u, vh )0    ∀ vh ∈ Vh .
+
+If the supremum in (2.5) is restricted to the subspace Vh ⊂ H10 (Ω), we obtain the
+discrete negative seminorm
+
+                                    (f , φh )0
+(5.4)                 f −h = sup                   ∀ f ∈ H−1 (Ω).
+                              φh ∈Vh |φ |1
+                                         h
+
+
+
+The next theorem summarizes the properties of the discrete operators and norms that
+are relevant to our analysis; for part 3, note that
+
+                                                     ((I − Qh )u, φ)0
+                     (I − Qh )u−k =        sup                      ,
+                                           φ∈Hk0 (Ω)      φk
+
+where Hk0 (Ω) ≡ Hk (Ω) ∩ H10 (Ω).
+   Theorem 5.1. 1. For any f , g ∈ H−1 (Ω), deﬁne (f , g)−h = (Sh f , g)0 = (f ,
+ h
+S g)0 . Then
+
+(5.5)                              f 2−h = (f , f )−h .
+
+    2. For any u ∈ L2 (Ω)
+
+(5.6)                          Qh u0 ≤ CI h−1 u−h ,
+(5.7)                       u2−1 ≤ C h2 u20 + u2−h ,
+
+(5.8)                             −    h
+                                           · Sh u = Qh u.
+1200                    PAVEL BOCHEV AND MAX GUNZBURGER
+
+
+    3. For any u ∈ L2 (Ω) and 0 < k ≤ r + 1
+
+(5.9)                            (I − Qh )u−k ≤ Chk u0 .
+
+    Proof. For the proof of the characterization (5.5) and the lower equivalence bound
+(5.7), we refer to [5] or [6]. Here, we will only demonstrate the proofs for the inverse
+inequality (5.6), the identity (5.8), and the duality estimate (5.9).
+    Let u ∈ L2 (Ω). Using the deﬁnition (5.3) of Qh in (5.4),
+
+                       (u, φh )0          (Qh u, φh )0   (Qh u, Qh u)0
+          u−h = sup            =  sup                ≥               .
+                 φh ∈Vh |φ |1
+                           h
+                                   φh ∈Vh   |φh |1         |Qh u|1
+
+Using the ﬁrst inequality in (2.4) for Qh u gives that
+
+                                   |Qh u|1 ≤ CI h−1 Qh u0 .
+
+As a result,
+
+                                Qh u20   hQh u20
+                   u−h ≥               ≥            = hCI−1 Qh u0 ,
+                                |Q u|1
+                                  h        CI Qh u0
+
+which proves (5.6). A straightforward application of (5.1)–(5.3) shows that
+
+                      (−    h
+                                Sh u, vh ) = (∇(Sh u), ∇vh ) = (u, vh ),
+
+which proves (5.8). To prove (5.9), we use the deﬁnition (5.3) of Qh and Cauchy’s
+inequality to show that
+
+                ((I − Qh )u, φ)0 = (u, (I − Qh )φ)0 ≤ u0 (I − Qh )φ0
+
+and then use (2.2) to obtain
+
+                                  (I − Qh )φ0 ≤ Chk φk .
+
+Combining these bounds shows that
+
+                                             hk Cu0 φk
+               (I − Qh )u−k ≤       sup                  = Chk u0 .
+                                    φ∈H0 (Ω)
+                                       k         φ k
+
+
+    5.2. An absolutely stable discrete SGLS method. We introduce the bilin-
+ear form
+
+               Q±                                   ∗            ∗
+                0,h (u , p ; v , q ) = A(u , v ) + B (v , p ) ± B (u , q )
+                      h h     h h         h   h        h h          h h
+(5.10)
+                                        −δh2 (−      u + ∇ph , ±∇q h )0
+                                                    h h
+
+
+and the linear functional
+                          ±
+                         F0,h (vh , q h ) = F (vh ) − δh2 (f , ±∇q h )0 .
+
+The new member of the SGLS family of methods is to seek (uh , ph ) ∈ Vh × S h such
+that
+
+(5.11)         Q±                       ±
+                0,h (u , p ; v , q ) = F0,h (v , q ) ∀ (v , q ) ∈ V × S .
+                      h h     h h             h h        h h       h   h
+                  AN ABSOLUTELY STABLE PRESSURE-POISSON METHOD                                 1201
+
+Before we continue with the stability and error analysis of the new method, let us
+point out that thanks to deﬁnition (5.1)
+                         A(uh , vh ) ≡ (∇uh , ∇vh )0 = (−              h h
+                                                                        u , vh )0 .
+As a result,
+          Q±     h h     h h
+           0,h (u , p ; v , q ) = (−             u + ∇ph , vh )0 ± B ∗ (uh , q h )
+                                               h h
+
+
+(5.12)                                  −δh2 −         u + ∇ph , ±∇q h 0
+                                                      h h
+
+
+                                      = −        u + ∇ph , vh ∓ δh2 ∇q h 0 ± B ∗ (uh , q h )
+                                               h h
+
+
+is an equivalent representation of (5.10) and
+(5.13)          (−     u + ∇ph , vh ∓ δh2 ∇q h )0 ± B ∗ (uh , q h ) = (f , vh ∓ δh2 ∇q h )0
+                      h h
+
+
+is an equivalent form of (5.11). Problem (5.13) leads to an interesting interpretation
+for the new method: it can be viewed as a Petrov–Galerkin-like scheme obtained by
+modiﬁcation of the velocity weight function to vh ∓ δh2 ∇q h .
+     Because we have replaced − uh with − h uh in the deﬁnition of the method,
+the term
+                              (−       h
+                                           u + ∇p − f , ∓δh2 ∇q h )0 = 0;
+i.e., the new method, is not, strictly speaking, a consistent formulation. However, as
+we will see in the next lemma, the inconsistency is very weak. In particular, we will
+prove that it does not degrade the optimal convergence rate of the method.
+      Lemma 5.2. Let (u, p) ∈ H10 (Ω) ∩ Hr+1 (Ω) × L20 (Ω) ∩ H s+1 (Ω) denote a solution
+of the Stokes problem and let (uh , ph ) be a solution of (5.11). Then
+                  Q±
+                   0,h (u − u , p − p ; v , q ) = δh (− u, (Q − I)∇q )0
+                             h       h   h h        2        h      h
+(5.14)
+                                                       ≤ δChr ur+1 q h 0
+for all (vh , q h ) ∈ Vh × S h .
+    Proof. Consider the minus form. It is easy to see that
+                 Q−
+                  0,h (u − u , p − p ; v , q ) = δh (−
+                            h       h   h h        2              h
+                                                                      u + ∇p − f , ∇q h )0
+                                                      = δh2 (−(    h
+                                                                       −     )u, ∇q h )0 .
+From the fact that − h u ∈ Vh , the deﬁnition (5.3) of the L2 projection, and the
+deﬁnition (5.1) of − h , it follows that
+     (−    h
+               u, ∇q h )0 = (−    h
+                                      u, Qh ∇q h )0 = (∇u, ∇Qh ∇q h )0 = (− u, Qh ∇q h )0
+and so
+                        (−(   h
+                                  −     )u, ∇q h )0 = (− u, (Qh − I)∇q h )0
+so that the equality in (5.14) is proved. Next, with the help of (5.9) and the inverse
+inequality (2.4), we have
+                     (− u, (Qh − I)∇q h )0 ≤  ur−1 (Qh − I)∇q h 1−r
+                                           ≤ Chr−1 ur+1 ∇q h 0
+                                                  ≤ Chr−2 ur+1 q h 0 ,
+from which the inequality in (5.14) follows.
+1202                      PAVEL BOCHEV AND MAX GUNZBURGER
+
+
+    5.3. Stability and convergence. The main results of this section are to show
+that the method (5.11) is absolutely stable and that ﬁnite element solutions of (5.11)
+converge at optimal rates. We begin by establishing the absolute stability of the
+method, i.e., that the bilinear form (5.10) is weakly coercive for all values of the
+parameter δ. The proof relies upon a technical result presented in the next lemma.
+    Lemma 5.3. For any q h ∈ S h
+
+(5.15)               ∇q h 2−1 ≤ C h2 (I − Qh )∇q h 20 + ∇q h 2−h .
+
+    Proof. Since we restrict attention to continuous pressure approximations, ∇q h ∈
+L2 (Ω). Therefore, (5.7) from Theorem 5.1 implies that
+
+                           ∇q h 2−1 ≤ C h2 ∇q h 20 + ∇q h 2−h .
+
+Adding and subtracting Qh ∇q h to the ﬁrst term and using the triangle inequality
+give the upper bound
+
+           ∇q h 2−1 ≤ C h2 (I − Qh )∇q h 20 + h2 Qh ∇q h 20 + ∇q h 2−h .
+
+The lemma follows by using the inverse inequality (5.6) to bound h2 Qh ∇q h 20 by
+CI ∇q h 2−h .
+    Theorem 5.4. Assume that Vh ⊂ H10 (Ω) and S h ⊂ L20 (Ω) ∩ H 1 (Ω). Then, for
+any δ > 0, there exists a positive constant C(δ), independent of h, such that
+
+                                   Q±     h h     h h
+                                    0,h (u , p ; v , q )
+                    sup                                    ≥ C(δ)(uh 1 + ph 0 ),
+              (vh ,q h )∈Vh ×S h     vh 1 + q h 0
+(5.16)
+                                   Q±     h h     h h
+                                    0,h (v , q ; u , p )
+                    sup                                    >0
+              (vh ,q h )∈Vh ×S h     vh 1 + q h 0
+
+for all (uh , ph ) ∈ Vh × S h .
+     Proof. We recall that the complementary plus and minus forms deﬁne equivalent
+problems, and so it suﬃces to carry the proof for just one of the forms. Here, we
+choose again to work with the minus form. Given a positive δ, we will construct a
+test function (  vh , qh ) such that
+
+              Q−     h h
+                             h , qh ) ≥ C(uh 1 + ph 0 ) 
+               0,h (u , p ; v                                  vh 1 + 
+                                                                        q h 0 .
+
+To ﬁnd such a function, note that deﬁnition (5.2) implies the identity
+
+                              (∇uh , ∇Sh (∇q h ))0 = (uh , ∇q h )0 .
+
+Thus, if q h ∈ S h is arbitrary and v1h = Sh (∇q h ),
+
+         Q−
+          0,h (u , p ; v1 , q ) = (∇p , S ∇q )0 + δh (−
+                h h     h h          h   h  h       2
+                                                                      u + ∇ph , ∇q h )0 .
+                                                                     h h
+
+
+Adding and subtracting Qh ∇ph from the last term give
+
+           Q−
+            0,h (u , p ; v1 , q ) = (∇p , S ∇q )0 + δh ((I − Q )∇p , ∇q )0
+                  h h     h h          h   h  h       2       h   h    h
+
+
+                                        +δh2 (−     u + Qh ∇ph , ∇q h )0
+                                                   h h
+
+
+while the orthogonality
+
+                                    ((I − Qh )∇ph , Qh ∇q h ) = 0
+               AN ABSOLUTELY STABLE PRESSURE-POISSON METHOD                                    1203
+
+and the fact that −      u + Qh ∇ph ∈ Vh allow us to rewrite the last identity as
+                        h h
+
+
+         Q−
+          0,h (u , p ; v1 , q ) = (∇p , S ∇q )0 + δh ((I − Q )∇p , (I − Q )∇q )0
+                h h     h h          h   h  h       2       h   h        h   h
+(5.17)
+                                 +δh2 −           u + Qh ∇ph , Qh ∇q h 0 .
+                                                 h h
+
+
+Next, (5.12) implies that
+
+                      Q−     h h     h
+                       0,h (u , p ; v , 0) = (−        u + Qh ∇ph , vh )0 .
+                                                       h h
+
+
+
+Choosing v2h = −δh2 Qh ∇q h then gives the identity
+
+(5.18)         Q−
+                0,h (u , p ; v2 , 0) = −δh (−
+                      h h     h           2
+                                                        u + Qh ∇ph , Qh ∇q h )0 .
+                                                       h h
+
+
+
+Therefore, if q h = ph , (5.17), (5.18), and (5.15) together with the discrete negative
+norm characterization in (5.5) imply that
+
+   Q−
+    0,h (u , p ; v1 + v2 , p ) = (∇p , S ∇p )0 + δh ((I − Q )∇p , (I − Q )∇p )0
+          h h     h    h h          h   h  h       2       h   h        h   h
+
+
+                               = ∇ph 2−h + δh2 (I − Qh )∇ph 20 ≥ C(δ)∇ph 2−1 .
+
+Since ph ∈ L20 (Ω), the last inequality in combination with (2.8) gives a bound in terms
+of L2 pressure norm:
+
+(5.19)                   Q−
+                          0,h (u , p ; v1 + v2 , p ) ≥ C1 (δ)p 0 .
+                                h h     h    h h               h 2
+
+
+    To complete the proof of the ﬁrst weak coercivity condition, note that
+
+     Q−
+      0,h (u , p ; u , 0) = |u |1 + (∇p , u )0 = |u |1 − (p , ∇ · u )0
+            h h     h         h 2      h   h       h 2     h       h
+
+                                            √                      CP2 h 2     n
+                          ≥ CP2 uh 21 −       nph 0 uh 1 ≥      u 1 −      ph 20 .
+                                                                    2         2CP2
+
+Therefore, letting v3h = n−1 C1 (δ)CP2 uh gives
+
+                                            C1 (δ)CP4 h 2 C1 (δ) h 2
+                 Q−
+                  0,h (u , p ; v3 , 0) ≥
+                        h h     h
+                                                     u 1 −    p 0 ,
+                                               2n            2
+where C1 (δ) is the constant from (5.19). As a result,
+
+                                                        C1 (δ)CP4 h 2 C1 (δ) h 2
+(5.20)        Q−
+               0,h (u , p ; v1 + v2 + v3 , p ) ≥
+                     h h     h    h    h h
+                                                                 u 1 +    p 0
+                                                           2n            2
+and the association
+
+                               vh , qh ) = (v1h + v2h + v3h , ph )
+                              (
+
+will ﬁt our purpose if we can show that vh 1 + 
+                                                   q h 0 is bounded by uh 1 + ph 0 .
+Using Poincaré’s inequality (2.1), we have
+
+             
+              vh 1 ≤ C∇
+                         vh 0
+                      ≤ C(∇v1h 0 + ∇v2h 0 + ∇v3h 0 )
+                      ≤ C(∇(Sh ∇ph )0 + δh2 ∇(Qh ∇ph )0 + ∇uh 0 ).
+1204                   PAVEL BOCHEV AND MAX GUNZBURGER
+
+
+To estimate the ﬁrst term, we use the deﬁnition of Sh and Poincaré’s inequality to
+ﬁnd that
+
+             ∇(Sh ∇ph )20 = (∇Sh ∇ph , ∇Sh ∇ph )0
+                              = (∇ph , Sh ∇ph )0 = −(ph , ∇ · Sh ∇ph )0
+                                √
+                              ≤ nph 0 Sh ∇ph 1 ≤ Cph 0 ∇Sh ∇ph 0
+
+and, as a result,
+
+                                ∇(Sh ∇ph )0 ≤ Cph 0 .
+
+For the second term, application of the inverse inequality (2.4) twice and the fact that
+Qh is bounded gives
+
+          δh2 ∇(Qh ∇ph )0 ≤ δhCI Qh ∇ph 0 ≤ δhCI ∇ph 0 ≤ δCI2 ph 0 .
+
+Combining all bounds shows that
+
+                               
+                                vh 1 ≤ C(ph 0 + uh 1 )
+
+and so we can rewrite (5.20) as
+
+              Q−     h h
+                             h , qh ) ≥ C(uh 1 + ph 0 )(
+               0,h (u , p ; v                                  vh 1 + 
+                                                                        q h 0 ),
+
+which proves the ﬁrst part of (5.16). To prove the second weak coercivity condition
+we proceed as in the proof of Theorem 4.1 and set vh = −Sh ∇ph and q h ≡ ph . Using
+deﬁnitions (5.1)–(5.3) and Lemma 5.3, we ﬁnd that
+
+Q−
+ 0,h (−S ∇p , p ; u , p ) = (S ∇p , ∇p ) + δh ((I − Q )∇p , ∇p )
+        h  h h     h h        h  h    h      2       h   h    h
+
+
+                           = ∇ph 2−h + δh2 (I − Qh )∇ph 20 ≥ C(δ)∇ph 20 > 0.
+
+     This theorem shows that the new discrete method is stable with respect to the
+same norms as its continuous prototype, i.e., the natural norm on H1 (Ω) × L2 (Ω).
+This valuable feature of the new method distinguishes it from the standard discrete
+SGLS of [18], which is stable with respect to a mesh-dependent norm.
+     Let us now consider the convergence of ﬁnite element solutions. The next theo-
+rem shows that the new method yields the same convergence rates as its continuous
+prototype with respect to the same mesh-independent norms.
+     Theorem 5.5. Let (u, p) ∈ H10 (Ω)∩Hr+1 (Ω)×L20 (Ω)∩H s+1 (Ω) denote a solution
+of the Stokes problem and let (uh , ph ) solve (5.11). Then
+
+(5.21)          u − uh 1 + p − ph 0 ≤ C(hr ur+1 + hs+1 ps+1 ).
+
+    Proof. We begin by splitting the error into discrete and approximation theoretic
+parts:
+
+  u − uh 1 + p − ph 0 ≤ (uhI − uh 1 + phI − ph 0 ) + (u − uhI 1 + p − phI 0 ).
+
+Since the interpolation error is of optimal order, to prove the theorem it suﬃces to
+                 AN ABSOLUTELY STABLE PRESSURE-POISSON METHOD                                    1205
+
+estimate the discrete error. Using (5.16),
+
+                                                                   Q±
+                                                                    0,h (uI − u , pI − p ; v , q )
+                                                                          h    h h      h   h h
+  C(δ)(uhI − uh 1 + phI − ph 0 ) ≤              sup
+                                              (vh ,q h )∈Vh ×S h           vh 1 + q h 0
+
+                                Q±                               ±
+                                 0,h (u − u , p − p ; v , q ) + Q0,h (uI − u, pI − p; v , q )
+                                           h       h   h h             h       h       h h
+       ≤         sup
+           (vh ,q h )∈Vh ×S h                            vh 1 + q h 0
+
+                                Q±
+                                 0,h (u − u , p − p ; v , q )
+                                           h       h   h h
+       ≤         sup                                               + C(u − uhI 1 + p − phI 0 )
+           (vh ,q h )∈Vh ×S h         vh 1 + q h 0
+
+                  δh2 (− u, (Qh − I)∇q h )0
+       ≤ sup                                + C(hr ur+1 + hs+1 ps+1 ),
+           q ∈S
+            h   h          q h
+                                 0
+
+where to obtain the last bound we have used (5.14) in Lemma 5.2 and (2.2) and (2.3).
+From (5.14), it easily follows that
+
+                                δh2 (− u, (Qh − I)∇q h )0
+                        sup                               ≤ Chr ur+1 .
+                       q h ∈S h          q h 0
+
+This means that the discrete error is of optimal order, i.e.,
+
+                 uhI − uh 1 + phI − ph 0 ≤ C(hr ur+1 + hs+1 ps+1 )
+
+and since the interpolation error is of the same order, (5.21) immediately follows.
+     6. Concluding remarks. Using the notion of continuous prototypes, we for-
+mulated a new absolutely stable method for the Stokes problem. The new method is
+a close relative of the standard pressure-Poisson stabilized method of [18] in the sense
+that they share the same continuous prototype.
+     However, the two methods diﬀer in several important aspects. The new formu-
+lation is weakly inconsistent in the sense that, although being strictly speaking not
+consistent, it still leads to optimal error estimates for all C 0 ﬁnite element subspaces,
+including the lowest order piecewise linear case. In contrast, the standard method
+not only is not consistent for piecewise linear approximations (because the Laplace
+operator annihilates the linear velocity ﬁeld in (3.17) and (3.18)) but also results in
+errors that do not vanish with vanishing grid sizes; i.e., there remains an error pro-
+portional to the parameter δ. Furthermore, the new method is stable with respect to
+the norm on H1 (Ω) × L2 (Ω), while the standard method is stable with respect to a
+mesh-dependent norm that is not equivalent to the norm on H1 (Ω) × L2 (Ω).
+     Implementation of the new method requires evaluation of the discrete operator
+− h . Given a ﬁnite element function uh ∈ Vh , the coeﬃcients z of zh = − h uh can
+be determined from deﬁnition (5.1) by solving the linear system
+
+                                               Mz = r.
+
+M is a mass matrix that can be assembled in the usual manner and r is a vector with
+components
+                                         ri = (∇uh , ∇φhi )0 ,
+
+where {φhk }N
+            k=1 is a nodal basis for V . In practical computations, M can be replaced
+                                      h
+
+by a lumped mass matrix or local projection.
+1206                     PAVEL BOCHEV AND MAX GUNZBURGER
+
+
+     While computation of − h may seem as an additional overhead compared to
+the implementation of the standard method, it is well worth the eﬀort thanks to the
+improved accuracy, especially when piecewise linear ﬁnite elements are used, and the
+guaranteed absolute, mesh-independent stability of the new method. It should be
+mentioned that essentially the same auxiliary problem, involving the inversion of a
+mass matrix, arises in standard stabilized methods with improved consistency; see
+[19]. These methods aim to restore the loss of consistency caused by the annihilation
+of all second order derivatives in the element residual when piecewise linear elements
+are used. The idea of [19] is to apply an L2 projection to the ﬁrst derivative of the
+ﬁnite element solution before the application of the second derivative so as to avoid
+its annihilation. Specialized to our context, this method can be viewed as providing
+an alternative deﬁnition for the discrete Laplace operator. Instead of the operator
+− h : H10 (Ω) → Vh used in our method, they use the operator − hA : Vh → L2 (Ω)
+deﬁned by
+(6.1)                              −    A = −∇ · (Q ∇u ).
+                                        h          h  h
+
+
+    Let us conclude by noting that an important open question that remains to be
+answered is whether or not the absolute stability of the continuous SGLS prototype is
+inherited by other members of this class. It seems particularly worthwhile to exploit
+extensions of our analysis to an SGLS method deﬁned using the alternative discrete
+operator (6.1) and to the original pressure-Poisson method of [18] which, as we recall,
+behaves numerically just like an absolutely stable formulation. Extending our results
+to discontinuous pressure spaces would also be valuable.
+
+                                         REFERENCES
+
+ [1] C. Baiocchi and F. Brezzi, Stabilization of unstable numerical methods, in Proceedings of
+         Problemi attuali dell’ analisi e della ﬁsica matematica, Taormina, Rome, 1992, pp. 59–63.
+ [2] T. Barth, P. Bochev, M. Gunzburger, and J. Shadid, A taxonomy of consistently stabilized
+         ﬁnite element methods for the Stokes problem, SIAM J. Sci. Comput., 25 (2004), pp. 1585–
+         1607.
+ [3] M. Behr, L. Franca, and T. Tezduyar, Stabilized ﬁnite element methods for the velocity-
+         pressure-stress formulation of incompressible ﬂows, Comput. Methods Appl. Mech. Engrg.,
+         104 (1993), pp. 31–48.
+ [4] P. Bochev and M. Gunzburger, Finite element methods of least-squares type, SIAM Rev.,
+         40 (1998), pp. 789–837.
+ [5] J. Bramble, R. Lazarov, and J. Pasciak, A Least Squares Approach Based on a Discrete
+         Minus One Inner Product for First Order Systems, Technical Report 94-32, Math. Sci.
+         Institute, Cornell University, Ithaca, NY, 1994.
+ [6] J. Bramble and J. Pasciak, Least-squares methods for Stokes equations based on a discrete
+         minus one inner product, J. Comput. Appl. Math., 74 (1996), pp. 155–173.
+ [7] F. Brezzi, On existence, uniqueness and approximation of saddle-point problems arising from
+         Lagrange multipliers, RAIRO Modél. Math. Anal. Numér., 21 (1974), pp. 129–151.
+ [8] F. Brezzi and J. Douglas, Stabilized mixed methods for the Stokes problem, Numer. Math.,
+         53 (1988), pp. 225–235.
+ [9] Z. Cai and J. Douglas, Stabilized ﬁnite element methods with fast iterative solution algorithms
+         for the Stokes problem, Comput. Methods Appl. Mech. Engrg., 166 (1998), pp. 115–129.
+[10] P. Ciarlet, Finite Element Methods for Elliptic Problems, North-Holland, Amsterdam, 1978,
+         reprinted as Classics Appl. Math. 40, SIAM, Philadelphia, 2002.
+[11] J. Douglas and J. Wang, An absolutely stabilized ﬁnite element method for the Stokes prob-
+         lem, Math. Comp., 52 (1989), pp. 495–508.
+[12] M. Fortin and R. Glowinski, Augmented Lagrangian Methods: Applications to Numerical
+         Solution of Boundary Value Problems, Stud. Math. Appl. 15, North-Holland, Amsterdam,
+         1983.
+[13] L. Franca, S. Frey, and T. Hughes, Stabilized ﬁnite element methods: I. Application to the
+         advective-diﬀusive model, Comput. Methods Appl. Mech. Engrg., 95 (1992), pp. 253–276.
+                AN ABSOLUTELY STABLE PRESSURE-POISSON METHOD                               1207
+
+[14] L. Franca and R. Stenberg, Error analysis of some Galerkin least-squares methods for the
+         elasticity equations, SIAM J. Numer. Anal., 28 (1991), pp. 1680–1697.
+[15] V. Girault and P. Raviart, Finite Element Methods for Navier-Stokes Equations, Springer-
+         Verlag, Berlin, 1986.
+[16] M. Gunzburger, Finite Element Methods for Viscous Incompressible Flows, Academic,
+         Boston, 1989.
+[17] T. Hughes and L. Franca, A new ﬁnite element formulation for computational ﬂuid dynam-
+         ics: VII. The Stokes problem with various well-posed boundary conditions: Symmetric
+         formulations that converge for all velocity pressure spaces, Comput. Methods Appl. Mech.
+         Engrg., 65 (1987), pp. 85–96.
+[18] T. Hughes, L. Franca, and M. Balestra, A new ﬁnite element formulation for computa-
+         tional ﬂuid dynamics: V. Circumventing the Babuska-Brezzi condition: A stable Petrov-
+         Galerkin formulation of the Stokes problem accommodating equal-order interpolations,
+         Comput. Methods Appl. Mech. Engrg., 59 (1986), pp. 85–99.
+[19] K. Jansen, S. Collis, C. Whiting, and F. Shakib, A better consistency for low-order stabi-
+         lized ﬁnite element methods, Comput. Methods Appl. Mech. Engrg., 174 (1999), pp. 153–
+         170.
+

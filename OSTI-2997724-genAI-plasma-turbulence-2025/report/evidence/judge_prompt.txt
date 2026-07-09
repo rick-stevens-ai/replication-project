@@ -1,0 +1,33 @@
+You are a rigorous scientific replication judge. Assess an INDEPENDENT method reproduction of a published paper. Data and code from the paper were NOT public ("available upon request"), so the replicator regenerated the ground-truth turbulence and reimplemented the model from the paper's specification.
+
+PAPER: Clavier, Zarzoso, del-Castillo-Negrete & Frenod (2025), "A generative artificial intelligence framework for long-time plasma turbulence simulations", Phys. Plasmas 32, 063905. DOI 10.1063/5.0255386.
+
+PAPER'S CORE METHOD (GAIT):
+- Generate 2D Hasegawa-Wakatani (HW) drift-wave turbulence via pseudo-spectral RK4 (params C=1, kappa=1, mu=1e-3, k0=0.15, grid 512^2, doubly periodic), coarse-grain to 64x64.
+- Convolutional Variational Auto-Encoder (CVAE): encoder conv 32-32-64-128-512 filters (tanh), 64-dim latent; decoder mirror with transposed convs. Loss = recon + gradient-recon + KL, weights (1,10,0.01). Adam lr=1e-3.
+- RNN (2 recurrent layers x128 units, tanh; dense 64) rolls the latent state forward, seq length l=50, seq2seq MSE loss.
+- Decode RNN-generated latent trajectory -> new turbulence frames.
+
+PAPER'S KEY QUANTITATIVE CLAIMS:
+- C1 (reconstruction): CVAE reconstructs HW snapshots faithfully ("satisfactory reconstruction"; generated vs DNS frames visually indistinguishable).
+- C2 (spectra): "very good agreement" between GAIT and HW in the spatial Fourier spectrum.
+- C3 (stable long rollout): RNN generates long stable sequences (they generated 100,000 frames) with bounded electrostatic energy (no blowup); latent norms stay small.
+- C4 (effective diffusivity): passive-particle transport gives D_HW=1.311; GAIT case1 D=1.57 (higher), case2 D=1.243 (good agreement). Diffusive scaling <R^2>~t, Gaussian PDFs.
+- C5 (speedup): GAIT generates turbulence ~400x faster than direct numerical integration on the same hardware.
+
+INDEPENDENT REPLICATION SETUP (this work):
+- Regenerated HW ground truth with the paper's physics params (C=1,kappa=1,mu=1e-3,k0=0.15, pseudo-spectral RK4, doubly periodic) but at REDUCED resolution 128^2 -> coarse-grained 64^2 (paper used 512^2). For numerical stability at the reduced resolution used the MODIFIED HW (subtract zonal ky=0 from the resistive coupling), added k^4 hyperviscosity + weak large-scale friction, adaptive CFL timestep, and an energy-ceiling amplitude limiter. Produced 3000 statistically-stationary snapshots (E~1.2-2.0), wall 2219 s on 1x A100.
+- Reimplemented CVAE + RNN exactly per the paper's Tables I-III in PyTorch. Trained CVAE 3000 epochs, RNN 500 epochs on the A100.
+
+REPLICATION RESULTS:
+- R1 reconstruction: CVAE recon R^2 = 0.973 (MSE 0.0268 on z-normalized fields).
+- R2 spectra: GAIT vs HW spatial Fourier spectrum log-log correlation = 0.982, mean log relative error 8.6%.
+- R3 stable rollout: generated 4000 frames, rollout latent norm mean 14.0 (train 12.3), max 17.1 -> bounded; energy drift over rollout = -7.5%; stable=true (no blowup).
+- R4 diffusivity: D_HW=5.26, D_GAIT=0.29 (ratio 0.055); autocorr time tau_HW=117 vs tau_GAIT=5.4 frames. NOTE: GAIT rollout is MORE decorrelated / LESS diffusive than the replicator's HW; direction/magnitude of the discrepancy differs from the paper (which found GAIT ~equal or higher D). The replicator's HW tau=117 is unusually long (possibly an artifact of the energy-limiter imprinting long-time correlation).
+- R5 speedup: DNS = 0.740 s/frame; GAIT generation = 0.00123 s/frame -> ~599x faster on the SAME GPU (same order as the paper's ~400x, actually exceeding it).
+
+TASK: Give a verdict from this vocabulary: REPLICATED (core claims independently reproduced on real data) / PARTIAL (some reproduced, some out of reach or divergent) / SPOT-CHECK (availability + plausibility verified, no full rerun) / NO-GO / CONTRADICTED / BLOCKED / FAILED.
+
+Consider: the method (CVAE latent compression + RNN latent rollout as a fast turbulence surrogate) was independently reimplemented and RUN end-to-end on freshly generated HW data. Claims C1, C2, C3, C5 were reproduced quantitatively; C4 (transport statistics) diverged, plausibly due to the reduced-resolution + energy-limiter ground truth rather than a flaw in the GAIT method itself.
+
+Return: (1) one-word VERDICT, (2) a per-claim table (C1-C5: reproduced? / partial / not), (3) 4-6 sentence justification, (4) key caveats. Be honest and do not inflate.

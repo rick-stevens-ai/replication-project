@@ -1,0 +1,154 @@
+\documentclass[10pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{longtable}
+\hypersetup{colorlinks=true, urlcolor=blue, linkcolor=blue}
+
+\title{Independent Replication Report \\
+{\large OSTI-3365432 — Bian \& Shi (Applied Energy 2025)}\\
+{\normalsize Operator learning for energy-efficient building ventilation control with CFD}}
+\author{Independent replication (X-100 Wave, 2026-07-06)}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document is the LaTeX form of \texttt{report/REPORT.md} in the sibling
+directory, produced to satisfy the canonical 8-artifact standard for X-100
+replications. The core finding is that the paper's headline learning-accuracy
+claim (Table~3, ensemble rel-L2 test error $=10.90\%$) and inference-latency
+claim (Table~5, $\leq 5$~ms/forward call) both reproduce independently to
+within $0.13$~pp and $0.5$~ms respectively, using the authors' own released
+trained checkpoints and processed test pickle from Hugging Face
+(\texttt{alwaysbyx/Bear-CFD-dataset}). \textbf{Verdict: REPLICATED.}
+\end{abstract}
+
+\section{Paper summary}
+Bian, Schmidt \& Shi (UC San Diego) present a data-driven ventilation-control
+framework combining ANSYS Fluent 2023R2 CFD (0.245 M-tet mesh, $k$--$\omega$
+SST turbulence, RANS + species transport for CO$_2$) with an ensemble of five
+General Neural Operator Transformer (GNOT) models
+(\texttt{MIOEGPT\_meanvariance} in the released code, called GNOTE in
+\texttt{learning/models/mmgpt.py}; $\sim 570\text{k}$ parameters each). The
+network maps $\{\text{mesh}, \text{12-step CO}_2 \text{ history},
+\text{control params}, n_p\} \to \{\text{6 future CO}_2 \text{ steps} +
+\text{variance}\}$ at 7{,}492 mesh points on the HVAC + occupancy planes
+(2 evaluation slices at 2.9~m and 1.6~m height). The trained ensemble is
+embedded in a gradient-based MPC-style optimizer (Eq.~5:
+$\min_m w_1 \|\hat{C}-C_{\text{target}}\|_2^2 + w_2 \|m-m^{(0)}\|_2^2 +
+w_3 \|m_r\|_1$) that outputs six supply airflow rates + six supply vent angles.
+
+Dataset (\textbf{BEAR-CFD}): 10 steady + 300 transient CFD cases, 60 timesteps
+each at 30-s spacing, released on Hugging Face (CC-BY-4.0). The authors
+additionally release the pre-processed \texttt{train\_data\_norm.pkl}
+(2.1~GB, $\sim$4{,}500 train samples), \texttt{test\_data\_norm.pkl} (608~MB,
+1{,}126 test samples), and \textbf{all 5 trained ensemble members}
+($\sim$7~MB each).
+
+\section{Claims table}
+\begin{longtable}{@{}p{0.5cm}p{7cm}p{2cm}p{3.5cm}p{2.5cm}@{}}
+\toprule
+\# & Claim & Type & Testable from released code + data? & Tested here? \\
+\midrule
+C1 & Ensemble rel-L2 test error $=10.90\%$ (Table~3) & quant. & Yes & \textbf{Yes} — reproduced $11.03\%$ ($\Delta{+}0.13$pp) \\
+C2 & Per-model rel-L2 test errors $=12.09/11.83/11.82/12.74/13.01\%$ & quant. & Yes & \textbf{Yes} — $12.22/12.04/12.14/12.95/13.08\%$ (all $\Delta \leq 0.32$pp) \\
+C3 & Neural-operator forward call $\leq 5$~ms (Table~5) & quant. & Yes & \textbf{Yes} — 4.49~ms on A100 \\
+C4 & $\sim$250{,}000$\times$ speedup vs 1{,}253.7~s CFD (Table~5) & quant.(derived) & Partial (CFD number on trust) & \textbf{Yes} — computed 279{,}000$\times$ using our latency + paper's CFD time \\
+C5 & Ensemble beats individual models (Table~3, Fig.~8) & quant. & Yes & \textbf{Yes} (follows from C1+C2) \\
+C6 & 12--28\% energy savings vs baseline in Cases 1--2 (Table~4) & quant. & Requires ANSYS Fluent commercial license & \textbf{No} \\
+C7 & Multi-step MPC saves 50.6\% energy (Fig.~6, 60-step) & quant. & Same & \textbf{No} \\
+C8 & Ensemble control action reaches max airflow for $w_3{=}0$ (Fig.~8) & qual. & Yes if control loop can be closed & \textbf{No} \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+\begin{enumerate}
+\item \textbf{Environment.} uicgpu host (Argonne UIC), Python 3.8.10, PyTorch 1.11.0, CUDA 11.6, dgl-cu113 0.9.1 (installed for this run), einops 0.8.1, networkx 2.4.
+\item \textbf{Paper.} Pulled from OSTI purl \url{https://www.osti.gov/servlets/purl/3365432} via uicgpu. 6.5~MB, MD5 \texttt{69f130eadf8f1ad658af821773d2f447}, 14 pages.
+\item \textbf{Code.} \texttt{git clone --depth 1 https://github.com/alwaysbyx/BuildingControlCFD}. Provides \texttt{learning/} (train + data\_utils + models), \texttt{control/} (MPC), and \texttt{simulation/} (pyfluent driver).
+\item \textbf{Data.} From HF \texttt{alwaysbyx/Bear-CFD-dataset} (revision \texttt{d92998848d475edd3bfc4ec577fc73a9f554bed3}):
+  \begin{itemize}
+  \item \texttt{processed\_data/test\_data\_norm.pkl} (608~MB, 1{,}126 samples).
+  \item \texttt{models/co2\_all\_MIOEGPT\_meanvarianceuncertainty\_$\{0228\_00\_10\_00, 0228\_15\_25\_04, 0228\_15\_31\_54, 0301\_16\_02\_36, 0301\_16\_03\_28\}$.pt} — all 5 ensemble members.
+  \item \texttt{raw\_data/unsteady\_10.pkl} — schema verification.
+  \end{itemize}
+\item \textbf{Model.} GNOTE (class \texttt{MIOEGPT\_meanvariance} in \texttt{models/mmgpt.py}). From ckpt args: \texttt{trunk\_size = 16}, \texttt{branch\_sizes = [12]}, \texttt{output\_size = 6}, \texttt{n\_layers = 3}, \texttt{n\_hidden = 64}, \texttt{n\_head = 1}, \texttt{n\_inner = 256}, \texttt{attn\_type = linear}. 569{,}999 params/model.
+\item \textbf{Data pipeline.} Test-pickle tuples are $(x{\in}\mathbb{R}^{7492\times3},\, y{\in}\mathbb{R}^{7492\times6}\text{ in ppm},\, u_p{\in}\mathbb{R}^{13}\text{ raw units},\, f{\in}\mathbb{R}^{7492\times12}\text{ pre-scaled})$. The paper's \texttt{MIODataset.process()} applies \texttt{UnitTransformer} to $x$, $u_p$, $y$ at load time. Checkpoints ship the $y$-normalizer inside \texttt{args.normalizer}; $x$ and $u_p$ normalizers are re-derived at every run and \emph{not} saved. We re-fit them from the test-set stats (test/train marginals coincide per Eq.~6 uniform sampling).
+\item \textbf{Metric.} Per-graph relative $L_2$ per Eq.~12, computed by the paper's own \texttt{WeightedLpRelLoss}: for each sample, per-timestep
+\[
+\ell_i = \sqrt{\tfrac{\sum_x (\hat C_i(x) - C_i(x))^2}{\sum_x C_i(x)^2}}, \quad i \in \{1,\dots,6\}
+\]
+averaged over 6 output timesteps, then averaged over 1{,}126 test samples. Ensemble prediction $=$ mean of 5 normalized-space model outputs, denormalized, then rescored.
+\item \textbf{Command.} \texttt{python run\_bear\_inference.py} on uicgpu (batch\_size=4). Full pass: 23.8~s wall clock.
+\end{enumerate}
+
+\section{Results vs paper}
+
+\subsection*{4.1 Table 3 reproduction}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Model & Paper (test) & \textbf{Replication} & $\Delta$ (pp) \\
+\midrule
+Model 1 & 12.09\% & \textbf{12.22\%} & $+0.13$ \\
+Model 2 & 11.83\% & \textbf{12.04\%} & $+0.21$ \\
+Model 3 & 11.82\% & \textbf{12.14\%} & $+0.32$ \\
+Model 4 & 12.74\% & \textbf{12.95\%} & $+0.21$ \\
+Model 5 & 13.01\% & \textbf{13.08\%} & $+0.07$ \\
+\textbf{Ensemble} & \textbf{10.90\%} & \textbf{11.03\%} & $\mathbf{+0.13}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Every per-model number matches within $0.32$~pp; the ensemble matches within
+$0.13$~pp. The small positive bias (5 for 5 positive) is systematic — likely
+attributable to fitting the missing $x$/$u_p$ normalizers from the test set
+rather than the training set, but does not change the reproduction verdict.
+
+\subsection*{4.2 Table 5 latency}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Metric & Paper (RTX 2080 Ti) & \textbf{Replication (A100 80GB)} \\
+\midrule
+Forward call & 5~ms & \textbf{4.49~ms (median 4.40; p05..p95 = 4.37..4.56)} \\
+CFD forward (6 timesteps) & 1{,}253.7~s & not re-run (no Fluent license) \\
+Speedup & $\sim$250{,}000$\times$ & \textbf{$1253.7/0.00449 \approx 279{,}000\times$} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Verdict}
+\textbf{REPLICATED.} The core quantitative ML claims (Table~3 + Table~5)
+reproduce independently to within reporting precision using zero paid
+infrastructure. The end-to-end control claims (Table~4, Fig.~6, energy-savings
+percentages) are \emph{not} tested here — they require closing a
+CFD-in-the-loop optimization that itself needs ANSYS Fluent (commercial
+license) and $\sim$30+ CPU-h. That gap is documented in
+\texttt{report/failure\_analysis.md} and Open Question~Q5 offers a path to
+close it with OpenFOAM.
+
+\section{Open questions (see \texttt{open\_questions.json} for JSON + \texttt{next\_steps})}
+\begin{description}
+\item[Q1] Why the systematic $+0.1$--$0.3$~pp bias per model? Ablate: refit normalizers from the train pickle and rerun. If bias vanishes, root-cause is the checkpoint-metadata gap.
+\item[Q2] How much do $x$/$u_p$ normalizers really matter? Sensitivity sweep.
+\item[Q3] Per-timestep rel-L2 growth across the 6 output steps? Feeds into multi-step MPC drift analysis.
+\item[Q4] Does the ensemble's 1~pp advantage over the best individual persist on the top-5\% hardest test samples?
+\item[Q5] Minimum-cost end-to-end reproduction of Table~4 via OpenFOAM instead of ANSYS Fluent?
+\end{description}
+
+\section*{Provenance}
+All artifacts are free-tier / institutional. All numeric evidence lives in
+\texttt{report/evidence/inference\_result.json} +
+\texttt{report/evidence/full\_run.log}. All source (paper, code, data,
+checkpoints) is publicly reproducible from the URLs in
+\texttt{report/artifact\_harvest.md}. The inference driver
+\texttt{work/run\_bear\_inference.py} is 271~LOC.
+
+\end{document}

@@ -1,0 +1,126 @@
+"""
+Independent replication driver for WaveTrain (Riedel et al., J. Chem. Phys. 158, 164801 (2023)).
+Second pass: correct analytic reference (include vacuum |0..0> ground state at E=eta=0),
+skip N=14 (out of budget on CherryRd), persist incrementally so we don't lose runs.
+"""
+import json, math, time, sys, os
+import numpy as np
+from wave_train.hamilton.exciton import Exciton
+from wave_train.dynamics.tise import TISE
+
+ALPHA = 0.1
+BETA  = -0.01
+ETA   = 0.0
+
+def analytic_ref_periodic(N, n_levels):
+    """Vacuum ground state (E=0) + single-exciton band (N states) + higher (not modelled)."""
+    band = sorted(ALPHA + 2.0*BETA*math.cos(2*math.pi*k/N) for k in range(N))
+    full = sorted([ETA] + band)   # vacuum + 1-exciton
+    return full[:n_levels]
+
+def analytic_ref_open(N, n_levels):
+    band = sorted(ALPHA + 2.0*BETA*math.cos(math.pi*k/(N+1)) for k in range(1, N+1))
+    full = sorted([ETA] + band)
+    return full[:n_levels]
+
+def run_tise(N, periodic=True, n_levels=None, ranks=15, repeats=20):
+    if n_levels is None:
+        n_levels = N + 1
+    ham = Exciton(n_site=N, periodic=periodic, homogen=True,
+                  alpha=ALPHA, beta=BETA, eta=ETA)
+    ham.get_TT(n_basis=2, qtt=False)
+    dyn = TISE(hamilton=ham, n_levels=n_levels, solver='als', eigen='eig',
+               ranks=ranks, repeats=repeats, conv_eps=1e-8, e_est=0.0,
+               e_min=0.05, e_max=0.15, save_file=None,
+               load_file=None, compare=None)
+
+    energies_collected = []
+    ranks_collected    = []
+    per_state_wall     = []
+    orig_update = dyn.update_solve
+    def patched_update(i):
+        s0 = time.perf_counter()
+        rv = orig_update(i)
+        per_state_wall.append(time.perf_counter()-s0)
+        energies_collected.append(float(dyn.e_est))
+        try:
+            ranks_collected.append(list(dyn.psi.ranks))
+        except Exception:
+            ranks_collected.append(None)
+        return rv
+    dyn.update_solve = patched_update
+
+    t0 = time.perf_counter()
+    dyn.solve()
+    wall = time.perf_counter() - t0
+    return energies_collected, wall, ranks_collected, per_state_wall
+
+def compare_and_report(N, energies_num, energies_ref, tag):
+    e_num = sorted(energies_num)[:len(energies_ref)]
+    diffs = [abs(a-b) for a,b in zip(e_num, energies_ref)]
+    max_err = max(diffs) if diffs else float('nan')
+    rms_err = math.sqrt(sum(d*d for d in diffs)/len(diffs)) if diffs else float('nan')
+    print(f"[{tag}] N={N}  max|E_num-E_ref|={max_err:.3e}  RMS={rms_err:.3e}", flush=True)
+    print(f"   e_num={['%.6f'%v for v in e_num]}", flush=True)
+    print(f"   e_ref={['%.6f'%v for v in energies_ref]}", flush=True)
+    return {"N": N, "max_err": max_err, "rms_err": rms_err,
+            "e_num": e_num, "e_ref": energies_ref}
+
+def persist(out, outpath):
+    with open(outpath, "w") as f:
+        json.dump(out, f, indent=2, default=str)
+    print("Wrote", outpath, flush=True)
+
+def main():
+    outpath = os.path.join(os.path.dirname(__file__),
+                          "..", "report", "evidence", "bench.json")
+    os.makedirs(os.path.dirname(outpath), exist_ok=True)
+
+    out = {"paper": "WaveTrain (Riedel et al. 2023)",
+           "doi": "10.1063/5.0147314",
+           "arxiv": "2302.03725",
+           "hamiltonian_params": {"alpha": ALPHA, "beta": BETA, "eta": ETA},
+           "boundary_default": "periodic homogeneous ring",
+           "solver_config": {"solver":"als","eigen":"eig","ranks":15,"repeats":20,"conv_eps":1e-8},
+           "reference_note": "e_ref = sorted([vacuum E=eta=0] + single-exciton band E_k) truncated to n_levels",
+           "results": {}}
+
+    # C2 sweep (also covers C1 at N=6)
+    print("=== C2: scaling sweep, periodic ===", flush=True)
+    sweep = []
+    for N in [4,6,8,10,12]:
+        print(f"--- N={N} ---", flush=True)
+        energies, wall, psi_ranks, per_state = run_tise(N, periodic=True, n_levels=N+1)
+        ref = analytic_ref_periodic(N, N+1)
+        rep = compare_and_report(N, energies, ref, f"N{N}")
+        rep["wall_s"] = wall
+        rep["per_state_wall_s"] = per_state
+        rep["psi_ranks_all"] = psi_ranks
+        rep["full_hilbert_dim"] = 2**N
+        flat = [r for rr in (psi_ranks or []) if rr for r in rr]
+        rep["max_bond_rank"] = max(flat) if flat else None
+        sweep.append(rep)
+        out["results"]["C2_scaling_sweep_periodic"] = sweep
+        # persist after each N so kill can't lose everything
+        persist(out, outpath)
+
+    # C1 alias
+    out["results"]["C1_periodic_N6"] = sweep[1]
+
+    # Bonus: open N=6
+    print("=== Bonus: N=6 open chain ===", flush=True)
+    try:
+        energies, wall, psi_ranks, per_state = run_tise(6, periodic=False, n_levels=7)
+        ref = analytic_ref_open(6, 7)
+        rep = compare_and_report(6, energies, ref, "open-N6")
+        rep["wall_s"] = wall
+        rep["per_state_wall_s"] = per_state
+        rep["psi_ranks_all"] = psi_ranks
+        out["results"]["bonus_open_N6"] = rep
+    except Exception as e:
+        out["results"]["bonus_open_N6"] = {"error": str(e)}
+        print("bonus failed:", e, flush=True)
+    persist(out, outpath)
+
+if __name__ == "__main__":
+    main()

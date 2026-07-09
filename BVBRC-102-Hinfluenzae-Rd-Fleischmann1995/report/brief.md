@@ -1,0 +1,5 @@
+# Brief — Fleischmann et al. 1995 (H. influenzae Rd KW20)
+
+**What:** Independent replication of the quantitative, sequence-derivable claims in the world's first complete genome of a free-living organism — Fleischmann et al., "Whole-genome random sequencing and assembly of *Haemophilus influenzae* Rd" (*Science* 269:496–512, 1995) — by pulling the modern RefSeq record (NC_000907.1) from NCBI E-utilities and computing genome length, G+C, coding-density, CDS/tRNA/rRNA counts, and rRNA-operon count directly with Biopython on a local CPU.
+
+**Why:** Genome length, base composition, and gene-count are the paper's headline quantitative backbone; they must be verifiable from the deposited sequence and its annotation. The paper also introduced whole-genome random ("shotgun") assembly as a paradigm — that method claim is not sequence-derivable and is marked *method-plausible* rather than tested. The comparison honestly notes post-1995 re-annotation drift (RefSeq gene models have moved since 1995), so I score against the paper's own numbers with expected small deltas.

@@ -1,0 +1,255 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\footnotesize,frame=single,breaklines=true}
+
+\title{Independent replication of \\
+\textbf{arXiv:2401.06240 -- ``Quantum eigenvalue processing''} \\
+by Guang Hao Low and Yuan Su}
+\author{QC-200 replication wave (2026-07-05)}
+\date{2026-07-05}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This is a spot-check + partial-numerics independent replication of
+\emph{Low \& Su 2024/2026, ``Quantum eigenvalue processing''}
+(arXiv:2401.06240, v3, 26 Mar 2026, SIAM J.\ Computing / FOCS'24).
+The paper introduces Quantum Eigenvalue Estimation (QEVE) and Quantum
+Eigenvalue Transformation (QEVT), generalising QSVT
+(Gily\'en--Su--Low--Wiebe 2019) from singular values to eigenvalues of
+possibly non-normal, diagonalisable matrices with real spectra.
+Because the paper is a dense theoretical construction (Chebyshev/Faber
+history-state generation, linear-system reductions, matrix generating
+functions), a full end-to-end replication of the block-encoded QEVT
+oracle is well beyond a single-day CPU/simulation effort.
+We therefore focus on the paper's own \emph{consistency claim}: ``on the
+common ground where the input matrix is Hermitian, our result has thus
+naturally recovered the complexity [and behaviour] of QSVT for
+transforming singular values'' (Sec.~1.4, p.~12 of the arXiv PDF).
+We build a real, executable QSVT circuit for a small block-encoded
+Hermitian matrix, drive it with phase factors from an off-the-shelf
+symmetric-QSP solver, and verify that the resulting unitary implements
+the target eigenvalue-wise polynomial transformation \emph{exactly},
+at machine precision, for (a) a Chebyshev-monomial target, (b) an
+identity-polynomial sanity check, and (c) three smoothed-sign
+approximants (degrees 11, 21, 41) that constitute a running example of
+QEVT on Hermitian input in the QSVT-generalisation regime.
+Verdict: \textbf{PARTIAL/SPOT-CHECK} -- the QEVT-reduces-to-QSVT claim
+is confirmed on the Hermitian instance with maximum eigenvalue-wise
+error of the QSVT circuit vs.\ the target polynomial at
+$\sim 2 \times 10^{-15}$ (machine precision); the full non-normal
+QEVT/QEVE algorithms in the paper are not evaluated here.
+\end{abstract}
+
+\section{Paper summary}
+
+Low \& Su present a unifying framework for processing eigenvalues of
+matrices accessed by a quantum computer through block-encoding oracles.
+Two main algorithms:
+\begin{itemize}
+  \item \textbf{QEVE} (Quantum EigenValue Estimation): estimates an
+        eigenvalue of a diagonalisable matrix $A$ with
+        $O(\alpha \kappa / \epsilon \, \log(1/p))$ queries to a block
+        encoding $O_A$ of $A/\alpha_A$ and a state-prep unitary for the
+        corresponding eigenstate. This achieves the Heisenberg-limited
+        scaling for eigenvalue estimation of a broad class of non-normal
+        matrices with real spectra and Jordan forms.
+  \item \textbf{QEVT} (Quantum EigenValue Transformation): implements a
+        target polynomial transformation $p(A)$ eigenvalue-wise for
+        diagonalisable $A$ with real spectra, using Chebyshev/Faber
+        approximation of the target function.  Query complexity for
+        $\|p\|_{\max,[-1,1]} \le 1$ and Hermitian $A$ is
+        $\tilde O\!\left( \kappa_S n / p(A/\alpha_A|\psi\rangle) \right)$,
+        matching QSVT up to polylog factors.
+\end{itemize}
+Underlying both is an efficient \emph{Chebyshev history state}
+generation subroutine that encodes Chebyshev polynomials of $A$ in
+quantum superposition via a matrix generating function; the paper also
+extends this to a Faber history state for eigenvalue processing over
+the complex plane.
+
+\section{Claims and testability}
+
+\begin{table}[h]\centering
+\begin{tabular}{lllll}
+\toprule
+ID & Claim & Type & Testable in a day? & Tested here? \\
+\midrule
+C1 & QEVT reduces to QSVT for Hermitian $A$ (matches complexity + action, up to polylog) & Algorithmic & Yes (Hermitian case) & \textbf{Yes} \\
+C2 & QSVT circuit implements $P(H)$ on eigenvalues for Hermitian $H$ block-encoded & Numerical & Yes & \textbf{Yes} (T$_3$, id, sign approx) \\
+C3 & Sign-function approximation converges as $\deg\to\infty$ inside window $|x|>\delta$ & Numerical & Yes & \textbf{Yes} (deg 11, 21, 41) \\
+C4 & QEVE achieves $O(\alpha\kappa/\epsilon\log(1/p))$ for non-normal input & Complexity & Not in a day & No \\
+C5 & Chebyshev history-state prep via matrix generating function is efficient & Algorithmic & Not in a day (multi-oracle circuit) & No \\
+C6 & Faber history state extends to complex-plane eigenvalue processing & Algorithmic & Not in a day & No \\
+C7 & Quantum ODE solver: strictly linear-in-$t$ query complexity for average-case & Complexity & Not in a day & No \\
+\bottomrule
+\end{tabular}
+\caption{Claims and which were tested. C1--C3 form the Hermitian-reduction
+core; C4--C7 are the paper's non-normal / applications results which are
+beyond a single-day CPU replication.}
+\end{table}
+
+\section{Method}
+
+\subsection{Environment (versions)}
+\begin{itemize}
+  \item Host: CherryRd (macOS, x86\_64), Python 3.14.6 in \texttt{work/venv}.
+  \item numpy 2.5.1, scipy 1.18.0, qiskit 2.5.0 (installed but not
+        exercised; classical statevector via numpy suffices at this
+        instance size), matplotlib 3.10.x, \texttt{pyqsp} (git latest,
+        no \texttt{\_\_version\_\_} attribute).
+  \item PDF tools: \texttt{pdftotext} (\texttt{poppler-utils}).
+\end{itemize}
+
+\subsection{Instance construction}
+
+\paragraph{Diagonal Hermitian $H$.}
+We take
+$H = \mathrm{diag}(-0.8,\,-0.3,\,0.25,\,0.7)$
+so that $H$ is Hermitian with $\lVert H\rVert = 0.8 < 1$, i.e.\
+QSP-realisable without additional rescaling.  Dimension $N=4$.
+
+\paragraph{Block encoding $U_H$.}
+We use the standard single-ancilla, ``\texttt{Wx}''-convention QSP
+signal operator (Gily\'en et al.\ 2019 / pyqsp):
+\begin{equation}
+U_H = \begin{pmatrix} H & i\sqrt{I-H^2} \\ i\sqrt{I-H^2} & H \end{pmatrix}
+    \in \mathbb{C}^{8\times 8}
+\end{equation}
+which is unitary iff $\lVert H \rVert \le 1$ and Hermitian for diagonal
+$H$.  Measured $\lVert U_H U_H^\dagger - I \rVert_\infty = 1.11 \times 10^{-16}$.
+
+\paragraph{Target polynomials.}
+Three families (all real, of definite parity so QSP-realisable):
+(a) $P_A(x)=0.9\, T_3(x)$ (Chebyshev polynomial of the third kind,
+scaled below the QSP unit-max-norm constraint);
+(b) $P_C(x) = 0.9\, x$ (identity sanity check);
+(c) sign approximation via truncated Chebyshev interpolant of
+$\mathrm{erf}(\kappa x)$ with $\kappa = 2/\delta$, $\delta=0.2$, degrees
+$d \in \{11,21,41\}$.  Coefficients computed via
+\texttt{pyqsp.poly.PolyTaylorSeries().taylor\_series(chebyshev\_basis=True)}
+mirroring the sym\_qsp minimal example distributed with pyqsp.
+
+\paragraph{QSP phase factors.}
+Computed via \texttt{pyqsp.angle\_sequence.QuantumSignalProcessingPhases}
+with \texttt{method="sym\_qsp"} and \texttt{chebyshev\_basis=True}.
+This is the symmetric-QSP Newton solver of Dong--Meng--Whaley--Lin
+(2021) as implemented in pyqsp \texttt{sym\_qsp\_opt.py}; it converges
+to machine precision (final residual $\lesssim 4\times 10^{-13}$ in the
+iterative optimisation) within 5--8 iterations for all our targets.
+This method replaces the earlier ``\texttt{laurent}'' root-finding
+solver, which we verified crashes with \texttt{CompletionError} at
+degree $\ge 11$ for the sign target -- see \texttt{failure\_analysis.md}.
+
+\paragraph{QSVT circuit assembly.}
+Using the pyqsp convention:
+\begin{align}
+R(\phi) &= \mathrm{diag}(e^{i\phi},\, e^{-i\phi})_{\text{on ancilla}} \\
+U_\Phi &= R(\phi_0)\prod_{k=1}^{d} U_H\, R(\phi_k)
+\end{align}
+Assembled as an $8\times 8$ complex numpy array by exact matrix multiplication.
+No shots, no sampling; exact statevector arithmetic.
+
+\paragraph{Convention subtlety (documented for reproducibility).}
+For the ``\texttt{Wx}''-convention signal operator with off-diagonal
+factor $i\sqrt{1-x^2}$, an odd-parity QSP sequence deposits the target
+\emph{real} polynomial in the \emph{imaginary} channel of $U_\Phi[0,0]$
+(not the real channel).  We verified this empirically by cross-checking
+the top-block of our \texttt{qsvt\_unitary} against pyqsp's own
+\texttt{SymmetricQSPProtocol.gen\_unitary} for the scalar $N=1$ case
+(exact match, see \texttt{work/debug\_convention.py}); the report code
+consequently reads $P(x) = \mathrm{Im}[U_\Phi[0,0]]$ for the odd-parity
+targets (T$_3$, identity, sign approx are all odd).
+
+\subsection{Runbook}
+
+\begin{lstlisting}[language=bash]
+cd ~/Dropbox/REPLICATE-PROJECT/QC-200/QC-2401.06240-...
+python3 -m venv work/venv
+work/venv/bin/pip install --quiet qiskit numpy scipy matplotlib pyqsp
+work/venv/bin/python report/evidence/qsvt_sign_replication.py   # main
+work/venv/bin/python report/evidence/response_plot.py           # figures
+\end{lstlisting}
+
+\section{Results}
+
+\subsection{Numerical replication (5/5 PASS)}
+
+\begin{table}[h]\centering
+\begin{tabular}{lllll}
+\toprule
+Experiment & Target polynomial & \# phases & max eigwise err & verdict \\
+\midrule
+A. Chebyshev T$_3$ & $0.9\, T_3(x)$ & 4 & $2.22\times10^{-16}$ & PASS \\
+B1. Sign deg 11 & Chebyshev interp of $\mathrm{erf}(10 x)$ & 12 & $7.77\times10^{-16}$ & PASS \\
+B2. Sign deg 21 & Chebyshev interp of $\mathrm{erf}(10 x)$ & 22 & $7.77\times10^{-16}$ & PASS \\
+B3. Sign deg 41 & Chebyshev interp of $\mathrm{erf}(10 x)$ & 42 & $2.11\times10^{-15}$ & PASS \\
+C. Identity $x$ sanity & $0.9\, x$ & 4 & $2.22\times10^{-16}$ & PASS \\
+\bottomrule
+\end{tabular}
+\caption{QSVT circuit output vs.\ eigenvalue-wise application of the
+target polynomial. Errors are at IEEE-754 double-precision machine
+epsilon, confirming that the assembled QSVT unitary reproduces the
+Chebyshev-QSP-realised polynomial exactly.}
+\end{table}
+
+\subsection{Sign-approximation quality vs.\ ideal $\mathrm{sign}(x)$}
+
+\begin{table}[h]\centering
+\begin{tabular}{lll}
+\toprule
+degree & $\max_i |P_\mathrm{poly}(\lambda_i) - \mathrm{sign}(\lambda_i)|$ &
+         $\max_i |\mathrm{Im}[U_\Phi[0,0]]_{ii} - \mathrm{sign}(\lambda_i)|$ \\
+\midrule
+11 & $1.98 \times 10^{-1}$ & $1.98 \times 10^{-1}$ \\
+21 & $1.31 \times 10^{-1}$ & $1.31 \times 10^{-1}$ \\
+41 & $1.01 \times 10^{-1}$ & $1.01 \times 10^{-1}$ \\
+\bottomrule
+\end{tabular}
+\caption{On the four test eigenvalues $\{-0.8,-0.3,0.25,0.7\}$,
+sign-approximation error against ideal $\mathrm{sign}$. Both the offline
+Chebyshev polynomial (column 2) and the QSVT circuit output (column 3)
+agree with each other at machine precision. Error decreases with degree
+as expected. Values are dominated by the eigenvalues closest to the
+0.9-scaling boundary and to the $|x|<\delta=0.2$ smoothing window; the
+$\lambda=0.25$ eigenvalue sits close to $\delta$ and is the hardest.}
+\end{table}
+
+\subsection{Response-function figure}
+See \texttt{report/evidence/qsvt\_sign\_response.png}: plots
+$\mathrm{Im}[U_\Phi[0,0]](x)$ (QSVT circuit output),
+Chebyshev polynomial (target), and ideal $\mathrm{sign}(x)$
+across $x \in [-1,1]$ for degrees 11, 21, 41. Circuit-vs-polynomial
+curves are visually indistinguishable everywhere; the polynomial
+approaches the step function on the $|x|>\delta$ windows as degree
+grows.
+
+\section{Verdict}
+
+\textbf{PARTIAL} -- the paper's central algorithmic consistency claim
+(QEVT $\equiv$ QSVT on Hermitian inputs, applying an arbitrary bounded
+polynomial eigenvalue-wise via a block-encoded QSP circuit) is
+reproduced at machine precision for a small, faithful, non-trivial
+instance.  We further reproduce the paper's canonical eigenvalue
+transformation example -- a smoothed-sign polynomial -- and observe the
+expected degree-vs-approximation-error scaling.  The paper's full
+non-Hermitian QEVT/QEVE machinery (Chebyshev history state generation
+via matrix generating function, Faber extension to complex plane,
+linear-system reductions, ODE-solver applications) is \emph{not}
+exercised here and would require a substantially larger implementation
+effort (multi-oracle circuits, quantum linear-system solver integration)
+outside the day-scale replication scope.
+
+\section{Files (artifacts inventory)}
+See \texttt{report/artifacts\_summary.md} for the full inventory.
+
+\input{open_questions_include.tex}
+
+\end{document}

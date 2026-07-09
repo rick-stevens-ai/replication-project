@@ -1,0 +1,56 @@
+{
+  "paper": "Chorin (1968) — Numerical Solution of the Navier–Stokes Equations",
+  "verdict": "REPLICATED",
+  "open_questions": [
+    {
+      "q": "Does the Re=400 lid-driven-cavity v-centerline L∞ error of ~0.147 near x∈[0.85,0.90] actually shrink with a second-order projection scheme (Van Kan 1986 / Kim–Moin 1985) on the same MAC grid, or is a fraction of the residual attributable to the finite-time-averaging convention (Ghia used steady-state; we run t_f=40 L/U) or to the ghost-mirror wall BC interacting with the Poisson Neumann BC at the top-right corner?",
+      "basis": "REPORT.md §3.2 records L∞ err_v = 0.133 at 64² and 0.147 at 128² — the error does NOT shrink with refinement, and is concentrated at exactly two Ghia sample points sitting inside the right-wall boundary-layer peak. REPORT.md attributes this to the O(dt) splitting artifact of first-order Chorin projection, but this attribution is a *claim* not a proof (Critique §5.2). Chorin (1968) itself never runs the lid cavity, so his paper is silent on how his method should perform on this benchmark — the failure mode was diagnosed by the subsequent projection-method literature (Van Kan 1986, Kim–Moin 1985, Bell-Colella-Glaz 1989).",
+      "next_steps": [
+        "Rerun at 256² and 512² to check whether the L∞ v-error at those two Ghia points is asymptotically bounded away from zero or just slowly convergent.",
+        "Implement a second-order projection variant (BCG-style pressure-increment: solve for δp = p^{n+1} − p^n) on the identical MAC grid and rerun Re=400 cavity; if the L∞ v-error collapses to O(1e-3), that isolates the O(dt) splitting error as the cause.",
+        "Vary the corner boundary treatment (linear extrapolation vs ghost-mirror vs one-sided Neumann for p at the top corners) and check whether the error signature moves.",
+        "Cross-check against a spectral or high-order FV reference solution at Re=400 to distinguish Ghia-benchmark quantization error (Ghia used 17 tabulated points from a 129² multigrid solve) from our projection artifact."
+      ]
+    },
+    {
+      "q": "The pressure Poisson step uses homogeneous Neumann BCs (∂p/∂n = 0) on all four walls with nullspace pinned by p[0,0] = 0. Chorin (1968) discusses the pressure BC only briefly. What is the effect on the accuracy of the projection near solid walls of using the consistent (physically correct) Neumann BC ∂p/∂n = n·(ν∇²u − u·∇u) — which introduces O(dt) time-lagged terms — vs the standard homogeneous shortcut we used?",
+      "basis": "REPORT.md §2.1 states 'homogeneous Neumann BC on all four walls, nullspace pinned by p[0,0]=0'. This is standard modern practice but it is a *simplification* of the physically-consistent pressure BC (which reduces to homogeneous only for exact-satisfaction of the momentum equation at the wall — not generally the case for a fractional-step scheme). Chorin (1968) does not explicitly address which BC he uses. The choice matters most exactly where our C2 test shows residual error (Re=400 v-profile near the right wall). REPORT.md §5.6 explicitly notes 'we do not report any pressure-field error' so we have no direct signal on whether the pressure field itself is being contaminated by the BC choice.",
+      "next_steps": [
+        "Implement the consistent Neumann BC ∂p/∂n = n·(ν∇²u − (u·∇)u)|_wall computed from u^{aux} at each step, and rerun E1, E2, E3.",
+        "Compute the pressure L2 error against the Pearson exact pressure field for E3/E5 — this gives a direct signal on the BC's contribution to pressure accuracy.",
+        "Report ‖∇p‖ at wall cells vs interior cells; if wall-cell pressure gradients spike relative to interior, that indicates BC-driven boundary layer in the pressure.",
+        "Compare corner pressure values against a spectral solution of the Pearson problem."
+      ]
+    },
+    {
+      "q": "The O(dt) splitting error of the projection method is derived on a formal Taylor-expansion basis (∂p/∂t appears as the leading splitting artifact). Our temporal convergence rates (1.04, 1.08, 1.17) drift upward from 1.0 rather than staying flat. Is this drift the signature of the well-known Strang-splitting error cancellation (symmetric split gives locally O(dt²) even though pressure is only O(dt)-accurate), a pre-asymptotic effect, or evidence that the Pearson test problem is atypically forgiving of the splitting error?",
+      "basis": "REPORT.md §3.4 reports temporal rates 1.04, 1.08, 1.17 with the comment 'Clean O(dt) — exactly the order Chorin's fractional-step scheme is expected to deliver'. But 1.17 is meaningfully non-1.0; the REPORT.md Critique §5.4 acknowledges this drift is not fully understood. Chorin (1968) does not do a temporal-convergence study himself, so this is a question about *the modern reading* of his method, not the paper itself — but it is directly relevant to whether the C4 claim ('O(dt) temporal') is fully verified.",
+      "next_steps": [
+        "Extend Cauchy self-refinement to two more halvings (dt = 2.5e-4, 1.25e-4) and check whether the rate drifts toward 1.0 (pre-asymptotic explanation) or toward 2.0 (hidden second-order accuracy from cancellation).",
+        "Repeat the temporal convergence study on a *different* exact-solution test (e.g. the Taylor–Green vortex or a 2D Kovasznay flow) to check whether the drift is Pearson-specific.",
+        "Analytically compute the leading splitting-error coefficient for the Pearson solution's spatial structure and check whether Pearson happens to make it small.",
+        "Add a diagnostic that separately reports the split-error norm ‖u^{n+1} − u_exact(t^{n+1})‖ vs the projection-residual ‖Dp − Du^{aux}/dt‖ per step, to isolate which piece is contributing to the temporal-error drift."
+      ]
+    },
+    {
+      "q": "The E4 stability probe (Chorin Table I parameters with our explicit sub-step) blew up to nan by step 17. We claim this 'confirms Chorin's own stability analysis' (his implicit ADI removes the dt = O(dx²) restriction). But we never actually implemented the ADI sub-step, so we have not positively verified that ADI *does* stabilize at dt = 2dx² for the same problem — we've only shown that *ours* does not. Does a correct Peaceman–Rachford ADI implementation stably reach t = 20·dt · 0.01397 ≈ 0.28 on Chorin's Table I 39² grid at R = 100, 500, 1000?",
+      "basis": "REPORT.md §3.4 explicitly flags this asymmetry: 'we did not implement the Peaceman–Rachford sub-step at all. Our stability-failure at Chorin's Table I dt is consistent with Chorin's own analysis, but it is not a positive verification.' Chorin's Table I is a *specific numerical claim* of the paper (specific Reynolds, specific dt, specific error tolerance reached) that we can only reach with the implicit sub-step he actually uses. Without ADI, C6 is untested — we merely have negative evidence that the explicit version does what he says it does (fails).",
+      "next_steps": [
+        "Implement the Peaceman–Rachford ADI sub-step for the advection-diffusion equation on the MAC staggered grid, matching Chorin's eqs. (6)–(7).",
+        "Rerun E4 with the ADI sub-step at dt = 2dx² and R = 1, 100, 500, 1000; verify stable evolution to t_f matching Chorin's Table I.",
+        "Report ADI-vs-explicit cost per step (ADI adds two tridiagonal sweeps per direction) and effective allowable dt speedup.",
+        "Compare Chorin's Table I tabulated max-velocity or divergence values against the ADI reproduction to close the C6 claim quantitatively."
+      ]
+    },
+    {
+      "q": "The spatial convergence rate at nx: 40 → 80 is 2.57 — noticeably super-second-order and out of line with the neighboring refinements (2.07, 2.12, 2.13). Is this an artifact of the fixed reference dt = 5e-5 becoming comparable to the shrinking spatial error at nx=80 (measurement noise floor), an artifact of Richardson extrapolation on an underresolved reference, or is it genuine higher-order superconvergence of centered finite differences on the smooth Pearson solution at that specific grid ratio?",
+      "basis": "REPORT.md §3.4 reports the spatial-convergence table with rates 2.07, 2.12, 2.57, 2.13 — the 2.57 entry is anomalous. REPORT.md Critique §5.3 flags two hypotheses: (a) time-integration noise floor at nx=80 (O(dt) splitting error ≈ 5e-5 comparable to spatial error), (b) pre-asymptotic behavior of Pearson vs discrete Laplacian. Neither hypothesis was investigated. Chorin (1968) does not do a spatial convergence study, so this is a question about the *modern verification methodology* applied to his method, not a discrepancy with his paper. But it is honesty-relevant to the C4 claim.",
+      "next_steps": [
+        "Rerun the nx=80 point at dt = 5e-6 (or use Richardson extrapolation in dt to remove the temporal-error contribution to the L2 velocity error).",
+        "Test at other grid ratios (nx: 15 → 30, 25 → 50, 50 → 100) to see if the 2.57 is specific to the 40→80 ratio or is a general anomaly.",
+        "Replace the Pearson analytic solution with the Taylor–Green vortex (which has a different spatial spectrum) and rerun the spatial convergence to check whether the anomaly is Pearson-specific.",
+        "Compute the observed spatial error residual against a spectral reference solution rather than the analytic Pearson formula, to eliminate any tail from residual round-off in the analytic evaluation."
+      ]
+    }
+  ]
+}

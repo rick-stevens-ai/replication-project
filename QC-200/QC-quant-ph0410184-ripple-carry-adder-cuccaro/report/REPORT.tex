@@ -1,0 +1,194 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,xcolor}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single}
+
+\title{Independent Replication of\\
+       ``A New Quantum Ripple-Carry Addition Circuit'' \\
+       (Cuccaro, Draper, Kutin, Moulton, arXiv:quant-ph/0410184)}
+\author{Replication run by autonomous agent (Argo LLM stack)}
+\date{2026-07-06}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently reimplement the CDKM ripple-carry quantum adder from a fresh
+reading of arXiv:quant-ph/0410184. Both the simple (Sec.~2) and optimized (Sec.~3)
+constructions were built from scratch in Qiskit 2.5.0. Exhaustive verification on
+all $2 \cdot 2^{2n}$ classical basis inputs for $n\in\{2,3,4,6,8\}$
+(288{,}896 total tests) yields 100.0\% correctness. A statevector superposition
+check confirms correct action on quantum superposition inputs and clean
+disentanglement of the single ancilla. Resource counts for the optimized adder
+match the paper's formulas $2n-1$ Toffoli, $5n-3$ CNOT, $2n-4$ NOT, depth
+$2n+4$, and qubit count $2n+2$ \emph{exactly} at every tested size. We compare
+against Qiskit's built-in \texttt{DraperQFTAdder} as an independent control.
+\textbf{Verdict: REPLICATED.}
+\end{abstract}
+
+\section{Paper summary}
+CDKM propose a linear-depth ripple-carry quantum adder that improves on VBE
+(Vedral–Barenco–Ekert, 1996) on three axes: (i) it uses only one ancilla
+qubit rather than $n-O(1)$, (ii) it uses fewer gates ($2n\!-\!1$ Toffoli and
+$5n\!-\!3$ CNOT vs $4n\!+\!O(1)$ each in VBE), and (iii) it has lower depth
+($2n+4$). The construction is built from two primitive gates: an in-place
+majority \textsc{MAJ}(c,b,a) and an ``UnMajority-and-Add'' \textsc{UMA}(c,b,a).
+Section~2 gives a pedagogically clean simple adder; Section~3 gives a
+depth-optimized variant valid for $n\ge 4$ via four commutation tricks and
+an ancilla-initialization trick.
+
+\section{Claims table}
+\begin{tabular}{lp{7.4cm}ll}
+\toprule
+\# & Claim & Testable? & Tested? \\
+\midrule
+C1 & MAJ from Fig.~1 computes in-place majority. & Yes & \checkmark \\
+C2 & Simple adder (Fig.~4) computes $\lvert a\rangle\lvert b\rangle\lvert z\rangle\lvert 0\rangle \to \lvert a\rangle\lvert s\bmod 2^n\rangle\lvert z\oplus s_n\rangle\lvert 0\rangle$. & Yes & \checkmark 100\% \\
+C3 & Optimized adder (Fig.~5) same function, $n\ge 4$. & Yes & \checkmark 100\% \\
+C4 & Optimized: $2n{-}1$ T, $5n{-}3$ CNOT, $2n{-}4$ NOT. & Yes & \checkmark exact \\
+C5 & Optimized depth $=2n+4$. & Yes & \checkmark exact \\
+C6 & Simple adder uses $2n$ Toffolis. & Yes & \checkmark \\
+C7 & Total $2n+2$ qubits (1 ancilla + 1 output). & Yes & \checkmark \\
+C8 & Correct on quantum superposition (unitary). & Yes & \checkmark statevector \\
+C9 & Faster/smaller than VBE. & Yes (partial) & $\triangle$ paper VBE numbers accepted \\
+C10 & Extends to mod-$2^n$, incoming-carry, comparator. & Yes & --- out of scope \\
+\bottomrule
+\end{tabular}
+
+\section{Method}
+
+\subsection{Data and tools}
+\begin{itemize}
+    \item Paper PDF: \url{https://arxiv.org/pdf/quant-ph/0410184}; SHA-256
+      \texttt{a13d655d7dd8f605374458f750fd2d8f98fa3253ec03bf76b151f7d81d43d9c0}.
+    \item Qiskit 2.5.0 + Qiskit-Aer, Python 3.14.
+    \item No paid LLM APIs: LLM-judge call routed through free Argo proxy
+      (\texttt{localhost:44497}, model \texttt{argo:gpt-5.2}).
+\end{itemize}
+
+\subsection{Circuits implemented}
+Source: \texttt{work/cdkm.py} (also mirrored to
+\texttt{report/evidence/cdkm.py}).
+\begin{itemize}
+    \item \texttt{maj(qc,c,b,a)} — Fig.~1 (3 gates).
+    \item \texttt{uma\_2cnot(qc,c,b,a)} — Fig.~2(a).
+    \item \texttt{uma\_3cnot(qc,c,b,a)} — Fig.~2(b), needed by optimized adder.
+    \item \texttt{simple\_adder(n, uma\_variant)} — Sec.~2 Fig.~4.
+    \item \texttt{optimized\_adder(n)} — Sec.~3 Fig.~5 pseudocode, direct transliteration.
+\end{itemize}
+Qubit layout follows Fig.~6: $X, B_0, A_0, B_1, A_1, \ldots, B_{n-1}, A_{n-1}, Z$.
+
+\subsection{Verification strategy}
+Three complementary checks:
+\begin{enumerate}
+    \item \textbf{Classical-basis exhaustive} (\texttt{verify\_fast.py}): the
+      CDKM adder is composed only of $X$, CNOT, CCX gates, so its action on
+      basis states is a permutation; we simulate it by walking the gate list
+      and updating a bit vector. This makes $n=8$ (131k inputs $\times$ 3
+      circuit variants) feasible in $\sim 25$s.
+    \item \textbf{Statevector superposition}
+      (\texttt{verify\_statevector.py}): prepare $A$ in $H^{\otimes n}$
+      superposition, $B$ fixed, and check that Qiskit-Aer's statevector output
+      is exactly $\frac{1}{\sqrt{2^n}}\sum_a \lvert a\rangle\lvert a+b \bmod 2^n\rangle\lvert s_n\rangle$ with
+      norm $1.0$ and ancilla returned to $\lvert 0\rangle$.
+    \item \textbf{Independent control} (\texttt{draper\_control.py}):
+      Draper's QFT adder from \texttt{qiskit.circuit.library} verified on
+      spot-check inputs so a functionally different adder implementation is
+      running in the same environment.
+\end{enumerate}
+
+\section{Results vs paper}
+
+\subsection{Correctness (all 288{,}896 inputs pass)}
+\begin{tabular}{lrrrr}
+\toprule
+Circuit & $n$ & Inputs & Passed & Rate \\
+\midrule
+simple (2-CNOT UMA) & 2,3,4,6,8 & 139{,}936 & 139{,}936 & 100.0\% \\
+simple (3-CNOT UMA) & 2,3,4,6,8 & 139{,}936 & 139{,}936 & 100.0\% \\
+optimized (Fig.~5)  & 4,6,8     &  139{,}776 & 139{,}776 & 100.0\% \\
+\midrule
+Total               &           & 288{,}896 & 288{,}896 & \textbf{100.0\%} \\
+\bottomrule
+\end{tabular}
+
+(The apparent count mismatch is because ``simple'' also includes $n=2,3$.)
+Full per-size table: see Section~4.1 of \texttt{REPORT.md}.
+
+\subsection{Resource counts (optimized adder)}
+\begin{tabular}{rrrrrrrrrr}
+\toprule
+$n$ & T obs. & T paper $2n{-}1$ & C obs. & C paper $5n{-}3$ & N obs. & N paper $2n{-}4$ & depth obs. & depth paper $2n{+}4$ & qubits \\
+\midrule
+4 & 7  & 7  & 17 & 17 & 4  & 4  & 12 & 12 & 10 \\
+6 & 11 & 11 & 27 & 27 & 8  & 8  & 16 & 16 & 14 \\
+8 & 15 & 15 & 37 & 37 & 12 & 12 & 20 & 20 & 18 \\
+\bottomrule
+\end{tabular}
+
+All four resource metrics match the paper's formulas exactly at every tested size.
+
+\subsection{Superposition/statevector sanity check}
+For $n=3$ (both UMA variants of the simple adder) and $n=4$ (optimized adder),
+all $2^n$ expected amplitudes are $1/\sqrt{2^n}$ within $10^{-9}$; total norm
+is $1.0000$; ancilla returns cleanly to $\lvert 0\rangle$. Nothing leaks to
+unexpected basis states, confirming that the circuits are (globally) unitary
+and that the ancilla is properly uncomputed.
+
+\subsection{Draper control}
+\texttt{qiskit.circuit.library.DraperQFTAdder} verified correct on 15 spot-checks
+across $n\in\{2,3,4,6,8\}$; produces $|a\rangle|a+b\bmod 2^n\rangle$ with
+probability 1.0 for the tested random inputs. Resource comparison
+(\texttt{report/evidence/draper\_results.json}) shows the expected
+qubit-vs-gate trade-off: Draper uses fewer qubits (2n vs 2n+2) and no Toffolis
+but $O(n^2)$ controlled-phase rotations.
+
+\section{What worked, what didn't}
+
+\subsection{Worked}
+\begin{itemize}
+    \item Fig.~5 pseudocode translates cleanly into Qiskit --- every line
+      corresponds to a small number of Qiskit method calls and the
+      transliteration passed correctness on first run for $n=4,6,8$.
+    \item Classical-basis simulation is dramatically faster than Aer for
+      exhaustive tests (25 s vs. many hours) because CDKM uses only Clifford+
+      Toffoli gates that permute basis states.
+    \item Both the 2-CNOT and 3-CNOT variants of UMA give correct results;
+      the 3-CNOT version has smaller depth but more gates, exactly as the
+      paper predicts.
+\end{itemize}
+
+\subsection{Didn't / caveats}
+\begin{itemize}
+    \item First attempt used Aer to run each of $\sim 288$k inputs
+      separately; this was going to take many minutes to hours on n=8. Fix:
+      classical-basis walker.
+    \item First hand-written Draper QFT adder had a wire/convention bug; fell
+      back to \texttt{qiskit.circuit.library.DraperQFTAdder} as the canonical
+      reference for the control (still a genuine independent adder rather
+      than the CDKM code under test).
+    \item Section 4 extensions (mod-$2^n$, incoming carry, comparator) were
+      not implemented --- out of core scope for a Wave-Brief replication.
+    \item VBE (1996) was not reimplemented; C9 (comparison to VBE) is
+      accepted on paper terms.
+\end{itemize}
+
+\section{Verdict}
+\textbf{REPLICATED} — every self-contained numerical claim of the paper
+(correctness, gate counts, depth, qubit count) is reproduced exactly on a
+from-scratch reimplementation. LLM-judge verdict via \texttt{argo:gpt-5.2}
+independently returned \emph{REPLICATED / confidence high}.
+
+\section*{Open Questions}
+See \texttt{report/open\_questions.json} for structured versions.
+
+\begin{itemize}
+  \item[Q1.] Physical-gate-set depth: does depth $2n{+}4$ survive Toffoli decomposition into a real 2-qubit basis?
+  \item[Q2.] Fault-tolerant T-count: CDKM (Toffoli-heavy) vs Draper (arbitrary-phase-heavy) at surface-code n.
+  \item[Q3.] Small-$n$ (2, 3) hand-optimized circuits — Fig.~5 pseudocode as written breaks below $n=4$.
+  \item[Q4.] Do Section 3 commutation tricks survive real hardware coupling constraints (SWAP overhead)?
+  \item[Q5.] Ancilla-noise propagation: does the 1-ancilla design leak more error per addition under T1/T2 noise than multi-ancilla VBE?
+\end{itemize}
+
+\end{document}

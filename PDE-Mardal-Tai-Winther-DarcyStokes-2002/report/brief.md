@@ -1,0 +1,7 @@
+# Brief — Mardal, Tai, Winther (SIAM J. Numer. Anal., 2002)
+
+**Paper:** *A Robust Finite Element Method for Darcy–Stokes Flow*, K. A. Mardal, X.-C. Tai, R. Winther, SIAM J. Numer. Anal. 40(5), 1605–1631, 2002. DOI: 10.1137/S0036142901383910.
+
+**What & why:** MTW propose a novel 9-DOF nonconforming H(div) triangular finite element (paired with piecewise-constant pressure) for the singularly-perturbed Darcy–Stokes ("Brinkman") saddle-point problem `(I − ε²Δ)u − ∇p = f, div u = g`. The problem interpolates between Stokes (ε=1) and mixed-Poisson/Darcy (ε=0). Standard stable Stokes elements (P2–P0, Crouzeix–Raviart, Mini) all lose ε-uniform convergence — their convergence rates in the natural energy norm collapse to zero (or negative) as ε→0. The new element is proven uniformly stable and delivers *O(h)* in the energy norm and *O(h)* in L² pressure, uniformly in ε∈[0,1].
+
+**Independent replication:** I fetched the paper (dr.ntu.edu.sg OA copy via Wayback Machine), implemented the MTW element from scratch in ~500 LOC of Python/NumPy/SymPy (local V(T) built by numeric null-space of the 11 dim-reducing constraints; global assembly with per-triangle sign-transform matrices R_T on the 3 DOFs per edge), and reproduced (a) the paper's motivating negative results for P2-P0, CR, and Mini standard elements using `scikit-fem`, and (b) the paper's Table 5.1 convergence rates for the new element itself. All 15 rate values in Table 5.1 (velocity/pressure/energy across ε∈{1, 2⁻², 2⁻⁴, 2⁻⁸, 0}) reproduce to 2 decimal places.

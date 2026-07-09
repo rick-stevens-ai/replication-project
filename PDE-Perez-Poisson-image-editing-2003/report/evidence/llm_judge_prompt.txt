@@ -1,0 +1,84 @@
+You are an impartial referee assessing whether an independent replication reproduced
+the core claims of a scientific paper.
+
+PAPER
+-----
+
+Perez, Gangnet, Blake (2003) "Poisson Image Editing" SIGGRAPH.
+Core method: solve discrete Poisson equation Δf = div v on region Ω with Dirichlet BC
+f|∂Ω = f*|∂Ω, where f* is destination image, g is source image, and guidance field v is:
+  - seamless cloning: v = ∇g  (discrete: v_pq = g_p - g_q)
+  - mixed gradients: v_pq = argmax over {f*_p - f*_q, g_p - g_q} in absolute value
+Discretization (eq. 7):
+  |N_p| f_p - sum_{q in N_p ∩ Ω} f_q  =  sum_{q in N_p ∩ ∂Ω} f*_q  +  sum_{q in N_p} v_pq
+Solved as sparse SPD linear system, per RGB channel independently.
+Paper reports 0.4 s per solve on Pentium 4 for ~60k-pixel disk-shaped region
+using Gauss-Seidel/SOR or V-cycle multigrid.
+
+
+CLAIMS TO VERDICT (one per row)
+- C1: seamless cloning eliminates visible seams: at ∂Ω, the interior gradient reproduces the source's local gradient (not the naive src-vs-dest step)
+- C2: the discrete Poisson solve gives the correct membrane interpolant (Laplace equation, v=0 case, has Δf ≈ 0 in the interior of Ω up to numerical precision)
+- C3: mixed-gradient guidance preserves salient source AND destination structure (higher total absolute gradient than either seamless or naive)
+
+INDEPENDENT REPLICATION EVIDENCE (all real numbers from Python/NumPy/SciPy)
+==========================================================================
+Implementation: builds sparse SPD linear system per paper eqs. (6)-(7), solves
+with scipy.sparse.linalg.spsolve (direct sparse solver — paper used iterative
+Gauss-Seidel+SOR or multigrid; discretization identical). Synthetic RGB images
+(200x280 for disk; 180x260 for text-on-stripes). RGB channels solved
+independently.
+
+--- Experiment 1: seamless cloning, disk into gradient background ---
+region size |Ω| = 5013 pixels; solver time 0.063 s (three RGB solves)
+
+C1 boundary-gradient reproduction (from c1_boundary_gradient_match.json):
+  Channel R: edited boundary jump = 49.97, source's own boundary jump = 49.97
+             |edited-src_grad| mean = 2.14  |naive-src_grad| mean = 93.90
+             seam reduction ratio (naive_err / edited_err) = 43.9x
+  Channel G: edited = 50.00, source = 50.00
+             |edited-src_grad| = 2.39   |naive-src_grad| = 80.25
+             seam reduction ratio = 33.6x
+  Channel B: edited = 90.00, source = 90.00
+             |edited-src_grad| = 2.36   |naive-src_grad| = 20.14
+             seam reduction ratio = 8.5x
+
+Interior gradient RMS residual per edge (all channels): 0.28 - 0.33 out of 255
+(from gradient_reproduction section of results.json).
+
+--- Experiment 2: membrane (v=0, Laplace) sanity ---
+Solver time 0.052 s.
+max |Δf| at strict interior of Ω:
+  R: 3.84e-13    G: 3.41e-13    B: 4.26e-13
+mean |Δf|: ~4e-14 across channels.
+
+--- Experiment 3: mixed gradients on text-on-stripes ---
+|Ω| = 30800 pixels; solver time 0.39 s per solve (three channels).
+Total absolute gradient inside Ω:
+  destination alone:   2,539,185
+  source alone:          911,400
+  seamless clone:      1,210,641   (loses the stripe structure)
+  mixed clone:         3,408,319   (higher than both dest and src alone —
+                                     retains BOTH text and stripe structure)
+
+--- Timing comparison to paper ---
+Paper: 0.4 s per system, ~60k-pixel region on Pentium 4 with Gauss-Seidel+SOR.
+This replication: 0.39 s per solve for ~30.8k-pixel region on 2020s CPU with
+direct sparse solve. Comparable order of magnitude.
+
+END EVIDENCE
+
+TASK
+----
+For each claim (C1, C2, C3), decide whether the evidence *independently
+reproduces* that claim. Then give one overall verdict from this set:
+REPLICATED | PARTIAL | SPOT-CHECK | NO-GO | CONTRADICTED | BLOCKED | FAILED
+
+Respond in strict JSON exactly like:
+{
+ "C1": {"verdict": "reproduced" | "partial" | "contradicted" | "not-tested", "justification": "..." },
+ "C2": {"verdict": "...", "justification": "..." },
+ "C3": {"verdict": "...", "justification": "..." },
+ "overall_verdict": "REPLICATED" | "PARTIAL" | ...,
+ "overall_justification": "one paragraph"
+}

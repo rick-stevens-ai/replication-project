@@ -1,0 +1,2314 @@
+                                         Self-adaptive weights based on balanced residual decay rate
+                                           for physics-informed neural networks and deep operator
+                                                                  networks
+                                                        Wenqian Chena , Amanda A. Howarda , Panos Stinisa,∗
+                                                           a
+                                                               Advanced Computing, Mathematics and Data Division
+                                                                     Pacific Northwest National Laboratory
+
+
+
+
+arXiv:2407.01613v2 [cs.LG] 16 Sep 2025
+                                                                           Richland, WA 99354, USA
+
+
+
+
+                                         Abstract
+
+                                         Physics-informed deep learning has emerged as a promising alternative for solving
+                                         partial differential equations. However, for complex problems, training these net-
+                                         works can still be challenging, often resulting in unsatisfactory accuracy and effi-
+                                         ciency. In this work, we demonstrate that the failure of plain physics-informed neural
+                                         networks arises from the significant discrepancy in the convergence rate of residuals
+                                         at different training points, where the slowest convergence rate dominates the overall
+                                         solution convergence. Based on these observations, we propose a pointwise adap-
+                                         tive weighting method that balances the residual decay rate across different training
+                                         points. The performance of our proposed adaptive weighting method is compared
+                                         with current state-of-the-art adaptive weighting methods on benchmark problems for
+                                         both physics-informed neural networks and physics-informed deep operator networks.
+                                         Through extensive numerical results we demonstrate that our proposed approach of
+                                         balanced residual decay rates offers several advantages, including bounded weights,
+
+                                           ∗
+                                            Corresponding author
+                                            Email addresses: wenqian.chen@pnnl.gov (Wenqian Chen), amanda.howard@pnnl.gov
+                                         (Amanda A. Howard), panos.stinis@pnnl.gov (Panos Stinis )
+
+
+
+                                                                                      1
+high prediction accuracy, fast convergence rate, low training uncertainty, low com-
+putational cost, and ease of hyperparameter tuning.
+Keywords: Self-adaptive weights, Balanced convergence rate, Physics-informed
+neural networks, Physics-informed deep operator networks
+
+
+1. Introduction
+
+   Benefiting from the rapid advancements in computational capabilities, optimiza-
+tion algorithms, and automatic differentiation technologies [1, 2], physics-informed
+neural networks (PINNs)[3] have emerged as a powerful tool for addressing both
+forward and inverse problems associated with partial differential equations (PDEs).
+Integrating physical laws directly into their framework, PINNs optimize a loss func-
+tion that includes data and equation residuals to assist models in adhering to the
+underlying physical principles. Building upon the foundational concepts of PINNs,
+and the deep operator network (DeepONet) architecture [4], physics-informed deep
+operator networks (PIDeepONets) extend these methodologies to the solution opera-
+tors of PDEs[5, 6, 7]. Both PINNs and PIDeepONets have enjoyed success in various
+settings, but they can still face convergence/accuracy issues [8, 9, 10]. To mitigate
+these issues, various enhancements to the plain PINN/PIDeepONet or approach have
+been proposed e.g., improved network model [8, 11], adaptive sampling [12, 13, 14],
+domain decomposition [15, 16], multi-fidelity learning [17, 18, 19], continual learning
+[20], adaptive activation [21], and Fourier feature embedding [22, 23]. In the cur-
+rent work, we focus on a self-adaptive weighting method designed to dynamically
+balance the training process of PINNs and PIDeepONets, aiming to improve their
+performance.
+   Adaptive weighting in PINNs and PIDeepONets has revolutionized the way these
+models handle the training process by dynamically adjusting the weights assigned to
+
+                                          2
+different terms in the loss function. This method effectively balances the loss contri-
+butions from various parts of the domain, thereby addressing one of the fundamental
+challenges: ensuring that all physical laws are learned equally well without bias to-
+wards simpler or more dominant features. As a result, improvement in convergence
+rates and increase in the accuracy and stability of the solutions has been obtained.
+   There are numerous adaptive weighting approaches, with the strategies for tun-
+ing weights varying considerably among approaches. For instance, Wang et al. [8]
+introduced a learning rate annealing algorithm that updates weights inversely pro-
+portional to the back-propagated gradients. Wang et al. [24] also defined a causal
+training for time-dependent problems that assigns larger weight to the loss functions
+contributions in a time-ordered fashion. Mattey and Ghosh [25] solve sequentially
+in temporal subdomains with a plain PINN, using weights to penalize the depar-
+ture from the already obtained solutions from previous training. Another popular
+strategy is to update weights positively proportional to (normalized) residuals. For
+instance, Liu and Wang [26] proposed a mimimax method to update weights, using
+gradient descent for the network parameters and gradient ascent for the weights (the
+gradient is proportional to residuals). McClenny and Braga-Neto [10] proposed a
+general variant of the mimimax method by employing pointwise weights instead of
+component-wise weights. Taking this mimimax strategy further, Song et al. [27] and
+Zhang et al. [28] employed auxiliary networks to represent the pointwise weights.
+Anagnostopoulos et al. [29] proposed to update weights according to normalized
+residuals. A Lagrange multiplier-based method has also been employed for designing
+adaptive weights, where the weights, namely the Lagrange multipliers applied to the
+constraint terms, are updated based on the residuals of constraint terms. Basir et al.
+[30] proposed using the augmented Lagrangian method (ALM) to constrain the solu-
+tion of PDE with boundary conditions or any available data. They then introduced
+
+                                          3
+an adaptive ALM [31] to enhance this approach, and further improved its capability
+with adaptive pointwise multipliers and the design of a dual problem [32]. Son et
+al. [33] proposed an augmented Lagrangian relaxation method for PINN training us-
+ing pointwise multipliers. Neural tangent kernel (NTK)-based weighting is another
+strategy which updates the weights inversely proportionally to the eigenvalues of the
+NTK matrix. Wang et al. [34] first proposed the NTK weighting method for PINN
+training, and then extended it to PIDeepONet training [11]. The conjugate kernel
+(CK) has recently emerged as a faster alternative to NTK weights for PIDeepONet
+training, with similar accuracy [35].
+   In this work, we use a novel strategy to design self-adaptive weights. We begin
+with a toy problem to identify the failure mechanisms of plain physics-informed neu-
+ral networks. Our testing uncovers two key observations: first, the convergence rates
+of residuals at various points differ significantly, spanning several orders of magni-
+tude; second, the slowest convergence rate among all residuals predominantly dictates
+the overall solution convergence to the true values. Building on these insights, we
+propose a self-adaptive weighting method aimed at balancing the convergence rates
+of residuals by assigning greater weights to those with slower convergence rates. We
+also enforce that the average of all weights is 1, ensuring that the adaptive weights
+are bounded. Our numerical experiments with both PINNs and PIDeepONets indi-
+cate that our self-adaptive weighting method achieves high prediction accuracy, high
+training efficiency, and low training uncertainty.
+   The rest of the paper is structured as follows. Section 2 introduces the notion of
+“inverse residual decay rate” to describe the convergence rate of residuals and uncover
+the failure mechanism of plain PINNs. Based on the observations in Section 2, a self
+adaptive weighing method based on the balanced residual decay ratio (BRDR) for
+physics-informed machine learning is proposed and extended to mini-batch training
+
+                                           4
+in Section 3. The proposed self-adaptive weighting method is tested on physics-
+informed neural networks and physics-informed deep operator networks in Sections
+4 and 5, respectively. To promote reproducibility and further research, the code and
+all accompanying data are available on github.com/pnnl/ET-PINN.
+
+
+2. Understanding the plain PINN failure mechanism
+
+2.1. Physics-informed neural networks
+
+   Physics-informed neural networks (PINNs) aim at inferring a function u(x) of
+a system with (partially) known physics, typically defined in the form of partial
+differential equations (PDEs):
+
+                              R(u(x)) = 0,        x∈Ω
+                                                                                     (1)
+                                  B(x) = 0,       x ∈ ∂Ω
+
+where x ∈ Rnp are np -dimensional spatial/temporal coordinates, R is a general
+partial differential operator defined on the domain Ω and B is a general boundary
+condition operator defined on the boundary ∂Ω. For time-dependent problems, time
+t is considered as a component of x, Ω is a space-time domain, and the initial
+condition will be assumed as a special boundary condition of the space-time domain.
+In PINNs, the solution u(x) is first approximated as uN N (x; θ ) by a neural network
+model built with a set of parameters θ . The partial derivatives of uN N (x; θ ) required
+for the estimation of the action of the operators N and B are readily computed by
+automatic differentiation. The training of the PINN is a multi-objective optimization
+problem aiming to minimize the residuals of the PDE and the boundary conditions,
+which are usually evaluated on a set of collocation points. In the plain PINNs, the
+optimizing objective, namely the loss function, is defined as a linear combination of
+
+
+                                           5
+the square of the following residuals:
+                                     NR               NB
+                                   1 X    2  i      1 X
+                      L(θθ ) =           R (xR ) +        B 2 (xiB )                    (2)
+                                  NR i=1           NB i=1
+
+where xR = {xiR }N
+                 i=1 ⊂ Ω are collocation points within the domain, and xB =
+                   R
+
+
+
+{xiB }N
+      i=1 ⊂ ∂Ω are boundary points.
+        B
+
+
+
+   Usually, the loss function in Eq. (2) is minimized by gradient-based optimization
+algorithms, such as Adam [36]. Ideally, in the case of infinite residual/boundary
+points, if the loss function drops down to zero, all the residuals drop to zeros too
+and thus the system is solved exactly. However, limited by the number of resid-
+ual/boundary points, the network approximating capability and the optimization
+error, the loss function cannot drop down to zero, and we can only try to minimize
+it as close to zero as possible.
+
+2.2. Training dynamic of unweighted PINNs
+
+   Let us first consider an unweighted loss function
+                                    NR
+                                    X                        NB
+                                                             X
+                          L(θ ) =          R2 (xiR ; θ ) +         B 2 (xiB ; θ )       (3)
+                                    i=1                      i=1
+
+The training process of physics-informed neural networks can be described using the
+Neural Tangent Kernel (NTK) theory [34]:
+                                                                                 
+                           dR(xR ;θ (t))
+                               dt
+                                                                 R(xR ; θ (t))
+                                           = −2K(t)                                 (4)
+                           dB(xB ;θ (t))
+                               dt
+                                                                 B(xB ; θ (t))
+
+where K(t) is the NTK matrix at training time t defined as
+                                                    
+                                   KRR (t) KRB (t)
+                        K(t) =                                                        (5)
+                                   KBR (t) KBB (t)
+
+                                                    6
+The entries of the NTK matrix are defined as follows:
+                  dR(xiR ; θ (t)) dR(xjR ; θ (t))
+    [KRR (t)]ij =                ·                 ,                   1 ≤ i, j ≤ NR
+                      dθ               dθ
+                  dR(xiR ; θ (t)) dB(xjB ; θ (t))                                       (6)
+    [KRB (t)]ij =                ·                ,      1 ≤ i ≤ NR , 1 ≤ j ≤ NB ,
+                      dθ               dθ
+                  dB(xiB ; θ (t)) dB(xjB ; θ (t))
+    [KBB (t)]ij =                ·                ,                    1 ≤ i, j ≤ NB
+                      dθ              dθ
+   As demonstrated in [37, 34], when the network width tends to infinity and the
+learning rate tends to zero, the NTK matrix converges to a deterministic constant
+kernel, namely K(t) → K ∗ . Substituting the eigendecomposition K ∗ = QΛQT into
+Eq. (4), we have
+                                                                          
+                         R(xR ; θ (t))                       R(xR ; θ (0))
+                QT                       ≈ exp(−2Λt)QT                              (7)
+                         B(xB ; θ (t))                       B(xB ; θ (0))
+                                                                          
+                     R(xR ; θ (t))                           R(xR ; θ (0))
+                                     ≈ Q exp(−2Λt)QT                                (8)
+                     B(xB ; θ (t))                           B(xB ; θ (0))
+   Since K ∗ is a positive semi-definite matrix, the eigenvalues of K ∗ are all non-
+negative real numbers. This means that the ith entry of QT [R(xR ; θ (t)), B(xB ; θ (t))]T
+decays approximately exponentially at a constant convergence rate 2Λi . Therefore,
+the evolution of the ith residual in [R(xR ; θ (t)), B(xB ; θ (t))]T is a linear combination
+of those decaying exponentials. It is reasonable to assume that the ith residual also
+decays exponentially in a short period, and its convergence rate falls between the
+2 min(Λ) and 2 max(Λ). Note that this conclusion also applies to PIDeepONet. For
+details on the NTK theory of PIDeepONet, we refer the reader to [11]. Figure 1
+provides an example illustrating the residual decay process during training.
+   It is not trivial to calculate the convergence rate of the residual at a training
+point, since it is always iteration-dependent. To describe the dynamic of residuals,
+
+                                               7
+                            x=0.60                                   x=0.80                                   x=0.90                                  x=1.00
+                                                                                                                                    103
+          103                                                                               104
+                                                  103
+
+          101                                                                               102                                     101
+                                                  101
+        10−1                                                                                100
+                                                 10−1                                                                              10−1
+        10−3                                                                              10−2
+   R2                                            10−3
+                                                                                                                                   10−3
+        10−5                                                                              10−4
+
+        10−7                                     10−5                                     10−6
+                                                                                                                                   10−5
+        10−9                                     10−7                                     10−8
+
+                                                                                                                                   10−7
+        10−11                                                                             10−10
+                                                 10−9
+
+
+                101   102     103    104   105          101    102     103    104   105           101   102     103    104   105          101   102     103    104   105
+                            Epoch                                    Epoch                                    Epoch                                   Epoch
+
+
+
+
+Figure 1: The residual decay process for four training points in a 1-dimensional Poisson equation,
+as described in Section 2.3.
+
+
+we introduce a notion called “inverse residual decay rate”, which is used to indicate the
+convergence/decay rate of a residual. The inverse residual decay rate irdr is defined
+as the ratio of the residual’s square to its exponential moving average, namely
+                                             q
+                                          2
+                                 irdr = R / R4 + eps                                                                                                                   (9)
+
+where eps is a tiny positive real number used to avoid division by zero, and it is
+opted as eps = 1E − 14. The exponential moving average R4 at training iteration n
+is updated according to the following equation:
+
+                                                                        4
+                                                              Rn4 = βc Rn−1 + (1 − βc )Rn4                                                                           (10)
+
+where βc is the smoothing factor. A larger value of βc corresponds to a longer-period
+average, thereby placing more weight on past observations and less on the most
+recent observation.
+    We note that the employment of the fourth-order residual, namely the 4th mo-
+ment, in Eq. (9)—inside the squared root—is intended to make the instantaneous
+irdr more responsive to large residuals. Intuitively, higher-order moments (such as
+the 4th moment) place greater emphasis on larger deviations from the mean, thereby
+
+                                                                                    8
+highlighting scenarios where residuals are particularly problematic or persistent. Al-
+though we experimented with the 2nd moment as well, we found no decisive empirical
+advantage of one over the other. Both the 2nd and 4th moments can serve as approx-
+imations of the irdr. Given these considerations, we opted to use the 4th moment
+to enhance sensitivity to large residuals, while acknowledging that this choice may
+not universally yield a significant improvement over the 2nd moment.
+   It is worth noting that the residual does not always strictly decrease during the
+training process, as shown in Fig. 1. However, changes in the residual are reflected
+in the magnitude of irdr. In particular, if the residual decreases, we have irdr < 1; if
+the residual increases, then irdr > 1; and if the residual remains roughly unchanged,
+irdr ≈ 1. Consequently, irdr serves as a useful indicator of how the residual evolves
+and its convergence behavior.
+   To intuitively visualize the relationship between the inverse residual decay rate
+irdr and the convergence rate λ, we assume that the residual at a given training
+point decays exponentially with respect to the iteration index n as R = R0 exp(−λn),
+where λ > 0 is the convergence rate. The relationship between the inverse residual
+decay rate irdr and the convergence rate λ can be calculated numerically.
+   The relationship between λ and irdr at n = 10000 is depicted in Fig. 2(left). It
+is observed that irdr is negatively proportional to λ when λ is large. Conversely,
+irdr quickly increases to 1 when λ is small. Additionally, for larger values of βc , irdr
+increases to 1 at smaller λ. Hence, a larger βc can be utilized to sense a broader
+range of λ. However, it is not necessarily true that a larger λ is preferable. Consider
+another decay process for the residual:
+          
+          R0 exp(−λn)                                            n ≤ 100000
+     R=                                                                             (11)
+          R exp(−100000λ) exp(−0.5λ(n − 100000))                 n > 100000
+              0
+
+
+
+                                           9
+where λ = 1 × 10−5 . In this scenario, the convergence rate is higher during the
+initial stage and then transitions to a lower convergence rate. This pattern mimics
+the actual training process, where the convergence rate typically decreases with an
+increasing number of epochs. The calculated irdr for this process is shown in Fig.
+2(right). When βc is small, irdr can rapidly respond to changes in convergence.
+    From these observations, we conclude that βc should neither be too small nor too
+large so that we can use irdr to accurately identify the convergence rate and adapt
+to its variations.
+
+                                  n = 10000                                      λ = 1e − 5
+                  100
+                                                              1.00
+
+
+
+                 10−2                                         0.95
+
+
+
+                                                              0.90
+          irdr   10−4                                  irdr
+
+                                                              0.85
+
+                 10   −6   βc =0.99
+                           βc =0.999                          0.80
+                           βc =0.9999
+                 10−8
+                    10−6   10−5      10−4     10−3   10−2            0   50000     100000     150000   200000
+                                      λ                                              n
+Figure 2: The relationship between the convergence rate λ and the inverse residual decay rate
+(irdr) calculated with different smoothing factor βc . The left panel shows irdr for a time-decaying
+residual with a fixed convergence rate, R = R0 exp(−λn). The right panel illustrates irdr for a
+time-decaying residual where the convergence rate is initially λ = 1e − 5 and is reduced by half at
+n = 100, 000.
+
+
+
+
+                                                      10
+2.3. Vast convergence disparities can lead to failure of plain PINNs
+
+   Plain PINNs have been observed to have convergence issues for problems with
+sharp space/time transitions [17]. As an example, consider the 1D Poisson equation:
+
+                                ∂ 2u
+                                     = f (x),     x ∈ [0, 1]
+                                ∂x2                                               (12)
+                                u(0) = u(1) = 0
+
+with the artificial solution u(x) = sin(2kπx2 ). The oscillating frequency of the so-
+lution is 0 at x = 0, and increases to k at x = 1. The frequency discrepancy is
+more apparent with increasing k. With increasing k, resolving the high-frequency
+oscillation as well as the vast frequency discrepancy present challenges for the plain
+PINN.
+   To approximate the solution, we use u(x; θ ) which is a 6-layer fully connected
+neural network with 50 neurons per layer and the hyperbolic tangent activation
+function. The loss function is defined as
+                                                  NR  2                    2
+                     1 2            2
+                                               1 X   ∂ u(xi ; θ )
+             L(θ ) =   u (0; θ ) + u (1; θ ) +                     − f (xi ) .    (13)
+                     2                         NR i=1    ∂x2
+
+where NR = 1000 uniform residual points are sampled in the domain [0, 1]. The loss
+function is minimized by Adam optimizer with 100000 full-batch training steps using
+a constant learning rate 0.001. The prediction errors of the plain PINN for k = 2, 4, 8
+are given in Table 1. The reported prediction error is the relative L2 error defined
+as follows
+                                            ∥u − uE ∥2
+                                    ϵL2 =                                         (14)
+                                              ∥uE ∥2
+where u and uE are vectors of predicted solutions and the exact solutions evaluated
+on 10000 uniform sampled points, respectively. It is shown that the performance of
+the plain PINN degrades with the increase of k.
+
+                                            11
+Table 1: Prediction errors of the plain PINN and the balanced-residual-decay-rate (BRDR) PINN
+for the Poisson equation. Note that the BRDR method will be detailed in Section 3
+
+           Method              k=2                        k=4                       k=8
+  .         Plain      (9.70 ± 4.61) × 10−3      (9.21 ± 9.31) × 10−2      (1.27 ± 1.03) × 100
+            BRDR       (7.91 ± 4.70) × 10−4      (2.59 ± 1.24) × 10−3      (1.07 ± 0.70) × 10−2
+
+
+          To uncover the reason behind the failure, let us take a look at the inverse residual
+decay rate irdr at all the training points. For iteration n, we calculate the average
+of irdr from the first iteration to the current iteration for each training point. The
+average inverse residual decay rate irdr for the plain PINN is illustrated in Fig.
+3(b)(left). It is shown that irdr can fluctuate by about two orders of magnitude over
+all the training points. Within the domain, the training points which correspond to
+larger values of x have smaller average inverse residual decay rates, implying that
+the network tries to capture high-frequency oscillation first.1 This is demonstrated
+by the evolution history of the predicted solution in Fig. 3(a)(left), where the left
+part of the solution is nearly flat at the early training stage, specifically for k = 4
+and k = 8. Meanwhile, irdr at x = 0 is close to 1 for k = 4 and k = 8, implying that
+the residual has almost no change during the training process, and thus the plain
+PINN fails to converge. For k = 4 and epoch = 90000, irdr is close to 1 but a little
+smaller than 1, so we can still observe in Fig. 3(a)(left) that the solution converges
+to the exact solution although at a very low rate. For k = 8 and epoch = 90000,
+
+      1
+          We observe that this behavior represents an exception to the common spectral bias. This devi-
+ation is driven by the properties of the source term f (x) = −16k 2 π 2 x2 sin(2kπx2 ) + 4kπ cos(2kπx2 ),
+characterized by oscillations that not only increase in frequency but also in amplitude from left to
+right across the domain. These unique characteristics necessitate a shift in the learning focus of the
+network towards more extensively addressing these higher frequency components.
+
+
+
+                                                     12
+irdr is much closer to 1, thus it converges to the exact solution at a much lower rate.
+Based on the above observations, we have the following conclusions:
+
+1 During the network training process, the residuals at different points may exhibit
+  varying decay rates, with fluctuations in these rates spanning several orders of
+  magnitude.
+
+2 The convergence rate of the predicted solution to the exact solution is primarily
+  determined by the largest inverse residual decay rate. A higher maximum inverse
+  residual decay rate results in a slower convergence rate.
+
+   In the next section, we introduce an adaptive weighting method aimed at bal-
+ancing the residual decay rate (BRDR). The results from implementing the BRDR
+PINN are depicted in Fig. 3(b)(right). The results indicate that the distribution of
+inverse residual decay rates becomes significantly more uniform, and the maximum
+inverse residual decay rate observed in the plain PINN is markedly reduced with the
+adaptive weighting method. As a consequence, the prediction converges to the exact
+solution more rapidly, and the final achieved error and uncertainty are considerably
+lower, as listed in Table 1.
+
+
+
+
+                                          13
+                                    k=2                                                              k=2
+           1                                                           1
+
+
+
+   u       0                                                           0
+
+
+
+         −1                                                          −1
+                  0.0   0.2   0.4   k=4 0.6     0.8      1.0               0.0       0.2       0.4   k=4 0.6     0.8   1.0
+
+         2.5
+
+                                                                       0
+         0.0                                                                     epoch=0         epoch=70000
+ u
+                                                                                 epoch=10000     epoch=90000
+        −2.5                                                                     epoch=30000     Exact
+                                                                     −5
+                                                                                 epoch=50000
+        −5.0
+                  0.0   0.2   0.4   k=8 0.6     0.8      1.0               0.0       0.2       0.4   k=8 0.6     0.8   1.0
+
+                                                                       2
+           5
+
+   u       0                                                           0
+
+
+         −5                                                          −2
+
+
+                  0.0   0.2   0.4         0.6   0.8      1.0               0.0       0.2       0.4         0.6   0.8   1.0
+                                     x                                                                x
+
+                                                      (a) Solution u
+
+                                    k=2                                                              k=2
+         100                                                         100
+
+
+
+ irdr   10−1                                                        10−1
+
+
+
+        10−2                                                        10−2
+                  0.0   0.2   0.4   k=4 0.6     0.8      1.0               0.0       0.2       0.4   k=4 0.6     0.8   1.0
+              0
+         10                                                          100
+
+
+
+ irdr   10−1                                                        10−1
+                                                                                 epoch=0         epoch=50000
+                                                                                 epoch=10000     epoch=70000
+                                                                                 epoch=30000     epoch=90000
+        10−2                                                        10−2
+                  0.0   0.2   0.4   k=8 0.6     0.8      1.0               0.0       0.2       0.4   k=8 0.6     0.8   1.0
+              0
+         10                                                          100
+
+
+
+ irdr   10−1                                                        10−1
+
+
+
+        10−2                                                        10−2
+                  0.0   0.2   0.4         0.6   0.8      1.0               0.0       0.2       0.4         0.6   0.8   1.0
+                                     x                                                                x
+
+                                     (b) Average inverse residual decay rate irdr
+Figure 3: The history of solution and average inverse residual decay rate during training process
+from plain PINN (left) and BRDR PINN (right) for the 1D Poisson equation. Note that both the
+plain PINN and BRDR PINN share the same network initialization for the same k.
+
+                                                               14
+3. Physics-informed machine learning with balanced residual decay rate
+
+3.1. Physical insights of weighed PINNs
+
+   To build a general weighted PINN framework, we use a scaling factor and a set
+of normalized weights with each weight assigned to a residual term, namely
+                                 NR                   NB
+                                                                       !
+                              1 X                   1 X
+             L(θ ; w, s) = s        wi R2 (xiR ) +        wi B 2 (xiB )              (15)
+                             NR i=1 R              NB i=1 B
+                                           PNR i      PNB i
+                                             i=1 wR +    i=1 wB
+                        s.t.  mean(w) :=                          =1                 (16)
+                                                 NR + NB
+       i                                                    i
+where wR > 0 is the weight assigned to each residual term, wB > 0 is the weight
+assigned to each boundary point, and w is the collection of these weights. The scaling
+factor s is employed to scale all the weights, so that the formulation could cover all
+kinds of possible weight distribution.
+   The training process of physics-informed neural networks with weights can be
+approximated as follows:
+                                                                             
+               dR(xR ;θ (t))
+                   dt
+                                                                R(xR ; θ (t))
+                               = −2sK(t)diag(w)diag(1/N)                         (17)
+               dB(xB ;θ (t))
+                   dt
+                                                                B(xB ; θ (t))
+
+where N = [NR , ..., NR , NB , ..., NB ] and the definition of K(t) is the same as in Sec-
+tion 2.2. The terms 1/NR and 1/NB can be considered user-defined weight constants.
+The introduction of w and s modifies the training dynamics. Empirical observations
+indicate that increasing the weight at a specific training point enhances its con-
+vergence rate. Regarding the scaling factor, s scales the eigenvalues of the matrix
+K(t)diag(w)diag(1/N), thereby influencing the overall convergence velocity. In the
+following sections, we will elucidate the procedure for updating w and s during the
+network training process.
+
+
+                                             15
+3.2. Balanced residual decay rate (BRDR)
+
+   As demonstrated in Section 2.3, the largest inverse residual decay rate dominates
+the convergence rate of the training process. To address this issue, we assign a larger
+weight to the training term with a larger inverse residual decay rate, namely,
+
+                                       w ∝ irdr                                   (18)
+
+where irdr is the collections of inverse residual decay rate irdr for all the training
+terms. At training iteration n, to meet the normalization constraint on w in Eq.
+(16), we set
+                                              irdrn
+                                 wnref =                                          (19)
+                                           mean(irdrn )
+To filter out noise during network training, we employ an exponential moving average
+method to update the weights, namely,
+
+                            wn = βw wn−1 + (1 − βw )wnref                         (20)
+
+where βw is a smoothing factor. This idea of using a normalized quantity and an
+exponential moving average for updating weights is also employed in the recently
+proposed residual-based attention (RBA) method, [29, 38], which helps ensure that
+the weights remain bounded and vary smoothly.
+
+3.3. Adaptive scaling factor
+
+   For the loss function defined in Eq. (15), the loss without scaling L−s = L/s
+satisfies the following ordinary differential equation
+               dL−s             dθ            dw
+                    = ∇θ LT−s ·    + ∇w L−s ·
+                dt              dt             dt
+                                                                T               (21)
+                             T             1 2          1 2         dw
+                    = −∇θ L−s · ∇θ L +        R (xR ),    B (xB ) ·
+                                          NR           NB           dt
+
+
+                                            16
+For the first term of Eq. (21), we replace dθ /dt with the total-loss gradient∇θ L in ac-
+cordance with the gradient-flow formulation. According to the constraint mean(w) =
+1 in Eq. (16), we have mean(dw/dt) = 0. Therefore, we assume the second term in
+Eq. (21) as zero. Note that this assumption primarily simplifies the formula, since
+in practice the second term can fluctuate and may not strictly vanish.
+
+
+            dL−s                                        ∥∇θ L∥22
+                  ≈ −∇θ LT−s · ∇θ L = −1/s ∥∇θ L∥22 = −          L−s          (22)
+              dt                                           L
+   For the stable numerical simulation of the ODE yt = −λy with the Euler forward
+method, the time step ∆t should satisfy ∆t ≤ 2/λ. Applying the stability constraint
+to Eq. (22), we find
+                                             2L
+                                    η = ∆t ≤                                     (23)
+                                           ∥∇θ L∥22
+where η is the learning rate. Since L is proportional to the scaling factor s, tuning
+s during the network training process can make η stay close to its maximum limit,
+thus accelerating the training process. Based on this idea, given the training status
+at iteration n − 1, namely the loss Ln−1 and its gradient ∇θ Ln−1 , we can derive the
+maximum scaling factor smax
+                        n−1 as follows:
+
+                                          smax
+                       2L∗n−1           2 sn−1
+                                           n−1
+                                               Ln−1     sn−1 2Ln−1
+              η=             2 = (smax )2              = max                        (24)
+                    ∇θ L∗n−1 2     n−1
+                                          ∥∇θ Ln−1 ∥22  sn−1 ∥∇θ Ln−1 ∥22
+                                 (sn−1 )2
+
+where L∗n−1 denotes the loss obtained by tuning the scaling factor s to precisely
+satisfy the equality in inequality (23) above. So, we have
+                                          sn−1 2Ln−1
+                                 smax
+                                  n−1 =                                             (25)
+                                           η ∥∇θ Ln−1 ∥22
+Then we use the derived smax
+                         n−1 to update the scaling factor s based on the exponential
+
+moving average method, namely
+
+                                sn = βs sn−1 + (1 − βs )smax
+                                                         n−1                        (26)
+
+                                             17
+where βs is a smoothing factor. Since the scaling factor s functions similarly to the
+learning rate η, we propose updating s synchronously with η. For example, when the
+learning rate η decreases, the update velocity of the scaling factor s is also expected
+to decrease. In the following tests, unless otherwise specified, we set βs = 1 − η.
+   We note that updating the scaling factor via Eqs. (25) and (26) adds almost no
+extra cost—since Ln−1 and its gradient ∇θ Ln−1 are already computed during back-
+propagation. Multiplying the loss by this factor makes each gradient step larger
+when the factor is above 1 and smaller when it’s below 1. This produces a similar
+effect to Adam’s per-parameter step-size adaptation, though by a different mecha-
+nism. We have not yet fully understood how these two adjustments interact, but our
+ablation study (see Appendix B) shows that the scaling factor generally reduces pre-
+diction error across most test cases—especially when paired with pointwise weights
+(Section 3.2). We therefore recommend using the scaling factor as a complemen-
+tary component alongside pointwise weights, rather than applying it in isolation,
+since standalone use can sometimes cause slight performance degradation (see Ap-
+pendix B). Throughout this paper, the scaling factor is applied by default unless
+otherwise noted.
+
+3.4. Mini-batch training
+
+   Mini-batch training is commonly employed in physics-informed machine learn-
+ing for several reasons: it helps manage computational resources by fitting training
+within memory constraints and enhances computational efficiency. It facilitates the
+use of stochastic gradient descent and its variants [39, 40], enabling more frequent
+model updates which can lead to faster convergence and better handling of complex
+loss landscapes inherent in physics.
+   In this work, we restrict ourselves only to the scenario where all the training
+
+
+                                          18
+points are pre-selected before training and a subset of training points is randomly
+chosen at each training step. The proposed method in Sections 3.2 and 3.3 can be
+extended to mini-batch training straightforwardly, except for the calculation of the
+exponential moving average of quantities. Since a specific training point cannot be
+chosen at every training step, it is too expensive to update the weights for all the
+points at each iteration. It is efficient to only update the weights associated to the
+chosen points at each training step. We assume ∆ni is the training iteration interval
+for the ith training point, which is the difference of current step and the last previous
+step that the training point was chosen. The weights are then updated as
+
+
+                                                            ref
+                         wn,i = βw∆ni wn−∆ni + (1 − βw∆ni )wn,i                     (27)
+
+                                              4
+   Similarly, the exponential moving average Rn,i for the residual at the ith training
+point is calculated as follows:
+
+                          4
+                         Rn,i = βc∆ni Rn−∆n
+                                       4
+                                            i ,i
+                                                 + (1 − βc∆ni )Rn,i
+                                                                4
+                                                                                    (28)
+
+   For updating of the scaling factor in Eq. (26), it is also calculated with exponen-
+tial moving average. However, the scaling factor can be updated in Eq. (26) directly
+at each training step without any modifications, since it is accessible at each training
+step.
+   When the number of batches is very large (e.g., 1000), it is advisable to use a
+larger smoothing factor, such as setting it to 0.9999 instead of 0.999. This ensures
+that the effective smoothing factors βc∆ni and βw∆ni remain sufficiently large, allowing
+past quantities to continue exerting a meaningful influence.
+
+
+
+
+                                            19
+3.5. Summary
+
+   Consider a physics-informed neural network uN N (x; θ ) with training parameters
+θ , and a weighted loss function
+                                     NR                NB
+                                                                          !
+                                  αR X   i 2  i     αB X
+            L(θ ; w, s, α ) = s         w R (xR ) +       wi B 2 (xiR )           (29)
+                                  NR i=1 R          NR i=1 B
+
+where w represents pointwise adaptive weights allocated to collocation points {xiR }N R
+                                                                                    i=1
+
+and {xiB }N
+          i=1 , s is an adaptive scaling factor, and α = {αR , αB } are user-defined
+            B
+
+
+
+weight constants to normalize the residuals. According to our tests in Section 4,
+although simply setting α = 1 could be enough to achieve rather accurate results,
+setting a specific α can significantly improve prediction accuracy. In the following,
+we refer to training with α = 1 as BRDR training, and training with specifically de-
+fined α as BRDR+ training. To avoid any confusion, we clarify that we use the term
+"BRDR" as the name of our weighting method to highlight our primary contribution:
+balancing the residual decay rate. By default, the BRDR method incorporates both
+the adaptive pointwise weights (see Section 3.2) and the adaptive scaling factor (see
+Section 3.3), unless otherwise specified.
+   In summary, after the specification of the user-defined hyperparameters which
+include the learning rate η, the smoothing factors βc and βw , the batch sizes NRb
+and NBb , and the weight constants αR and αB , the training process can proceed as
+detailed in Algorithm 1. Note that the weights and scaling factor are all initialized
+at 1, namely w = s = 1. Although Algorithm 1 is specifically employed for prob-
+lems with two loss components (PDE loss and BC loss), its extension to multiple
+components is straightforward.
+
+
+
+
+                                            20
+Algorithm 1 Self-adaptive weighting based on balanced residual decay rates.
+                                                                 ▷ Initialization
+  w ← 1;    s ← 1; R̂ ← 0; B̂ ← 0;            nlast ← 0
+  for n ← 1 to nmax do
+                                                                        ▷ Sample batch indices
+     {ik }N        NR
+          k=1 ⊂ {i}i=1 ;
+            Rb                      NBb
+                               {ik }k=1 ⊂ {i}N B
+                                             i=1
+
+                                                                        ▷ Forward propagation
+     Rik ← R(xiRk ; θ ) ;      Bik ← B(xiBk ; θ )
+                                                    ▷ Calculate effective smoothing factors
+                n−ni ,last               n−ni ,last
+     βc,ef f ← βc k ;         βw,ef f ← βw k ;          nik ,last ← n
+        ▷ Calculate the inverse residual decay rate irdr, denoted as c for simplicity
+     R̂ik ← βc,ef f R̂ik + (1 − βc,ef f )R4ik ;     B̂ik ← βc,ef f B̂ik + (1 − βc,ef f )Bi4k
+                          R2ik                                        Bi2k
+     cR,ik ← q                            ;     cB,ik ← q
+                  R̂ik /(1 − βcn ) + eps                     B̂ik /(1 − βcn ) + eps
+           PNRb            PNBb
+                  cR,ik + k=1 cB,ik
+     c ← k=1
+                   NRb + NBb
+                                                                               ▷ Update weights
+       ik              ik                 c R,i          ik              ik                  cB,ik
+     wR   ← βw,ef f wR    + (1 − βw,ef f ) k ;        wB    ← βw,ef f wB    + (1 − βw,ef f )
+                                             c                                                 c
+                                                                 ▷ Assemble    the
+                                                                                   loss  function
+                            αR PNRb ik 2 ik             αB PNBb ik 2 ik
+     L(θ ; w, s, α ) = s               w R (xR ) +                   w B (xR )
+                            NR k=1 R                    NB k=1 B
+                                                                      ▷ Backward propagation
+     ∇θ L ← Backward propagation
+                    ▷ Update the scaling factor with the smoothing factor βs = 1 − η
+                                     2sL
+     s0 ← s ;       s ← (1 − η)s +
+                                   ∥∇θ L∥22
+                                                             ▷ Correct the gradients
+                s
+     ∇θ L ←        ∇θ L
+                s0
+                                         ▷ Update the parameters with gradient descent
+     θ ← θ − η∇θ L
+  end for                                     21
+4. Numerical results for physics-informed neural networks
+
+   To validate the performance of the BRDR weighting method in training PINNs,
+we tested it on three benchmark problems: the 2D Helmholtz equation, the 1D Allen-
+Cahn equation, and the 1D Burgers equation. For comparison, we also report the
+error from training with fixed weights, the soft-attention (SA) weighting method [10],
+and the residual-based attention (RBA) method [29]. The reported error is defined
+as the L2 relative error:
+                                          ∥u − uE ∥2
+                                  ϵL2 =                                          (30)
+                                            ∥uE ∥2
+where u and uE are vectors of the predicted solutions and the reference solutions on
+the test set, respectively.
+   In this section, we use the mFCN network architecture (see Appendix A) with
+6 hidden layers, each containing 128 neurons. The hyperbolic tangent function is
+employed as the activation function. The network parameters are initialized us-
+ing the Kaiming Uniform initialization [41]. Specifically, for a module of shape
+(out_features, in_features), the learnable weights and biases are initialized from
+    √ √
+U(− k, k), where k = 1/in_features. We use only the Adam optimizer [36] for
+updating the training parameters. Although the L-BFGS optimizer [42] can fine-
+tune network parameters further, it is known for its significant drawbacks, including
+high computational cost and instability, particularly in large-scale problems. There-
+fore, we have chosen not to use the L-BFGS optimizer. All training procedures
+described in this section are implemented using PyTorch [1]. Training computa-
+tions were performed on a GPU cluster, with each individual training run utilizing
+a single NVIDIA® Tesla P100 GPU. All computations were conducted using 32-bit
+single-precision floating-point format.
+
+
+
+                                          22
+4.1. 2D Helmholtz equation
+   The 2D Helmholtz equation is defined as follows:
+                 ∂ 2u ∂ 2u
+                    2
+                      + 2 + k 2 u − q(x, y) = 0,        (x, y) ∈ [−1, 1]2
+                 ∂x    ∂y
+                                     u(x, ±1) = 0,      x ∈ [−1, 1]             (31)
+
+                                     u(±1, y) = 0,      y ∈ [−1, 1]
+
+with the manufactured solution uE (x, y) = sin(a1 πx) sin(a2 πy), where k = 1, a1 =1
+and a2 = 4 is considered. q(x, y) is the source term defined by
+
+                 q(x, y) = k 2 − (a1 π)2 − (a2 π)2 sin(a1 πx) sin(a2 πy).
+                                                  
+                                                                                (32)
+
+   The loss function is defined as follows:
+                                     NR                    N
+                                                                           !
+                                                            B
+                                  αR X                 α B
+                                                           X
+            L(θ ; w, s, α ) = s         wi R2 (xiR ) +        wi B 2 (xiB ) ,   (33)
+                                  NR i=1 R             NB i=1 B
+
+where R and B represent the PDE operator and the boundary condition (BC) oper-
+ator, respectively.
+   The choice of location of the training points and the BRDR training setup are
+provided in Table 2. For fixed-weight training, the weights for both the boundary
+conditions (BC) and partial differential equations (PDE) are set to 1. For the soft-
+attention (SA) training setup, we follow the configuration given in reference [10]
+for Adam training. The pointwise self-adaptive weights for BC and PDE are all
+initialized using uniform sampling U(0, 1), and the weights are updated with a fixed
+learning rate of 0.005. For the residual-based attention (RBA) training setup, we
+use the configuration provided in reference [29]. In this setup, the weights for BC
+are fixed at 100, and the pointwise self-adaptive weights for PDE are initialized at
+0. These weights are then updated with a decay rate of 0.9999, an offset of 0, and a
+learning rate of 0.001.
+
+                                            23
+Table 2: The choice of location of the training points and the BRDR training setup for solving
+different problems with PINNs.
+
+        Problems                 Allen–Cahn           Helmholtz              Burgers
+
+                           Latin Hypercube             Uniform          Latin Hypercube
+      PDE points
+                                   25600               101×101                10000
+                                  Uniform                                   Uniform
+        IC points                                          –
+                                    512                                        100
+                                                       Uniform              Random
+       BC points                     –
+                                                          200                  200
+                           [21]+[128]×6+[1]        [2]+[128]×6+[1]      [2]+[128]×6+[1]
+        Network                    mFCN                 mFCN                 mFCN
+                                    tanh                 tanh                 tanh
+      Adam steps                    3e5                   1e5                  4e4
+  Adam Learning rate       0.001 × 0.99n//750      0.005 × 0.99n//250   0.001 × 0.99n//100
+   (βc , βw ) in BRDR        (0.999, 0.999)         (0.999, 0.999)       (0.999, 0.999)
+
+
+
+
+                                              24
+   The evolution history of error, loss and the weight ratio of BC to PDE is illus-
+trated in Fig. 4, where the weight ratio of BC to PDE is defined as follows:
+
+                                wB   αB mean(wB )
+                                   =                                             (34)
+                                wR   αR mean(wR )
+
+The error for all the adaptive methods (RBA, SA and BRDR, BRDR+) drops faster
+than that for fixed weights, highlighting the advantages of adaptive weights. In the
+first 20,000 epochs, the error for Fixed, SA, and BRDR weights shows a very similar
+decay rate, all of which are slower than that for RBA weights. This is because RBA
+manually sets the weights of BC to 100, causing the BC residuals to decay faster
+initially. This also demonstrates that prediction accuracy is dominated by the BC
+residual rather than the PDE residuals for this problem. Despite this, the BRDR
+method gradually catches up with and surpasses the error of RBA as the number of
+epochs increases, because the average BC weight is rapidly and adaptively increased
+at the beginning. Additionally, we can manually set the BC weight constant to
+λB = 100, referred to as BRDR+. With this modification, the error for BRDR+
+drops the fastest among all the weighting methods. For example, BRDR+ takes
+less than half the number of epochs to achieve the final error of RBA. As for the SA
+weighting method, the weight ratio of BC to PDE converges to about 2 in SA, making
+the error and BC residuals relatively larger than those of RBA, BRDR, and BRDR+.
+Since the weights of the SA method are increased proportionally to the square of the
+residuals and no predefined weight constant is applied to the BC loss, it is difficult
+for the SA method to achieve a large weight ratio of BC to PDE. This is due to the
+fact that the BC residuals are much smaller than the PDE residuals. The statistical
+errors and computational cost are given in Table 3. The computational costs of
+the adaptive weighting methods (RBA, SA, and BRDR) are very similar, with each
+being less than 10% slower than the fixed weighting method. The prediction error of
+
+                                         25
+BRDR is almost identical to that of RBA, although no predefined weight constant
+is used in BRDR. With the predefined weight constant, BRDR+ achieves a much
+lower prediction error with smaller uncertainty.
+Table 3: L2 relative error and relative computational time cost of PINNs for different weighing
+methods. The mean and standard deviation are calculated over 5 independent runs. Note that
+different weighting methods share the same random seed for each run.
+
+ Weighting           2D Helmholtz                  1D Allen–Cahn                    1D Burgers
+  methods             Error          Time            Error             Time        Error          Time
+
+   Fixed        (2.95 ± 0.61)e-3     100%      (7.15 ± 5.40)e-4        100%   (7.36 ± 4.90)e-4    100%
+  SA [10]       (4.40 ± 0.61)e-4     102%      (1.51 ± 2.76)e-4        101%   (4.80 ± 1.01)e-4    103%
+ RBA [29]       (1.95 ± 0.20)e-4     101%      (2.92 ± 0.78)e-5        101%   (8.22 ± 2.33)e-4    101%
+   BRDR         (1.73 ± 0.28)e-4     104%      (2.51 ± 0.44)e-5        104%   (1.38 ± 0.85)e-4    107%
+  BRDR+        (4.86 ± 0.18)e-5 104%          (1.45 ± 0.46)e-5         104%           -            -
+
+
+
+
+                                              26
+                       100                                    Fixed           BRDR
+                                                              SA              BRDR+
+                      10−1                                    RBA
+
+           Error      10−2
+
+                      10−3
+
+                      10−4
+
+                      10−1
+
+                      10−3
+
+           BC loss    10−5
+
+                      10−7
+
+
+                       103
+
+                       101
+
+           PDE loss   10−1
+
+                      10−3
+
+                       103
+
+
+                       102
+             wB
+             wR
+
+                       101
+
+
+                       100
+                             0   20000     40000           60000      80000     100000
+                                                   Epoch
+
+Figure 4: PINN for the 2D Helmholtz equation: The history of L2 relative error, unweighted loss
+of each component and the average weight ratio of BC to PDE from fixed-weight training, and
+adaptive-weight training(“SA”, “RBA”, “BRDR”, “BRDR+”). Note that all the cases share the same
+network architecture and the same random seed for initialization of network parameters.
+
+
+                                              27
+4.2. 1D Allen-Cahn equation
+
+    The 1D Allen-Cahn equation is defined as follows:
+
+                 ∂u                 ∂ 2u
+                    − 5(u − u3 ) − D 2 = 0,                 (x, t) ∈ [−1, 1] × [0, 1]
+                 ∂t                 ∂x
+                                       u(x, 0) = x2 cos(πx),          x ∈ [−1, 1]       (35)
+
+                                      u(−1, t) = u(1, t),             t ∈ [0, 1]
+
+and we consider the case of viscosity D = 1E − 4.
+    As adopted in reference [29], we use Fourier feature transformation on x to make
+the network model automatically satisfy the periodic boundary condition. With 10
+Fourier modes, the two-element input x = (x, t) is lifted to a 21-element input x
+                                                                                b
+before feeding it to the network with the following mapping:
+
+                               b = γ(x) = [sin(πBx), cos(πBx), t]T ,
+                               x                                                        (36)
+
+where B = [1, . . . , 10]T .
+    The loss function is defined as follows:
+                                          NR                    NI
+                                                                                !
+                                       αR X                 α I
+                                                                X
+                L(θ ; w, s, α ) = s          wi R2 (xiR ) +        wi I 2 (xiI )        (37)
+                                       NR i=1 R             NI i=1 I
+
+where R and I represent the PDE operator and the initial condition (IC) operator,
+respectively.
+    The choice of location of the training points and the BRDR training setup are
+provided in Table 2. For fixed-weight training, the weights for both the IC and PDE
+are set to 1. For the soft-attention (SA) training setup, we use the configuration for
+Burgers equation from reference [10], which lacks tests for the Allen-Cahn equation
+but is similar. The pointwise self-adaptive weights for IC and PDE are all initialized
+using uniform sampling U(0, 1), and the weights are updated with a fixed learning
+
+
+                                                 28
+rate of 0.005. For the residual-based attention (RBA) training setup, we use the
+configuration provided in reference [29]. In this setup, the weights for IC are fixed
+at 100, and the pointwise self-adaptive weights for PDE are initialized at 0. These
+weights are then updated with a decay rate of 0.999, an offset of 0 and a learning
+rate of 0.01. For BRDR+, the weight constant for IC is set as 100.
+   The evolution history of error, loss, and the weight ratio of initial condition (IC)
+to partial differential equation (PDE) is illustrated in Fig. 5. The results demon-
+strate that the error for all adaptive methods decreases more rapidly than for the
+fixed weight methods, underscoring the advantages of employing adaptive weights.
+Notably, the error reduction for both BRDR and BRDR+ is significantly faster than
+that for SA and RBA, particularly in the initial stages of training. Specifically,
+BRDR achieves the final error level of RBA in less than half the number of epochs,
+while BRDR+ achieves the same error level in less than one third of the epochs. In
+terms of weight allocation, BRDR+ assigns more weight to the IC, resulting in the
+smallest IC loss among all the weighting methods at the end of training. In contrast
+to BRDR+, BRDR assigns more weight to the PDE, leading to the smallest PDE loss
+at the end of training. The fact that the prediction error of BRDR+ is smaller than
+that of BRDR suggests that, for this particular problem, prediction accuracy is more
+heavily influenced by the residuals of the IC rather than those of the PDE. Without
+a predefined weight constant, the weight ratio of IC to PDE in SA falls below 1,
+thereby failing to adequately recognize the importance of the IC. Furthermore, the
+statistical errors associated with each method are provided in Table 3. Both BRDR
+and BRDR+ exhibit significant improvements over SA and RBA in terms of both
+the magnitude and uncertainty of the prediction error. This highlights the efficacy
+of the BRDR and BRDR+ methods in enhancing the accuracy and reliability of the
+predictions in the context of adaptive weighting schemes.
+
+                                          29
+   Given the numerous components employed in the test cases, we isolated each
+component to evaluate its individual impact. Accordingly, an ablation study was
+conducted on the Allen-Cahn equation to analyze the contributions of the modified
+fully-connected network, Fourier feature embedding, the scaling factor in the BRDR
+method, and the pointwise weights in the BRDR method. The results, presented in
+Section Appendix B, demonstrate that each component individually contributes to
+error reduction, with the extent of that reduction varying by component.
+
+
+
+
+                                        30
+                          100
+                                                               Fixed         BRDR
+                                                               SA            BRDR+
+                                                               RBA
+                         10−2
+              Error
+
+
+                         10−4
+
+
+                         10−1
+
+                         10−4
+
+           IC loss       10−7
+
+                     10−10
+
+                          100
+
+                         10−2
+
+
+              PDE loss
+                         10−4
+
+                         10−6
+
+                         10−8
+                          103
+
+
+                          102
+                wI
+                wR
+
+                          101
+
+
+                          100
+
+                                0   50000   100000    150000   200000   250000   300000
+                                                      Epoch
+
+Figure 5: PINN for 1D Allen-Cahn equation: The history of L2 relative error, unweighted loss
+of each component and the average weight ratio of IC to PDE from fixed-weight training, and
+adaptive-weight training(“SA”, “RBA”, “BRDR”, “BRDR+”). Note that all the cases share the same
+network architecture and the same random seed for initialization of network parameters.
+
+
+                                                     31
+4.3. 1D Burgers equation
+   The 1D Burgers equation is defined as follows:
+              ∂u      ∂u      ∂ 2u
+                  +u     − ν 2 = 0,         (x, t) ∈ [−1, 1] × [0, 1]
+               ∂t     ∂x      ∂x
+                               u(x, 0) = − sin(πx),       x ∈ [−1, 1]                  (38)
+
+                             u(±1, t) = 0,            t ∈ [0, 1]
+where u is the flow velocity, and we consider the case with viscosity ν = 0.01/π.
+   The loss function is defined as follows:
+                         NR                     NB                     NI
+                                                                                       !
+                      αR X                  α B
+                                                X                  α I
+                                                                       X
+  L(θ ; w, s, α ) = s        wi R2 (xiR ) +        wi B 2 (xiR ) +        wi I 2 (xiR )
+                      NR i=1 R              NB i=1 B               NI i=1 I
+                                                                                        (39)
+where R, B and I represent the PDE operator, the BC operator and the IC operator,
+respectively.
+   The choice of location of the training points and the BRDR training setup are
+provided in Table 2. For fixed-weight training, the weights for the IC, BC and
+PDE points are set to 1. For the soft-attention (SA) training setup, we follow the
+configuration given in reference [10] for Adam training of Burgers equation. The
+pointwise self-adaptive weights for the IC, BC and PDE points are all initialized
+using uniform sampling U(0, 1), and the weights are updated with a fixed learning
+rate of 0.005. Since Burgers equation is not tested with RBA weights in reference
+[29], we set the weights for BC and IC to 1, and the pointwise self-adaptive weights
+for PDE are initialized at 0. These weights are then updated with a decay rate of
+0.999, an offset of 0, and a learning rate of 0.01. As we have not found specific weight
+constants for BRDR+ to surpass BRDR, we only provide a comparison only for the
+fixed weight, SA, RBA, and BRDR setups.
+   The evolution history of error, loss, and weight ratios is illustrated in Fig. 6.
+The results demonstrate that the error for all adaptive methods (RBA, SA, and
+
+                                             32
+BRDR) decreases more rapidly compared to the fixed weight methods, highlighting
+the advantages of adaptive weighting methods. Notably, the error reduction for
+BRDR is significantly faster than that for SA and RBA, and this trend is similarly
+observed in the IC loss, BC loss, and PDE loss. Specifically, BRDR achieves the
+final error level of RBA and SA in less than half the number of epochs. The plots
+of weight ratios reveal that both SA and RBA assign more weight to the IC and
+BC, whereas BRDR allocates more weight to the PDE. Despite this, the IC, BC,
+and PDE losses for BRDR are smaller than those for SA and RBA, underscoring the
+high convergence rate of the BRDR method. The statistical errors associated with
+each method are provided in Table 3. The average error of RBA is slightly larger
+than that of fixed weights, as its adaptive weights focus on the large gradient part of
+the domain, which has not been resolved. This observation is also reported in [43].
+BRDR significantly outperforms SA and RBA in terms of both the magnitude and
+uncertainty of the prediction error.
+
+
+
+
+                                          33
+                                                               Fixed       RBA
+                         10−1                                  SA          BRDR
+              Error
+                         10−3
+
+
+                         10−2
+
+              IC loss
+                         10−6
+
+
+
+                         10−3
+
+              BC loss
+                         10−7
+
+
+
+                         10−3
+
+              PDE loss
+                         10−6
+
+
+                          102
+                wI
+                wR        101
+
+                          100
+
+                          102
+                wB
+                wR        101
+
+                          100
+
+                                0   5000 10000 15000 20000 25000 30000 35000 40000
+                                                     Epoch
+
+Figure 6: PINN for 1D Burgers equation: The history of L2 relative error, unweighted loss of
+each component, the average weight ratio of IC to PDE, the average weight ratio of BC to PDE
+from fixed-weight training, and adaptive-weight training(“SA”, “RBA”, “BRDR”). Note that all the
+cases share the same network architecture and the same random seed for initialization of network
+parameters.
+                                                   34
+4.4. Summary
+   As demonstrated in the three benchmarks, BRDR exhibits higher accuracy, con-
+vergence rate and lower uncertainty. Additionally, compared to the RBA method,
+BRDR weights can be applied to all training points within a unified framework (sim-
+ilar to the SA method), eliminating the need to manually set weights for IC or BC
+components. Manually choosing weights often requires extensive hyperparameter
+tuning, which is labor-intensive. However, if a suitable set of weight constants is
+available, the performance of BRDR can be further improved. Compared to the SA
+method, BRDR weights are bounded (similar to the RBA method), which prevents
+issues with weight explosion during updates. In the three benchmarks, we consis-
+tently used the same BRDR hyperparameters, (βc , βw ) = (0.999, 0.999). Based on
+our testing experience, setting βc or βw to 0.999 or 0.9999 is sufficient for fast training.
+Consequently, BRDR could significantly reduce the labor involved in hyperparameter
+tuning.
+   Additionally, the evolution history of adaptive weights at PDE training points is
+illustrated in Figs. 7, 8, and 9. For most test cases, the adaptive weights initially
+exhibit low-frequency, large-scaling features that correspond to the overall structure
+of the solutions. As the number of epochs increases, the weight distribution tran-
+sitions to higher frequencies and becomes more homogeneous. This phenomenon
+is also reported in [29]. This evolution aligns with the dynamics of the training
+process, wherein the training initially resolves low-frequency, large-scale modes, and
+subsequently addresses high-frequency, smaller-scale structures. We suspect that if
+adaptive weights exhibit a distinctive structure, it indicates that the training with
+adaptive weights is focusing on resolving the corresponding scale structure in the
+solution. As the corresponding scale structure is resolved, the weight distribution
+will transition to smaller-scale structures to address finer details. Therefore, a more
+
+                                            35
+homogeneous distribution of weights suggests that the solution has been better re-
+solved. However, obvious non-homogeneity is observed in some cases, such as the SA
+weight distribution for the Allen-Cahn equation in Fig. 8, the SA weight distribution
+for the Burgers equation in Fig. 9, and the RBA weight distribution for the Burgers
+equation in Fig. 9. As a result, the corresponding error is relatively larger.
+   By conducting a more detailed analysis of the Burgers equation, we observe that
+both the SA and RBA methods assign larger weights near the viscous shock region.
+This may explain their inferior performance compared to the BRDR method. The
+key challenge in solving the Burgers equation with small viscosity is that we are essen-
+tially attempting to handle a discontinuous solution using a differential formulation.
+A recent study [44] has shown that assigning lower weights to regions characterized
+by steep gradients or discontinuities can yield impressive results for shock problems.
+This insight runs counter to the RBA and SA weighting strategies, which naturally
+allocate more weight to points with larger residuals. As a result, these methods may
+overemphasize the challenging, discontinuous regions, thereby hindering their overall
+convergence efficiency. In contrast, our approach adapts the weights based on the
+residual decay rate rather than the residual magnitude. Consequently, even if the
+residual is large near the shock, its decay rate may not be significantly lower than
+in other regions. This prevents our method from disproportionately focusing on the
+discontinuity. As illustrated in Fig. 9, our weight distribution remains more uniform,
+suggesting a more balanced training process. This provides a possible explanation
+for the improved performance of our method, as it avoids the pitfall of over-allocating
+computational effort to the most challenging parts of the domain.
+
+
+
+
+                                          36
+Figure 7: PINN for 2D Helmholtz equation: the exact solution (top middle) and the evolution
+history of the distribution of adaptive weights (log10 w) for adaptive-weight training(“SA”, “RBA”,
+“BRDR”, “BRDR+”). Note that all the cases share the same network architecture and the same
+random seed for initialization of network parameters.
+
+
+
+
+                                                37
+Figure 8: PINN for 1D Allen-Cahn equation: the evolution history of the distribution of adap-
+tive weights (log10 w) at PDE training points for adaptive-weight training(“SA”, “RBA”, “BRDR”,
+“BRDR+”). Note that all the cases share the same network architecture and the same random seed
+for initialization of network parameters.
+
+
+
+
+                                              38
+Figure 9: PINN for 1D Burgers equation: the exact solution (top middle) and the exact solution
+(top middle) and the evolution history of the distribution of adaptive weights (log10 w) at PDE
+training points for adaptive-weight training(“SA”, “RBA”, “BRDR”). Note that all the cases share
+the same network architecture and the same random seed for initialization of network parameters.
+
+
+
+
+                                              39
+5. Numerical results for physics-informed operator learning
+
+   To further validate the performance of the BRDR weighting method, we applied
+it to training physics-informed deep operator networks (PIDeepONets) [5, 6, 7]. We
+have studied its performance for for two operator learning problems, for the 1D wave
+equation and the 1D Burgers equation. In this setup, PIDeepONets are employed
+to learn the solution Gθ (u0 )(x) with respect to coordinates x = (x, t) corresponding
+to the initial condition u0 = u0 (x). In the previous section on PINN training, we
+compared our method with soft-attention (SA) [10], residual-based attention (RBA)
+[29], and fixed weights methods. However, since SA and RBA are not specifically
+designed for PIDeepONets, in this section, we compare our method with two specific
+weighting methods tailored for PIDeepONet: the Neural Tangent Kernel (NTK)
+weighting method [11], the Conjugate Kernel (CK) weighting method [35], as well as
+the fixed weights method. The reported error is defined as the average L2 relative
+error:
+                                    N
+                                 1 X ∥u(x; ui0 ) − uE (x; ui0 )∥2
+                         ϵL2 =                                                        (40)
+                                 N i=1    ∥uE (x; ui0 )∥2
+
+where N is the number of test instances, and u(x; ui0 ) and uE (x; ui0 ) are vectors of the
+predicted solutions and the exact solutions given the initial condition ui0 , respectively.
+   In this section, we use the mDeepONet network architecture (see Appendix A),
+where both the trunk and branch networks are built with 7 hidden layers, each
+containing 100 neurons. The hyperbolic tangent function is employed as the acti-
+vation function. The network parameters are initialized using the Kaiming Uniform
+initialization [41]. Specifically, for a module of shape (out_features, in_features), the
+                                                        √ √
+learnable weights and biases are initialized from U(− k, k), where k = 1/in_features.
+We use only the Adam optimizer [36] for updating the training parameters with a
+mini-batch training strategy. The batch size is set to 10,000, and the learning rate
+
+                                            40
+is initialized at 0.001, decaying by 0.99 every 500 steps. The hyperparameters in
+the BRDR weighting method are set to (βc , βw ) = (0.9999, 0.999). All training
+procedures described in this section are implemented using PyTorch [1]. Training
+computations were performed on a GPU cluster, with each individual training run
+utilizing a single NVIDIA® Tesla P100 GPU. All computations were conducted using
+32-bit single-precision floating-point format.
+
+5.1. 1D Wave equation
+
+   The 1D wave equation is defined as:
+
+                ∂ 2u       2
+                         2∂ u
+                     − C      = 0,                        (x, t) ∈ [0, 1]2        (41)
+                ∂t2       ∂x2
+                       u(x, 0) = u0 (x),                       x ∈ [0, 1]         (42)
+                     ∂u
+                        (x, 0) = 0,                            x ∈ [0, 1]         (43)
+                     ∂t
+              u(0, t) = u(1, t) = 0,                            t ∈ [0, 1]        (44)
+                                                              √
+and we consider the case where the wave velocity is C = 2. The initial condi-
+tion is set to u0 (x) = 5n=1 bn sin(nπx). The exact solution is given by u(x, t; u0 ) =
+                       P
+P5
+   n=1 bn sin(nπx) cos(nπCt). For training the PIDeepONet, 1000 random initial con-
+
+ditions, each represented by 101 uniform x points, are generated by randomly sam-
+pling {bn }5n=1 from the normalized Gaussian distribution. For each initial condition,
+100 boundary points are randomly sampled on the boundaries x = 0 and x = 1,
+and 2500 residual points are randomly sampled in the domain (x, t) ∈ [0, 1]2 . For
+testing, 500 random initial conditions are sampled, each represented by 101 uniform
+x points. For these initial conditions, the solution values at 101 × 101 uniformly
+sampled spatiotemporal points are computed using the exact solution.
+
+
+
+
+                                           41
+   The loss function is defined as follows:
+                                 NRb                  NBb
+                                1 X             ik   1 X
+                θ
+              L(θ ; w, s) = s            ik 2
+                                       wR R (xR ) +        wIik B 2 (xiBk )
+                               NR k=1               NB k=1
+                                  NIb                 NIb                           (45)
+                               1 X      ik 2  ik    1 X    ik 2      ik
+                             +        w I (xI ) +         w I (x )
+                               NI k=1 I            NI k=1 It t I
+
+where R, B, I and It represent the PDE operator, the boundary condition, the
+zero-order initial condition (IC) and the first-order initial condition (IC_t) operator,
+                              NIb          NBb
+respectively. {ik }N
+                   k=1 , {ik }k=1 and {ik }k=1 are batch indexes of training points, where
+                    Rb
+
+
+
+NRb = NBb = NIb = 10000.
+   The loss history of each component is illustrated in Fig. 10. Among all the loss
+components, the PDE loss exhibits the slowest decay, creating a bottleneck in the
+training process. Fig. 11 presents the best and worst predictions in the test set.
+The error distribution clearly follows the two characteristic directions x ± Ct = 0,
+indicating that the BRDR training method is effectively capturing the characteristic
+structure. However, the non-homogeneous error distribution suggests that BRDR
+training has not yet fully resolved the PDE, and more epochs are required for fur-
+ther training. The prediction errors are detailed in Table 4. The errors associated
+with all adaptive methods (NTK, CK, and BRDR) are smaller than those with fixed
+weights, underscoring the benefits of adaptive weighting. The prediction error of
+BRDR method is comparable with those of NTK and CK methods. To further ex-
+amine the distribution of prediction errors across different initial conditions, we also
+present box plots of the prediction errors from various runs in Fig. 14(a). These
+plots demonstrate that the BRDR method consistently achieves superior uniformity
+in prediction errors compared to both NTK and CK methods. Although the mean
+prediction error of CK is lower than that of BRDR, the extent of outliers is less
+pronounced with the BRDR method. We believe this increased uniformity is at-
+
+                                           42
+tributed to the inherent uniformity in the convergence rate of the BRDR method.
+Furthermore, BRDR training demonstrates considerable advantages in terms of com-
+putational time cost, as shown in Table 4. The NTK weighting method, for instance,
+involves the evaluation of the NTK matrix, which is highly computationally expen-
+sive, requiring approximately 3-4 times more computational time than fixed weight
+training. The CK method uses an inexpensive approximation of the NTK matrix
+with little sacrifice in accuracy, though it still incurs a higher extra cost compared to
+BRDR. In contrast, BRDR training incurs less than a 10% additional cost, making
+it a more efficient method.
+
+                                                PDE, BRDR             IC, BRDR
+                   101
+                                                BC, BRDR              IC t, BRDR
+
+                   100
+
+                  10−1
+           Loss
+                  10−2
+
+                  10−3
+
+                  10−4
+
+
+                         0   25000 50000 75000 100000 125000 150000 175000 200000
+                                                Epoch
+
+Figure 10: PIDeepONet for the 1D wave equation: the history of unweighted loss of each component
+from BRDR training.
+
+
+
+
+                                              43
+                           Prediction(u)            Exact(uE )           Error(u − uE )
+                                           4                     4                         0.016
+                                           3                     3                         0.012
+                                           2                     2                         0.008
+
+
+             Best case
+                                           1                     1                         0.004
+                                                                                           0.000
+                                           0                     0
+                                                                                           −0.004
+                                           −1                    −1                        −0.008
+                                           −2                    −2                        −0.012
+                                           −3                    −3                        −0.016
+                                           −4                    −4                        −0.020
+
+                                           2.4                   2.4                       0.12
+                                           1.8                   1.8                       0.08
+
+
+
+             Worst case
+                                           1.2                   1.2                       0.04
+                                           0.6                   0.6
+                                                                                           0.00
+                                           0.0                   0.0
+                                                                                           −0.04
+                                           −0.6                  −0.6
+                                           −1.2                  −1.2                      −0.08
+                                           −1.8                  −1.8                      −0.12
+                                           −2.4                  −2.4                      −0.16
+
+Figure 11: PIDeepONet for the 1D wave equation: the worst and best predicting cases in the test
+set from BRDR training method.
+
+
+
+
+Table 4: Relative error and relative consumed time for operator learning of the 1D wave equation
+and 1D Burgers equation. The mean and standard deviation are calculated over 5 independent
+runs.
+                                                       Burgers                                            Wave
+
+                                                    Error
+                                                                                          Time         Error      Time
+                             ν=1e-2                ν=1e-3               ν=1e-4
+
+   Fixed                  3.18%±0.49%           8.43%±0.87%      23.39%±1.14%             100%      2.84%±0.63%   100%
+ NTK [11]                 1.04%±0.25%       3.15%±0.39%          11.18%±1.08%             385%      1.43%±0.42%   456%
+  CK [35]                 0.74%±0.10%           3.42%±0.47%      16.85%±2.86%             142%      0.72%±0.04%   144%
+  BRDR               0.26%±0.01%                3.40%± 0.07%     17.61%±0.67%             106%      0.92%±0.21%   106%
+
+
+
+
+                                                        44
+5.2. 1D Burgers equation
+
+   The Burgers equation is defined as:
+
+          ∂u    ∂u    ∂ 2u
+             +u    − ν 2 = 0,                                 (x, t) ∈ [0, 1]2 ,   (46)
+          ∂t    ∂x    ∂x
+                       u(x, 0) = u0 (x),                           x ∈ [0, 1],     (47)
+
+                       u(0, t) = u(1, t),                           t ∈ [0, 1],    (48)
+                      ∂u          ∂u
+                         (0, t) =    (1, t),                        t ∈ [0, 1],    (49)
+                      ∂x          ∂x
+
+where ν is the viscosity. u(x, t; u0 ) is the solution at the point x = (x, t) given the
+initial condition u0 (x). According to reference [11], the initial condition, u0 (x), is
+sampled from the Gaussian random field N (0, 252 (−∆ + 52 I)−4 ). For training, 1000
+random initial conditions are sampled, each represented by 101 random x points.
+For each initial condition, 100 boundary points are randomly sampled on the bound-
+aries x = 0 and x = 1, and 2500 residual points are randomly sampled in the
+domain (x, t) ∈ [0, 1]2 . For testing, 500 random initial conditions are sampled, each
+represented by 101 uniform x points. For these initial conditions, the solutions at
+101 × 101 uniformly sampled spatiotemporal points are computed using the Chebfun
+package [45], with the Fourier method for spatial discretization and a fourth-order
+stiff time-stepping scheme for marching in time.
+   The loss function is defined as follows:
+                                NRb                NIb
+                               1 X      ik 2 ik  1 X
+             L(θ ; w, s) = s         w R (xR ) +        wik I 2 (xiIk )
+                              NR k=1 R           NI k=1 I
+                                 NBb                NBb                           (50)
+                               1 X    ik 2 ik     1 X    ik 2 ik
+                            +        w B (xB ) +        w B (x )
+                              NB k=1 B           NB k=1 Bx x B
+
+where R, I, B and Bx represent the PDE operator, the initial condition (IC), zero-
+order boundary condition (BC) and first-order boundary condition (BC_x) operator,
+
+                                               45
+                              NIb          NBb
+respectively. {ik }N
+                   k=1 , {ik }k=1 and {ik }k=1 are batch indexes of training points, where
+                    Rb
+
+
+
+NRb = NBb = NIb = 10000.
+   The loss history of each component is illustrated in Fig. 12. As the viscosity ν de-
+creases, the training becomes increasingly difficult, as evidenced by the progressively
+slower convergence rate of all loss components. Among these, the PDE loss exhibits
+the slowest decay, creating a bottleneck in the training process. Fig. 13 displays the
+best and worst predictions in the test set. For ν = 0.01, the largest error is primarily
+located at the initial boundary, and the steep gradient is not particularly pronounced,
+making the training relatively straightforward. For ν = 0.001 and ν = 0.0001, the
+steep gradient becomes more pronounced, posing a more significant challenge. In
+the worst cases for ν = 0.001 and ν = 0.0001, the predictions closely align with the
+ground truth, but there is a slight shift in the steep gradient location prediction,
+resulting in large errors around it and relatively smaller errors in the smoother areas
+of the solution. This suggests that adaptive sampling is necessary to further refine
+the steep gradient area.
+   The prediction errors are presented in Table 4. The errors for all adaptive meth-
+ods (NTK, CK, and BRDR) are smaller than those for fixed weights, underscoring
+the advantages of adaptive weighting. Compared to NTK and CK training, BRDR
+achieves significantly smaller prediction errors for ν = 0.01. For ν = 0.001, the pre-
+diction errors are comparable to those of NTK and CK training. For ν = 0.0001, the
+prediction errors are larger than those of NTK and CK training. A possible reason
+for the differences in prediction errors especially at smaller viscosity is that differ-
+ent adaptive weighting methods emphasize different components of the loss function
+during training. When the training loss is large especially at smaller viscosity, the
+predictions tend to stay far from the ground truth. It is difficult to determine which
+aspect of the loss function to focus on to achieve smaller errors, as the effectiveness of
+
+                                           46
+each method can vary. Beyond prediction error, the significant advantages of BRDR
+training include much lower uncertainty, as discussed in Section 5.1. Similarly, to
+examine the distribution of prediction errors across different initial conditions, we
+present box plots of the prediction errors from various runs in Fig. 14(b). These
+plots also show that the BRDR method consistently achieves better uniformity of
+prediction errors compared to both NTK and CK methods, with only slight devia-
+tions. This increased uniformity is likewise attributed to the built-in uniformity of
+convergence rate in the BRDR method. Furthermore, as shown in Table 4, BRDR
+training demonstrates considerable advantages in terms of computational time cost,
+similar to the results observed for the wave equation in Section 5.1.
+
+
+
+
+                                         47
+                                                ν=0.01
+
+                                               PDE, BRDR             BC x, BRDR
+                  10−2
+                                               BC, BRDR              IC, BRDR
+
+                  10−4
+           Loss
+
+                  10−6
+
+
+                                               ν=0.001
+
+
+                  10−2
+
+
+           Loss   10−4
+
+
+                  10−6
+
+                                               ν=0.0001
+
+
+                  10−2
+
+                  10−3
+           Loss
+                  10−4
+
+                  10−5
+
+
+                         0   25000 50000 75000 100000 125000 150000 175000 200000
+                                                Epoch
+
+Figure 12: PIDeepONets for 1D Burgers equation: the history of unweighted loss of each component
+from BRDR training.
+
+
+
+
+                                              48
+                            Prediction(u)            Exact(uE )            Error(u − uE )
+                                            0.4                   0.4                       0.00100
+                                            0.3                   0.3                       0.00075
+                                                                                            0.00050
+
+
+               Best case
+                                            0.2                   0.2
+                                                                                            0.00025
+                                            0.1                   0.1
+                                                                                            0.00000
+                                            0.0                   0.0
+                                                                                            −0.00025
+                                            −0.1                  −0.1                      −0.00050
+                                            −0.2                  −0.2                      −0.00075
+                                            −0.3                  −0.3                      −0.00100
+
+                                            0.060                 0.060                     0.0016
+                                            0.045                 0.045                     0.0012
+
+
+
+
+               Worst case
+                                            0.030                 0.030                     0.0008
+                                                                                            0.0004
+                                            0.015                 0.015
+                                                                                            0.0000
+                                            0.000                 0.000
+                                                                                            −0.0004
+                                            −0.015                −0.015                    −0.0008
+                                            −0.030                −0.030                    −0.0012
+                                            −0.045                −0.045                    −0.0016
+                                                       ν=0.01
+
+                            Prediction(u)            Exact(uE )            Error(u − uE )
+                                            0.4                   0.4                       0.0050
+                                            0.3                   0.3                       0.0025
+                                            0.2                   0.2                       0.0000
+
+
+               Best case
+                                            0.1                   0.1                       −0.0025
+                                            0.0                   0.0                       −0.0050
+                                            −0.1                  −0.1                      −0.0075
+                                            −0.2                  −0.2                      −0.0100
+                                            −0.3                  −0.3                      −0.0125
+                                            −0.4                  −0.4                      −0.0150
+
+                                            0.45                  0.45                      0.90
+                                            0.30                  0.30                      0.75
+
+
+
+               Worst case
+                                            0.15                  0.15                      0.60
+                                                                                            0.45
+                                            0.00                  0.00
+                                                                                            0.30
+                                            −0.15                 −0.15                     0.15
+                                            −0.30                 −0.30                     0.00
+                                            −0.45                 −0.45                     −0.15
+                                                      ν=0.001
+
+                            Prediction(u)            Exact(uE )            Error(u − uE )
+                                            0.20                  0.20                      0.040
+                                            0.15                  0.15                      0.032
+                                            0.10                  0.10                      0.024
+
+
+             Best case
+                                            0.05                  0.05                      0.016
+                                            0.00                  0.00                      0.008
+                                            −0.05                 −0.05                     0.000
+                                            −0.10                 −0.10                     −0.008
+                                            −0.15                 −0.15                     −0.016
+                                            −0.20                 −0.20                     −0.024
+
+                                            0.60                  0.60                      1.2
+                                            0.45                  0.45                      1.0
+
+
+
+
+             Worst case
+                                            0.30                  0.30                      0.8
+                                            0.15                  0.15                      0.6
+                                                                  0.00
+                                            0.00                                            0.4
+                                                                  −0.15
+                                            −0.15                 −0.30                     0.2
+                                            −0.30                 −0.45                     0.0
+                                            −0.45                 −0.60                     −0.2
+                                            −0.60                 −0.75                     −0.4
+                                                     ν=0.0001
+Figure 13: PIDeepONets for 1D Burgers equation: the worst and best predicting cases from BRDR
+weighting method for different viscosity.
+
+                                                         49
+                                       NTK                                          CK                                      BRDR
+                0.25
+
+                0.20
+
+
+
+        Error
+                0.15
+
+                0.10
+
+                0.05
+
+                0.00
+                       Run 0   Run 1   Run 2   Run 3   Run 4   Run 0     Run 1     Run 2    Run 3   Run 4   Run 0   Run 1    Run 2   Run 3   Run 4
+
+
+                                                                       (a) Wave equation
+
+                                       NTK                                         CK                                       BRDR
+
+                0.3
+
+
+
+        Error
+                0.2
+
+
+                0.1
+
+
+                0.0
+                                                                                 ν=0.01
+                0.5
+
+                0.4
+
+
+
+        Error
+                0.3
+
+                0.2
+
+                0.1
+
+                0.0
+                                                                                 ν=0.001
+
+
+                0.6
+
+
+
+        Error
+                0.4
+
+
+                0.2
+
+
+                0.0
+                       Run 0   Run 1   Run 2   Run 3   Run 4   Run 0     Run 1     Run 2    Run 3   Run 4   Run 0   Run 1   Run 2    Run 3   Run 4
+                                                                                 ν=0.0001
+                                                                 (b) Burgers equation
+Figure 14: PIDeepONets for the 1D wave equation and 1D Burgers equation: box-plots of prediction
+errors over different initial conditions from various runs. The points denoted as red crosses are
+outliers, positioned beyond the whiskers which extend to 1.5 times the inter-quartile range from
+the quartiles.
+
+
+
+
+                                                                                  50
+6. Conclusion
+
+   In conventional physics-informed machine learning, specifically in the area of
+physics-informed neural networks (PINNs) and physics-informed deep operator net-
+works (PIDeepONets), the loss function is a linear combination of the squared resid-
+uals for the PDE, the BC, and the IC, each weighted with fixed coefficients. Training
+with fixed weights can sometimes result in significant discrepancies in the convergence
+rate of residuals at different training points. In this work, we introduce the concept
+of the “inverse residual decay rate” to describe the convergence rate of residuals.
+Based on this concept, we design an adaptive weighting method aimed at balancing
+the residual decay rate throughout the training process. In this method, the mean
+of all pointwise weights (positive) is constrained to be 1, ensuring that the weights
+remain bounded. Additionally, we use a scaling factor to keep the learning rate close
+to its maximum, thereby accelerating the training process.
+   The performance of our proposed adaptive weighting method is compared with
+state-of-the-art adaptive weighting methods on benchmark problems for both PINNs
+and PIDeepONets. For PINNs, we compare the proposed adaptive weighting method
+with the recently proposed soft-attention weighting method and the residual-based
+attention weighting method. The test results show that the proposed method is char-
+acterized by high prediction accuracy and fast convergence rate, achieving not only
+a lower final prediction error but also a faster convergence rate. Moreover, we consis-
+tently use the same hyperparameters across different benchmarks, indicating an easy
+configuration for the proposed adaptive weighting method. For PIDeepONets, we
+compare the proposed adaptive weighting method with the recently proposed neural
+tangent kernel-based weighting method and the conjugate kernel-based weighting
+method. Except for the case of Burgers equation with the smallest viscosity tested,
+
+
+                                          51
+our method achieves a lower or comparable prediction error. The proposed method
+is particularly notable for its significantly lower uncertainty and much lower compu-
+tational cost.
+   Our adaptive weighting method is formulated to balance the convergence rate of
+residuals, leveraging the fact that residuals decay exponentially during the training
+process of neural networks. This approach can be extended to other deep learning
+frameworks, provided that the residuals also exhibit exponential decay. Furthermore,
+our tests on the Burgers equation with PIDeepONet indicate that incorporating
+adaptive sampling is essential for further enhancing the effectiveness of adaptive
+weighting during training.
+
+
+Acknowledgments
+
+   The work is supported by the U.S. Department of Energy, Advanced Scien-
+tific Computing Research program, under the Scalable, Efficient and Accelerated
+Causal Reasoning Operators, Graphs and Spikes for Earth and Embedded Systems
+(SEA-CROGS) project (Project No. 80278). Pacific Northwest National Laboratory
+(PNNL) is a multi-program national laboratory operated for the U.S. Department
+of Energy (DOE) by Battelle Memorial Institute under Contract No. DE-AC05-
+76RL01830.
+
+
+Appendix A. Network architectures
+
+   The modified fully-connected network (mFCN) introduced in [8], which has demon-
+strated to be more effective than the standard fully-connected neural network. A
+mFCN maps the input x to the output y. Generally, a mFCN consists of an input
+layer, L hidden layers and an output layer. The l-th layer has nl neurons, where
+
+
+                                         52
+l = 0, 1, ..L, L + 1 denotes the input layer, first hidden layer,..., L-th hidden layer
+and the output layer, respectively. Note that the number of neurons of each hidden
+layer is the same, i.e., n1 = n2 = ... = nL . The forward propagation, i.e. the function
+y = fθ (x), is defined as follows
+
+                        U = ϕ(WU x + bU )
+
+                        V = ϕ(WV x + bV )
+
+                       H1 = ϕ(W1 x + b1 )
+                                                                  ,                (A.1)
+                          l         l   l−1      l
+                        Z = ϕ(W H             + b ),    2≤l≤L
+
+                        Hl = (1 − Zl ) ⊙ U + Zl ⊙ V, 2 ≤ l ≤ L
+
+                     fθ (x) = WL+1 HL + bL+1
+
+where ϕ(•) is a pointwise activation and ⊙ denotes pointwise multiplication. The
+training parameter in the network is θ = {WU , WV , bU , bV , W1:L+1 , b1:L+1 }.
+   The modified deep operator network (mDeepONet), inspired by the modified
+Fully Connected Network (mFCN) [8], is introduced in [11]. It has been shown to
+uniformly outperform the standard DeepONet architecture [4]. A DeepONet consists
+of two sub-networks: the trunk network and the branch network. The trunk network
+takes coordinates x as input, while the branch network takes a function (represented
+as u) as input. The output of DeepONet is the inner product of the outputs of the
+trunk and branch networks. Considering the trunk and branch networks both have
+L hidden layers, the forward propagation, i.e., the function y = Gθ (u)(x), is defined
+
+
+
+
+                                               53
+as follows:
+
+       U = ϕ(Wu u + bu )                    V      = ϕ(Wx x + by )
+
+      H1u = ϕ(Wu1 x + b1u )                 H1x    = ϕ(Wx1 x + b1x )
+                                                                 l
+      Zlu = ϕ(Wul Hl−1  l
+                   u + bu )                 Zlx    = ϕ(Wxl Hl−1
+                                                            x + bx )                 2≤l≤L
+                                                                                          ,
+      Hlu = (1 − Zlu ) ⊙ U + Zlu ⊙ V        Hlx    = (1 − Zlx ) ⊙ U + Zlx ⊙ V        2≤l≤L
+
+    HL+1
+     u   = WuL+1 HLu + bL+1
+                        u                   HL+1
+                                             x   = WxL+1 HLx + bL+1
+                                                                x
+
+Gθ (u)(x) = HL+1
+             u   · HL+1
+                    x
+                                                                                      (A.2)
+where the training parameter is θ = {Wu , bu , Wu1:L+1 , b1:L+1
+                                                          u     , Wx , bx , Wx1:L+1 , b1:L+1
+                                                                                       x     }.
+
+
+Appendix B. Ablation study
+
+   The proposed BRDR method comprises three distinct components: pointwise
+weights in Section 3.2, scaling factor in Section 3.3, and mini-batch training in Sec-
+tion 3.4, implemented in specific sections of our framework. Additionally, in our
+test cases, we integrate components from existing literature, including a modified
+fully-connected network (mFCN) and Fourier feature embedding. To evaluate the
+contributions of each component, we conduct an ablation study by selectively omit-
+ting one or more components during each trial on the Allen-Cahn equation described
+in Section 4.2. As mini-batch training is not employed for the Allen-Cahn equation,
+we excluded it from the ablation study. For the ablation study, in the absence of
+mFCN, a standard FCN with an equivalent number of layers and neurons serves as
+the baseline for comparison. Including the Fourier feature automatically satisfies the
+periodic boundary conditions, thus eliminating the need for its component loss in the
+total loss function. Conversely, when the Fourier feature is excluded, we enforce the
+periodic boundary conditions by incorporating the component loss into the total loss
+
+                                            54
+function. For this purpose, we uniformly sample NB = 200 boundary points across
+(x, t) ∈ {0, 1} × [0, 1] to calculate the periodic boundary condition loss, subsequently
+reformulating the total loss function as follows:
+                           NR                    NB                     NI
+                                                                                        !
+                        αR X                 α R
+                                                 X                  α I
+                                                                        X
+  L(θ ; w, s, α ) = s         wi R2 (xiR ) +        wi B 2 (xiB ) +        wi I 2 (xiI )
+                        NR i=1 R             NB i=1 B               NI i=1 I
+                                                                                       (B.1)
+where the weight constants α = 1 is employed. To ensure a fair comparison, the best-
+performing seed of the BRDR method, as shown in Table 3, is selected for all test
+cases in the ablation study. The prediction errors for all test cases are listed in Table
+B.5. Compared to the baseline standard FCN, which lacks advanced components,
+the addition of mFCN reduces the error by a factor of 3 to 50, as evidenced by the
+comparison of case pairs 1–9, 2–10, 3–11, 4–12, and 8-16. Similarly, the incorporation
+of Fourier feature embedding decreases the error by a factor of 3 to 100, as shown by
+the comparison of case pairs 4-8, 9–13, 10–14, 11–15, and 12–16. The application of
+the BRDR method reduces the error by a factor of 5 to 15, as demonstrated by the
+comparison of case pairs 1–4, 9–12, and 13–16. Implementing only the scaling factor
+reduces the error by a factor of 1 to 3, as indicated by case pairs 1–2, 3–4, 9–10,
+11–12, 13–14, and 15–16. Likewise, implementing only pointwise weights reduces
+the error by a factor of 2 to 10, as shown by case pairs 1–3, 2–4, 9–11, 10–12, and
+13–15, 14–16. Figure B.15 illustrates the history of testing error when mFCN and
+Fourier feature embedding are active, demonstrating that the inclusion of BRDR
+components also speeds up convergence.
+   Besides, in our experiments (cases 5, 6, and 7), we observed that when the Fourier
+feature embedding is used without mFCN, the network fails to converge. We suspect
+this issue arises from the improper application of the Fourier feature embedding.
+Specifically, the initial condition, u(x, 0) = x2 cos(πx) in Eq. (35), is not strictly
+
+                                             55
+periodic on the interval [−1, 1] because the first-order derivatives at x = −1 and
+x = 1 do not match. As a result, the network get trapped into a solution that is
+significantly different from the exact solution, with the training loss remaining high.
+In contrast, the inclusion of mFCN can successfully overcome this issue. The BRDR
+method—with its combination of scaling factor and pointwise weights—also helps
+alleviate the issue. While our empirical results demonstrate that both mFCN and
+the BRDR method improve convergence, the mechanisms behind their effectiveness
+remain unclear and warrant further investigation.
+   Overall, integrating both mFCN and Fourier feature embedding is essential for
+significantly reducing the prediction error, and further inclusion of the BRDR method
+can push the error down to a minimal level.
+   Regarding training time, incorporating mFCN results in a significant increase in
+training time. In contrast, integrating Fourier feature embedding reduces training
+time by approximately 10% by eliminating the need to calculate the boundary loss.
+Meanwhile, the addition of BRDR components incurs an increase of less than 10%
+in training time.
+
+
+
+
+                                          56
+Table B.5: Relative L2 prediction error and relative training time cost for each case of the ablation
+study for the 1D Allen–Cahn Equation. The symbol ✓ indicates that the corresponding component
+is included in the case, whereas ✗ denotes that the component is excluded.
+
+                                     Components
+                                                                        Error      Time
+                                            Scaling     Pointwise
+                      mFCN       Fourier
+                                             factor      weights
+
+           Case 1        ✗           ✗          ✗            ✗         1.35e-2     100%
+           Case 2        ✗           ✗          ✓            ✗         1.38e-2     105%
+           Case 3        ✗           ✗          ✗            ✓         6.00e-3     105%
+           Case 4        ✗           ✗          ✓            ✓         2.14e-3     106%
+           Case 5        ✗          ✓           ✗            ✗         9.80e-1     89%
+           Case 6        ✗          ✓           ✓            ✗         9.94e-1     97%
+           Case 7        ✗          ✓           ✗            ✓         9.97e-1     95%
+           Case 8        ✗          ✓           ✓            ✓         8.87e-4     102%
+           Case 9        ✓           ✗          ✗            ✗         3.48e-3     176%
+          Case 10        ✓           ✗          ✓            ✗         3.19e-3     182%
+          Case 11        ✓           ✗          ✗            ✓         2.36e-4     179%
+          Case 12        ✓           ✗          ✓            ✓         1.92e-4     185%
+          Case 13        ✓          ✓           ✗            ✗         6.72e-5     165%
+          Case 14        ✓          ✓           ✓            ✗         3.39e-5     171%
+          Case 15        ✓          ✓           ✗            ✓         2.38e-5     165%
+          Case 16        ✓          ✓           ✓            ✓        1.60e-5      171%
+
+
+
+
+                                                 57
+         100                                                                          no scaling, no weights
+                                                                                      with scaling, no weights
+                                                                                      no scaling, with weights
+                                                                                      with scaling, with weights
+        10−1
+
+
+
+
+        10−2
+
+Error
+
+        10−3
+
+
+
+
+        10−4
+
+
+
+
+        10−5
+                0            50000          100000        150000         200000         250000           300000
+                                                          Epoch
+
+
+
+         Figure B.15: Error history of PINN predictions for Allen-Cahn equation. For brevity, the legend
+         abbreviates “scaling factor” as “scaling” and “pointwise weights” as “weights”. Note that Fourier
+         feature and the modified fully-connected network is included in the network architecture.
+
+
+
+
+                                                        58
+References
+
+[1] A. Paszke, S. Gross, F. Massa, A. Lerer, J. Bradbury, G. Chanan, T. Killeen,
+   Z. Lin, N. Gimelshein, L. Antiga, et al., Pytorch: An imperative style, high-
+   performance deep learning library, Advances in neural information processing
+   systems 32 (2019).
+
+[2] M. Abadi, P. Barham, J. Chen, Z. Chen, A. Davis, J. Dean, M. Devin, S. Ghe-
+   mawat, G. Irving, M. Isard, et al., Tensorflow: a system for large-scale machine
+   learning., in: Osdi, Vol. 16, Savannah, GA, USA, 2016, pp. 265–283.
+
+[3] M. Raissi, P. Perdikaris, G. E. Karniadakis, Physics-informed neural networks:
+   A deep learning framework for solving forward and inverse problems involving
+   nonlinear partial differential equations, Journal of Computational physics 378
+   (2019) 686–707.
+
+[4] L. Lu, P. Jin, G. Pang, Z. Zhang, G. E. Karniadakis, Learning nonlinear oper-
+   ators via deeponet based on the universal approximation theorem of operators,
+   Nature machine intelligence 3 (3) (2021) 218–229.
+
+[5] S. Wang, H. Wang, P. Perdikaris, Learning the solution operator of parametric
+   partial differential equations with physics-informed deeponets, Science advances
+   7 (40) (2021) eabi8605.
+
+[6] S. Goswami, M. Yin, Y. Yu, G. E. Karniadakis, A physics-informed variational
+   deeponet for predicting crack path in quasi-brittle materials, Computer Methods
+   in Applied Mechanics and Engineering 391 (2022) 114587.
+
+[7] S. Goswami, A. Bora, Y. Yu, G. E. Karniadakis, Physics-informed deep neural
+
+
+
+                                       59
+    operator networks, in: Machine Learning in Modeling and Simulation: Methods
+    and Applications, Springer, 2023, pp. 219–254.
+
+ [8] S. Wang, Y. Teng, P. Perdikaris, Understanding and mitigating gradient flow
+    pathologies in physics-informed neural networks, SIAM Journal on Scientific
+    Computing 43 (5) (2021) A3055–A3081.
+
+ [9] C. L. Wight, J. Zhao, Solving allen-cahn and cahn-hilliard equations using the
+    adaptive physics informed neural networks, arXiv preprint arXiv:2007.04542
+    (2020).
+
+[10] L. McClenny, U. Braga-Neto, Self-adaptive physics-informed neural networks
+    using a soft attention mechanism, arXiv preprint arXiv:2009.04544 (2020).
+
+[11] S. Wang, H. Wang, P. Perdikaris, Improved architectures and training algo-
+    rithms for deep operator networks, Journal of Scientific Computing 92 (2) (2022)
+    35.
+
+[12] Z. Gao, L. Yan, T. Zhou, Failure-informed adaptive sampling for pinns, SIAM
+    Journal on Scientific Computing 45 (4) (2023) A1971–A1994.
+
+[13] K. Tang, X. Wan, C. Yang, Das-pinns: A deep adaptive sampling method
+    for solving high-dimensional partial differential equations, Journal of Computa-
+    tional Physics 476 (2023) 111868.
+
+[14] C. Wu, M. Zhu, Q. Tan, Y. Kartha, L. Lu, A comprehensive study of non-
+    adaptive and residual-based adaptive sampling for physics-informed neural net-
+    works, Computer Methods in Applied Mechanics and Engineering 403 (2023)
+    115671.
+
+
+                                        60
+[15] A. Heinlein, A. Klawonn, M. Lanser, J. Weber, Combining machine learning
+    and domain decomposition methods for the solution of partial differential equa-
+    tions—a review, GAMM-Mitteilungen 44 (1) (2021) e202100001.
+
+[16] A. Heinlein, A. A. Howard, D. Beecroft, P. Stinis, Multifidelity domain
+    decomposition-based physics-informed neural networks for time-dependent
+    problems, arXiv preprint arXiv:2401.07888 (2024).
+
+[17] W. Chen, P. Stinis, Feature-adjacent multi-fidelity physics-informed machine
+    learning for partial differential equations, Journal of Computational Physics
+    498 (2024) 112683.
+
+[18] A. A. Howard, M. Perego, G. E. Karniadakis, P. Stinis, Multifidelity deep oper-
+    ator networks for data-driven and physics-informed problems, Journal of Com-
+    putational Physics 493 (2023) 112462.
+
+[19] X. Meng, G. E. Karniadakis, A composite neural network that learns from multi-
+    fidelity data: Application to function approximation and inverse pde problems,
+    Journal of Computational Physics 401 (2020) 109020.
+
+[20] A. Howard, Y. Fu, P. Stinis, A multifidelity approach to continual learning
+    for physical systems, Machine Learning: Science and Technology 5 (2) (2024)
+    025042.
+
+[21] A. D. Jagtap, K. Kawaguchi, G. E. Karniadakis, Adaptive activation functions
+    accelerate convergence in deep and physics-informed neural networks, Journal
+    of Computational Physics 404 (2020) 109136.
+
+[22] M. Tancik, P. Srinivasan, B. Mildenhall, S. Fridovich-Keil, N. Raghavan,
+    U. Singhal, R. Ramamoorthi, J. Barron, R. Ng, Fourier features let networks
+
+                                        61
+    learn high frequency functions in low dimensional domains, Advances in Neural
+    Information Processing Systems 33 (2020) 7537–7547.
+
+[23] S. Wang, H. Wang, P. Perdikaris, On the eigenvector bias of fourier feature
+    networks: From regression to solving multi-scale pdes with physics-informed
+    neural networks, Computer Methods in Applied Mechanics and Engineering
+    384 (2021) 113938.
+
+[24] S. Wang, S. Sankaran, P. Perdikaris, Respecting causality for training physics-
+    informed neural networks, Computer Methods in Applied Mechanics and Engi-
+    neering 421 (2024) 116813.
+
+[25] R. Mattey, S. Ghosh, A novel sequential method to train physics informed neu-
+    ral networks for allen cahn and cahn hilliard equations, Computer Methods in
+    Applied Mechanics and Engineering 390 (2022) 114474.
+
+[26] D. Liu, Y. Wang, A dual-dimer method for training physics-constrained neural
+    networks with minimax architecture, Neural Networks 136 (2021) 112–125.
+
+[27] Y. Song, H. Wang, H. Yang, M. L. Taccari, X. Chen, Loss-attentional physics-
+    informed neural networks, Journal of Computational Physics 501 (2024) 112781.
+
+[28] G. Zhang, H. Yang, F. Zhu, Y. Chen, et al., Dasa-pinns: Differentiable ad-
+    versarial self-adaptive pointwise weighting scheme for physics-informed neural
+    networks, SSRN (2023).
+
+[29] S. J. Anagnostopoulos, J. D. Toscano, N. Stergiopulos, G. E. Karniadakis,
+    Residual-based attention in physics-informed neural networks, Computer Meth-
+    ods in Applied Mechanics and Engineering 421 (2024) 116805.
+
+
+                                        62
+[30] S. Basir, I. Senocak, Physics and equality constrained artificial neural networks:
+    Application to forward and inverse problems with multi-fidelity data fusion,
+    Journal of Computational Physics 463 (2022) 111301.
+
+[31] S. Basir, I. Senocak, An adaptive augmented lagrangian method for train-
+    ing physics and equality constrained artificial neural networks, arXiv preprint
+    arXiv:2306.04904 (2023).
+
+[32] S. Basir, Investigating and mitigating failure modes in physics-informed neu-
+    ral networks (pinns), Communications in Computational Physics 33 (5) (2023)
+    1240–1269.
+
+[33] H. Son, S. W. Cho, H. J. Hwang, Enhanced physics-informed neural networks
+    with augmented lagrangian relaxation method (al-pinns), Neurocomputing 548
+    (2023) 126424.
+
+[34] S. Wang, X. Yu, P. Perdikaris, When and why pinns fail to train: A neural tan-
+    gent kernel perspective, Journal of Computational Physics 449 (2022) 110768.
+
+[35] A. A. Howard, S. Qadeer, A. W. Engel, A. Tsou, M. Vargas, T. Chiang, P. Stinis,
+    The conjugate kernel for efficient training of physics-informed deep operator
+    networks, in: ICLR 2024 Workshop on AI4DifferentialEquations In Science.
+
+[36] D. P. Kingma, J. Ba, Adam: A method for stochastic optimization, arXiv
+    preprint arXiv:1412.6980 (2014).
+
+[37] A. Jacot, F. Gabriel, C. Hongler, Neural tangent kernel: Convergence and gener-
+    alization in neural networks, Advances in neural information processing systems
+    31 (2018).
+
+
+                                          63
+[38] K. Shukla, J. D. Toscano, Z. Wang, Z. Zou, G. E. Karniadakis, A comprehen-
+    sive and fair comparison between mlp and kan representations for differential
+    equations and operator networks, arXiv preprint arXiv:2406.02917 (2024).
+
+[39] H. Robbins, S. Monro, A stochastic approximation method, The annals of math-
+    ematical statistics (1951) 400–407.
+
+[40] S. Ruder, An overview of gradient descent optimization algorithms, arXiv
+    preprint arXiv:1609.04747 (2016).
+
+[41] K. He, X. Zhang, S. Ren, J. Sun, Delving deep into rectifiers: Surpassing human-
+    level performance on imagenet classification, in: Proceedings of the IEEE inter-
+    national conference on computer vision, 2015, pp. 1026–1034.
+
+[42] D. C. Liu, J. Nocedal, On the limited memory bfgs method for large scale
+    optimization, Mathematical programming 45 (1-3) (1989) 503–528.
+
+[43] S. J. Anagnostopoulos, J. D. Toscano, N. Stergiopulos, G. E. Karniadakis,
+    Learning in pinns: Phase transition, total diffusion, and generalization, arXiv
+    preprint arXiv:2403.18494 (2024).
+
+[44] L. Liu, S. Liu, H. Xie, F. Xiong, T. Yu, M. Xiao, L. Liu, H. Yong, Disconti-
+    nuity computing using physics-informed neural networks, Journal of Scientific
+    Computing 98 (1) (2024) 22.
+
+[45] T. A. Driscoll, N. Hale, L. N. Trefethen, Chebfun guide (2014).
+
+
+
+
+                                          64
+

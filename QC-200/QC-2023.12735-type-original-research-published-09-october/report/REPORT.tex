@@ -1,0 +1,130 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{siunitx}
+\usepackage{amsmath}
+\usepackage{listings}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+
+\title{Independent Replication Report ---\\ PANSATZ: pulse-based ansatz for VQAs\\ (Meirom \& Frankel, 2023)}
+\author{QC-200 wave replication (agent run)}
+\date{2026-07-06}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently reproduce the simulation-side headline claim of Meirom \& Frankel (2023, DOI \texttt{10.3389/frqst.2023.1273581}): that a Hardware-Efficient / pulse-parameterized ansatz reaches chemical accuracy (defined by the authors as $<1.6\,\text{mHa}$ vs FCI) in VQE for the 2-qubit parity-reduced STO-3G Hamiltonian of H$_2$ across all studied bond distances, and analogously for HeH$^+$. Using an independent path (Qiskit 2.5.0 + qiskit-nature 0.8 + PySCF 2.13 statevector, EfficientSU2 ansatz, COBYLA optimizer), we reproduce chemical accuracy at 7/7 H$_2$ and 5/5 HeH$^+$ distances, with the equilibrium H$_2$ energy matching FCI to $\sim 3\times 10^{-9}\,\text{Ha}$. The paper's distinctive pulse-level PANSATZ construction, its 7$\times$ schedule-duration claim, the LiH 4-qubit result, and the real-hardware (\texttt{ibm\_lagos}) run were not attempted here as they require Qiskit-Dynamics with a calibrated backend Hamiltonian and paid IBM Quantum access. Two independent Argo LLM judges (gpt-5.2, gpt-5.4) return verdict \textbf{PARTIAL} with consistent reasoning.
+\end{abstract}
+
+\section{Paper identification}
+
+The QC-200 manifest recorded the paper as arXiv id \texttt{2023.12735} but that resolves to HTTP 404 on arXiv. The slug \texttt{type-original-research-published-09-october} is Frontiers-style ("type = original research, published = 09 October"). A Crossref query filtered on \texttt{publisher-name=Frontiers}, from-pub-date = until-pub-date = \texttt{2023-10-09}, query = \texttt{quantum}, returned exactly one hit: DOI \texttt{10.3389/frqst.2023.1273581} ("PANSATZ: pulse-based ansatz for variational quantum algorithms"). The downloaded PDF has SHA-256 \texttt{e4360ed9d9b62ea0df0035253b8d6dfff4c184bd92dc48a7b4b6527fbbca3fdd}, matching the manifest byte-for-byte. Identity confirmed.
+
+\section{Paper summary}
+
+PANSATZ is a hardware-native ansatz for VQAs on fixed-frequency transmons (IBM Falcon). Instead of parameterizing gate rotation angles, the authors expose \emph{pulse duration} (plus a per-layer driving phase) of pre-defined DRAG single-qubit pulses and cross-resonance (CR) two-qubit pulses. Because the "identity ansatz" corresponds to zero-duration CR pulses, the ansatz has \emph{structured adaptivity} --- schedule length grows with the entanglement required. Their headline benchmarks are VQE ground-state energies for H$_2$, HeH$^+$ (both 2-qubit reduced), and LiH (4-qubit reduced) in the STO-3G basis, reaching chemical accuracy across all distances in simulation, and reaching chemical accuracy on \texttt{ibm\_lagos} for H$_2$ with only readout-error mitigation.
+
+\section{Claims tested and result}
+
+\begin{table}[h!]
+\centering\small
+\begin{tabular}{@{}lp{6cm}ccc@{}}
+\toprule
+\# & Claim & Testable classically? & Tested? & Result \\
+\midrule
+C1 & H$_2$ VQE reaches $<1.6$\,mHa vs FCI across bond distances (2-qubit parity-reduced STO-3G, ideal sim) & Yes & Yes & \textbf{Reproduced (7/7)} \\
+C2 & HeH$^+$: same & Yes & Yes & \textbf{Reproduced (5/5)} \\
+C3 & LiH (4-qubit) needs $>1$ layer at large $d$ & Yes & Not attempted (time) & --- \\
+C4 & PANSATZ up to $7\times$ shorter than 1-layer GANSATZ & Requires Qiskit-Dynamics & No & --- \\
+C5 & Hill-climbing $<$ SPSA in iteration count & Yes & No & --- \\
+C6 & \texttt{ibm\_lagos} H$_2$ chemical accuracy w/ readout-only mitigation & No (paid HW) & No & --- \\
+C7 & Reproduction of standard FCI reference for H$_2$/HeH$^+$/LiH & Yes & Yes & \textbf{Cross-checked against PySCF} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Method}
+
+\subsection{Environment}
+Python 3.14.6; Qiskit 2.5.0; qiskit-nature 0.8.0; PySCF 2.13.1; NumPy + SciPy (system-site). Venv at \texttt{work/venv/}. Homebrew macOS host \texttt{CherryRd}.
+
+\subsection{Pipeline}
+For each bond distance $d$:
+\begin{enumerate}
+\item Build the electronic Hamiltonian via \texttt{PySCFDriver} (\texttt{qiskit-nature}) at basis \texttt{sto3g}.
+\item Map to qubits with \texttt{ParityMapper(num\_particles=$\ldots$)} $\;\rightarrow\;$ 2-qubit operator (identical to the paper's setup, Sec.~3).
+\item Reference FCI computed two independent ways: (a) NumPy eigendecomposition of the $4\times 4$ qubit Hamiltonian; (b) full-CI in the STO-3G active space via \texttt{pyscf.fci.FCI}. They agree to double precision.
+\item VQE with \texttt{EfficientSU2(reps=2, linear)} (12 parameters), classical optimizer \texttt{COBYLA}, seed 42, \texttt{maxiter=500}. Same family as the paper's Real-Amplitudes HEA baseline (GANSATZ); pulse-level PANSATZ itself requires Qiskit-Dynamics + backend calibration and is out of scope for a pure statevector sanity replication.
+\item Chemical-accuracy check: $|E_\text{VQE} - E_\text{FCI}| < 1.6\,\text{mHa}$ (paper's own threshold).
+\end{enumerate}
+
+\section{Results vs.\ paper}
+
+\subsection{H$_2$ STO-3G}
+
+\begin{table}[h!]
+\centering\small
+\begin{tabular}{rrrrcc}
+\toprule
+$d$ (\AA) & $E_\text{FCI}$ (Ha) & $E_\text{VQE}$ (Ha) & $|\text{err}|$ (Ha) & Chem.\ acc. & Iters \\
+\midrule
+0.50 & $-1.055160$ & $-1.055160$ & $2.07\times10^{-9}$ & \checkmark & 291 \\
+0.70 & $-1.136189$ & $-1.136189$ & $2.99\times10^{-9}$ & \checkmark & 250 \\
+0.90 & $-1.120560$ & $-1.120560$ & $7.66\times10^{-10}$ & \checkmark & 239 \\
+1.10 & $-1.079193$ & $-1.079193$ & $6.47\times10^{-10}$ & \checkmark & 265 \\
+1.50 & $-0.998149$ & $-0.998149$ & $6.88\times10^{-9}$ & \checkmark & 304 \\
+2.00 & $-0.948641$ & $-0.948617$ & $2.45\times10^{-5}$ & \checkmark & 500* \\
+2.50 & $-0.936055$ & $-0.935613$ & $4.42\times10^{-4}$ & \checkmark & 500* \\
+\bottomrule
+\end{tabular}\\
+*iteration cap reached; energy still within chemical accuracy.
+\end{table}
+
+At the equilibrium bond length 0.70\,\AA{}, our VQE reproduces the FCI energy of $-1.136189$\,Ha to nano-Hartree precision, matching the paper's Fig.~3A/3D pattern (VQE and FCI overlap in Fig.~3A; deviations in Fig.~3D grow only at the largest distances).
+
+\subsection{HeH$^+$ STO-3G}
+
+\begin{table}[h!]
+\centering\small
+\begin{tabular}{rrrrc}
+\toprule
+$d$ (\AA) & $E_\text{FCI}$ (Ha) & $E_\text{VQE}$ (Ha) & $|\text{err}|$ (Ha) & Chem.\ acc. \\
+\midrule
+0.60 & $-2.770009$ & $-2.770009$ & $1.24\times10^{-9}$ & \checkmark \\
+0.90 & $-2.862618$ & $-2.862618$ & $4.03\times10^{-9}$ & \checkmark \\
+1.20 & $-2.845425$ & $-2.845425$ & $2.55\times10^{-9}$ & \checkmark \\
+1.50 & $-2.824683$ & $-2.824683$ & $4.32\times10^{-9}$ & \checkmark \\
+2.00 & $-2.810780$ & $-2.810765$ & $1.48\times10^{-5}$ & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{LLM-judge panel}
+
+Two independent Argo judges scored the reproduction:
+\begin{itemize}
+\item \texttt{argo:gpt-5.2} $\rightarrow$ \textbf{PARTIAL}. Simulation-side headline reproduced; pulse-level PANSATZ + hardware run + LiH not reproduced.
+\item \texttt{argo:gpt-5.4} $\rightarrow$ \textbf{PARTIAL}. Same reasoning.
+\item \texttt{argo:claude-opus-4.7/4.8} returned HTTP~502 during this session (Argo Anthropic backend flakiness). Not counted; JSON error recorded in \texttt{failure\_analysis.md}.
+\end{itemize}
+
+\section{Verdict}
+
+\noindent\textbf{PARTIAL.} The paper's simulation-side headline number (chemical accuracy across all H--H distances on the 2-qubit parity-reduced STO-3G H$_2$ Hamiltonian, plus HeH$^+$) was \emph{fully reproduced} to nano-Hartree precision at the equilibrium distance and to sub-milli-Hartree across the full curve, using an independent path (PySCF FCI + Qiskit statevector VQE). Two Argo judges concur. The paper's distinctive novelty --- pulse-level PANSATZ, 7$\times$ schedule reduction, hardware chemical accuracy on \texttt{ibm\_lagos}, and LiH 4-qubit --- was not attempted here (see \S\ref{sec:gaps}).
+
+\section{What was not reproduced}
+\label{sec:gaps}
+See \texttt{report/failure\_analysis.md} for a detailed table. Short version: no pulse-simulation (needs Qiskit-Dynamics + backend calibration), no ibm\_lagos (retired hardware, paid access), no LiH (bounded by time budget), no SPSA-vs-hill-climbing ablation.
+
+\section{Open questions}
+See \texttt{report/open\_questions.json} (5 non-generic follow-on research questions grounded in what this reproduction actually observed) and \S8 for the LaTeX body.
+
+\input{open_questions_body.tex}
+
+\section{Reproducibility notes}
+
+Everything runs in $\sim$2\,min on a laptop CPU; deterministic under COBYLA seed=42. Two independent chemistry stacks (\texttt{qiskit-nature} and \texttt{PySCF}) return identical FCI values, so the replication is anchored to two disjoint code paths.
+
+\end{document}

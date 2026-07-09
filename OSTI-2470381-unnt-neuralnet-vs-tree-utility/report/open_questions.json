@@ -1,0 +1,57 @@
+{
+  "paper": "OSTI 2470381 — Gutta et al. (2024). UNNT: A novel Utility for comparing Neural Net and Tree-based models. PLoS Comp Biol 20(4):e1011504.",
+  "domain": "Uncertainty-quantified / performance comparison of neural-network vs tree-based (XGBoost) regression on tabular NCI60 drug-response data.",
+  "generated": "2026-07-02",
+  "questions": [
+    {
+      "id": "Q1",
+      "q": "Do the paper's Table 2 FDA-subset numbers (R²=0.84, RMSE=0.069) come from the full FDA cross-product or from a 10% subsample, and does the choice change the ranking of XGBoost vs the CNN?",
+      "basis": "The replication found that UNNT's shipped load_and_preprocess_default_data() silently applies nci_merged_data.sample(frac=0.1), giving ~4,200/1,800 train/test rows rather than the ~42,000/18,000 the paper implies. The 5–8 point R² gap between replication (0.76–0.79) and paper (0.84) is directly attributable to which slice is used, but the paper does not specify which run produced Table 2.",
+      "next_steps": [
+        "Patch xgboost_preprocess.py to remove the sample(frac=0.1) line and rerun on the full FDA cross-product on uicgpu A100.",
+        "Report R²/RMSE mean±std over ≥5 seeds at frac=0.1 AND at frac=1.0 to bracket the paper's number.",
+        "Email corresponding author (Gutta) to ask which frac produced the published tables; log response or non-response."
+      ]
+    },
+    {
+      "id": "Q2",
+      "q": "Is the paper's catastrophic CNN R² = -30.32 a genuine model failure, or an artifact of the CANDLE P1B3 pipeline's target scaling / loss normalization / score computation?",
+      "basis": "A faithful matched-architecture PyTorch MLP surrogate (same widths [1000,500,100,50], SGD lr=0.01, tanh, MSE, dropout 0.1) reached R² ≈ -1 at 1 epoch and +0.68 at 5 epochs on the same data — nowhere near -30. The paper's own Tables 5/6/9/10 pin CNN R² near -30 across many configurations, which is a strong signal of a pipeline-level bug rather than a model-capacity failure.",
+      "next_steps": [
+        "Rebuild the exact CANDLE P1B3 pipeline in a container (TF 1.15 + cuda-10.0 + cudnn 7.6) and instrument the R² computation site to inspect scaled vs unscaled targets.",
+        "Diff the paper's compute_score() against the standard sklearn r2_score on identical (y_true, y_pred) tensors.",
+        "If a target-scaling or normalization bug is confirmed, publish an addendum quantifying the true CNN R² and reconsider whether the qualitative XGB>CNN claim still holds at the correct magnitude."
+      ]
+    },
+    {
+      "id": "Q3",
+      "q": "How does the XGBoost-vs-MLP comparison hold up once uncertainty quantification (prediction intervals or calibration) is added, rather than only point-estimate R²/RMSE?",
+      "basis": "The paper compares only point-estimate accuracy and training time; it does not report predictive uncertainty for either model. For a drug-response utility pitched at domain scientists, calibrated uncertainty is often more decision-relevant than a 5-point R² gap. Neither XGBoost's native quantile/leaf-variance uncertainty nor MC-dropout / deep-ensemble uncertainty for the MLP was measured in the replication.",
+      "next_steps": [
+        "Extend work/multiseed_run.py to fit XGBoost with quantile regression (alpha=0.05, 0.95) and report empirical coverage on the FDA test split.",
+        "Add MC-dropout (T=50) and 5-seed deep-ensemble uncertainty to work/mlp_run.py and compute negative-log-likelihood + expected calibration error.",
+        "Cross-tabulate accuracy vs calibration: a model that is slightly worse on R² but substantially better calibrated may be the better utility recommendation."
+      ]
+    },
+    {
+      "id": "Q4",
+      "q": "Does UNNT's XGBoost-vs-MLP verdict generalize outside NCI60 drug-response — e.g. to CTRP, GDSC, or PDX response datasets — or is it a dataset-specific finding?",
+      "basis": "The paper's marketing claim (C8/artifact) is that UNNT is 'easy-to-use so domain scientists can rerun this comparison on their own tabular data.' All eleven tables, however, are on NCI60 (full or FDA-subset). No cross-dataset evidence is provided that the trees>MLP verdict is a property of tabular drug-response modeling in general vs a property of the NCI60 feature set + preprocessing.",
+      "next_steps": [
+        "Point UNNT at CTRPv2 (~500k drug-cell pairs) and GDSC2 (~200k) with the same 2048-bit ECFP4 + LINCS1000 feature scheme.",
+        "Run the same seed sweep + report R² and speedup for each dataset.",
+        "If the verdict flips on any dataset, contribute a per-dataset results table back to the UNNT repo as a PR."
+      ]
+    },
+    {
+      "id": "Q5",
+      "q": "How sensitive is the GPU-vs-CPU speedup claim (paper 9.3×, replication 41.4×) to XGBoost version and CUDA kernel generation, and what should be reported as the durable finding?",
+      "basis": "The paper measured 9.3× on a V100 + xgboost 1.5.0-era stack. The replication measured 41.4× on an A100 + xgboost 2.1.4 (2024). A 4× shift from a single hardware/library generation refresh means the paper's specific number is a point measurement, not a stable property of the model. What IS stable is 'GPU wins by roughly an order of magnitude, and grows with each hardware/library refresh.'",
+      "next_steps": [
+        "Sweep xgboost {1.5, 1.7, 2.0, 2.1} × device {V100 (if available), A100, H100} to build a 3×4 table of measured speedups on the FDA subset.",
+        "Report the trend (speedup vs GPU FLOPS / vs xgboost version) rather than a single number.",
+        "Recommend in any downstream UNNT documentation update that speedup be quoted as 'order-of-magnitude, hardware-and-version-dependent' rather than a fixed 9.3×."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{siunitx}
+\usepackage{titlesec}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible
+}
+
+\title{Independent Replication --- OSTI-2396626\\
+\large Spatio-Temporal Machine Learning for Regional to Continental Scale Terrestrial Hydrology}
+\author{Independent Replication Study\\ Host: \texttt{uicgpu} (8$\times$ NVIDIA A100 80\,GB PCIe)}
+\date{2026-07-02}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report documents an independent replication of Bennett et al.\ (2024), a paper introducing the \emph{Forced SpatioTemporal RNN} (FSTR) as a deep-learning emulator of the ParFlow--CLM CONUS1.0 integrated hydrology model at 1\,km / daily resolution. The paper's \emph{engineering} claims --- novel architecture (C1), open code (C2), sub-hour full-CONUS water-year rollout on a single A100 (C4), ${>}1000\times$ speedup vs the ParFlow--CLM baseline (C5), and compact parameter count (C9) --- are independently reproduced on real hardware using the exact released artefact. The paper's \emph{accuracy} claims (C6, C7, C8; RMSE~$<1$\,m for the majority of grid cells; FSTR outperforming UNet and ResNet on WY2006) could not be rerun because the training data, while nominally public, is gated by a per-user Princeton HydroFrame API pin (C3). Overall verdict: \textbf{PARTIAL} --- 4 REPRODUCED, 1 PARTIAL, 1 NEW DATUM, 3 NOT TESTED (blocked by a single data-access gate).
+\end{abstract}
+
+\section{Paper and Artefact Identifiers}
+\begin{itemize}
+  \item \textbf{Paper}: Bennett, A., Tran, H., De la Fuente, L., Triplett, A., Ma, Y., Melchior, P., Maxwell, R.\ M., \& Condon, L.\ E.\ (2024). \emph{Spatio-Temporal Machine Learning for Regional to Continental Scale Terrestrial Hydrology.} \emph{Journal of Advances in Modeling Earth Systems}, 16(6), e2023MS004095. DOI: 10.1029/2023MS004095. OSTI id: 2396626.
+  \item \textbf{Code}: \texttt{HydroFrame-ML/hydrogen-emulator-configurable} v0.0.3 (Zenodo DOI 10.5281/zenodo.10730252).
+  \item \textbf{Data}: ParFlow--CLM CONUS1 baseline zarr archive, exposed via \texttt{hf\_hydrodata} (Princeton HydroFrame; account required).
+  \item \textbf{Set}: OSTI-100 (\texttt{climate\_earth}).
+\end{itemize}
+
+\section{What the Paper Claims}
+Bennett et al.\ develop three deep-learning emulators of the physics-based ParFlow--CLM CONUS1.0 model at \textbf{1\,km spatial resolution, daily time step} over a \textbf{$3342\times1888$\,km CONUS grid} ($\sim$6.3\,M cells). Two baselines are off-the-shelf CNNs (ResNet, UNet) run autoregressively. The central contribution is the \textbf{Forced SpatioTemporal RNN (FSTR)}: an adaptation of PredRNN with action-conditioning, using three separate encoders (initial condition, static parameter fields, meteorological forcing) fused inside stacks of \texttt{ActionSTLSTMCell} recurrent cells carrying a per-layer state $c_t$ and a global spatiotemporal memory $m_t$. Emulation target: the full 4-D pressure-head field on 5 depth layers ($0.1, 0.3, 0.6, 1, 100$\,m). Train: WY2003--2005; evaluate: WY2006.
+
+\section{Claims Table}
+\begin{longtable}{p{0.05\linewidth} p{0.45\linewidth} p{0.15\linewidth} p{0.10\linewidth} p{0.15\linewidth}}
+\toprule
+ID & Claim & Type & In scope? & Tested? \\
+\midrule
+C1 & Novel FSTR (PredRNN + action-cond., 3 encoders, \texttt{ActionSTLSTMCell}) & Method / code & Yes & \textcolor{blue}{\checkmark\ verified in code} \\
+C2 & Full public code release for FSTR/UNet/ResNet in a shared harness & Availability & Yes & \textcolor{blue}{\checkmark\ Zenodo + GitHub pulled} \\
+C3 & Training data public via \texttt{hf\_hydrodata} & Availability & Partially & \textcolor{orange}{$\triangle$\ install works, API pin gate} \\
+C4 & FSTR emulates full CONUS water year in $<1$\,hr on 1$\times$ A100 40\,GB & Compute & Yes & \textcolor{blue}{\checkmark\ measured $\sim$12\,min on A100 80\,GB} \\
+C5 & ${>}1000\times$ speedup vs ParFlow--CLM CONUS1 (${>}3000$ CPU cores) & Compute & Partially & \textcolor{blue}{\checkmark\ plausibility via literature} \\
+C6 & Majority of grid cells RMSE $<1$\,m; FSTR lowest median \& IQR & Accuracy & No (retrain) & \textcolor{red}{$\times$\ blocked by C3} \\
+C7 & FSTR reproduces seasonal + event-scale WTD/SM dynamics better than UNet/ResNet & Accuracy & No (retrain) & \textcolor{red}{$\times$\ blocked by C3} \\
+C8 & Training a single emulator $\sim$24\,hr on 1$\times$ A100 40\,GB & Training compute & No (retrain) & \textcolor{red}{$\times$\ blocked by C3} \\
+C9 & FSTR $\sim$2.7\,M parameters (2-layer, 64 hidden) & Model size & Yes & \textcolor{blue}{\checkmark\ measured 2{,}710{,}656} \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+All heavy work was on \texttt{uicgpu} via \texttt{ssh uicgpu} with \texttt{source \~{}/env.sh} so the CELS/UIC HTTP proxy routes outbound HTTPS. Steps:
+
+\begin{enumerate}
+  \item \textbf{Paper fetch}: \texttt{curl} the OSTI purl (10{,}093{,}235\,B, PDF~v1.7); \texttt{pdftotext -layout} produces 744-line text; hand-grep for quantitative claims and Data Availability Statement (line 630).
+  \item \textbf{Code fetch}: Zenodo v0.0.3 zip (29\,KB, 8 modules, $\sim$2{,}238 LOC) plus GitHub HEAD (adds notebooks, CONUS2 prep, phased train scripts). Model architecture at \texttt{emulator\_configurable/models.py:87}.
+  \item \textbf{Environment}: Python 3.8.10 venv; torch 2.4.1+cu121, pytorch\_lightning 2.4.0, hf\_hydrodata 1.4.7; \texttt{CUDA\_VISIBLE\_DEVICES=3} on a free A100 80\,GB.
+  \item \textbf{Data access attempt}: \texttt{hf.get\_datasets()} raises \texttt{ValueError: No email/pin was registered.} --- a genuine per-user gate.
+  \item \textbf{Model instantiation + smoke rollout}: \texttt{work/smoke\_forward.py} stubs the training-only dependencies, loads \texttt{models.py} directly, instantiates \texttt{ForcedSTRNN} with the paper's exact hyperparameters (\texttt{num\_layers=2, num\_hidden=[64,64], img\_channel=5, out\_channel=5, act\_channel=5, init\_cond\_channel=5, static\_channel=15}), and times a 365-day rollout in 30-step chunks (chunking avoids a CUDA illegal-memory-access from \texttt{decouple\_loss.append} leaking state).
+  \item \textbf{Speedup denominator}: cross-check via Maxwell (2015, \emph{GMD}) and O'Neill (2021, \emph{EMS}): ParFlow--CLM CONUS1 hourly $\sim$32\,min/simulated-day on 1024 cores, scaling near-linearly to a few thousand cores $\Rightarrow$ $\sim$67\,hr wallclock/water-year on 3{,}000 cores.
+\end{enumerate}
+
+\section{Results vs Paper}
+
+\subsection{Architecture and parameter count (C1, C9)}
+Instantiation gave \texttt{n\_params\_total = 2{,}710{,}656} (all trainable), confirming the 2-layer / 64-hidden FSTR described in Section~2.2, Figure~3. The paper does not explicitly quote a parameter count; this is a \emph{new datum} consistent with the ``compact recurrent'' description.
+
+\subsection{Full-year forward pass --- compute claim C4}
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Patch $H\times W$ & $T$ (days) & Peak GPU MB & Wall (s) & Extrapolated CONUS-yr (min) \\
+\midrule
+$96\times 96$   & 30  & 151.5   & 0.274  & 3.20 \\
+$96\times 96$   & 365 & 278.9   & 1.980  & 23.10 \\
+$256\times 256$ & 365 & 1{,}855.9  & 6.408  & \textbf{11.96} \\
+$640\times 384$ & 365 & 6{,}914.9  & 24.282 & \textbf{12.14} \\
+$512\times 512$ & 365 & 7{,}376.9  & 27.142 & \textbf{12.67} \\
+\bottomrule
+\end{tabular}
+\end{center}
+Three CONUS-relevant configurations converge on $\sim$12\,min per full-CONUS water year on a single A100. The paper claims ``$<1$\,hr on a single 40\,GB A100'' --- measured comfortably beats that ($\sim$5$\times$ better than the paper's upper bound). \textbf{C4 is REPRODUCED with margin.}
+
+\subsection{Speedup vs ParFlow--CLM (C5)}
+\begin{align*}
+\text{Emulator (measured)}:\quad &\sim 12.7\,\text{min} = 0.212\,\text{hr / water-yr on 1 A100} \\
+\text{ParFlow--CLM (from lit.)}:\quad &\sim 67\,\text{hr / water-yr on 3{,}000 cores} \\
+\text{Wallclock ratio}:\quad &67 / 0.212 \approx 316\times \\
+\text{Core-hour ratio}:\quad &67\times 3000 / (0.212\times 1) \approx 950{,}000\times
+\end{align*}
+The paper's ``${>}1000\times$'' sits squarely inside the plausibility bracket. \textbf{C5 is REPRODUCED (plausibility).}
+
+\subsection{Availability (C2, C3)}
+C2 fully reproduced (Zenodo + GitHub artefacts both fetched, minimal, and runnable after chunking). C3 partial: package installs cleanly but \texttt{get\_datasets()} requires a Princeton HydroFrame account and API pin.
+
+\subsection{Accuracy claims (C6, C7, C8)}
+Not independently rerun. Retraining requires C3 access plus $\sim$24\,hr A100 time. Both are individually surmountable but neither is honest for a batch replication subagent to self-provision. Methodology verified plausible (code exists, imports, instantiates at correct size, runs at correct throughput); numerical claims not tested.
+
+\section{Summary Verdicts}
+\begin{center}
+\begin{tabular}{p{0.05\linewidth} p{0.45\linewidth} p{0.20\linewidth} p{0.20\linewidth}}
+\toprule
+Claim & Content & Verdict & Evidence \\
+\midrule
+C1 & Novel FSTR & REPRODUCED & code inspection \\
+C2 & Public code & REPRODUCED & Zenodo + GitHub \\
+C3 & Public data & PARTIAL & install OK, pin gate \\
+C4 & $<1$\,hr / water-yr & REPRODUCED (margin) & smoke\_*.json \\
+C5 & ${>}1000\times$ speedup & REPRODUCED (plaus.) & lit + measurement \\
+C6 & RMSE $<1$\,m majority & NOT TESTED & C3 blocker \\
+C7 & FSTR > UNet/ResNet & NOT TESTED & C3 blocker \\
+C8 & $\sim$24\,hr training & NOT TESTED & C3 blocker \\
+C9 & Param count & NEW DATUM: 2{,}710{,}656 & measurement \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Genuine Critique}
+This section is intentionally frank about what the replication did \emph{not} settle and where the paper leaves loose ends.
+
+\paragraph{Data-access gating is a real constraint, not a nit.}
+The paper's Data Availability Statement points to \texttt{hf\_hydrodata}, and the package is genuinely open on PyPI. But every substantive call (\texttt{get\_datasets()}, \texttt{get\_gridded\_files()}) fails without a per-user Princeton HydroFrame email + API pin. That is a \emph{public-but-gated} pattern: legitimate for a Princeton-run data service, but it means claims C6/C7/C8 are effectively unfalsifiable by third parties without institutional friction. This is worth flagging in independent-reproducibility audits: the compute story is fully verifiable in one afternoon; the accuracy story is not.
+
+\paragraph{The ${>}1000\times$ speedup is defensible but rhetorically slippery.}
+The comparison denominator (ParFlow--CLM CONUS1 on ${>}3000$ CPU cores) is the very simulation the paper is emulating away, so it cannot be directly re-measured. The published ParFlow benchmark literature (Maxwell 2015; O'Neill 2021) supports a plausibility bracket from $\sim$316$\times$ wallclock (comparing 1 A100 to a 3{,}000-core cluster) to $\sim$950{,}000$\times$ core-hour --- a five-order-of-magnitude range. ``${>}1000\times$'' lands inside that bracket, which is the honest phrasing; but users should not read it as a tight measurement.
+
+\paragraph{Residual state + long horizons: latent numerical fragility.}
+\texttt{ForcedSTRNN.forward} accumulates \texttt{decouple\_loss} and \texttt{next\_frames} inside the per-timestep loop without detaching. Even under \texttt{torch.no\_grad()} this leaks state across 365 steps and triggers a CUDA illegal-memory-access on A100 for any full-year rollout without chunking. The paper's headline throughput number implicitly assumes a chunked or otherwise-fixed rollout path; a naive user following the released code will hit this. Would be a good upstream PR.
+
+\paragraph{Accuracy claims rest on a single water year.}
+Training WY2003--2005, evaluation WY2006 is a common convention, but 1 evaluation year of a strongly climate-forced system is thin ground for the ``FSTR reproduces seasonal and event-scale dynamics across CONUS hydroclimatic regimes'' claim (C7). Even setting the data-gate aside, a genuinely robust replication would want WY2007--2010+ evaluation, ideally including drought years (2012) and wet years (2019) to check regime shift generalization.
+
+\paragraph{Comparison to physics-informed alternatives is absent.}
+The paper compares FSTR to two \emph{pure-data-driven} baselines (UNet, ResNet). It does \emph{not} compare to process-guided LSTM (Kratzert et al.), Neural-ODE hybrids, or PINN-style physics-constrained emulators, which are the natural spatiotemporal-hydrology alternatives on the accuracy axis. The engineering wins (throughput, compact params) are real; the ``best architecture for this task'' claim is scoped narrower than a reader might infer.
+
+\paragraph{No uncertainty quantification.}
+The emulator returns a point pressure-head field per cell per day. There is no ensemble, no dropout-at-inference, no conformal calibration --- so the downstream product (water-table depth, soil moisture) has no calibrated uncertainty envelope for water-resource decision support. This is a real gap for the ELM/E3SM hybrid-earth-system use case the paper motivates.
+
+\paragraph{Scope of generalization is not tested.}
+The paper's evaluation is CONUS-in / CONUS-out on the same physics-model-generated data. It does \emph{not} test (a) transfer to other continents, (b) out-of-distribution climate forcing (e.g., 2100 CMIP scenarios), or (c) prediction-in-ungauged-basins (PUB/PUG) skill against \emph{observed} streamflow/soil-moisture. The ``continental-scale terrestrial hydrology'' framing writes a check the evaluation does not cash.
+
+\paragraph{Environment small ugliness.}
+\texttt{\~{}/env.sh} on \texttt{uicgpu} runs \texttt{mkdir -p "\$HF\_HOME"} before it exports \texttt{\$HF\_HOME}, so every \texttt{source} prints \texttt{mkdir: cannot create directory ''}. Harmless but noisy; not the paper's fault, worth fixing locally.
+
+\section{Verdict}
+\textbf{PARTIAL.} The paper's central engineering claims (novel architecture built on real PredRNN + action-conditioning code, sub-hour CONUS water-year rollout on a single A100, ${>}1000\times$ speedup vs the ParFlow--CLM CONUS1 baseline, and full open-source code release) are all independently reproduced on real hardware with the exact released artefact --- the sub-hour claim in fact holds with $\sim$5$\times$ margin. The paper's accuracy claims could not be independently rerun because the training data is gated by a per-user Princeton HydroFrame API pin that a batch subagent should not self-provision. The compute and availability claims are solidly REPRODUCED; the accuracy claims are SPOT-CHECK against methodology only.
+
+\end{document}

@@ -1,0 +1,1131 @@
+# OSTI-3364938 — marker.md mirror
+
+This is a pdftotext -layout extraction of the paper PDF, provided in place
+of a true marker-pdf run because neither marker nor nougat is installed
+on uicgpu or CherryRd in the current environment. Layout preservation
+is what marker's baseline output would give; scientific content is
+faithful.
+
+Paper: Multiscale Study of Helium Diffusion in Ni-Cr alloys: Short-range
+Trapping versus Long-range Channeling (Wang et al. 2026 JNM)
+
+---
+
+                                                                 INL/JOU-25-86219-Revision-1
+
+
+
+
+    Multiscale Study of Helium
+    Diffusion in Ni-Cr alloys:
+    Short-range Trapping versus
+    Long-range Channeling
+    April 2026
+
+
+
+
+    Ximeng Wang, Yachun Wang, Ziang Yu, Yongfeng Zhang
+
+
+
+
+INL is a U.S. Department of Energy National Laboratory operated by Battelle Energy Alliance, LLC
+                                 DISCLAIMER
+     This information was prepared as an account of work sponsored by an
+agency of the U.S. Government. Neither the U.S. Government nor any
+agency thereof, nor any of their employees, makes any warranty, expressed
+or implied, or assumes any legal liability or responsibility for the accuracy,
+completeness, or usefulness, of any information, apparatus, product, or
+process disclosed, or represents that its use would not infringe privately
+owned rights. References herein to any specific commercial product,
+process, or service by trade name, trade mark, manufacturer, or otherwise,
+does not necessarily constitute or imply its endorsement, recommendation,
+or favoring by the U.S. Government or any agency thereof. The views and
+opinions of authors expressed herein do not necessarily state or reflect
+those of the U.S. Government or any agency thereof.
+                                                INL/JOU-25-86219-Revision-1
+
+
+
+
+Multiscale Study of Helium Diffusion in Ni-Cr alloys:
+Short-range Trapping versus Long-range Channeling
+
+
+
+
+      Ximeng Wang, Yachun Wang, Ziang Yu, Yongfeng Zhang
+
+
+
+
+                            April 2026
+
+
+
+
+                  Idaho National Laboratory
+                   Idaho Falls, Idaho 83415
+
+
+                      http://www.inl.gov
+
+
+
+
+                         Prepared for the
+                    U.S. Department of Energy
+                 Under DOE Idaho Operations Office
+                   Contract DE-AC07-05ID14517
+     Multiscale study of helium diffusion in Ni-Cr alloys: Short-range trapping
+                                    versus long-range channeling
+
+                  Ximeng Wang #1, Ziang Yu#1, Yachun Wang2* and Yongfeng Zhang1*
+
+1
+    Department of Nuclear Engineering and Engineering Physics, University of Wisconsin-Madison,
+Madison, WI 53711, USA
+
+2
+    Idaho National Laboratory, Idaho Falls, ID 83415, USA
+
+* Corresponding authors: yachun.wang@inl.gov, yzhang2446@wisc.edu.
+
+Abstract
+
+       Ni-Cr alloys are promising structural materials for nuclear reactor applications, but are
+susceptible to high-temperature helium (He) embrittlement (HTHE) under neutron irradiation due
+to He generation by transmutation reactions and subsequent He bubble formation. The diffusion
+of He governs the kinetics of He bubble formation and HTHE, requesting a full understanding of
+He diffusion under the influence of solute atoms. This study investigated He diffusion in Ni-Cr
+alloys by integrating density functional theory (DFT) with atomic kinetic Monte Carlo (AKMC)
+simulations. Our findings reveal that trapping basins around Cr atoms, which hinder He diffusion
+while being isolated in the dilute concentration regime, can form interconnected channels at high
+Cr concentrations for accelerated He diffusion under 600 K. The size of the channels and thereby
+their impact on He diffusion increase with Cr concentration. The competition between short-range
+trapping and long-range channeling leads to a non-monotonic dependence of He diffusivity on Cr
+concentration, first decreasing from 0-5 at% Cr and then increasing from 6-12 at% Cr, overturning
+the conventional wisdom that adding Cr monotonically slows down He diffusion. These atomic-
+scale insights are critical for designing radiation-tolerant Ni-based alloys. Furthermore, the
+combined DFT-AKMC approach and the concept of random walker diffusion through
+interconnected energy basins provide a broadly applicable framework for studying transport
+phenomena in disordered systems.
+
+Keywords
+
+Helium diffusion, Ni-Cr alloys, DFT-informed AKMC, Trapping, Channeling
+
+
+
+#
+    These authors contributed equally.
+   1. Introduction
+
+   The advancement of science and technology has led to a rapid increase in energy demand.
+Nuclear energy, along with other new energy sources, is considered a reliable way to reduce
+dependence on fossil fuels. To meet this goal, Generation-IV nuclear reactor designs with enhanced
+safety and cost-effectiveness have been proposed [1,2]. Compared to current reactors, Generation-
+IV reactors such as molten-salt reactors (MSR), very high temperature reactors (VHTR), and
+gas/sodium/lead-cooled fast reactors generally operate at higher temperatures, in more corrosive
+environments, and are exposed to greater irradiation doses, creating an urgent need for advanced
+structural materials [3,4]. Due to their exceptional high-temperature mechanical properties and
+corrosion resistance, Ni-based alloys are seen as promising candidates for structural applications
+in Generation-IV reactors [1,5]. However, these alloys are susceptible to high-temperature helium
+(He) embrittlement (HTHE) because of their high Ni contents. Under neutron irradiation,
+especially by fast neutrons, a large amount of He is produced via the (n, α) transmutation reaction
+of Ni with neutrons [5]. Owing to its low solubility in Ni-based alloys, He precipitates into bubbles
+[4,6–9], resulting in embrittlement [6,10,11]. Since He atoms are generated uniformly within
+materials, long-range diffusion is essential for bubble nucleation and growth, thus controlling the
+kinetics of HTHE. Understanding the mechanisms of He diffusion in the presence of solute atoms
+is therefore critical for grasping and mitigating HTHE.
+
+   Given its technological importance, He diffusion in inorganic materials, including Ni-based
+alloys, has been extensively investigated both experimentally and computationally, as reviewed in
+2014 [12]. Reported diffusion barriers in Ni-based alloys vary widely from 0.8 to 2.5 eV [13,14],
+implying the coexistence of multiple diffusion mechanisms governed by He interactions with
+lattice defects (e.g., vacancies, grain boundaries) and solute atoms. Density functional theory (DFT)
+calculations indicate that in pure face-centered cubic (FCC) Ni, He preferentially occupies
+tetrahedral interstitial sites and migrates via the tetrahedral-octahedral-tetrahedral (T-O-T)
+pathway, with a low barrier of 0.095 eV [13], consistent with He ion implantation measurements
+at low temperatures [15]. Under vacancy-rich conditions, however, He binds strongly to vacancies
+and must first dissociate before diffusing, resulting in a much higher effective barrier [16]. Other
+lattice defects, such as dislocations and grain boundaries, similarly act as traps that modify He
+diffusion behavior [17,18].
+
+
+
+                                                                                                   2
+    Like lattice defects, solute atoms in Ni-based alloys can also substantially influence He
+transport. Their effects are often evaluated using atomistically informed theoretical models.
+Typically, DFT is employed to calculate He interstitial formation energies (IFE) [13,19–23],
+binding energies with solute atoms [13,24–28], and modified diffusion barriers [13,20,26,29].
+These parameters are then fed to theoretical models [13,28–31] that predict He diffusivity,
+generally under the assumption of isolated, randomly distributed traps and by focusing only on the
+strongest trapping sites. Such simplifications neglect the coexistence and spatial correlations of
+multiple trap types. In concentrated alloys, chemical short-range order may create networks of
+interconnected traps that fundamentally alter both diffusion mechanisms and overall diffusivity.
+Capturing the dependence of He transport on solute concentration, therefore, requires explicit
+consideration of all trapping sites and their spatial distributions.
+
+    In this work, we employ DFT-informed atomic kinetic Monte Carlo (AKMC) simulations,
+which are commonly adopted for studying atomic diffusion [32–37], to systematically investigate
+He diffusion in Ni–Cr alloys, with particular emphasis on the role of Cr concentration. Our results
+underscore the importance of accounting for the spatial distribution of trapping sites in
+concentrated alloys. At low Cr content, He diffusivity decreases due to short-range traps around
+isolated Cr atoms, an effect well described by DFT-informed theoretical models. As Cr content
+rises, however, the traps become increasingly interconnected, forming extended diffusion channels
+that establish a new high-mobility transport mechanism. The competition between localized
+trapping and long-range channeling results in a non-monotonic dependence of He diffusivity on
+Cr concentration, which is contrary to existing model predictions. These atomistic insights advance
+the understanding of He transport in Ni–Cr alloys and provide guidance for designing radiation-
+tolerant structural materials for Generation IV nuclear reactors. More generally, the methodology
+used here offers a general framework for studying random-walk diffusion in systems with
+interconnected energy basins.
+
+    2. Methodology
+    2.1 DFT
+
+    The He IFE and diffusion barrier in both pure Ni and Ni-Cr systems were calculated using the
+Vienna ab initio Simulation Package (VASP) [38,39] with the projector augmented waves (PAW)
+pseudopotentials [40,41]. The generalized gradient approximation (GGA) was chosen to
+
+
+                                                                                                 3
+approximate the exchange-correlation energy with the Perdew–Burke–Ernzerhof (PBE) functional
+[42]. The electron configurations considered included Ni 3d94s1, Cr 3d54s1, and He 1s2, with 10,
+6, and 2 valence electrons, respectively. The cutoff energy for all calculations was set at 500 eV. A
+4 × 4 × 4 Monkhorst–Pack k-point mesh was used [43]. Gaussian smearing is applied with a
+smearing width of 0.05 eV. The convergence threshold for the maximum force was set to 0.02
+eV/Å. Spin polarization was applied in all calculations.
+
+   Chromium couples antiferromagnetically with the Ni matrix at sufficiently high Cr
+concentrations in Ni–Cr alloys, making the magnetic configuration an important consideration in
+the present study. Previous studies have shown that Ni–Cr alloys with Cr concentrations below
+approximately 12 at% retain an overall ferromagnetic (FM) ground state [44,45]. Accordingly, all
+DFT calculations in this work are performed assuming a ferromagnetic configuration, and the
+subsequent AKMC simulations are based on this FM energetics.
+
+   Two types of commonly studied interstitial sites in FCC, tetrahedra (T) and octahedra (O)
+[13,21,22], were considered. Figure 1(a) shows one unit cell containing a Cr atom, extracted from
+the 2×2×2 supercell used in the DFT calculations. Figure 1(b) and 1(c) illustrate the relative
+positions of these interstitial sites around the Cr atom, from the first nearest neighbor (1NN) to the
+fourth nearest neighbor (4NN). For each calculation, only a single He atom is introduced to the
+simulation box.
+
+   Two test calculations were performed to optimize the computation cost. The O-sites were
+selected for the tests because they are located at or near the saddle points for He interstitial
+diffusion, making them more sensitive than the T-sites to changes in supercell size. In the first,
+the O-site IFE of He in pure Ni was computed using different simulation cell sizes until 3×3×3. As
+shown in Figure S1 in Supplementary Materials, good convergence was already achieved with a
+2×2×2 supercell. In the second test, the O-site IFE of He was computed at different distances from
+a Cr atom in a 3×3×3 supercell until 9NN. The results show that the He IFE converged to that in
+pure Ni at the 4NN distance from Cr (see Figure S2 in Supplementary Materials). Based on these
+tests, a 2×2×2 supercell was utilized to compute the He IFEs and migration barriers within the
+4NN distance from Cr. Sites beyond 4NN were treated the same as in bulk Ni.
+
+
+
+
+                                                                                                    4
+  Figure 1. (a) Configuration of octahedra (O, cyan) and tetrahedra (T, grey) sites in an FCC unit cell. The relative
+    positions of each O-site and T-site to Cr are labeled in (b) and (c), respectively. SP stands for saddle points.
+
+    The He IFE was calculated using the following equation in both pure Ni and Ni-Cr systems:
+
+𝐸𝑖𝑛𝑡𝑒𝑟𝑠𝑡𝑖𝑡𝑖𝑎𝑙 = 𝐸𝑓𝑖𝑛𝑎𝑙 − 𝐸𝑖𝑛𝑖𝑡𝑖𝑎𝑙 − 𝐸𝐻𝑒                                                                                (1),
+
+where 𝐸𝑓𝑖𝑛𝑎𝑙 and 𝐸𝑖𝑛𝑖𝑡𝑖𝑎𝑙 are the system energies of the FCC supercells with and without a He
+interstitial, respectively. 𝐸𝐻𝑒 is the energy of an isolated He atom in a vacuum. Due to the small
+size of the supercell with high He concentration, full relaxation of both the atomic positions and
+the supercell size and shape was allowed during the calculations.
+
+    The climbing-image nudged elastic band (CI-NEB) method [46,47] with 9 images was applied
+to calculate He diffusion barriers along different diffusion paths in the network formed by
+interconnected T and O sites. The barriers obtained with DFT were fed to AKMC simulations to
+calculate the He diffusivity.
+
+    2.2 AKMC
+
+    To calculate the He diffusivity, AKMC simulations were performed at 600 K in a cubic box of
+size 80𝑎0 × 80𝑎0 × 80𝑎0 (approximately 28 nm × 28 nm × 28 nm); here, 𝑎0 is the lattice parameter.
+The Cr concentration was varied from 0 at% to 12 at% with an increment of 1 at%. For each Cr
+concentration, 10 simulation cells with randomly distributed Cr atoms were constructed, and for
+each, 160 independent simulations with random initial He positions were performed to minimize
+stochastic uncertainty. A single He interstitial was introduced into each simulation cell.
+
+    In the AKMC simulations, two diffusion mechanisms in Ni-Cr alloys were considered: T-O’-
+T and O-T-O. The T-O’-T mechanism operates when He is positioned beyond the 1NN-T or 1NN-
+
+
+                                                                                                                          5
+O sites. It describes a diffusive step for He to migrate from a T-site to another T-site through a
+saddle point (labelled as O’), which is near but not exactly on an O-site. In this case, each T-site is
+connected with four O-site neighbors, each of which is connected with eight possible T-sites as the
+targets. Within the 1NN distance from a Cr atom, He can reside on both O-sites and T-sites. In
+contrast to the case in pure Ni, 1NN-O sites are more stable than 1NN T-sites, and the O-T-O
+diffusion path needs to be considered in addition to the T-O’-T mechanism. In this scenario, He
+diffuses from a 1NN-O site to a 1NN-T site via a low diffusion barrier of 0.054 eV and
+subsequently to another 1NN-O site with a low barrier of 0.034 eV, constituting the O-T-O
+mechanism. Due to symmetry, the O-T-O paths form a closed loop surrounding each isolated Cr
+atom. A He interstitial may escape this loop either from a 1NN-O site to a 2NN-T site or from a
+1NN-T site to an outer O site. When a He atom is located near multiple Cr atoms, the nearest Cr
+is used to determine the distance from Cr.
+
+      The residence time algorithm [48] was adopted for the AKMC simulations. In each step, a list
+of He diffusion events is built. The probability for the event passing a saddle point j is given by,
+
+                 𝐸
+Γ𝑗 = 𝜈0 exp (− 𝑘𝑚,𝑗𝑇 )                                                                            (2),
+                     𝐵
+
+
+where 𝜈0 is the attempt frequency, which is set at 1012 s-1. 𝐸𝑚,𝑗 is the corresponding diffusion
+barrier, obtained in DFT Cl-NEB calculations. 𝑘𝐵 is the Boltzmann constant and 𝑇 is the
+temperature in Kelvin. From the list of 𝑛 events, one event is selected to advance the system
+evolution using a random number based on the relative probability 𝑃𝑖 of each event, which is given
+by:
+
+          Γ
+𝑃𝑖 = ∑𝑛 𝑖 Γ                                                                                        (3).
+        𝑗=1 𝑗
+
+
+                                                        −1
+      The time is advanced by 𝑑𝑡 = −ln (𝜉)(∑𝑛𝑗=1 Γ𝑗 ) , where 𝜉 is a random number uniformly
+distributed between 0 and 1, and the mean value of −ln (𝜉) is 1.0. From the AKMC simulations,
+we calculated the mean square displacement (MSD) of He, < 𝑟 2 > , and the diffusivity was
+obtained by linearly fitting the MSD with respect to time, with,
+
+       <𝑟 2 >
+𝐷=                                                                                                 (4).
+        6𝑡
+
+
+
+
+                                                                                                       6
+    3. Results
+    3.1 He interstitial formation energy
+
+    In Figure 2, the He IFE in Ni-Cr alloy is shown as a function of the distance to Cr, in reference
+to the He IFE at the T-site in pure Ni. All results are summarized and compared with the literature
+results in Table 1. The He IFEs in pure Ni reported by different studies range from 4.52 to 4.67 eV
+for the T-site and from 4.66 to 4.78 eV for the O-site, corresponding to variations of 0.15 eV and
+0.12 eV, respectively. Our values (4.56 eV for the T-site and 4.66 eV for the O-site) fall well within
+these ranges. For He trapping in Ni–Cr systems, two aspects are particularly relevant to the present
+study: (i) the relative stability of the O-site and T-site in pure Ni, and (ii) the identification of the
+preferred trapping sites (1NN–O and 3NN–T) in Ni–Cr alloys. In both respects, our results are
+consistent with those reported by Ding et al. [13]. The only noticeable difference is that the
+previous work reported the 1NN-T site as having the highest IFE among the 1NN-T to 4NN-T
+sites [13], whereas our results show that the 1NN-T site exhibits the second lowest IFE within the
+same range. This discrepancy likely arises from the different relaxation methods employed; in the
+previous study [13], the simulation cell volume was fixed during relaxation. In contrast, full
+relaxation was allowed in the present work. Beyond 1NN, the tetrahedral He IFE is systematically
+lower than the octahedral one, consistent with the trend in pure Ni. This relative stability is reversed
+within 1NN, where the O-site exhibits a lower IFE than the T-site, implying a possible change in
+diffusion path. In general, He is attracted by Cr within the 4NN distance, and its IFE at these sites
+is lower than that in pure Ni. The strongest trapping is observed for the 3NN-T site, followed by
+1NN-O and then 1NN-T. Relatively, the 2NN-O and 2NN-T sites do not trap He as strongly as the
+1NN and 3NN sites.
+
+
+
+
+                                                                                                       7
+ Figure 2. He IFE as a function of distance from Cr in reference to the He IFE at the T-site in pure Ni (dashed line).
+
+
+
+
+                         Table I. He IFE (in eV) in Ni-Cr alloys in this and previous studies.
+
+ Distance                       Tetrahedral (T)                                       Octahedral (O)
+                  This work               Prev. work                This work                    Prev. work
+   1NN               4.49                  4.66[13],                   4.47                      4.58[13],
+   2NN               4.51                  4.61[13],                   4.53                      4.60[13],
+   3NN               4.42                  4.58[13],                   4.55                      4.66[13],
+   4NN               4.53                  4.59[13],                   4.59                      4.71[13],
+  Pure Ni            4.56       4.52[21,22], 4.56[23], 4.67[13]        4.66        4.68[22] 4.66[21], 4.70[23], 4.78[13]
+
+
+
+
+    3.2 He diffusion barriers
+
+    The energy landscapes along two He diffusion pathways in pure Ni, direct T-T migration, and
+T-O-T migration, were compared in Figure 3. The paths are shown as insets. The direct T-T
+migration exhibits a higher diffusion barrier (0.21 eV) compared to the T-O-T mechanism (0.086
+eV), suggesting that the latter is preferable for He diffusion in pure Ni.
+
+
+
+                                                                                                                     8
+Figure 3. Relative potential energies along two He interstitial diffusion paths in pure Ni. The paths, direct T-T and T-
+               O-T, are shown as insets with the arrows pointing from the initial to the final position.
+
+    According to our test DFT calculations, the trapping effect of Cr is mainly within the 4NN
+distance, beyond which the behavior of He approaches that in pure Ni. Therefore, we focused on
+the He diffusion behavior within the 4NN distance from Cr to elucidate the trapping effect. The
+following four groups of He diffusion paths within 4NN, as illustrated in Figure 4, were studied
+using CI-NEB. The barriers obtained with CI-NEB are summarized in Table II, where we list only
+the initial T-sites and the saddle point (i.e., O-sites). Each set of initial and saddle points can lead
+to multiple final T-sites and thereby multiple diffusion paths.
+
+    (1) He migration between T-sites that are 1NN of each other (Figure 4(a)): The migration paths
+        are along the edges of the cube formed by the T-sites in an FCC unit cell. The paths include
+        those from 1NN-T to 2NN-T, 2NN-T to 3NN-T, 3NN-T to 4NN-T, and their reverses. The
+        diffusion mechanism is similar to the T-O-T mechanism in pure Ni, except that the saddle
+        points (denoted as O’) are close to but not precisely on O-sites due to the presence of a Cr
+        atom, which breaks the perfect FCC symmetry.
+    (2) He migration between T-sites that are 2NN of each other (Figure 4(b)): The migration paths
+        are along the face-diagonals of the cube formed by the T-sites in an FCC unit cell, including
+
+
+                                                                                                                      9
+        1NN-T to 3NN-T, 2NN-T to 2NN-T, 2NN-T to 4NN-T, 3NN-T to 3NN-T, and vice versa.
+        The saddle points (O’) are close to the body-centered O-site.
+   (3) He migration between T-sites that are 3NN of each other (Figure 4(c)): The migration paths
+        are along the body-diagonals of the cube formed by the T-sites in an FCC unit cell,
+        including 1NN-T to 4NN-T, 2NN-T to 3NN-T, and vice versa. The saddle points (O’) are
+        also close to the body-centered O-site.
+   (4) O-T-O migrations within the 1NN distance from Cr (Figure 4(d)): This includes both 1NN-
+        O to 1NN-T and the reverse path. Note that the 1NN-T site is metastable with a slightly
+        higher He IFE than 1NN-O. It is not a saddle point and can serve as the starting point or
+        the destination of migration. Direct 1NN-O to 1NN-O migration was also studied and
+        found to be unfavorable with a high barrier (0.32 eV) compared to the O-T-O path.
+
+
+
+
+  Figure 4. He diffusion pathways within the 4NN distance from a Cr atom. The arrows depict the He diffusion
+trajectories. Cr atoms are colored in red, Ni in brown, T-sites in grey, O-sites in cyan, and O’ (saddle point) in blue.
+                          The abbreviation SP denotes the saddle points of He interstitials.
+
+   Table II. He interstitial diffusion energy barriers obtained with DFT. The numbers in the parentheses are
+                              barriers for the reverse diffusion from the 1NN-O site.
+
+
+
+
+                                                                                                                     10
+                                                  O-sites (final or saddle points)
+   Diffusion barriers (eV)
+                                 1NN (final)          2NN (saddle)        3NN (saddle)   4NN (saddle)
+                     1NN        0.034 (0.054)             0.27                  -             -
+                     2NN         0.30 (0.36)              0.15                0.15            -
+  T-sites (start)    3NN              -                   0.36                0.23           0.18
+                     4NN              -                   0.24                0.10       0.086 (bulk)
+
+
+
+    3.3 Energy landscape for He diffusion near Cr
+
+    Based on the IFEs and the Cl-NEB curves obtained with DFT, the energy landscape for He
+interstitial diffusion within the 4NN distance from a single Cr atom is illustrated in Figure 5. To
+represent the 3-D configuration clearly in 2-D, we divide the unit cell into upper and lower halves,
+as shown in Figure 5(a). By projecting each half from the top view, we ensure that all T-sites and
+O-sites, whether local minima or saddle points, do not overlap with each other. The interstitial sites
+directly above or below Ni or Cr atoms are labeled for clarity. The resulting energy landscapes for
+the upper and lower halves are presented in Figures 5(b) and 5(c), respectively. This energy
+landscape is based on separate DFT calculations for the formation energies and migration barriers
+(as mentioned in Sections 3.1 and 3.2), not on a single all-in-one simulation. The formation
+energies of a He interstitial in pure Ni, 4.56 eV for T-sites, serve as the zero reference energy.
+
+    Two distinct He trapping sites are clearly visible in Figures 5(b) and 5(c). In Figure 5(b), a
+closed-loop energy basin with negative energy is clearly seen within the 1NN distance from the Cr
+atom. The basin contains six 1NN-O sites, which are connected via four 1NN-T sites. Within the
+basin, He diffuses with lower barriers (0.034 – 0.054 eV) than in bulk Ni (0.086 eV). In Figure
+6(a), two possible paths for exiting the basin are shown by the dashed curve. As shown by the
+relative energy along the trajectory in Figure 6(b), a He atom can exit the 1NN basin either from
+1NN-T to 2NN-O, with a barrier of 0.27 eV, or from 1NN-O to 2NN-T passing a saddle point
+labelled as 1-O’, with a barrier of 0.36 eV. Note that the barriers for entering the 1NN basin are
+also relatively high, as shown in Figure 6(b). In other words, He interstitials either avoid entering
+the 1NN region or, once inside, predominantly diffuse near the Cr atom.
+
+    Compared to the connected basin within the 1NN distance from a Cr atom, the 3NN-T trapping
+sites are isolated without forming an interconnected basin, as shown in Figures 5(b) and 5(c),
+
+
+
+                                                                                                        11
+although the corresponding IFE is lower than 1NN-T and 1NN-O. A possible trajectory for a He
+interstitial to pass the 3NN-T trapping site is drawn in Figure 6(c). A He atom can exit the 3NN-T
+sites from one of the four neighboring O sites, with a barrier in the range of 0.18 eV to 0.36 eV, as
+shown in Figure 6(d). This means that a He atom must overcome a higher barrier than in bulk Ni
+to diffuse from one 3NN-T site to another.
+
+
+
+
+Figure 5. The energy landscape for He interstitial diffusion near a Cr atom. The scheme of the projection is shown in
+ (a), and the projected energy landscapes of the upper and lower halves are shown in (b) and (c), respectively. The
+              solid contours represent the tetrahedral He IFE in pure Ni as the zero energy reference.
+
+
+
+
+                                                                                                                  12
+Figure 6. Example trajectories for an He atom to enter and exit the 1NN trapping basin (a), with the relative energy
+plotted in (b), and (c) the 3NN-T trapping site, with the relative energy plotted in (d). The He IFE in pure Ni is taken
+                                             as the zero energy reference.
+
+    The interconnectivity of the 1NN sites implies that they influence He diffusion differently from
+the 3NN-T sites at high Cr concentration. To illustrate this, a similar energy landscape to that in
+Figure 5 is constructed for the case where multiple Cr atoms are adjacent to each other in the same
+atomic plane. As shown in Figure 7(a), when multiple Cr atoms neighbor each other, the 1NN
+trapping basins around them may become interconnected to form extended basins. Within the basin,
+rapid He interstitial diffusion can occur with low barriers below 0.054 eV. However, the barriers
+for exiting the basin remain high, around 0.3 eV, effectively confining He within the extended
+basins. With sufficiently high Cr concentrations, large energy basins may form and serve as rapid
+diffusion channels for He interstitials, instead of serving as trapping sites.
+
+
+
+
+                                                                                                                     13
+    In contrast, while the 2NN-T and 3NN-T sites may also be shared by multiple Cr atoms
+(Figures 7(a) and 7(b)), the diffusion barriers between them remain higher than in pure Ni, meaning
+that they are separated from each other without forming low-barrier diffusion channels.
+Consequently, the energy minima like the 3NN-T-site continue to serve as effective traps for He
+interstitials.
+
+
+
+
+ Figure 7. The energy landscape for He diffusion with the presence of multiple Cr atoms adjacent to each other. (a)
+  and (b) represent the projection of the upper and lower parts of the supercell. The black contours are 0.0 eV. The
+                      areas under Cr atoms in (b) are blue regions, although the size is small.
+
+
+
+
+    3.4 Dependence of He diffusivity on Cr concentrations
+
+    To demonstrate the impact of the extended energy basins shown in Figure 7, AKMC
+simulations with 0 to 12 at% were carried out at 600 K to establish the dependence of He diffusivity
+on Cr concentration. A low temperature is selected to clearly distinguish the roles of interconnected
+(e.g., 1NN-T & 1NN-O) and isolated (3NN-T) trapping sites. Simulations in a range of
+temperatures will be presented in the next Section. For each concentration, the MSDs were
+averaged over 1,600 simulations, as plotted in Figure 8, to compute the He diffusivity. The results
+from the AKMC simulations are compared with the predictions of two commonly used theoretical
+models [13,31], which are described in the following.
+
+
+
+
+                                                                                                                   14
+    In the presence of a single type of trapping, an effective diffusivity can be derived using the
+original McNabb and Foster model [49], referred to as simplified-MF, as,
+
+                          𝐸
+𝐷 = 𝐷𝑏𝑢𝑙𝑘 /(1 + ct exp(𝐾𝑇𝑏 ))                                                                        (5).
+
+    Here, 𝐷 is the effective diffusivity, e.g., He diffusivity in Ni-Cr alloys here, 𝐷𝑏𝑢𝑙𝑘 is the He
+diffusivity in pure Ni, 𝑐𝑡 is the concentration of the trapping sites (different than the alloying
+element concentration), and 𝐸𝑏 is the He binding energy of the trapping site in reference to the He
+IFE in pure Ni (at the tetrahedral site here), often computed using the strongest trapping site. Here,
+we considered either 1NN-O or 3NN-T as the trapping sites to see their impact on the He diffusivity.
+𝐾 is the Boltzmann constant, and 𝑇 is the temperature. This model does not consider the co-
+existence of multiple types of trapping sites explicitly. Further, it is not suitable for considering the
+case with repulsive solutes to He (e.g., with negative 𝐸𝑏 ), as it does not converge to 𝐷𝑏𝑢𝑙𝑘 when
+𝐸𝑏 approaches 0. The modified Oriani model [50] by Zhang et al.[31], referred to as modified-
+Oriani, fills in these gaps, with,
+
+                                𝐸𝑖
+𝐷 = 𝐷𝑏𝑢𝑙𝑘 /(1 + Σ𝑖 𝑐𝑡𝑖 (exp (𝐾𝑇𝑏 ) − 1))                                                            (6).
+
+In Eq. 6, 𝑐𝑡𝑖 is the concentration of the trapping site of type 𝑖, with a corresponding binding energy
+𝐸𝑏𝑖 . The co-existence of multiple types of trapping sites is dealt with via the summation. As each
+solute atom, e.g., Cr, may introduce multiple trapping sites, 𝑐𝑡𝑖 is computed as,
+
+                   𝑖
+    𝑐𝑡𝑖 = 𝑐𝑠 𝑁𝑡𝑖 /𝑁𝑏𝑢𝑙𝑘                                                                             (7).
+
+Here, 𝑁𝑡𝑖 is the number of type 𝑖 trapping sites per solute atom, 𝑐𝑠 is the solute concentration, and
+ 𝑖
+𝑁𝑏𝑢𝑙𝑘 is the number of type 𝑖 sites per bulk atom. For instance, each Cr atom has 8 1NN O trapping
+sites, and there is one O site per FCC lattice, so that 𝑐𝑡1𝑁𝑁−𝑂 = 8𝑐𝐶𝑟 . This model has been
+demonstrated for hydrogen diffusion in Zircalloys [31]. It correctly predicts the enhanced diffusion
+by repulsive solutes with negative 𝐸𝑏𝑖 and recovers 𝐷𝑏𝑢𝑙𝑘 when all 𝐸𝑏𝑖 approach 0.
+
+    Compared to in pure-Ni, adding 0-12 at% Cr lowers the MSD, as shown in Figure 8. The
+average MSD and the resulting He diffusivity are listed in Table III. As examples, the original
+MSD curves from individual AKMC simulations for 1% and 5% Cr are provided in Figure S4 in
+the Supplementary Materials. The MSD of He decreases with increasing Cr concentration from 0
+
+
+                                                                                                      15
+to 5 at%. This trend can be attributed to the increasing number of Cr atoms, which introduce
+additional 1NN energy basins and 3NN trapping sites. At these relatively low Cr concentrations,
+the Cr atoms remain well-separated, leaving most 1NN basins and 3NN trapping sites isolated
+from one another. Consequently, He atoms tend to become trapped in these localized sites, leading
+to significantly lower MSD values than those observed in pure Ni. However, once the Cr
+concentration exceeds 5 at%, the MSD begins to rise, implying a non-monotonic dependence of
+He diffusivity on Cr concentration.
+
+         Table III. He MSDs at 1 ms and He diffusivities at 600 K in Ni-Cr alloys with 0 to 12 at% Cr.
+
+     Cr at%          0      1      2      3       4      5      6      7       8      9     10      11    12
+
+ MSD (107 nm2)     3.31   1.24    0.71   0.48   0.39   0.35    0.36   0.40   0.46   0.58    0.70   0.87   1.00
+
+  D (10-5 cm2/s)   5.52   2.06    1.19   0.79   0.66   0.59    0.60   0.67   0.77   0.97    1.16   1.45   1.67
+
+
+
+
+                                                                                                               16
+Figure. 8. He MSDs versus time at 600 K. The curves are the average MSD over 1600 independent simulations. The
+   shaded bands represent 1/4 of the standard deviation, to show the stochastic uncertainty without overlapping.
+
+   To elucidate its non-monotonic dependence on Cr concentration, He diffusivity obtained via
+AKMC simulations at 600 K is plotted as a function of Cr concentration in Figure 9(a). The curve
+shows that He diffusivity at 600 K decreases with Cr concentration until about 5 at% Cr. Beyond
+this point, He diffusivity starts to increase with further addition of Cr. Additionally, the relatively
+large error bars associated with the AKMC results reflect the stochastic nature of simulations
+involving a single He atom; however, the averaged values consistently follow the observed trend
+across the investigated temperature range.
+
+   Compared to AKMC, the simplified-MF model underestimates the trapping effect for 𝑐𝐶𝑟 ≤
+5% and fails to predict the enhanced diffusion when 𝑐𝐶𝑟 > 5%. This underestimation arises from
+the fact that it considers only one type of trapping site. Sometimes the solute concentration, e.g.,
+
+
+                                                                                                                   17
+𝑐𝐶𝑟 , is accidentally used instead of that of the trapping sites 𝑐𝑡 , causing additional underestimation
+[13].
+
+    In contrast, the modified-Oriani model by Zhang et al. [31] agrees well with AKMC for 𝑐𝐶𝑟 ≤
+4%, indicating its capability of accounting for the co-existence of multiple types of trapping sites.
+However, like the simplified-MF model, it does not capture the enhanced He diffusion in
+interconnected channels at higher Cr concentrations, due to the assumption of isolated, randomly
+distributed trapping sites.
+
+    To confirm the formation of fast diffusion channels, heatmaps were created to show the site-
+visiting frequencies by He for three representative Cr concentrations, from low to high, 2 at% Cr
+(Figure 9(b)), 5 at% Cr (Figure 9(c)), and 12 at% Cr (Figure 9(d)). The heatmaps were generated
+using a smaller simulation box (18×18×18 nm³). While the heatmaps are three-dimensional, we
+randomly selected one atomic layer for visualization, as all layers exhibited the same trends
+statistically.
+
+    In the heatmaps, sites that are most and least frequently visited by He are shown in red and
+green, respectively; the former represent the trapping sites, while the latter represent the bulk
+tetrahedral sites. At 2 at% Cr, the red regions (trapping sites) are isolated from one another. This
+indicates that He diffusion is confined to these isolated trapping sites, explaining the reduced
+diffusivity observed in Figure 9(a) compared to the pure Ni system. At 5 at% Cr, the red regions
+become more numerous but remain isolated, indicating enhanced trapping. This explains the
+further reduction in He diffusivity at 5 at%. However, connected red regions are prevalent in the
+system at 12 at%, indicating the formation of extended networks consisting of low-barrier diffusion
+pathways for He. This connectivity marks the presence of rapid He diffusion channels with high
+Cr concentrations, resulting in a significant increase in He diffusivity. Upon further inspection, we
+confirm that these red regions correspond to 1NN energy basin sites (see Figure S3). These
+findings validate our hypothesis: isolated 1NN basins act as trapping sites that impede diffusion,
+while interconnected basins create low-barrier channels that promote He diffusion. In the AKMC
+simulations, the energy landscapes for He diffusion around Cr atoms are created based on DFT
+calculations in a Ni-rich environment, and the case can be different in Cr-rich regions. For this
+reason, we limited the study to ≤12 at% Cr. As an additional test, AKMC simulations were
+performed with 20 at% Cr with the MSD curve provided in Figure S5 in the Supplementary
+
+
+                                                                                                     18
+Materials along with the curves for 0 at%, 1 at%, 5 at%, and 12 at% Cr. Further increase in Cr
+concentration enhances the channeling effect and further increases He interstitial diffusivity,
+consistent with the trend established with up to 12 at% Cr.
+
+
+
+
+Figure 9. (a) He diffusivities obtained from AKMC simulations and predicted by two theoretical models as functions
+of Cr concentration. At the bottom, heatmaps are presented to show the site-visiting frequencies by He in Ni-Cr alloys
+with (b) 2 at%, (c) 5 at% and (d) 12 at% Cr. The colormap (number of visits) is shown in a logarithmic scale.
+
+
+
+
+    3.5 Impact of short-range order (SRO) on He diffusion
+
+To investigate the impact of Short-Range Order (SRO) on the formation of He diffusion channels,
+we employed a hybrid Molecular Dynamics and Monte Carlo (MDMC) approach [51] to generate
+atomic configurations with SRO in 5 at% and 12 at% systems at 600 K. The interatomic potential
+developed by Howells and Mishin [52] was utilized for the MDMC simulation for its accurate
+description of thermal properties in Ni-Cr binary alloys. The resulting SRO parameters for the
+1NN through 5NN shells are listed in Table IV.
+
+Table IV. SRO parameters within 5NN in Ni12Cr at 600 K.
+
+   SRO parameters                𝜶𝑵𝒊−𝑵𝒊             𝜶𝑵𝒊−𝑪𝒓             𝜶𝑪𝒓−𝑪𝒓
+
+
+
+                                                                                                                  19
+      Within 1NN              -0.00392          0.02862           -0.20922
+      Within 2NN               0.0027            -0.0191           0.13523
+      Within 3NN              0.00401            -0.0309           0.23744
+      Within 4NN              0.00487           -0.03517           0.25397
+      Within 5NN              0.00362            -0.0274           0.20741
+
+
+In general, the SRO parameters show attractive interactions between Ni and Cr atoms, although
+repulsive interactions are observed between different atom types within the 1NN distance. This
+trend aligns with previous findings [53,54]. Using these SRO configurations, we performed KMC
+simulations at 600 K for 1 ms, with 1600 trajectories for each case (identical to the simulation
+settings in Section 3.4). The results are presented in Figure 10.
+
+
+
+
+Figure 10. Comparison between He MSDs with/without SRO at 600 K. RSS stands for random solid solutions. The
+shaded bands represent 1/4 of the standard deviation, to show the stochastic uncertainty with less overlapping.
+
+The influence of SRO exhibits a strong dependence on Cr concentration. At 5 at% Cr, the impact
+of SRO is negligible due to the dilute nature of the solute. In the 12 at% Cr system, however, the
+repulsive interaction between Cr atoms hinders the formation of interconnected Cr diffusion
+channels. Consequently, the MSD of helium interstitials decreases in this regime. Nevertheless,
+
+
+                                                                                                           20
+the non-monotonic dependence of He diffusivity on concentration remains valid in the presence
+of SRO. Furthermore, as SRO diminishes at elevated temperatures, its impact is correspondingly
+reduced at temperatures of around 400°C or above.
+
+   3.6 Dependence of the correlation factor and the effective barrier for He diffusion on Cr
+       concentration
+
+   Trapping can change the barriers and enhance correlated jumps of random walkers. To further
+understand the impact of Cr concentration on He diffusion, the correlation factor and the effective
+barrier for He diffusion in Ni-Cr alloys were calculated using AKMC simulations from 600 K to
+1000 K for selected Cr concentrations. The correlation factor 𝑓 is calculated using the equation
+
+     𝑀𝑆𝐷
+𝑓 = 𝑛∗𝑙2                                                                                        (7),
+
+where 𝑛 is the total number of steps, and 𝑙 is the jump length. As the different diffusion paths have
+different jump lengths, 𝑙 2 is averaged over all jumps in the AKMC simulations and is dependent
+on both temperature and Cr concentration. The values of 𝑓 for pure Ni and NiCr alloys with Cr
+concentrations of 2 at%, 5 at%, 8 at%, and 12 at% are presented in Figure 11 within a temperature
+range from 600 K to 1000 K. In pure Ni, the correlation factor remains close to 0.87, regardless of
+temperature and Cr concentration. This is close to the theoretical value of 7/8, which comes from
+the fact that in each T-O-T jump, the He atom has a probability of 1/8 to return to the original T-
+site. In Ni-Cr alloys, 𝑓 initially decreases with increasing Cr concentration, reaches a minimum,
+and subsequently increases. This non-monotonic trend holds at all temperatures and resembles the
+concentration dependence of He diffusivity. The initial decrease in the correlation factor is due to
+the trapping of isolated Cr atoms or within small, interconnected low-energy basins. Due to the
+lower IFE at the trapping sites, the He atom has a higher probability of returning to the trapping
+site after exiting it. Such correlated jumps are reduced by the formation of extended basins that
+promote long-range He diffusion, leading to an increase in 𝑓 . As expected, 𝑓 increases with
+temperature for all Cr concentrations because high thermal energy promotes de-trapping.
+
+
+
+
+                                                                                                  21
+Figure 11. The correlation factor for He diffusion as a function of Cr concentration from 600 K to 1000 K.
+
+    The He diffusivities are also calculated from the MSD in pure Ni and in Ni-Cr alloys over a
+temperature range of 600 K to 1000 K. Assuming a constant pre-factor 𝐷0 for each concentration,
+the effective diffusion barriers are determined by performing a linear regression of 𝑙𝑛(𝐷) against
+1
+𝑇
+  , with,
+
+                    𝐸       1
+𝑙𝑛(𝐷) = 𝑙𝑛(𝐷0 ) − 𝑘𝑚 ∙ 𝑇                                                                                     (8).
+                        𝐵
+
+
+    As shown in Figure 12(a), the He interstitial diffusivity exhibits a crossover behavior with
+increasing Cr concentration: it first decreases and then increases. The crossover point shifts from
+lower to higher Cr concentrations as temperature increases. At reactor-relevant temperatures (600
+K and above), the He diffusivity can be reduced by nearly one order of magnitude compared with
+that in pure Ni. For example, at 600 K, the diffusivity decreases from 5.52 × 10−5 cm2/s in pure
+
+
+                                                                                                             22
+Ni to 6.56 × 10−6 cm2/s at 5 at% Cr and then rises to 1.67 × 10−5 cm2/s at 12 at% Cr. Before the
+crossover point, the reduced He diffusivity delays bubble nucleation and growth by confining He
+atoms in localized trapping sites. After that, the trapping effect gradually weakens, and the
+formation of connected diffusion channels may facilitate He transport along these pathways,
+potentially leading to the preferential nucleation of small bubbles or clusters.
+
+    The resulting barriers are presented in Figure 12(b). The He diffusion barrier in pure Ni
+obtained from AKMC is 0.086 eV, perfectly matching the input taken from the DFT-NEB
+calculations. With the addition of 2 at% Cr, the barrier more than doubles, reaching 0.187 eV. This
+significant increase indicates a pronounced trapping effect from isolated Cr atoms. The highest
+diffusion barrier is observed at 5 at% Cr, a concentration which also exhibits the lowest He
+diffusivities at temperatures below 800 K. The effective diffusion barrier with 12 at% Cr reduces
+to 0.123 eV, a value lower than that of the 2 at% case. The non-monotonic dependence of He
+diffusion barrier on Cr concentration is also consistent with that of the overall diffusivity.
+Combining the results shown in Figures 11 and 12(b), the dependence of He diffusivity on Cr
+concentration arises from the dependence of both the correlation factor and the effective barrier.
+
+
+
+
+Figure 12. (a) Diffusivities of He with various Cr concentrations from 600 K to 1000 K. (b) Effective He diffusion
+barriers from 0 to 12 at% Cr.
+
+
+
+
+                                                                                                              23
+   4. Discussion
+
+   As shown in Figure 9, the sizes of the extended diffusion channels increase with Cr
+concentration. In this context, the size of the diffusion channel is quantified by the total count of
+constituent atoms (Ni or Cr). To demonstrate this size increase, we estimated the number and the
+sizes of the channels by connecting the 1NN energy basins around individual Cr atoms using an
+80×80×80 𝑎03 simulation box. As shown in Figure 13(a), the number of 1NN energy basins first
+increases with Cr concentration because of the increase in the total trapping sites, and then
+decreases because of the formation of connected basins, as indicated by the increase in the average
+basin size. The impact of Cr on He diffusion depends on both the number and the size of the
+channels. With high enough Cr concentration, the sizes of the few largest channels become
+comparable to the simulation box size, as demonstrated in Figure 13(b) and (c). At 5 at% Cr, there
+are 20 distinct diffusion channels in the box, and the sizes of the three largest channels increase
+with Cr concentration. Beyond 6 at% Cr, the size disparity between the largest and second-largest
+channels becomes pronounced because of the simulation box size limitation. Complementary
+studies on the channel size as a function of simulation cell sizes are provided in the Supplementary
+Materials Figure S6 and Table S1.
+
+
+
+
+ Figure 13. (a) The number of 1NN energy basins (blue, including connected basins) and the average size of these
+ basins (red, in units of number of interstitial sites). (b) The size of the three largest He diffusion channels. (c) He
+        diffusion channels in 5 at% Cr simulation system (20 channels, distinguished by different colors).
+
+   The concentration-dependent channel size has two interesting implications. First, it highlights
+the importance of using large simulation cells for computing He diffusivity. With periodic
+boundary conditions (PBC), a small simulation cell may contain only one to a few channels and
+become percolated, artificially creating channels that are infinitely big due to periodic images. This
+could lead to biased diffusion deviating from 3D random walking and overestimated diffusivity.
+
+
+                                                                                                                       24
+To demonstrate the simulation cell size effect, we tested five system sizes ranging from 10×10×10
+to 80×80×80 unit cells (uc). For this test, a Cr concentration of 10 at% was selected. For each size,
+we employed five distinct Cr atom distributions. The simulations were performed at 600 K for 1
+ms. As shown in Figure 14(a), simulation boxes with edge lengths ≤ 20 uc (~7 nm) exhibit
+quadratic rather than linear MSD curves over time, indicating significant deviation from 3-D
+random diffusion. When the simulation box edge length reaches approximately 40 uc (~14 nm),
+this effect becomes significantly weaker. Further increasing the box size to 80 uc (~28 nm) results
+in a convergence to a linear MSD curve, with negligible improvement by further increasing the
+system size. Two corresponding unwrapped trajectory examples are shown in 10×10×10 uc3
+(Figure 14(b)) and 60×60×60 uc3 (Figure 14(c)). In the smaller simulation box, the He trajectory
+is confined in one large channel, deviating significantly from 3D random walking. In contrast, the
+larger box exhibits typical 3-D diffusion behavior.
+
+
+
+
+Figure 14. (a) He MSD in Ni-10Cr alloy at 600 K with various simulation box sizes. The unwrapped trajectories in
+the 101010 uc and 606060 uc are shown in (b) and (c), respectively.
+
+    Second, in fine-grained Ni-Cr alloys (e.g., nanocrystalline) with high Cr concentrations, the
+channel size may become comparable to the grain sizes. In such a case, the grains could be
+percolated by the diffusion channels, and the in-grain He diffusion may be distinct from that in
+
+
+                                                                                                            25
+coarse-grained alloys; in the former, He diffusion is dominated by percolated channels and deviates
+significantly from 3D random diffusion, with a fast speed of reaching grain boundaries, while in
+the latter, 3D diffusion is maintained under the influence of traps.
+
+   Beyond the factors discussed above, the broader landscape of helium interstitial diffusion is
+highly complex. In addition to the strong binding between helium atoms and vacancies, extended
+defects such as dislocations are expected to significantly influence both He diffusion and the
+formation of diffusion channels. However, quantifying the specific contribution of these defects
+remains a significant challenge within the scope of our current approach. Therefore, future studies
+incorporating larger-scale simulations are necessary to fully decouple these defect-interaction
+mechanisms.
+
+   5. Conclusions
+
+   In this study, we investigated the He diffusion behavior in Ni-Cr systems by integrating DFT
+and AKMC simulations. The results lead to the following conclusions:
+
+   (1) In bulk Ni, He diffuses via the T–O’–T mechanism. Within the 1NN region of a Cr atom,
+       the mechanism transitions to O–T–O due to the change in the local energy landscape.
+   (2) A Cr atom introduces two distinct trapping sites for He diffusion: (i) a closed energy basin
+       within the 1NN distance, where He diffuses with reduced barriers; and (ii) a 3NN-T
+       trapping site isolated from each other.
+   (3) The 3NN-T sites remain as trapping sites regardless of Cr concentration. In contrast, the
+       1NN energy basin becomes interconnected at high Cr concentrations, turning from trapping
+       sites to rapid diffusion channels for He diffusion.
+   (4) The formation of rapid diffusion channels gives rise to a non-monotonic dependence of
+       He diffusivity on Cr concentration, with diffusivity decreasing at 0-5 at% Cr contents,
+       and increasing at 6-12 at% Cr contents. This may also lead to a change in the He
+       diffusion mechanisms in fine-grained alloys.
+
+   While this work focuses on Ni-Cr, the trapping and channeling mechanisms identified here are
+likely relevant to other alloy systems where solutes exhibit strong binding with interstitial species.
+Some of the findings may be extended to the diffusion of random walkers with trapping basins.
+
+
+
+
+                                                                                                   26
+Furthermore, the method used in this work can also be applied to study the interactions between
+other gas atoms and alloy elements in alloys.
+
+
+
+
+Acknowledgements
+
+   The authors acknowledge the financial support from the U.S. Department of Energy (DOE).
+Work supported through the INL Laboratory Directed Research& Development (LDRD) Program
+under DOE Idaho Operations Office Contract DE-AC07-05ID14517 (tracking number: 23A1070-
+069FP). This research made use of the resources of the High Performance Computing Center (HPC)
+at Idaho National Laboratory, which is supported by the Office of Nuclear Energy of the U.S.
+Department of Energy and the Nuclear Science User Facilities. U.S. Government retains and the
+publisher, by accepting the article for publication, acknowledges that the U.S. Government retains
+a nonexclusive, paid-up, irrevocable, worldwide license to publish or reproduce the published form
+of this manuscript or allow others to do so, for U.S. Government purposes. The authors also greatly
+acknowledge all IMCL facility support regarding sample preparation and handling.
+
+Disclaimer
+
+   The authors declare that they have no known competing financial interests or personal
+relationships that could have appeared to influence the work reported in this paper.
+
+Data availability statement
+
+   The data that supports the findings of this study is available from the corresponding author
+upon reasonable request.
+
+Credit authorship contribution statement.
+
+   Ximeng Wang: Formal analysis, Investigation, Visualization, Writing - review & editing,
+Writing - original draft. Ziang Yu: Formal analysis, Investigation, Visualization, Writing - review
+& editing, Writing - original draft. Yachun Wang: Project administration, Conceptualization,
+Investigation, Funding acquisition, Writing - review & editing. Yongfeng Zhang: Project
+administration, Conceptualization, Formal analysis, Investigation, Writing - review & editing.
+
+
+
+
+                                                                                                 27
+References
+
+[1]    K.L. Murty, I. Charit, Structural materials for Gen-IV nuclear reactors: Challenges and
+       opportunities, Journal of Nuclear Materials 383 (2008) 189–195.
+       https://doi.org/10.1016/j.jnucmat.2008.08.044.
+
+[2]    L.K. Mansur, A.F. Rowcliffe, R.K. Nanstad, S.J. Zinkle, W.R. Corwin, R.E. Stoller,
+       Materials needs for fusion, Generation IV fission reactors and spallation neutron sources –
+       similarities and differences, Journal of Nuclear Materials 329–333 (2004) 166–172.
+       https://doi.org/10.1016/j.jnucmat.2004.04.016.
+
+[3]    T. Allen, J. Busby, M. Meyer, D. Petti, Materials challenges for nuclear systems, Materials
+       Today 13 (2010) 14–23. https://doi.org/10.1016/S1369-7021(10)70220-0.
+
+[4]    S.J. Zinkle, G.S. Was, Materials challenges in nuclear energy, Acta Mater. 61 (2013) 735–
+       758. https://doi.org/10.1016/j.actamat.2012.11.004.
+
+[5]    J. Liu, H. Huang, R. Liu, Z. Zhu, Q. Lei, A. Liu, Y. Li, In situ TEM observation of the
+       evolution of helium bubbles in Hastelloy N alloy during annealing, Journal of Nuclear
+       Materials 537 (2020) 152184. https://doi.org/10.1016/j.jnucmat.2020.152184.
+
+[6]    H. Ullmaier, The influence of helium on the bulk properties of fusion reactor structural
+       materials, Nuclear Fusion 24 (1984) 1039–1083. https://doi.org/10.1088/0029-
+       5515/24/8/009.
+
+[7]    H. Ullmaier, Introductory remarks — helium in metals, Radiat. Eff. 78 (1983) 1–10.
+       https://doi.org/10.1080/00337578308207355.
+
+[8]    G.R. Odette, M.J. Alinger, B.D. Wirth, Recent Developments in Irradiation-Resistant
+       Steels, Annu. Rev. Mater. Res. 38 (2008) 471–503.
+       https://doi.org/10.1146/annurev.matsci.38.060407.130315.
+
+[9]    S.J. Zinkle, J.T. Busby, Structural materials for fission &amp; fusion energy, Materials
+       Today 12 (2009) 12–19. https://doi.org/10.1016/S1369-7021(09)70294-9.
+
+[10]   H. Ullmaier, Helium in fusion materials: High temperature embrittlement, Journal of
+       Nuclear Materials 133–134 (1985) 100–104. https://doi.org/10.1016/0022-3115(85)90118-
+       7.
+
+[11]   M.-S. Ding, J.-P. Du, L. Wan, S. Ogata, L. Tian, E. Ma, W.-Z. Han, J. Li, Z.-W. Shan,
+       Radiation-Induced Helium Nanobubbles Enhance Ductility in Submicron-Sized Single-
+       Crystalline Copper, Nano Lett. 16 (2016) 4118–4124.
+       https://doi.org/10.1021/acs.nanolett.6b00864.
+
+
+
+
+                                                                                                  28
+[12]   P. Trocellier, S. Agarwal, S. Miro, A review on helium mobility in inorganic materials,
+       Journal of Nuclear Materials 445 (2014) 128–142.
+       https://doi.org/10.1016/j.jnucmat.2013.10.061.
+
+[13]   F. Ding, L. Zhou, L. Zhao, X. Dou, K. Xiao, J. Song, J. Du, G. Jiang, Theoretical study on
+       the influence of Cr, Mo, and W alloying additions on the helium behavior in nickel,
+       Journal of Nuclear Materials 565 (2022) 153720.
+       https://doi.org/10.1016/j.jnucmat.2022.153720.
+
+[14]   V. Philipps, K. Sonnenberg, J.M. Williams, Diffusion of helium in nickel, Journal of
+       Nuclear Materials 107 (1982) 271–279. https://doi.org/10.1016/0022-3115(82)90425-1.
+
+[15]   D.B. Poker, J.M. Williams, Low-temperature release of ion-implanted helium from nickel,
+       Appl. Phys. Lett. 40 (1982) 851–853. https://doi.org/10.1063/1.93253.
+[16]   A.J. Adams, W.G. Wolfer, On the diffusion mechanisms of helium in nickel, Journal of
+       Nuclear Materials 158 (1988) 25–29. https://doi.org/10.1016/0022-3115(88)90150-X.
+
+[17]   W. Kesternich, Helium trapping at dislocations, precipitates and grain boundaries, Radiat.
+       Eff. 78 (1983) 261–273. https://doi.org/10.1080/00337578308207376.
+
+[18]   H. Xie, K. Xu, G.-H. Lu, T. Yu, F. Yin, Trapping of hydrogen and helium at an
+       {110}<111> edge dislocation in tungsten, Journal of Nuclear Materials 484 (2017) 270–
+       275. https://doi.org/10.1016/j.jnucmat.2016.12.014.
+
+[19]   E. Torres, J. Pencer, D.D. Radford, Density functional theory-based derivation of an
+       interatomic pair potential for helium impurities in nickel, Journal of Nuclear Materials 479
+       (2016) 240–248. https://doi.org/10.1016/j.jnucmat.2016.07.009.
+[20]   D.J. Hepburn, D. Ferguson, S. Gardner, G.J. Ackland, First-principles study of helium,
+       carbon, and nitrogen in austenite, dilute austenitic iron alloys, and nickel, Phys. Rev. B 88
+       (2013) 024115. https://doi.org/10.1103/PhysRevB.88.024115.
+
+[21]   L.-X. Liao, X. Zhang, C.-L. Ren, Z.-D. Zhang, H.-F. Huang, G.-H. Ma, P. Huai, First-
+       principles study of helium behavior in nickel with noble gas incorporation, J. Appl. Phys.
+       127 (2020). https://doi.org/10.1063/1.5145016.
+
+[22]   G. Nandipati, D.J. Senor, A.M. Casella, A. Soulami, Molecular dynamics study of
+       interstitial He clusters in nickel, Nuclear Materials and Energy 41 (2024) 101733.
+       https://doi.org/10.1016/j.nme.2024.101733.
+
+[23]   X. Zhang, C.-L. Ren, H. Han, C.-B. Wang, H.-F. Huang, Y.-R. Yin, W. Zhang, G.
+       Lumpkin, P. Huai, Z.-Y. Zhu, First-principles prediction of interstitial carbon, nitrogen,
+       and oxygen effects on the helium behavior in nickel, J. Appl. Phys. 122 (2017).
+       https://doi.org/10.1063/1.4998405.
+
+
+
+                                                                                                    29
+[24]   K.C. Pitike, H. Ke, D.J. Edwards, W. Setyawan, Helium interaction with solutes and
+       impurities in neutron-irradiated nanostructured ferritic alloys: A first principles study,
+       Journal of Nuclear Materials 566 (2022) 153771.
+       https://doi.org/10.1016/j.jnucmat.2022.153771.
+[25]   E. Martínez, C.-C. Fu, Cr interactions with He and vacancies in dilute Fe-Cr alloys from
+       first principles, Phys. Rev. B 84 (2011) 014203.
+       https://doi.org/10.1103/PhysRevB.84.014203.
+
+[26]   K. Rao, Z.-R. Liu, X.-F. He, W. Yang, First-principles study on the solute-induced low
+       diffusion and self-trapping of helium in fcc iron, Journal of Nuclear Materials 563 (2022)
+       153613. https://doi.org/10.1016/j.jnucmat.2022.153613.
+
+[27]   L. Wan, R. Zhang, X. Ye, T. Gao, Role of Ni on the helium diffusion, stability and
+       energetics of vacancy–type clusters in Fe–6.25Cr–3.13Ni (at.%) ternary alloys: From first-
+       principles, Comput. Mater. Sci. 205 (2022) 111213.
+       https://doi.org/10.1016/j.commatsci.2022.111213.
+[28]   X. Wu, X.-S. Kong, Y.-W. You, C.S. Liu, Q.F. Fang, J.-L. Chen, G.-N. Luo, Z. Wang, First
+       principles study of helium trapping by solute elements in tungsten, Journal of Nuclear
+       Materials 455 (2014) 151–156. https://doi.org/10.1016/j.jnucmat.2014.05.060.
+
+[29]   V. Oliveira Cavalcanti, J. Roques, A. Gentils, D. Horlait, E. Gilabert, L. Tassan-Got,
+       Understanding helium diffusion in iron: a multiscale modelling method based on the DFT
+       and kinetic Monte Carlo, coupled to TEM and thermo-desorption spectroscopy
+       experiments, Journal of Nuclear Materials 583 (2023) 154511.
+       https://doi.org/10.1016/j.jnucmat.2023.154511.
+
+[30]   X.-S. Kong, S. Wang, X. Wu, Y.-W. You, C.S. Liu, Q.F. Fang, J.-L. Chen, G.-N. Luo,
+       First-principles calculations of hydrogen solution and diffusion in tungsten: Temperature
+       and defect-trapping effects, Acta Mater. 84 (2015) 426–435.
+       https://doi.org/10.1016/j.actamat.2014.10.039.
+
+[31]   Y. Zhang, C. Jiang, X. Bai, Anisotropic hydrogen diffusion in α-Zr and Zircaloy predicted
+       by accelerated kinetic Monte Carlo simulations, Sci. Rep. 7 (2017) 41033.
+       https://doi.org/10.1038/srep41033.
+
+[32]   D.R. Alfonso, D.N. Tafen, Simulation of Atomic Diffusion in the Fcc NiAl System: A
+       Kinetic Monte Carlo Study, The Journal of Physical Chemistry C 119 (2015) 11809–
+       11817. https://doi.org/10.1021/acs.jpcc.5b00733.
+
+[33]   M. Ciantar, C. Mellot-Draznieks, C. Nieto-Draghi, A Kinetic Monte Carlo Simulation
+       Study of Synthesis Variables and Diffusion Coefficients in Early Stages of Silicate
+       Oligomerization, The Journal of Physical Chemistry C 119 (2015) 28871–28884.
+       https://doi.org/10.1021/acs.jpcc.5b07605.
+
+
+                                                                                                    30
+[34]   M. Grabowski, J. Rogal, R. Drautz, Kinetic Monte Carlo simulations of vacancy diffusion
+       in nondilute Ni-X (X= Re, W, Ta) alloys, Phys. Rev. Mater. 2 (2018) 123403.
+       https://doi.org/10.1103/PhysRevMaterials.2.123403.
+
+[35]   J. Kottke, D. Utt, M. Laurent-Brocq, A. Fareed, D. Gaertner, L. Perrière, Ł. Rogal, A.
+       Stukowski, K. Albe, S. V. Divinski, G. Wilde, Experimental and theoretical study of tracer
+       diffusion in a series of (CoCrFeMn)100-xNix alloys, Acta Mater. 194 (2020) 236–248.
+       https://doi.org/10.1016/j.actamat.2020.05.037.
+
+[36]   S. García-García, A. Santiago Ortiz-González, S. Amaya-Roncancio, I.D. Arellano-
+       Ramirez, N. de la Cruz Felix, M. Cecilia Gimenez, D. Augusto Torres-Ceron, E. Restrepo-
+       Parra, DFT based kinetic Monte Carlo study of metal surface Growth: Comparison of a
+       restricted and an unrestricted diffusion model, Comput. Mater. Sci. 231 (2024) 112546.
+       https://doi.org/10.1016/j.commatsci.2023.112546.
+[37]   A. Ahmad, J. Peng, K. SharafEldin, J. Lu, H. Wang, A. El-Azab, A DFT-based kinetic
+       Monte Carlo simulation of multiphase oxide-metal thin film growth, J. Appl. Phys. 135
+       (2024). https://doi.org/10.1063/5.0189427.
+
+[38]   G. Kresse, J. Hafner, Ab initio molecular dynamics for liquid metals, Phys. Rev. B 47
+       (1993) 558–561. https://doi.org/10.1103/PhysRevB.47.558.
+
+[39]   G. Kresse, J. Furthmüller, Efficiency of ab-initio total energy calculations for metals and
+       semiconductors using a plane-wave basis set, Comput. Mater. Sci. 6 (1996) 15–50.
+       https://doi.org/10.1016/0927-0256(96)00008-0.
+
+[40]   G. Kresse, D. Joubert, From ultrasoft pseudopotentials to the projector augmented-wave
+       method, Phys. Rev. B 59 (1999) 1758–1775. https://doi.org/10.1103/PhysRevB.59.1758.
+
+[41]   P.E. Blöchl, Projector augmented-wave method, Phys. Rev. B 50 (1994) 17953–17979.
+       https://doi.org/10.1103/PhysRevB.50.17953.
+[42]   J.P. Perdew, K. Burke, M. Ernzerhof, Generalized Gradient Approximation Made Simple,
+       Phys. Rev. Lett. 77 (1996) 3865–3868. https://doi.org/10.1103/PhysRevLett.77.3865.
+
+[43]   H.J. Monkhorst, J.D. Pack, Special points for Brillouin-zone integrations, Phys. Rev. B 13
+       (1976) 5188–5192. https://doi.org/10.1103/PhysRevB.13.5188.
+
+[44]   F. Walsh, R.O. Ritchie, M. Asta, Theoretical antiferromagnetism of ordered face-centered
+       cubic Cr-Ni alloys, Phys. Rev. Mater. 6 (2022) 113602.
+       https://doi.org/10.1103/PhysRevMaterials.6.113602.
+[45]   M. Bohra, S. Giaremis, A. KS, S. Mathioudaki, J. Kioseoglou, P. Grammatikopoulos,
+       Ferromagnetic–Antiferromagnetic Coupling in Gas‐Phase Synthesized M(Fe, Co, and
+       Ni)–Cr Nanoparticles for Next‐Generation Magnetic Applications, Advanced Science 11
+       (2024). https://doi.org/10.1002/advs.202403708.
+
+
+                                                                                                 31
+[46]   G. Henkelman, H. Jónsson, Improved tangent estimate in the nudged elastic band method
+       for finding minimum energy paths and saddle points, J. Chem. Phys. 113 (2000) 9978–
+       9985. https://doi.org/10.1063/1.1323224.
+
+[47]   G. Henkelman, B.P. Uberuaga, H. Jónsson, A climbing image nudged elastic band method
+       for finding saddle points and minimum energy paths, J. Chem. Phys. 113 (2000) 9901–
+       9904. https://doi.org/10.1063/1.1329672.
+
+[48]   F. Soisson, C.-C. Fu, Cu-precipitation kinetics in α-Fe from atomistic simulations:
+       Vacancy-trapping effects and Cu-cluster mobility, Phys. Rev. B 76 (2007) 214102.
+       https://doi.org/10.1103/PhysRevB.76.214102.
+
+[49]   P.K. A. McNabb, P.K. Foster, A new analysis of the diffusion of hydrogen in iron and
+       ferritic steels, Trans. Met. Soc. AIME 227 (1963) 618–627.
+[50]   R.A. Oriani, The diffusion and trapping of hydrogen in steel, Acta Metallurgica 18 (1970)
+       147–157. https://doi.org/10.1016/0001-6160(70)90078-7.
+
+[51]   A. Manzoor, Y. Zhang, Interplay between thermal vacancy and short-range order in
+       complex concentrated alloys, J. Alloys Compd. 982 (2024) 173788.
+       https://doi.org/10.1016/j.jallcom.2024.173788.
+
+[52]   C.A. Howells, Y. Mishin, Angular-dependent interatomic potential for the binary Ni–Cr
+       system, Model. Simul. Mat. Sci. Eng. 26 (2018) 085008. https://doi.org/10.1088/1361-
+       651X/aae400.
+[53]   M. Rahaman, B. Johansson, A. V. Ruban, First-principles study of atomic ordering in fcc
+       Ni-Cr alloys, Phys. Rev. B 89 (2014) 064103.
+       https://doi.org/10.1103/PhysRevB.89.064103.
+
+[54]   H. Arkoub, J.-H. Ke, K. Bawane, M. Jin, Percolating Corrosion Pathways of Chemically
+       Ordered NiCr Alloys in Molten Salts, (2025). http://arxiv.org/abs/2510.25098.
+
+
+
+
+                                                                                               32
+

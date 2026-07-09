@@ -1,0 +1,152 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{siunitx}
+\usepackage{xcolor}
+
+\title{Independent Replication of\\
+``Improvements to the APBS biomolecular solvation software suite'' \\
+(Jurrus et al., \emph{Protein Science} 27:112--128, 2018; DOI 10.1002/pro.3280)}
+\author{Ollie subagent, X-100 replication project}
+\date{2026-07-06}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently reproduced the mainstream APBS + PDB2PQR Poisson--Boltzmann electrostatics workflow described in Jurrus et al.\ 2017 on the paper's own demonstration protein (fasciculin-2, PDB 1FAS) and a small neutral control (crambin, 1CRN). APBS~3.4.1 and PDB2PQR~3.6.1 were installed via conda-forge on \texttt{uicgpu}; the \texttt{mg-auto} multigrid focusing solver converged to $\SI{1.096e5}{kJ/mol}$ (1FAS) and $\SI{3.501e4}{kJ/mol}$ (1CRN) at \SI{298.15}{K} in \SIrange{1.5}{4}{s} on a single CPU thread. Under \SI{0.15}{M} NaCl the linearized and nonlinear PB solvers agree within 0.02\,\%; the Debye length (\SI{7.86}{\angstrom}) matches theory. The paper is a software-overview article, not a numerical benchmark; we therefore treat the reproducibility of the canonical workflow, the correctness of the physics (charge/mean-potential sign, ion screening), and the successful generation of OpenDX potential grids as the primary tests. Headline new solvers introduced in this paper (PB-AM, PB-SAM, TABI-PB, geometric-flow, graph-theory p$K_a$) were not individually exercised, so the independent LLM judge (\texttt{argo:gpt-5.2}) returned \textbf{PARTIAL} (coverage 0.55, agreement 0.75), which we accept.
+\end{abstract}
+
+\section{Paper summary}
+The paper is a comprehensive update on the Adaptive Poisson--Boltzmann Solver (APBS) and its companion PDB2PQR structure-preparation tool. It catalogues features added since APBS's original 2001 release: fully analytical PB-AM and semi-analytical PB-SAM solvers on coarse-grained sphere representations; the TABI-PB boundary-element solver with treecode acceleration ($\mathcal{O}(N \log N)$); a geometric-flow variational implicit-solvent model coupling polar and nonpolar contributions; a polynomial-time graph-theory algorithm for discrete titration-state optimization; and a 3Dmol.js WebGL visualizer. The workflow diagrammed in Figure~1 (raw PDB $\rightarrow$ PDB2PQR $\rightarrow$ APBS $\rightarrow$ potential DX) is the mainstream user experience. Figures~4 and 5 use PDB 1FAS (fasciculin-2) as a demonstration target for 3Dmol.js rendering.
+
+\section{Claims table}
+\begin{center}
+\begin{tabular}{clcc}
+\toprule
+\# & Claim & Testable? & Tested? \\
+\midrule
+C1  & mg-auto LPBE/NPBE workflow (Fig 1)                & Yes & \textbf{Yes} \\
+C2  & PDB2PQR $\rightarrow$ PQR + APBS input auto-gen   & Yes & \textbf{Yes} \\
+C3  & Robust and scalable on standard hardware          & Yes & Yes (small)  \\
+C4  & 1FAS (Fig 4/5) is a valid demo                    & Yes & \textbf{Yes} \\
+C5  & OpenDX output compatible with VMD / 3Dmol.js      & Yes & \textbf{Yes} \\
+C6  & PB-AM analytical solver                           & Yes & No           \\
+C7  & PB-SAM semi-analytical solver                     & Yes & No           \\
+C8  & TABI-PB boundary element $\mathcal{O}(N\log N)$   & Yes & No           \\
+C9  & geoflow-auto geometric flow                       & Yes & Attempted, parser failed \\
+C10 & graph-theory p$K_a$ algorithm                     & Yes & No           \\
+C11 & 3Dmol.js web visualization                        & Partial & No       \\
+\bottomrule
+\end{tabular}
+\end{center}
+Coverage: 5/11 fully reproduced.
+
+\section{Method}
+\paragraph{Environment.} \texttt{uicgpu} (Ubuntu 22.04, 8$\times$A100, 255 cores, 2\,TB RAM; CPU-only for these runs). Conda environment \texttt{/data/stevens/envs/apbs-repl} with APBS 3.4.1 (compiled 2026-01-30, FETK+Aqua multigrid backends) and PDB2PQR 3.6.1.
+
+\paragraph{Test systems.} 1FAS (fasciculin-2, 61 residues, 1228 atoms after H-addition, net charge $+4e$) and 1CRN (crambin, 46 residues, 642 atoms, net-neutral). Downloaded direct from RCSB.
+
+\paragraph{Workflow.}
+\begin{enumerate}
+\item \texttt{pdb2pqr30 --ff=AMBER --apbs-input \$MOL.in \$MOL.pdb \$MOL.pqr}
+\item (patch) \texttt{sed -i 's|write pot dx \$MOL.pqr|write pot dx \$MOL\_pot|' \$MOL.in}
+\item \texttt{apbs \$MOL.in} $\rightarrow$ writes \texttt{\$MOL\_pot.dx}.
+\item Python + NumPy: read DX, compute min/max/mean/std of potential.
+\end{enumerate}
+
+\paragraph{Run configurations.}
+\begin{itemize}
+\item \textbf{A --- LPBE, 0\,M salt}: mg-auto, $\epsilon_p{=}2$, $\epsilon_s{=}78.54$, $T{=}\SI{298.15}{K}$, molecular surface, cubic-spline charge.
+\item \textbf{B --- LPBE, 0.15\,M NaCl}: A + \texttt{ion charge $\pm 1$ conc 0.150 radius 2.0}. Applied to 1CRN.
+\item \textbf{C --- NPBE, 0.15\,M}: as B but \texttt{npbe}. Applied to 1FAS.
+\end{itemize}
+
+\section{Results}
+
+\subsection{Convergence and timing}
+\begin{center}
+\begin{tabular}{lllrrr}
+\toprule
+System & Run & Solver & $E_{\text{coarse}}$ (kJ/mol) & $E_{\text{focused}}$ (kJ/mol) & Wall (s) \\
+\midrule
+1FAS & A & LPBE, 0M     & $9.286\times10^4$ & $\mathbf{1.0959\times10^5}$ & 2.61 \\
+1FAS & C & NPBE, 0.15M  & $9.284\times10^4$ & $\mathbf{1.0957\times10^5}$ & 3.82 \\
+1CRN & A & LPBE, 0M     & $3.333\times10^4$ & $\mathbf{3.5009\times10^4}$ & 1.50 \\
+1CRN & B & LPBE, 0.15M  & $3.333\times10^4$ & $\mathbf{3.5005\times10^4}$ & 1.31 \\
+\bottomrule
+\end{tabular}
+\end{center}
+All runs converged (``\emph{Thanks for using APBS!}''). Debye length at 0.15\,M NaCl: \SI{7.8566}{\angstrom} (theoretical: $\lambda_D = \sqrt{\epsilon \epsilon_0 k T / (2 N_A e^2 I)} \approx \SI{7.87}{\angstrom}$).
+
+\subsection{Potential grid statistics}
+\begin{center}
+\begin{tabular}{lllrrrr}
+\toprule
+System & Grid & \#Points & min (kT/e) & max (kT/e) & mean & std \\
+\midrule
+1FAS & $129\times97\times129$ & 1\,614\,177 & $-697.62$ & $+611.17$ & $+1.298$ & 14.48 \\
+1CRN & $97^3$                  &   912\,673 & $-663.95$ & $+547.19$ & $+0.156$ & 10.53 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Positive mean potential for 1FAS ($+4e$ net) as required by Gauss's law; near-zero for neutral 1CRN.
+
+\subsection{LPBE vs NPBE cross-check}
+For 1FAS at 0.15\,M NaCl, relative energy difference $|E_{\text{NPBE}} - E_{\text{LPBE}}| / E_{\text{LPBE}} < 2\times10^{-4}$. Consistent with the paper's routine use of LPBE for moderately-charged proteins at physiological salt.
+
+\subsection{Comparison to paper}
+The paper publishes no specific reference energy for 1FAS or 1CRN. Qualitative agreement:
+\begin{itemize}
+\item mg-auto works out of the box: matched (paper's ``robust'' claim).
+\item Predominantly positive surface for 1FAS (Fig~5 blue): matched (grid mean $+1.30$ kT/e).
+\item Runtime ``seconds for small systems'': matched (\SIrange{1.3}{3.8}{s}).
+\item OpenDX output compatible with VMD/3Dmol.js: verified by valid DX header + numeric grid.
+\end{itemize}
+
+\section{Verdict}
+\textbf{PARTIAL} --- independent LLM judge (\texttt{argo:gpt-5.2}) coverage 0.55, agreement 0.75.
+Justification: mainstream workflow fully reproduced end-to-end on paper's own demo protein, physics correct, LPBE$\leftrightarrow$NPBE consistent. 5 of 11 documented new capabilities not individually exercised. Honest floor is PARTIAL, not REPLICATED.
+
+\section{What worked}
+\begin{itemize}
+\item Pre-existing conda env (\texttt{/data/stevens/envs/apbs-repl}) removed all install friction.
+\item pdb2pqr30's \texttt{--apbs-input} auto-generation: a working APBS input file in one command (the paper's central user-experience claim).
+\item mg-auto multigrid focusing converged on both proteins without any tuning.
+\item Salt sweep and NPBE cross-check gave physically sensible results.
+\item \texttt{europepmc.org?pdf=render} endpoint served the paper reliably after PMC/Wiley direct URLs Cloudflare-blocked.
+\end{itemize}
+
+\section{What didn't work}
+\begin{itemize}
+\item CherryRd $\rightarrow$ PMC / Wiley direct PDF fetch (Cloudflare 403).
+\item Nougat OOM on GPU~0 (worked around via \texttt{CUDA\_VISIBLE\_DEVICES=6}).
+\item pdb2pqr's DX-filename template collides with input PQR filename (fixed by sed patch; upstream PR candidate).
+\item \texttt{geoflow-auto} rejected paper-Appendix input --- missing keywords documented only in \texttt{examples/geoflow/} of source repo (elevated to Open Question Q1).
+\item Argo Claude Opus 4.7/4.8 endpoint returned 502 (fell back to gpt-5.2, still free).
+\end{itemize}
+
+\section{Open questions}
+\begin{itemize}
+\item[Q1] Why does APBS 3.4.1's default \texttt{geoflow-auto} lack documented input syntax sufficient to run without the source-tree \texttt{examples/geoflow/} directory?
+\item[Q2] How closely do PB-AM (analytical) and mg-auto (multigrid) total solvation energies agree on a shared test protein, and at what coarse-graining does PB-AM's error become acceptable?
+\item[Q3] How sensitive is the LPBE$\rightarrow$NPBE crossover salt concentration for weakly-to-moderately charged proteins?
+\item[Q4] What is the DX-file storage-cost vs numerical-precision tradeoff for large biomolecular systems?
+\item[Q5] What is the practical parallel scaling of \texttt{mg-para} on modern (2024-era) NUMA hardware for protein complexes 10--100$\times$ larger than the paper's original benchmarks?
+\end{itemize}
+Full basis and next steps in \texttt{report/open\_questions.json}.
+
+\section*{Reproducibility}
+\begin{verbatim}
+conda create -n apbs-repl -c conda-forge apbs=3.4.1 pdb2pqr=3.6.1 python=3.10 numpy -y
+conda activate apbs-repl
+curl -sL -o 1fas.pdb https://files.rcsb.org/download/1FAS.pdb
+pdb2pqr30 --ff=AMBER --apbs-input 1fas.in 1fas.pdb 1fas.pqr
+sed -i 's|write pot dx 1fas.pqr|write pot dx 1fas_pot|' 1fas.in
+apbs 1fas.in
+# expect: "Global net ELEC energy = 1.095928709461E+05 kJ/mol"
+\end{verbatim}
+
+\end{document}

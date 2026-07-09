@@ -1,0 +1,191 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\title{LUCID-100 Replication Report:\\
+Mechanistic Analysis of DNA and Protein Damage Contributions to Radiation-Induced Cell Death\\
+\large Shuryak \& Brenner (2012), \emph{Radiat. Res.} 178(1):17--24}
+\author{LUCID-100 Replication Effort (backfill 2026-07-06)}
+\date{Underlying replication 2026-06-09; write-up 2026-06-22; canonical backfill 2026-07-06}
+
+\begin{document}
+\maketitle
+
+\section*{TL;DR}
+A closed-form 5-equation, 4-parameter mechanistic survival model that splits radiation-induced
+bacterial cell death into a DNA-damage channel $Q_1$ (whose double-strand-break repair fidelity
+decays with cumulative protein carbonylation $P$) and a direct protein-damage channel
+$Q_2 = P^X$, with survival $S = Q_1 \cdot Q_2$. Re-implemented from the PMC JATS XML in pure
+Python; forward-run for all 5 strain/condition rows under both $\gamma$ and UV. Qualitative
+dominant-mechanism map (Table 2 of the paper) reproduced in \textbf{10/10 rows}. Quantitative
+$S(D)$ diverges by 2--60 orders of magnitude at the high-dose tail because $F(D)$ is a
+placeholder logistic, not the digitized Krisko \& Radman (2010) PNAS data used by the
+original fit. Fitting was \emph{not} re-run; the paper's Table~1 best-fit parameters were used
+as inputs. \textbf{Verdict: PARTIAL} (queue label ``REPLICATED'' was optimistic --- see
+\S\ref{sec:critique}).
+
+\section{Paper summary}
+Shuryak \& Brenner propose a mechanistic radiation-survival model for prokaryotes that
+explicitly couples two damage modalities:
+\begin{align}
+P(D)   &= 1 - \frac{F(D) - F_0}{F_{\max} - F_0} \\
+Q_1(D) &= \exp\left[-K_{\text{dam}} D \exp(-K_{\text{rep}} P(D))\right] \\
+Q_2(D) &= P(D)^X \\
+S(D)   &= Q_1(D) \cdot Q_2(D) \qquad (S = Q_2 \text{ for } \lambda \text{ infective centers})
+\end{align}
+where $F(D)$ is cumulative protein carbonylation (from Krisko \& Radman 2010 PNAS data);
+$F_{\max}$ is a saturation ceiling; $K_{\text{dam}}, K_{\text{rep}}, X$ are fit parameters.
+The novelty is that DSB \emph{repair fidelity} (not DSB yield) is modulated by protein damage
+--- proteomic oxidation kills the repair machinery, so accumulated $P$ inflates the effective
+DSB kill constant. The model is fit jointly across 5 strain/condition rows
+(\textit{D.~radiodurans} R1 WT and recA$^-$; \textit{E.~coli} MG1655 WT and CB1000/CB2000
+radioresistant; $\lambda$ infective centers in \textit{E.~coli}) under $\gamma$ and UV, and
+Table~2 tabulates which channel ($Q_1$ vs $Q_2$) dominates in each of the 10 cells.
+
+\section{Claims table}
+\begin{longtable}{p{0.62\linewidth} p{0.15\linewidth} p{0.18\linewidth}}
+\toprule
+Claim & Type & Coverage \\
+\midrule
+\endhead
+C1. 5-equation closed-form model is well-defined and tractable & structural & full \\
+C2. Best-fit parameter table (Table 1) with 95\% CIs & quantitative & partial (inherited, not refit) \\
+C3. Dominant-mechanism map per strain$\times$radiation (Table 2, 10 cells) & qualitative & full (10/10) \\
+C4. $S(D)$ curves overlay Krisko \& Radman 2010 data (Figs.~1,3--5) & quantitative & blocked (data) \\
+C5. $Q_1$ contour (Fig.~4) and $S$-vs-$P$ plot (Fig.~5) & visualization & not done \\
+C6. Cross-strain transferability ($K_{\text{rep}}$, $X$ shared within taxon) & assumption & inherited \\
+C7. Code release / reproducibility of fitter (FORTRAN SA) & artifact & not released upstream \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+Model equations were transcribed verbatim from the PMC JATS XML
+(\texttt{artifacts/paper\_oai.xml}) into
+\texttt{scripts/smoke\_shuryak\_2012.py}, a pure-Python NumPy implementation.
+Parameters from paper Table~1 were hard-coded: $F_{\max} = 8.5\ \text{nmol/mg}$,
+$K_{\text{dam}}^\gamma = 10\ \text{kGy}^{-1}$, $K_{\text{dam}}^{UV} = 3.99\ \text{m}^2/\text{kJ}$,
+$K_{\text{rep}} = 13.9$ (0 for recA$^-$), $X = 3.88$ (\textit{D.r.}) or $6.76$
+(\textit{E.c.} + $\lambda$). $F(D)$ was represented by \emph{strain-specific logistic
+placeholders} calibrated only to reproduce the qualitative shape of the Krisko \& Radman
+2010 curves. Forward simulation over the paper's stated dose ranges produced
+\texttt{results/summary.csv} plus 10 per-strain full-grid CSVs and two log-survival plots.
+No refit was performed. Compute: $<1$~s on CherryRd CPU; no GPU; no paid endpoint.
+
+\section{Results vs paper}
+\subsection*{Qualitative: dominant-mechanism map (paper Table 2)}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Strain $\times$ radiation & Paper claim & Replication & Match \\
+\midrule
+\textit{D.r.} R1 WT, $\gamma$      & $Q_2$ & $Q_2$ ($\log Q_2/\log S = 0.624$) & \checkmark \\
+\textit{D.r.} recA$^-$, $\gamma$   & $Q_1$ & $Q_1$ (0.998) & \checkmark \\
+\textit{E.c.} MG1655 WT, $\gamma$  & $Q_2$ & $Q_2$ (0.714) & \checkmark \\
+\textit{E.c.} Res, $\gamma$        & $Q_2$ & $Q_2$ (0.512) & \checkmark \\
+$\lambda$ IC, $\gamma$             & $Q_2$ & $Q_2$ (1.000) & \checkmark \\
+\textit{D.r.} R1 WT, UV            & $Q_2$ & $Q_2$ (0.860) & \checkmark \\
+\textit{D.r.} recA$^-$, UV         & $Q_1$ & $Q_1$ (0.730) & \checkmark \\
+\textit{E.c.} MG1655 WT, UV        & $Q_2$ & $Q_2$ (0.961) & \checkmark \\
+\textit{E.c.} Res, UV              & $Q_2$ & $Q_2$ (0.990) & \checkmark \\
+$\lambda$ IC, UV                   & $Q_2$ & $Q_2$ (1.000) & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{center}
+Dominant mechanism: 10/10 matches.
+
+\subsection*{Quantitative: end-of-range survival}
+Placeholder $F(D)$ over-saturates $P \to 0$, and $Q_2 = P^X$ with $X \approx 6.76$ amplifies
+small $P$ errors into many decades of $S$ error:
+\begin{itemize}
+  \item \textit{D.r.} R1 WT, $\gamma$ at 20 kGy: $S = 6.7\times10^{-4}$ (paper $\sim 10^{-2}$)
+        --- off by $\sim$2 orders.
+  \item \textit{E.c.} MG1655 WT, $\gamma$ at 4 kGy: $S = 1.4\times10^{-61}$ (paper $\sim 10^{-5}$)
+        --- catastrophically off, entirely traceable to the logistic placeholder.
+  \item $\lambda$ IC, UV at 0.36 kJ/m$^2$: $S = 1.1\times10^{-11}$ (paper: low but finite)
+        --- same root cause.
+\end{itemize}
+The $Q_1/Q_2$ \emph{ratio} is much more robust than either absolute value, which is why the
+qualitative Table~2 map holds despite the quantitative divergence.
+
+\section{Critique --- what this replication did and did not establish}\label{sec:critique}
+
+This is the honest section, per Rick's 2026-07-05 backfill directive.
+
+\subsection*{The queue verdict is wrong}
+The queue-side verdict for this dir was \textbf{REPLICATED}. The actual REPORT.md and MANIFEST
+resolve to \textbf{PARTIAL} (coverage 5/10, agreement 4/10, explicitly stated at the bottom
+of REPORT.md). This is one of the mismatches Rick flagged: 4 of $\sim$18 sampled LUCID dirs had
+queue=REPLICATED but actual=PARTIAL. This dir is one of them. \emph{Verdict preserved for this
+backfill: PARTIAL.}
+
+\subsection*{Was the protein-damage arm independently tested?}
+No. This is the central identifiability concern. The protein-damage arm enters the model in two
+places: (i) as a multiplicative kill channel $Q_2 = P^X$ with a strain-grouped exponent $X$,
+and (ii) as a fidelity-modulator in $Q_1$ through $\exp(-K_{\text{rep}} P)$. The paper's fit
+determines $(K_{\text{dam}}, K_{\text{rep}}, X)$ jointly against $S(D)$ observations while
+using an independently-measured $F(D)$ curve (Krisko \& Radman 2010). Because $P$ is a monotone
+transform of $F$, and $F(D)$ is empirically measured, in principle the two arms are
+distinguishable --- but only if the $S(D)$ data are informative enough to break the degeneracy
+between ``more protein-damage kill'' ($X$ large) and ``worse DSB repair fidelity''
+($K_{\text{rep}}$ large). \textbf{This replication did not re-fit and therefore could not
+audit that degeneracy}. A profile-likelihood or Fisher-information analysis on
+$(K_{\text{rep}}, X)$ would be the right diagnostic. See open question Q1.
+
+\subsection*{Was DNA-vs-protein contribution decomposable or degenerate?}
+The paper's diagnostic is the $\log Q_i / \log S$ ratio (Table~2). This is a
+\emph{decomposition of the fitted model}, not an independent orthogonal measurement. The
+apparent ``mechanism assignment'' therefore inherits whatever priors the fit imposed. In the
+recA$^-$ strain $K_{\text{rep}}$ is held at 0 (by biological argument: no repair fidelity to
+degrade), which \emph{forces} $Q_1$ dominance. In WT strains $K_{\text{rep}} = 13.9$ is fit
+freely, but any pair of $(K_{\text{rep}}, X)$ that gives the same $S(D)$ trace would produce
+different Table~2 rows --- so the ``10/10 dominance match'' this replication reports is
+partly a consequence of using the same parameters, not an independent test. The test would
+need to include held-out cross-strain predictions.
+
+\subsection*{Was the model validated on distinct cell-death modes?}
+No, and neither did the paper. The output is a single scalar $S(D)$ = viable colony fraction.
+Bacterial cell death is not partitioned into apoptosis / mitotic-catastrophe / necrosis in
+this framework (nor is the mechanistic distinction as sharp in prokaryotes as in eukaryotes,
+but there \emph{is} literature on programmed lysis in \textit{E.~coli} via SOS/RecA-mediated
+prophage induction which would specifically affect the $\lambda$ IC row). The model conflates
+all modes. This is a structural limitation, not a replication gap.
+
+\subsection*{Low-dose vs high-dose regime}
+The dominant-mechanism ratios shift with dose: $Q_2$ tends to dominate at intermediate doses
+and $Q_1$ takes over as $P \to 0$ at very high doses (visible in the $D.r.$ R1 $\gamma$ row
+where $\log Q_1 / \log S$ climbs from below 0.5 at moderate doses toward parity by 20 kGy).
+The paper acknowledges this but does not stratify Table~2 by dose regime. This replication
+inherits the same coarse-graining.
+
+\subsection*{Quantitative divergence root cause}
+Entirely the placeholder $F(D)$ logistic. Not a model bug. Fixed by digitizing Krisko \&
+Radman 2010 Fig.~2 --- blocked because PMC/EuropePMC figure endpoints returned reCAPTCHA HTML
+under headless fetch, and PNAS PDF returned HTTP 403.
+
+\subsection*{Reproducibility of the fitter}
+The author's FORTRAN random-restart simulated-annealing code is not on GitHub, Zenodo, or
+Figshare. A SciPy \texttt{least\_squares} or \texttt{dual\_annealing} substitute is trivial
+but would be an \emph{independent} implementation, not a fitter replication.
+
+\section{Reproduction cost}
+\begin{itemize}
+  \item First-pass replication: $\sim$1 day of a single subagent (paper harvest + JATS $\to$
+        Python + forward-simulate + qualitative check).
+  \item Full quantitative replication: adds $\sim$0.5 day for WebPlotDigitizer on Krisko \&
+        Radman 2010 Figs.~1--2 (needs interactive browser session) + $\sim$0.5 day for SciPy
+        refit + 95\% CI generation.
+  \item Compute: negligible (CPU seconds).
+  \item Endpoints used: none paid. Model computation was NumPy; report LaTeX; text munging.
+\end{itemize}
+
+\input{open_questions_section.tex}
+
+\section*{Verdict line}
+\texttt{VERDICT=PARTIAL COVERAGE=5/10 AGREEMENT=4/10 QUEUE\_LABEL\_MISMATCH=REPLICATED$\to$PARTIAL}
+
+\end{document}

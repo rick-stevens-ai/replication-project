@@ -1,0 +1,7 @@
+# Brief — BVBRC-122
+
+**Paper:** Fucich D. et al. 2021. "Complete Genome Sequences of Chesapeake Bay *Synechococcus* Strains CBW1002 and CBW1006 Isolated in Winter." *Genome Biology and Evolution* 13(2):evab009. PMID 33528491, DOI 10.1093/gbe/evab009.
+
+**What this replication did.** Re-downloaded the two announced complete genomes (RefSeq GCF_015840915.1 for CBW1002 and GCF_015840525.1 for CBW1006) plus a curated panel of nine reference cyanobacterial genomes (CB0101, BS55D Bornholm, WH8102, PCC7002, PCC6312, *Cyanobium gracile* PCC6307, *S. elongatus* PCC7942, *Synechocystis* PCC6803, *Prochlorococcus* MED4). Verified every quantitative claim in the paper's Table 1 (length, GC, gene/ncRNA counts, single chromosome), built an independent 11-taxon 16S rRNA phylogeny (MAFFT + FastTree GTR+Γ), and re-ran the paper's reciprocal-best-BLASTp homolog analysis (e < 1e-10) across six pairwise comparisons.
+
+**Why.** This is a genome-announcement paper whose central biological claims are (a) two large (~3.85 Mb), high-GC circular chromosomes, (b) placement in a Bornholm/Cyanobium-like clade outside marine subcluster 5.2, (c) absence of canonical bacterial cold-shock proteins (cspA/B/C/G), and (d) more homolog sharing among CBW strains than with reference cyanobacteria. Each claim is directly testable from public sequence data — a clean spot-check + rerun target. All compute done on free endpoints: NCBI downloads via uicgpu proxy, all analysis in the `bvbrc56` conda env on uicgpu, LLM-judge on Argo (free).

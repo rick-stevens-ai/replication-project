@@ -1,0 +1,5 @@
+# Brief — BVBRC-130 (Torres et al. 2023, *Stenotrophomonas goyi*)
+
+**What.** Torres, Fakhimi, Dubini & González-Ballester (F1000Research 2023, PMID 38021406, DOI 10.12688/f1000research.134978.3) describe *Stenotrophomonas goyi* sp. nov., a novel bacterium isolated from a contaminated *Chlamydomonas reinhardtii* culture. They report a single-chromosome PacBio assembly (4,487,389 bp, 66.5% GC, 4,147 genes via RAST) deposited as GenBank CP124620, and use TYGS/dDDH to argue it is a new species (all dDDH values < 70%).
+
+**Why replicate.** The paper is a species-announcement paper backed by a public PacBio assembly. It is a clean, small-footprint BV-BRC-style replication target: the assembly is public (CP124620 / GCF_030128875.1), the numeric claims (length, GC, gene count) are directly checkable from the deposited sequence, and the "novel species" claim can be re-tested with modern ANI (skani) against the closest published *Stenotrophomonas* references without needing PacBio raw reads or TYGS submission.

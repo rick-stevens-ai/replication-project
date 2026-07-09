@@ -1,0 +1,1595 @@
+                                                               A Comparison of Surrogate Constitutive Models for
+                                                                  Viscoplastic Creep Simulation of HT-9 Steel
+                                                          Pieterjan Robbe∗         Andre Ruybalid†           Arun Hegde∗        Christophe Bonneville∗
+                                                                     Habib N. Najm∗             Laurent Capolungo†             Cosmin Safta∗
+
+
+
+
+arXiv:2509.22667v1 [physics.comp-ph] 5 Sep 2025
+                                                                                                     Abstract
+                                                                Mechanistic microstructure-informed constitutive models for the mechanical response of
+                                                            polycrystals are a cornerstone of computational materials science. However, as these models
+                                                            become increasingly more complex – often involving coupled differential equations describing
+                                                            the effect of specific deformation modes – their associated computational costs can become
+                                                            prohibitive, particularly in optimization or uncertainty quantification tasks that require
+                                                            numerous model evaluations. To address this challenge, surrogate constitutive models that
+                                                            balance accuracy and computational efficiency are highly desirable. Data-driven surrogate
+                                                            models, that learn the constitutive relation directly from data, have emerged as a promising
+                                                            solution. In this work, we develop two local surrogate models for the viscoplastic response
+                                                            of a steel: a piecewise response surface method and a mixture of experts model. These
+                                                            surrogates are designed to adapt to complex material behavior, which may vary with material
+                                                            parameters or operating conditions. The surrogate constitutive models are applied to creep
+                                                            simulations of HT-9 steel, an alloy of considerable interest to the nuclear energy sector due
+                                                            to its high tolerance to radiation damage, using training data generated from viscoplastic
+                                                            self-consistent (VPSC) simulations. We define a set of test metrics to numerically assess the
+                                                            accuracy of our surrogate models for predicting viscoplastic material behavior, and show
+                                                            that the mixture of experts model outperforms the piecewise response surface method in
+                                                            terms of accuracy.
+
+
+                                                  1        Introduction
+                                                  The development of models that predict the mechanical response of complex metals as a function
+                                                  of their microstructure is critical for material design, material selection, and qualification. In this
+                                                  context, material models must be valid over a wide spectrum of thermomechanical constraints
+                                                  and be able to extrapolate under conditions that cannot be easily tested experimentally. To
+                                                  this end, the computational materials community has, over the past several decades proposed
+                                                  to use multiscale modeling frameworks, seamless or not, to derive such types of models [1].
+                                                  The ensuing mechanistic and microstructure informed models keep track of the relative and
+                                                  absolute contributions of the multitude of deformation modes and physical processes during
+                                                  plastic deformation whilst relating those to the dynamics of the microstructure evolutions.
+                                                       From a numerical point of view, mechanistic models for the response of metals are complex
+                                                  as they rely on (i) the use of constitutive laws (e.g. crystal plasticity, strain gradient plasticity)
+                                                  which relate both the elastic and plastic strains at a material point to its stress [2, 3], and,
+                                                  (ii) on homogenization models relying either on mean-field Eshelbian schemes or on full-field
+                                                  methods (e.g. Fast Fourier based mechanical solvers, Finite Element Solvers) to predict the
+                                                  overall response of a representative volume of the polycrystalline assembly [4]. Naturally, the
+                                                  refinement of these multiscale models (i.e. from the single crystal length scale to the polycrystal
+                                                      ∗
+                                                          Sandia National Laboratories, Livermore, CA 94550, USA
+                                                      †
+                                                          Los Alamos National Laboratory, Los Alamos, NM 87545, USA
+
+
+                                                                                                         1
+scale) also leads to an increase in computational complexity. For example, when studying the
+viscoplastic behavior of polycrystalline materials, such as metals and alloys, the Viscoplastic
+Self-Consistent (VPSC) mean field homogenization model from Lebensohn et al. [5, 6] combined
+with advanced constitutive models [7, 8] that track internal state variables results in a set of
+coupled ordinary differential equations that describe the evolution of stress, strain, and internal
+state variables for individual grains within a polycrystalline material.
+     To realize their full prospects, these polycrystal models can be either integrated in finite
+element solvers, thereby allowing to simulate the response of components with a sensitivity to
+the underlying microstructure of the constituents [9, 10] or used as part of an uncertainty quan-
+tification exercise [11]. In both such applications, the numerical cost of mechanistic polycrystal
+models can be computationally prohibitive, although we note that some developments have been
+made to this end [12].
+     To address this challenge, surrogate constitutive models that trade accuracy for simulation
+cost have become paramount in computational workflows [13]. These surrogate models serve
+as simplified approximations of traditional constitutive relations, by balancing computational
+efficiency with the fidelity of material response predictions. Surrogate constitutive models can be
+constructed using various methods, including response surface methods [14], polynomial chaos
+expansions [15, 16], and Gaussian processes [17, 18, 19]. These techniques leverage existing
+data from high-fidelity simulations or experimental results to create a mapping between input
+parameters, such as stress, strain, and temperature, and the corresponding material responses.
+The resulting surrogate models can be implemented within a larger computational framework,
+allowing for rapid evaluations of material behavior under varying conditions without the need
+for repeated evaluations of the original, computationally demanding, constitutive models [20,
+21]. Hence, they allow for a computationally efficient exploration of design spaces and the
+optimization of material performance in practical engineering applications [22].
+     Data-driven approaches for constitutive models have been proposed several decades ago,
+and have resurfaced in recent years due to the growth in machine learning methods and tools.
+Ghaboussi et al. [23] explored the use of neural networks (NNs) to model stress-strain rela-
+tionships in composites. Furukawa and Yagawa [24] proposed a neural constitutive model for
+viscoplasticity. In this work, a NN was trained to predict rates associated with the viscoplastic
+strain and other internal variables. Jung and Ghaboussi [25] implemented a neural constitutive
+model in the finite element analysis of a concrete beam undergoing a creep test. More recently,
+NN-based constitutive relations have been applied to study heterogeneous elasticity [26, 27],
+rate-independent plasticity [28, 29, 30], rate-dependent plasticity [31, 32, 33], and crystal plas-
+ticity [34]. Various NN architectures have been considered in these works, including graph
+neural networks [35], neural operators [36] and physics-informed neural networks [37, 13]. These
+NN-based constitutive models offer a significant advantage over traditional surrogate constitu-
+tive models, because they have the ability to represent arbitrary complex material behavior.
+For a more detailed overview on machine learning-based constitutive models, we refer to recent
+surveys [13, 38, 39, 40].
+     The data-driven surrogate constitutive models in these previous works have two major draw-
+backs:
+  1. They are derived from relatively simple constitutive laws, and are not necessarily designed
+     to operate over a wide range of mechanisms and operating conditions.
+
+  2. While several methods have been proposed to derive these models, it is difficult to assess
+     which method yields the best trade-off in terms of accuracy and computational cost.
+In this work, we develop two local constitutive model surrogates [15], where the input parameter
+space is divided into smaller, localized regions, each of which is associated with a simplified
+constitutive model that captures the essential behavior of the material within that specific
+region:
+
+                                                2
+   • A piecewise Response Surface Methodology (RSM) surrogate [41] that forms an explicit
+     tiling of the input space. Within each tile, the constitutive model response is approximated
+     by a low-order polynomial, enabling explicit interpolation of constitutive responses across
+     the input space.
+
+   • A Mixture of Experts (MoE) surrogate [42, 43] where multiple experts are used to auto-
+     matically divide the input space into homogeneous regions. Each expert is modeled as a
+     data-driven constitutive surrogate, and the information of each expert is combined using
+     an expert weighting function.
+
+These surrogate constitutive models in part address the aforementioned drawbacks: we will apply
+them in a complex polycrystal model setting prototypical of advanced viscous laws (cf. drawback
+#1); we systematically compare the advantages and limitations of each model (cf. drawback #2).
+    The RSM was originally proposed by Box and Wilson [44]. The main idea of this method is
+to construct an efficient surrogate through the careful selection of training data (experimental
+design) and using least-squares regression to find the coefficients of a low-order polynomial fit
+through the data. In practical applications, linear or quadratic polynomials are most common.
+RSMs have been used as surrogate constitutive models in, among others, Shen et al. [45] and
+Daoud et al. [14].
+    Adaptive MoEs were first proposed by Jacobs et al. [46] in the context of Gaussian mixture
+models. The main idea is to dynamically partition the input space to create a sequence of
+smaller model fitting tasks that are easier to accomplish [47]. MoEs gained renewed interest in
+the context of deep learning in Eigen et al. [48]. In this work, each expert is a linear NN with
+ReLU activation functions, and the weighting function is a simple NN followed by a softmax
+layer. Morand and Helm [49] have used MoEs for surrogate constitutive models in the context
+of elasto-plastic deformation of metallic materials during tensile tests.
+    We apply our novel surrogate constitutive modeling strategies in the context of viscoplas-
+ticity in HT-9 steel. HT-9 (Fe – 12 Cr – 1 Mo) is a high-chromium ferritic/martensitic stainless
+steel alloy that is primarily utilized as a cladding material for nuclear fuel rods in fast neutron
+reactors [8, 50, 33]. Its combination of high strength, corrosion resistance, radiation tolerance
+and thermal stability makes a promising material system for next generation nuclear reactors.
+The underlying mechanistic model was introduced and implemented within a VPSC framework
+in Wen et al. [8]. This model was shown to be able to quantify multiple physical mechanisms,
+including dislocation glide, dislocation climb, vacancy-mediated diffusional creep, and, albeit in
+a simplified fashion, irradiation effects in HT-9 alloys. The constitutive model describes the evo-
+lution of the equivalent plastic strain rate, and uses a dislocation density evolution model [50] to
+track dislocations inside sub-grains (“cells”) and at sub-grain boundaries (“cell walls”), as a func-
+tion of imposed von Mises stress, temperature, irradiation dose rate, current dislocation content
+and accumulated plastic strain during creep. In this setting, surrogate models that track these
+dislocation densitities as internal state variables must be able to capture a wide range of tem-
+peratures and stresses, which presents a significant challenge for conventional global surrogate
+constitutive models that are typically trained over the entire input space and may struggle with
+local accuracy in regions of complex behavior. To address this, the proposed methods adopt a
+localized modeling strategy, which enables the surrogate constitutive models to better adapt to
+complex material behavior, where variations in material parameters and operating conditions
+can lead to sharp changes in the material response.
+    The original contributions of this work are as follows:
+
+   • We develop two novel local surrogate constitutive models for viscoplasticity that use a
+     partitioning of the input parameter space (either explicitly through the piecewise RSM or
+     implicitly through MoEs) to improve point-wise accuracy of the constitutive surrogate.
+
+   • We apply these new surrogates to predict the behavior of HT-9 steel under creep loading,
+
+                                                 3
+      and compare the accuracy of the predictions against reference VPSC data using well-
+      defined accuracy metrics.
+
+    • We compare the advantages and limitations of each method for modeling viscoplastic
+      material behavior.
+    The remainder of this paper is organized as follows. In Section 2, we outline our proposed
+methodology in more detail. We discuss surrogate constitutive models, and introduce two novel
+local surrogate models. Next, in Section 3, we present the results obtained by applying the two
+data-driven constitutive models to a reference creep loading example involving HT-9 alloys. In
+Section 4, we review these results in more detail, and discuss conclusions and future work.
+
+
+2     Methods
+In this section, we outline our methodology for surrogate constitutive model construction. We
+start by discussing our model for viscoplasticity in HT-9 steel and discuss our strategy for
+constructing data-driven surrogate constitutive models. We then describe in more detail the
+two approaches for local surrogate construction we consider in this work. Here, we discuss these
+surrogates to model a general input-output mapping only, and important details (including
+database generation and input and output transformations) are deferred to Sections 3.1 and 3.2,
+respectively.
+
+2.1   Viscoplasticity in HT-9 steel
+The viscoplastic deformation behavior of ferritic/martensitic HT-9 steel arises from several com-
+peting microscopic mechanisms, including dislocation glide, dislocation climb, and diffusion-
+controlled creep. These mechanisms operate across a broad range of stress and temperature
+conditions, as illustrated in Figure 1, and their relative contributions depend sensitively on the
+microstructure and external loading conditions, as well as irradiation effects (relevant for nuclear
+cladding materials like HT-9). The total viscoplastic strain rate can be expressed as the additive
+contribution of these modes:
+                                    ε̇ij = ε̇glide
+                                             ij    + ε̇climb
+                                                       ij    + ε̇diff
+                                                                 ij ,                            (1)
+where each component reflects a distinct physical mechanism that governs deformation. As also
+shown in Figure 1, the relative and absolute contributions of these mechanisms vary significantly
+with temperature, necessitating modeling frameworks that explicitly account for temperature
+dependence. In this work, we utilize an existing mechanistic model [8] embedded in a viscoplastic
+
+                                        1100
+
+
+                                                         climb
+                                                                       glide
+                                        1000
+
+
+                                        900
+
+                                T [K]
+                                        800
+                                                         Coble
+                                        700
+
+
+                                        600
+                                               0   100           200           300
+                                                   σvm [MPa]
+
+
+Figure 1: Dominant creep mechanisms in HT-9 steel as a function of stress σvm and temperature
+T.
+
+self-consistent (VPSC) framework [6]. For completeness, a brief overview of the VPSC-based
+
+                                                     4
+model is provided here and the reader is referred to the original publication by Wen et al. [8]
+for more detailed information. The diffusional strain component is based on the Coble creep
+formalism [51], which contributes to plastic deformation in polycrystals via migration of point
+defects along grain boundaries, and dominates the viscoplastic deformation at lower stress and
+elevated temperature regimes. The two dislocation-based strain rate contributions from glide
+and climb are computed over all active slip systems s in a given grain. Each shear or climb event
+contributes to the macroscopic viscoplastic strain as
+
+                           ε̇glide                   climb
+                                     X                       X
+                             ij    =   m  s s
+                                          ij γ̇ ,  ε̇ij    =    csij β̇ s ,                   (2)
+                                         s                             s
+
+where msij represents the symmetric Schmid tensor, and csij represents the “climb” tensor [52],
+and where, γ̇ s and β̇ s denote the mean shear and climb rates in slip system s, respectively. The
+quantity γ̇ s characterizes the rate of plastic shear deformation due to dislocation glide in system
+s, and is the primary mode of plasticity at higher stress values. In contrast, β̇ s represents the
+mean climb rate of dislocations in system s and becomes increasingly important at medium
+stress levels and higher temperatures, or under irradiated conditions where point defect mobility
+is enhanced. Climb allows dislocations to move out of their glide planes, enabling plastic flow
+even in directions not aligned with the primary slip systems, and plays a crucial role in creep
+and irradiation-assisted deformation mechanisms. These shear and climb rates are functions of
+dislocation densities and their mobilities, and thus encode microstructure state variables such
+as dislocation density. The shear and climb rates per slip system in body-centered cubic (BCC)
+HT-9 are dependent on the microstructure state variables as
+
+                   γ̇ s = fγ (T, σ, ρcell , ρwall ) and β̇ s = fβ (T, σ, ρcell , ρwall , ϕ̇),   (3)
+
+where ρcell and ρwall represent the dislocation density in sub-grains within a single crystal (here
+denoted as “cell” dislocations) and at sub-grain boundaries within a single crystal (denoted as
+“cell-wall” dislocations). Additionally, the dislocation climb rate depends on the irradiation
+dose rate ϕ̇, which quantifies the rate of generation of irradiation-induced point defects and is
+typically expressed in units of displacements per atom per second (dpa s−1 ). A higher irradiation
+dose rate increases the steady-state concentration of point defects, thereby enhancing diffusional
+mechanisms that facilitate dislocation climb. While this can promote creep deformation at high
+doses or temperatures, the net effect during service is often a competition between irradiation
+defect-induced hardening – which is not considered in the present model – and climb-assisted
+recovery mechanisms. Moreover, the constitutive model explicitly tracks dislocation density
+quantities (both cell and cell-wall dislocations), using a dislocation density evolution model [50],
+making these microstructure quantities available for further modeling efforts.
+    As outlined in Section 1, the complexity and computational cost of running high-fidelity
+VPSC simulations over wide parametric spaces motivate the use of surrogate models. We gener-
+ate a comprehensive synthetic database of creep responses using the VPSC model over a range
+of stress, temperature, initial dislocation states, and irradiation dose rates. This database serves
+as the foundation for training data-driven surrogate models. Details regarding this database
+generation will be discussed in Section 3.1. To make the surrogates computationally efficient
+while preserving essential physics, we reduce the dimensionality of the input and output spaces.
+    In this context, we assume approximate isotropy in the plastic response of HT-9 due to its
+BCC crystal structure and the use of high grain counts in the simulations, which effectively aver-
+ages out crystallographic anisotropy. This assumption allows us to use scalar effective measures
+of stress and strain rate, derived from the von Mises formulation. In particular, we define the
+effective stress as                               r
+                                                     3
+                                          σvm =        sij sij ,                                 (4)
+                                                     2
+
+
+                                                       5
+with sij the deviatoric Cauchy stress tensor, and approximate the viscoplastic strain rate direc-
+tion via the Prandtl–Reuss flow rule
+                                                     
+                                               3        ∂sij
+                                      ε̇ij =     ε̇vm        ,                                (5)
+                                               2        ∂σvm
+
+where ε̇vm is the equivalent strain rate and sij is the deviatoric stress tensor. Importantly,
+this simplification is applied only in the surrogate model to enable tractable learning of the
+strain-rate evolution from reduced input variables.
+    The surrogate thus takes as inputs: effective strain εvm , effective stress σvm , temperature
+T , irradiation dose rate ϕ̇, and average dislocation densities ρcell and ρwall . It predicts the
+instantaneous viscoplastic strain rate ε̇vm and the evolution of dislocation densities ρ̇cell and ρ̇wall .
+While this dimensionality reduction omits full tensorial fidelity, it preserves the essential features
+needed for effective prediction of HT-9’s thermomechanical response in practical settings.
+    In particular, we look for a mapping
+
+                         M : (εvm , σvm , T, ϕ̇, ρcell , ρwall ) 7→ (ε̇vm , ρ̇cell , ρ̇wall ).        (6)
+
+Note that this formulation is model agnostic, i.e., no explicit functional relation between inputs
+and outputs is assumed. Instead, this relationship will be learned from data.
+   Assuming a creep loading scenario, the material evolution can be uniquely specified by
+providing initial conditions for the strain and dislocation densities, as well as the control input
+σvm (t) = 0 for all time t > 0, i.e.,
+
+                                         εvm (0) = 0,
+                                       
+                                       
+                                       
+                                        ρ (0) = ρ
+                                                     cell,0 ,
+                                       
+                                          cell
+                                                                                                      (7)
+                                       
+                                       
+                                       ρwall (0) = ρwall,0 , and
+                                       
+                                         σvm (t) = 0          t > 0.
+
+Next, the time evolution of the effective strain and dislocation densities can be simulated using
+a time integrator. Because this often leads to a stiff system of equations, in Section 3, we will
+use an implicit solver for numerically simulating the material evolution.
+    Following the state-space description from [24], we define a vector of inputs
+
+                               xraw := (εvm , σvm , T, ϕ̇, ρcell , ρwall )T ∈ R6                      (8)
+
+and a vector of outputs y raw := (ε̇vm , ρ̇cell , ρ̇wall )T ∈ R3 , such that the constitutive model can
+be written as y raw = M(xraw ). For more efficient surrogate modeling, we apply a series of
+component-wise, invertible input and output transformations Tin and Tout to the raw model
+inputs and outputs, and reparametrize the model as
+                                                   −1
+                                         y raw = Tout (F(Tin (xraw )).                                (9)
+
+Here, F( · ) represents a model in the transformed input and output space, i.e.,
+
+                                                    y = F(x)                                         (10)
+
+with x := Tin (xraw ) ∈ R6 and y := Tout (y raw ) ∈ R3 . The exact forms of these transformations
+will be discussed in Section 3.2. In the remainder of this section, we will present two approaches
+for learning the model F in (10).
+
+
+
+
+                                                          6
+2.2    Response Surface Methodology
+In the Response Surface Methodology (RSM) [41], we seek to find a functional relationship
+between the model output y = (yi )3i=1 and the input parameters x of the form
+
+                               yi (x) = Ψ(x)T αi + ϵi ,        i = 1, . . . , 3.             (11)
+
+Here, Ψ( · ) : R6 → Rp is a vector-valued function of the input parameters x, αi ∈ Rp is a
+vector of unknown coefficients, and ϵj is a model error term. Often, Ψ represents a mapping
+onto a low-order global polynomial basis, e.g., linear or quadratic. In this work, we assume Ψ
+is a mapping of the input parameters onto a piecewise continuous linear function space.
+    Let Ω denote the input space, i.e., the domain over which we want to construct the consti-
+tutive surrogate, and decompose the domain into a mesh of non-overlapping elements Ωe such
+that Ω = e Ωe . The model output yi is approximated as
+          S
+
+                                                          p
+                                                          X
+                               yi (x) ≈ FRSM,i (x) :=           αi,j Ψj (x),                 (12)
+                                                          j=1
+
+where Ψj is a basis function associated with the jth node of the mesh, and αi,j is an unknown
+coefficient. We opt for locally-supported, linear continuous basis functions Ψj . In particular,
+the basis functions are constructed as the tensor product of one-dimensional functions
+                                                  6
+                                                  Y
+                                       Ψj (x) =         ψj,k (xk ),                          (13)
+                                                  k=1
+
+with
+                                     xk − xj−1,k
+                                   
+                                   
+                                                  ,      if xj−1,k < xk < xj,k ,
+                                    xj,k − xj−1,k
+                                   
+                                   
+                                   
+                      ψj,k (xk ) =   xj+1,k − xk                                             (14)
+                                                   ,      if xj,k < xk < xj+1,k ,
+                                   
+                                   
+                                   
+                                    xj+1,k − xj,k
+                                                          otherwise,
+                                   
+                                   0,
+
+where xj,k is the kth coordinate of the jth node, and xj−1,k and xj+1,k are the coordinates of
+the nodes adjacent to node j along the kth dimension.
+    The unknown coefficients αi = (αi,1 , . . . , αi,p )T can be found by minimizing the residual
+error across the entire domain, i.e., by solving
+                                        Z          p
+                                                    X            2
+                          α∗i = argmin     yi (x) −   αi,j Ψj (x) dx,                        (15)
+                                 αi ∈Rp Ω                j=1
+
+which can be converted into a least-squares problem by approximating the integral as the mean
+                                     (n)
+across the training points {(x(n) , yi )}N
+                                         n=1 , that is,
+
+                              N        p                2
+            ∗              1 X (n) X
+           αLS,i = argmin         yi −     αi,j Ψj (x ) = argmin ∥w − Φαi ∥22 ,
+                                                     (n)
+                                                                                             (16)
+                    αi ∈Rp N n=1       j=1                  αi ∈Rp
+
+               (1)      (N )
+where w = (yi , . . . , yi )T is a vector with observed outputs, and Φ ∈ RN ×p is the design
+matrix, where each element Φnj = Ψj (x(n) ). Note that we also dropped the pre-factor N −1 in
+the last equality, since it does not affect the minimizer. Since the design matrix Φ arising from
+piecewise polynomial basis functions defined over a mesh is inherently sparse, it is computation-
+ally efficient to use a direct solver for determining the unknown coefficients αi from the normal
+equation
+                                          αi = (ΦT Φ)−1 ΦT w.                                 (17)
+
+                                                  7
+                                    E1 ( · ; ϕ1 )           ×
+
+                                          ..
+              x                            .                        ×                 +          y
+
+
+                                   EK ( · ; ϕK )                             ×
+
+                                     g( · ; ω)
+
+
+Figure 2: Schematic overview of a mixture of experts architecture. The output is a weighted
+combination of the opinion of different experts E1 (x; ϕ1 ), . . . , EK (x; ϕK ), with weights deter-
+mined by the gating function g(x; ω).
+
+
+2.3   Mixture-of-experts surrogate models
+Motivated by the piecewise construction in Section 2.2, we now discuss a more general Mix-
+ture of Experts (MoE) architecture [46, 47]. A MoE model consists of a collection of experts
+             k=1 with parameters ϕk , and a K-variate weighting function (also known as a gating
+{Ek (x; ϕk )}K
+function) g(x; ω) = (g1 (x; ω), . . . , gK (x; ω))T with parameters ω. The gating function com-
+bines the opinion of the different experts in an input-dependent fashion, to produce a single
+(multivariate) output
+                                                   XK
+                           y(x) ≈ FMoE (x) :=          gk (x; ω)Ek (x; ϕk ),                (18)
+                                                        k=1
+
+see Figure 2.
+    The gating functions are constrained such that gk (x; ω) ≥ 0 and
+                                      K
+                                      X
+                                               gk (x; ω) = 1 for all x.                                  (19)
+                                      k=1
+
+These constraints ensure that the weights form a valid probability distribution over the K
+experts, i.e., the weights can be interpreted as probabilities that a given expert Ek will provide
+useful information for a given input, enabling the experts to specialize to particular inputs. Note
+also that, in a scalar output setting, the RSM from Section 2.2 is a special case of (18) where the
+(constant) experts are the coefficients αi , and the (deterministic and fixed) gating weights are
+the basis functions Ψj , controlling which experts contribute to the prediction at a given input
+x.
+    Feed-forward neural networks have been proposed as good choices for the experts. A standard
+multilayer perceptron (MLP) neural network with L layers can be written as
+
+                          z ℓk = σ(Wkℓ z ℓ−1
+                                         k   + bℓk )        for ℓ = 1, 2, . . . , L − 1
+                                L L−1
+                                                                                                         (20)
+                          zL
+                           k = Wk zk  + bL
+                                         k,
+
+where z 0k is the input, z L
+                           k is the output, and σ is a nonlinear activation function. The parameters
+of the MLP are the weight matrices and bias vectors, i.e., ϕk := {Wk0 , b0k , . . . , WkL , bL
+                                                                                             k }.
+    A convenient and commonly used expression for the gating function is the softmax function
+                           K
+                          X                   −1
+            gk (x; ω) =          exp(hk (x; ω))    exp(hk (x; ω))             for k = 1, 2, . . . , K,   (21)
+                           k=1
+
+
+                                                        8
+        Parameter     Unit      Lower bound      Upper bound      Transform
+        εvm           -         0                0.01             log10 , then scale to (0, 1)
+        σvm           MPa       0                300              scale to (−1, 1)
+        T             K         600              1100             scale to (−1, 1)
+        ϕ̇            dpa s−1   1 × 10−9         1 × 10−6         scale to (−1, 1)
+        ρcell         m−2       1 × 1012         8.5 × 1012       scale to (−1, 1)
+        ρwall         m−2       5 × 1012         12 × 1012        scale to (−1, 1)
+
+Table 1: Input parameters for the constitutive model with corresponding lower and upper
+bounds, as well as input transforms.
+
+                  Parameter     Unit        Transform
+                  ε̇vm          s−1         log10 , then scale to (0, 1)
+                  ρ̇cell        m−2 s−1     Eq. (24) with κcell = 10−10 , η = 0.3
+                  ρ̇wall        m−2 s−1     Eq. (24) with κwall = 10−12 , η = 0.3
+
+Table 2: Output parameters for the constitutive model with corresponding output transforms.
+
+where hk represents the gating value prior to the softmax operation. In a linear-softmax gating
+function, the hk are linear functions of the input x, i.e.,
+
+                                       hk (x; ω) = αTk x + βk ,                                  (22)
+
+and where the weights ω := {α1 , β1 , . . . , αK , βK }.
+    Given a dataset {(x(n) , y (n) )}N
+                                     n=1 , the training objective for MoE models is to minimize a
+loss function defined over this data. For such a regression task, the most commonly used loss
+function is the mean squared error
+                                           N
+                                         1 X  (n)            2
+                             L(ϕ, ω) =        y − FMoE (x(n) ) .                                 (23)
+                                         N
+                                           n=1
+
+Remark that this results in a multivariate loss L(ϕ, ω) across all outputs, which must be scalar-
+ized using a suitable reduction scheme (e.g., by taking the mean or sum). We use a mean
+reduction in Section 3. Gradient-based optimization can subsequently be employed to mini-
+mize this loss with respect to both the expert parameters ϕ := {ϕ1 , . . . , ϕK } and the gating
+parameters ω.
+
+
+3     Results
+In this section, we present our main results obtained by applying the surrogate constitutive
+models developed in Section 2 for simulating the viscoplastic creep behavior of HT-9 steel. We
+start by discussing the generation of a simulation database that will serve as training data for our
+data-driven surrogate constitutive models. Next, we present the result of applying the RSM and
+MoE surrogates for our viscoplastic test problem, both in an offline setting and when deployed
+in a subsequent stress-strain prediction. We discuss and apply metrics for assessing the accuracy
+of these surrogates, and compare to a reference VPSC simulation.
+
+3.1   Database generation
+To generate the training data required to fit our surrogate constitutive models, we run a series of
+VPSC simulations modeling the creep response of HT-9, see Section 2.1. The HT-9 steel texture,
+
+                                                  9
+i.e., the crystallographic orientation distribution of grains within the material, is approximated
+by randomly assigning 50 uniformly distributed crystallographic orientations to ensure a rep-
+resentative distribution of grain orientations in the material. The random texture is kept the
+same across all simulations to isolate the effects of other variables being studied. This means
+our surrogate constitutive models are conditioned on this set of crystallographic orientations.
+The two active slip modes we consider in this work are
+
+   • {110}⟨111⟩: Slip along the ⟨111⟩ direction on the {110} plane.
+
+   • {112}⟨111⟩: Slip along the ⟨111⟩ direction on the {112} plane.
+
+These two modes account for a total of 24 slip systems (12 systems for each mode). The boundary
+conditions applied in the creep simulations are characterized by a prescribed, constant Cauchy
+stress tensor representative of a pressurized tube, and a constant temperature.
+    We sample the operating conditions and initial values for the strain and the dislocation den-
+sities according to a Latin Hypercube (LHS) design. This design ensures a broad and relatively
+homogeneous coverage of creep response of the material as a function of stress and temperature,
+thereby ensuring that the models can be trained to both capture regions dominated by one de-
+formation mechanisms and transition regions in which more than one mechanism are activated
+to relatively similar levels. For each input sample, we run a full VPSC creep simulation, until
+a total accumulated effective plastic strain of 1% has been reached, or until 109 seconds have
+been simulated. For each simulation k, this results in a database of values ordered in an Nk × 9
+data matrix
+          (k)          (k)                     (k)        (k)          (k)        (k)          (k)
+                                                                                                           
+           εvm (t0 )   σvm (t0 ) T (k) ϕ̇(k) ρwall (t0 )  ρcell (t0 ) ε̇vm (t0 ) ρ̇wall (t0 ) ρ̇cell (t0 )
+          (k)          (k)                     (k)        (k)          (k)        (k)          (k)
+          εvm (t1 )   σvm (t1 ) T (k) ϕ̇(k) ρwall (t1 )  ρcell (t1 ) ε̇vm (t1 ) ρ̇wall (t1 ) ρ̇cell (t1 ) 
+                                                                                                           
+  (k)
+D =           ..          ..      ..    ..         ..        ..           ..          ..          ..      ,
+                .           .       .     .          .         .            .           .           .
+                                                                                                          
+                                                                                                          
+           (k)         (k)                       (k)          (k)         (k)          (k)          (k)
+          εvm (tNk ) σvm (tNk ) T (k) ϕ̇(k) ρwall (tNk ) ρcell (tNk ) ε̇vm (tNk ) ρ̇wall (tNk ) ρ̇cell (tNk )
+          |                          {z                             } |                {z                   }
+                                   inputs                                           outputs
+
+k = 1, 2, . . . , Kv , where Nk is the number of time steps in the kth simulation and Kv is the total
+number of VPSC simulations. To prevent overfitting to specific output regimes and facilitate
+training, we create a more balanced data set by subsampling the rows of the data matrix D(k) .
+In particular, we down-sample the time-dependent data by performing linear interpolation at
+100 logarithmically spaced time steps between t0 and tNk , see Figure 12 in Section A for more
+details. The motivation for this logarithmic subsampling is twofold. First, we use subsampling
+because the VPSC simulations capture a variety of physical behaviors, with some parameter
+combinations resulting in stiff systems that require very small time steps. Second, we use a
+logarithmic scaling because the dynamics of the system are mainly governed by the change in the
+dislocation densities, which is more important at small times. After logarithmic subsampling, all
+data matrices D(k) are concatenated to form a database with input and output data for training
+and testing. This results in about 9 × 105 and 1.5 × 105 number of training and testing samples,
+respectively.
+
+3.2    Input/output transformations
+As detailed in Section 2.1, we fit our surrogate model F ( · ) to predict the transformed outputs
+y = Tout (y raw ) given the transformed inputs x = Tin (xraw ). In this section, we detail the choice
+of input and output transform.
+    The model inputs are transformed as follows. We apply a logarithmic transform in base 10
+to the strain inputs εvm , and then linearly rescale to (0, 1). We linearly rescale all other model
+inputs to (−1, 1), see Table 1 and Figure 13 in Section A. The model outputs are transformed
+
+                                                   10
+                         40
+
+                                                                                         3
+
+                         35
+
+
+
+
+       global residual                                                 global residual
+                         30                                                              2
+
+
+
+                         25
+                                                                                         1
+
+                         20
+                              200      400     600     800                                   2      4       6      8   10
+                                    number of nodes                                              number of experts K
+
+
+
+Figure 3: (left) Global residual as a function of the number of nodes in the RSM method. The
+lowest residual of 21.4 is reached with 768 nodes total. (right) Global residual as a function of
+the number of experts K, keeping all other (hyper)parameters constant. A residual of 0.85 is
+attained for K = 9 experts.
+
+as follows. We apply a logarithmic transform in base 10 to the effective strain rate outputs ε̇vm ,
+and then rescale to (0, 1). The dislocation rate outputs ρ̇cell and ρ̇wall are transformed as
+
+                                         ρ̇∗ 7→ sign(ρ̇∗ )|κ∗ ρ̇∗ |η       for ∗ ∈ {cell, wall}                             (24)
+
+with η = 0.3, κcell = 10−10 , and κwall = 10−12 . Then, we shift the resulting values to the positive
+half-axis (1, ∞), and apply a logarithmic transform in base 10, see Table 2 and Figure 14 in
+Section A. These transformations are required because strain and dislocation rates depend in
+a nonlinear way on the operating conditions and model parameters, which prompts accuracy
+concerns when fitting the model response with the low-order polynomials that constitute the
+RSM method in Section 2.2. Further details are given in Section A.
+
+3.3   Comparison of Surrogate Constitutive Models
+We construct the RSM surrogate from Section 2.2 for each of the three model outputs (the strain
+rate ε̇vm and the two dislocation density rates ρ̇cell and ρ̇wall ). To construct the response surface
+mesh, we discretize the input domain with 15 × 15 connected elements in temperature and
+stress, and two elements in the strain dimension, along with single elements in the dimensions of
+dislocation density and irradiation dose rate, yielding a total of p = 768 nodes. This discretiza-
+tion balances resolution and computational cost, and is guided by the expected variability of the
+deformation mechanisms across temperature and stress. The mesh is manually optimized during
+training to minimize deviations from the reference VPSC model while ensuring the surrogate
+does not overfit.
+     Next, we construct the MoE model from Section 2.3. Each expert in the MoE surrogate is
+modeled as a dense neural network that is 4 layers deep and 64 neurons wide. Each layer is a
+concatenation of a linear layer, batch normalization and Gaussian Error Linear Units (GELU)
+activation functions. The use of GELU activation functions is motivated by their smoothness
+(i.e., they can be interpreted as continuous piecewise linear spline approximators), which may
+help improve convergence. The gating network, responsible for determining which expert to
+prioritize for a given input, is a linear network as defined in equations (21) and (22). We
+train the model for 10,000 epochs, using the Adam optimizer with decoupled weight decay
+regularization with weight decay coefficient 10−5 [53]. The decoupled weight decay is employed
+to improve generalization. To dynamically adjust the learning rate and accelerate convergence,
+we use a cosine annealing scheduler with warm restarts [54]. The loss function minimizes the
+
+                                                                  11
+                   ε̇vm , RSM                 ρ̇cell , RSM                 ρ̇wall , RSM
+        1100                                                                                      1
+
+
+
+
+                                                                                                       log10 relative error
+        1000
+
+                                                                                                  0
+        900
+
+T [K]
+        800
+                                                                                                  −1
+
+        700
+
+
+        600                                                                                       −2
+                   ε̇vm , MoE                 ρ̇cell , MoE                 ρ̇wall , MoE
+        1100                                                                                      1
+
+
+
+
+                                                                                                       log10 relative error
+        1000
+
+                                                                                                  0
+        900
+
+T [K]
+        800
+                                                                                                  −1
+
+        700
+
+
+        600                                                                                       −2
+               0   100    200   300   0      100        200   300   0      100      200     300
+                   σvm [MPa]                  σvm [MPa]                     σvm [MPa]
+
+
+
+Figure 4: Relative test error for RSM surrogate constitutive model (top row ) and MoE surrogate
+constitutive model (bottom row ) as a function of σvm and T for all three constitutive model
+outputs (strain rate ε̇vm and dislocation density rates ρ̇cell and ρ̇wall ). Colors indicate the log10
+relative error.
+
+mean squared error between predictions and targets, with a mean reduction across all outputs.
+Hyperparameters such as number of layers, layer widths, activation functions and initial learning
+rates for expert and gating MLPs are determined using successive coordinate search [55].
+     One of the main challenges in MoE modeling is the determination of the number of experts
+K [47]. We performed an exhaustive search over a discrete number of experts between K = 1
+and K = 10, and found that 9 experts is a good trade-off between model complexity and test
+error minimization, see Figure 3.
+     Figure 4 compares the (log10 of the) surrogate relative error on the test set for the RSM
+model (top row ) and the MoE model (bottom row ) as a function of σvm and T for all three
+constitutive model outputs. The reported errors are for the raw (back-transformed) outputs.
+Notice how the MoE model outperforms the RSM model in terms of accuracy for the strain rate
+ε̇vm across the entire (σvm , T )-space. The accuracy of the RSM model prediction for the strain
+rate appears to improve for large values of stress and temperature. For the dislocation density
+rates, the MoE model shows better accuracy than the RSM at higher stress and temperature
+values. However, the MoE accuracy deteriorates with decreasing stress and temperature, and in
+some cases it is less accurate than the RSM model.
+     Next, we investigate how both surrogate constitutive models perform in an online setting,
+i.e., when they are used to replace the right-hand side of (5) to simulate the creep response
+of HT-9. To numerically solve the system, we employ the LSODA solver from SciPy, which is
+a wrapper for the Fortran solver from ODEPACK [56]. For the RSM constitutive model, an
+additional complexity is that one cannot evaluate the model for parameter combinations outside
+the range specified by the input parameters, see Table 1. In such cases, we effectively clipped
+the model inputs to remain strictly inside the specified bounds. The MoE model did not impose
+
+                                                   12
+                                    ε̂vm                                                ε̂vm                                ε̂vm
+                              E1                                                E2
+
+     strain εvm                             strain εvm                                         strain εvm
+                                    εvm                                                 εvm                                 εvm
+                                                                                                                     τ̂
+                                                                                                                    τ
+                     time t                                        time t                                          time t
+
+Figure 5: Sketch of the error metrics used to assess the accuracy of the surrogate constitutive
+models: the relative error in the time-integrated strain (left), the relative error in the final εvm
+value (middle), and the relative error in the rise time (right).
+
+
+such a constraint, and we evaluated the constitutive model as is. We remark that the MoE model
+appears to predict physically consistent results, although we do not have validation data in this
+regime. Solving (5) results in a time-dependent approximation ε̂vm (t) for the strain εvm (t),
+which we can compare against the strain predicted by the VPSC simulations. To quantify the
+error in the approximation, we define the following error metrics (see Figure 5):
+    1. The relative error in the time-integrated strain, defined as
+                                                                                                      Z tend
+                                     I(ε̂vm (t) − εvm (t))
+                               E1 :=                                        with I(f ) =                        f 2 (t)dt          (25)
+                                          I(εvm (t))                                                        0
+
+            where tend is the last simulated time.
+
+    2. The relative error in the final εvm value
+                                                                 |ε̂vm (tend ) − εvm (tend )|
+                                                         E2 :=                                .                                    (26)
+                                                                         |εvm (tend )|
+
+    3. The relative error in the rise time, i.e., the duration it takes for the strain to transition
+       from 10% to 90% of its steady-state value, defined as
+                                                                            |τ̂ − τ |
+                                                                   E3 :=                                                           (27)
+                                                                                |τ |
+            with τ = t90 − t10 , and where the time tk is such that
+
+                                   εvm (tk ) = εkvm                and εvm (t) < εkvm for t < tk ,                                 (28)
+
+            with εkvm = k% · εvm (tend ).
+We evaluate these error metrics for both the RSM and MoE models. The results are shown
+in Figure 6. For the majority of error metrics and stress and temperature values, the MoE
+constitutive model outperforms the RSM constitutive model in terms of accuracy of the predicted
+strain ε̂vm (t). The MoE strain predictions are slightly less accurate for large values of σvm and
+T.
+
+
+4        Discussion
+We simulate the time evolution of the creep response of the polycrystalline sample, with a
+constant stress imposed on the system. Figure 7 shows the strain predictions as a function of
+time for the RSM and MoE models for selected values of σvm and T , and compares them to the
+reference VPSC predictions, assuming an irradiation dose rate of ϕ̇ = 10−8 dpa s−1 . This figure
+again confirms that the MoE predictions of the strain are, in general, more accurate than the
+
+                                                                      13
+                                  Time-integrated strain
+                   RSM error               MoE error                                              RSM error − MoE error
+        1100                                                      1                                                        1
+
+
+
+
+                                                                       log10 relative error
+        1000
+
+                                                                  0
+         900
+T [K]                                                                                                                      0
+         800
+                                                                  −1
+
+         700
+
+
+         600                                                      −2                                                       −1
+               0   100   200   300 0       100    200       300                               0        100    200    300
+                   σvm [MPa]               σvm [MPa]                                                   σvm [MPa]
+                                       Final strain value
+                   RSM error               MoE error                                              RSM error − MoE error
+        1100                                                      1                                                        1
+
+
+
+
+                                                                       log10 relative error
+        1000
+
+                                                                  0
+         900
+T [K]                                                                                                                      0
+         800
+                                                                  −1
+
+         700
+
+
+         600                                                      −2                                                       −1
+               0   100   200   300 0       100    200       300                               0        100    200    300
+                   σvm [MPa]               σvm [MPa]                                                   σvm [MPa]
+                                           Rise time
+                   RSM error               MoE error                                              RSM error − MoE error
+        1100                                                      1                                                        1
+
+
+
+
+                                                                       log10 relative error
+        1000
+                                                                  0
+
+         900
+T [K]                                                             −1                                                       0
+         800
+
+                                                                  −2
+         700
+
+
+         600                                                      −3                                                       −1
+               0   100   200   300 0       100    200       300                               0        100    200    300
+                   σvm [MPa]               σvm [MPa]                                                   σvm [MPa]
+
+
+
+Figure 6: Relative error for RSM surrogate constitutive model (left column) and MoE surrogate
+constitutive model (middle column) as a function of σvm and T , for time-integrated strain (top
+row ), the final strain value (middle row ), and the rise time. Color scale indicates the log10
+relative error. The right column indicates the difference between the two errors. Negative values
+(red) indicate where the RSM surrogate constitutive model performs better than the mixture of
+experts model.
+
+
+
+
+                                                 14
+                1                                                                   1                                                                          4
+
+               0.8                                                               0.8
+                                                                                                                                                               3
+
+
+
+εvm (×10−2 )                                                      εvm (×10−2 )                                                                 εvm (×10−1 )
+               0.6                                                               0.6
+                                                                                                                                                               2                 σvm = 250
+               0.4                                                               0.4
+                                                                                                                                                                                 T = 1016.66
+                                           σvm = 50                                                                  σvm = 150                                 1
+               0.2                                                               0.2
+                                           T = 1016.66                                                               T = 1016.66
+                0                                                                   0                                                                          0
+                     0         500          1000             1500                       0         0.02    0.04       0.06    0.08        0.1                        0   0.05           0.1            0.15
+
+                                 time [s]                                                                  time [s]           glide                                          time [s]
+                1                                                                   1100                                                                       1
+
+               0.8                                                                  1000                                                                      0.8
+
+
+
+
+εvm (×10−2 )                                                                                                                                   εvm (×10−1 )
+                                                                                                               climb
+               0.6                                                                      900                                                                   0.6
+                                                                            T [K]                                                                                                σvm = 250
+               0.4                                                                      800                                                                   0.4
+                                                                                                            Coble                                                                T = 850
+               0.2                         σvm = 50                                     700                                                                   0.2
+                                           T = 850
+                0                                                                       600                                                                    0
+                     0    0.5          1         1.5          2                               0           100         200         300                               0        1               2
+
+                                 time [s]              ·108
+                                                                                                          σvm [MPa]                                                          time [s]
+                1                                                                   1                                                                          1
+                          RSM
+               0.8        MoE                                                    0.8                                                                          0.8
+
+
+
+
+εvm (×10−2 )                                                      εvm (×10−2 )                                                                 εvm (×10−2 )
+                          reference
+               0.6                                                               0.6                                                                          0.6
+
+               0.4                                                               0.4                                                                          0.4
+
+               0.2                         σvm = 50                              0.2                                 σvm = 150                                0.2                σvm = 250
+                                           T = 683.33                                                                T = 683.33                                                  T = 683.33
+                0                                                                   0                                                                          0
+                     0   0.2     0.4       0.6     0.8        1                         0           0.5          1          1.5          2                          0   20        40             60
+
+                                 time [s]              ·109                                                time [s]               ·108                                       time [s]
+
+
+
+Figure 7: A comparison between the RSM ( ) and MoE ( ) surrogate constitutive models and
+the validation data when predicting the strain εvm for a dose rate ϕ̇ = 1 × 10−8 dpa/s. We also
+indicate the different creep mechanisms from Figure 1: glide ( ), climb ( ) and Coble ( ). A
+indicates the last value that can be predicted with the RSM surrogate, which is restricted to the
+support of the training data.
+
+
+
+
+                                                                                                          15
+                  εvm [m−1 ]                                      ρcell (×1012 ) [m−2 ]                                 ρwall (×1012 ) [m−2 ]
+                                                        4.6                                                                                                          reference
+ 0.02                                                                                                           8                                                    2 experts ( 0.28s)
+                                                                                                                                                                     9 experts ( 0.34s)
+                        σvm = 207.54                    4.4
+ 0.01
+                                                                                                                7
+                            T = 913.43
+   0
+        0         0.5                 1                       0          0.5                 1                      0          0.5                 1
+
+                    time [s]                                               time [s]                                              time [s]
+
+ 0.02
+                                                         3                                                      8
+                                                                                                                                                                     reference
+0.015                                                                                                                                                                2 experts ( 0.24s)
+ 0.01                                                   2.8                                                                                                          9 experts ( 0.32s)
+                    σvm = 143.43                                                                                7
+0.005
+                          T = 1020.56                   2.6
+   0
+        0    2          4         6             8             0     2          4         6             8            0     2          4         6             8
+
+                    time [s]                                               time [s]                                              time [s]
+                                                         6                                                     12
+                                                                                                                                                                     reference
+                                                                                                                                                                     2 experts ( 0.41s)
+0.006
+                                                         4
+0.004                                                                                                          11                                                    9 experts ( 0.53s)
+                        σvm = 28.07                      2
+0.002
+                            T = 721.68                                                                         10
+                                                         0
+   0
+        0   0.2     0.4     0.6           0.8       1         0    0.2     0.4     0.6           0.8       1        0    0.2     0.4     0.6           0.8       1
+
+             time (×10 ) [s]  9
+                                                                    time (×10 ) [s]  9
+                                                                                                                          time (×10 ) [s]  9
+
+
+                                                                                                               10
+ 0.02
+                                                        5.3                                                                                                          reference
+                                                                                                                                                                     2 experts ( 0.28s)
+                                                                                                               9
+ 0.01                                                   5.2                                                                                                          9 experts ( 0.40s)
+                        σvm = 228.53
+                            T = 876.52                                                                         8
+                                                        5.1
+   0
+        0     0.1           0.2            0.3                0      0.1           0.2            0.3               0      0.1           0.2            0.3
+
+                    time [s]                                               time [s]                                              time [s]
+
+
+
+Figure 8: Time-integrated strain and material parameters for the data-driven constitutive MoE
+model with 9 ( ) and 2 ( ) experts. The dashed line indicates the reference from the vali-
+dation data. Clocks () indicate the best wall clock time over 1 000 repetitions of the forward
+simulation.
+
+
+
+
+                                                                                         16
+                1                                                        1.5                                                       1.5
+
+               0.8
+
+
+
+
+εvm (×10−2 )                                              εvm (×10−2 )                                              εvm (×10−1 )
+                                                                          1                                                         1
+               0.6
+                                                                                                                                                  σvm = 150
+               0.4
+                                                                         0.5                                                       0.5            T = 1016.66
+               0.2                    σvm = 50                                                  σvm = 50
+                                      T = 850                                                   T = 1016.66
+                0                                                         0                                                         0
+                     0   0.5      1       1.5         2                        0   0.2    0.4   0.6   0.8       1                        0   20         40
+
+                               time [s]           8
+                                                ·10                                       time [s]      ·10 5
+                                                                                                                                             time [s]
+
+
+
+Figure 9: A comparison between the RSM ( ) and MoE ( ) surrogate constitutive models and
+the validation data when predicting the strain εvm for an irradiation dose rate ϕ̇ = 5×10−7 dpa/s.
+This figure is the equivalent of the 3 panes in the top left corner of Figure 7, but at a higher
+irradiation dose rate value. Note how the performance of the surrogate models degrades for larger
+dose rate values. A indicates the last value that can be predicted with the RSM surrogate,
+which is restricted to the support of the training data.
+
+
+corresponding RSM predictions. Furthermore, the predictions obtained from the RSM surrogate
+are restricted to the interpolation regime (effective strain values below 10−2 ). This is indicated
+in Figure 7 by the marker.
+    We observe a good agreement between the MoE prediction and the reference simulations
+across the T and σvm space, except for large values of temperature and stress (corresponding to
+the glide regime). This is consistent with the results shown in Figure 4. Notably, the RSM and
+MoE constitutive models predict similar values at early times (effective strain values below 10−2 ),
+indicating an issue with the training data rather than the surrogate construction approach. The
+glide regime is governed by complex, mechanistically rich behavior arising from the dynamic
+interplay of dislocation generation, annihilation and trapping, and is characterized by rapidly
+evolving microstructures and high strain rates. Consequently, the underlying high-fidelity models
+used to train the surrogates are inherently less accurate in this regime.
+    We remark that the errors in the predicted strain values are due to the accumulation of
+surrogate error during the solution of (10). To further clarify this point, Figure 8 shows the
+strain predictions for the MoE model with two different models: the original model with 9
+experts, and a model with K = 2 experts (see Figure 3 for the corresponding increase in the
+global residual). As shown in Figure 8, the low-fidelity model with 2 experts accumulates more
+error in the strain εvm over time, but predictions remain acceptable in terms of accuracy. Also
+shown in Figure 8 is the effect of the reduction in the number of experts on the wall clock time
+for simulating the material behavior across time. Restricting the model from 9 to 2 experts
+reduces the wall clock time by 20 to 30%, allowing us to trade accuracy for computational cost
+accordingly. For comparison, the corresponding VPSC simulations for these reference scenarios
+took between 15 minutes and 2 hours, while the surrogates complete simulations within a fraction
+of a second.
+    To investigate the effect of irradiation (i.e., the irradiation dose rate ϕ̇), we repeat the strain
+predictions from Figure 7 in Figure 9, with a larger irradiation dose rate ϕ̇ = 5 × 10−7 dpa/s.
+As in this model, irradiation only has an effect when the climb mechanism is dominant, only
+3 panes from Figure 7 are repeated. We note that both the RSM and MoE surrogate models
+struggle to replicate the reference VPSC simulations for this larger dose rate. Note again how
+the prediction of the RSM surrogate constitutive model are restricted to effective strain values
+below 10−2 , as indicated by the markers.
+    Next, we compare the performance of our surrogate constitutive models (trained on data
+from a creep loading case only) for a tensile loading case. Under tensile loading, the material is
+
+                                                                                         17
+                              T = 683.33                             T = 850                                 T = 1016.66
+            300
+
+
+
+
+σvm [MPa]
+            200
+
+
+
+            100
+
+
+
+              0
+                  0   2         4       6      8   10   0   2            4       6      8   10   0   2         4       6      8   10
+
+
+            300
+
+
+
+
+σvm [MPa]
+            200
+
+
+
+            100
+
+
+
+             0
+                  0       1         2          3        0       1            2          3        0       1         2          3
+
+                          εvm   (×10−3 ) [-]                    εvm      (×10−3 ) [-]                    εvm   (×10−3 ) [-]
+
+
+
+
+Figure 10: Comparison between the RSM ( ) and MoE ( ) surrogate constitutive models and
+the validation data for a tensile test at different temperatures and an imposed strain rate of
+1 × 10−3 s−1 (top) and 1 × 10−5 s−1 (bottom).
+
+
+subjected to a uniaxial deformation driven by Dirichlet boundary conditions imposing a constant
+axial strain rate. In contrast, the previously described creep load case applies a constant axial
+stress. The tensile load case induces an immediate elastic response, followed by viscoplastic
+deformation, resulting in a total strain that increases linearly with time under the imposed
+constant strain rate. The results are shown in Figure 10, for an imposed strain rate of ε̇ =
+1×10−3 s−1 (top) and ε̇ = 1×10−5 s−1 (bottom). Note that the MoE and RSM surrogate models
+are able to capture the trend (shape) in the stress-strain curves, but a temperature-dependent
+bias is present that is independent of the imposed strain rate, except at low temperatures.
+These low temperatures correspond to regions in Figure 4 and Figure 6 where we obtained good
+accuracy. However, this is no longer the case at higher temperatures where the model accuracy
+typically decreases. This indicates that, should we want to capture both the creep and tensile
+loading behavior of the material, we would need to enrich our database with data from VPSC
+simulations in a tensile regime.
+    One of the advantages of the MoE approach over more traditional neural architectures is that
+a certain degree of locality can be recovered. In particular, for a given temperature and stress
+value, we can identify which of the expert’s opinions is trusted the most, identifying the localized
+behavior inherently observed by the MoE model. To this end, we inspect the output values of
+the gating function g in (18) as we evaluate the model on the test data. The expert with the
+most valued opinion will be associated with the largest gating function output value. The results
+are shown in Figure 11, where the opinion of different experts is represented by different colors.
+The shading indicates the degree of trust in the opinion of that expert alone (i.e., the value of
+the gating function). Dashed lines indicate the region where some of the lesser-used experts are
+active. Note how most of the (σvm , T )-plane can be covered by the output of only a handful,
+e.g., 3 to 4, experts. Other experts, such as experts number 4 and 9, are only responsible for a
+small, localized region of the input parameter space. This may in part explain the behavior of
+the residual of the MoE model as a function of the number of experts shown in Figure 3, where
+
+
+                                                                    18
+                                    1100
+                                                                                  9
+                                                                                  8
+                                    1000
+                                                                                  7
+
+
+
+
+                                                                                      expert number
+                                                             9
+
+                                               8
+                                    900                                           6
+
+                            T [K]                  5
+                                                                                  5
+                                    800                                           4
+                                                                                  3
+                                    700
+                                                                 4                2
+                                                       7                          1
+                                    600
+                                           0               100        200   300
+                                                            σvm [MPa]
+
+
+
+Figure 11: Illustration of the different domains generated by the MoE model when evaluating
+the test data. Different experts are represented by different colors. Shading indicates the degree
+of trust in the individual experts. Dashed lines indicate regions where some of the lesser-used
+experts are active. Note that a third parameter, the dose rate ϕ̇, is not shown on this picture.
+
+
+we observe a plateau in residual (loss) value for K > 3 experts. Also note that, in these plots,
+there is a hidden third parameter, the irradiation dose rate ϕ̇, that is not shown in the picture,
+which in part explains the overlap between the experts.
+   Comparing Figures 1 and 11 we observe that the different domains generated by the MoE
+model to some degree coincide with the dominant creep mechanisms identified in Section 2.1.
+Finally, we remark that the MoE framework automatically assigns experts to certain regions in
+parameter space, as opposed to the tiling approach of the RSM constitutive model.
+
+
+5    Conclusion
+Motivated by recent successes in the mechanics of materials community, where constitutive
+models that use internal state variables (dislocation densities) as a metric for the state of the
+microstructure can be used to predict complex phenomena such as strain hardening as well as
+softening response, we developed two novel local surrogate constitutive models for viscoplasticity
+in HT-9 steel. The proposed methods adopt a localized modeling strategy, in which the input
+space is partitioned and separate surrogate models are trained for different regions. These
+regions are defined either explicitly in the case of the piecewise polynomial construction in the
+response surface method (RSM), or implicitly through the gating network in the mixture of
+experts (MoE) model. While in the current application, the two frameworks use different local
+models, in general, the RSM approach can be thought as a special case of MoE for which the
+gating functions are predefined and fixed.
+    We trained our surrogate models on high-fidelity VPSC data generated under creep loading
+and compared their ability to predict strain rate and dislocation density rates across a broad
+range of temperatures, stresses, and irradiation dose rates. Our results show that the MoE
+model consistently outperforms the RSM surrogate in predictive accuracy. The predictions then
+serve as input to a forward simulation in which the constitutive model is embedded in an ODE
+solver to evolve the strain over time. To assess accuracy, we compared the strain predictions
+obtained from these surrogate-driven simulations to those from full VPSC simulations. We
+introduced three physics-informed error metrics (relative error in strain rate, relative error in
+final strain, and relative error in rise time) to quantify discrepancies in the resulting strain curves.
+These metrics capture both instantaneous and time-integrated response errors. We found that
+while both surrogates perform well under moderate loading conditions, prediction errors increase
+
+
+                                                                 19
+significantly at high temperatures and stresses. Detailed comparisons in the climb, Coble, and
+glide regimes reveal that both models struggle in the dynamically complex glide regime, whereas
+the MoE model maintains good accuracy in the climb and Coble regimes.
+    Given that full-field VPSC simulations can take between 15 minutes and 2 hours, the com-
+putational speed-up provided by our surrogate models, producing results in under a second, is
+substantial. However, surrogate accuracy was observed to degrade at higher dose rates in the
+climb regime. This is likely due to the limited representation of high-dose microstructures in the
+training data, which leads to poor generalization in regions where irradiation-induced hardening
+plays a dominant role.
+    Finally, in attempt to understand if constitutive model surrogates tracking internal state
+variables can be used to extrapolate to unseen loading scenarios, we tested both surrogate models
+under tensile loading. While typical surrogates are expected to interpolate only, the use of these
+internal state variables motivates testing the constitutive model for extrapolation. We found
+that the model will in all cases tested perform extremely well in predicting the strain hardening
+of the material (under creep loading), however, the surrogates do not perform well when dealing
+with the yield strength (under tensile loading), except at low temperatures. The resulting
+stress-strain curves showed consistent bias in both RSM and MoE predictions, suggesting that
+including tensile data during training is essential to achieve reliable extrapolation beyond the
+creep loading conditions used for calibration.
+    In future work, we will expand the training dataset to include a more diverse and balanced
+set of loading paths, including tensile, cyclic, and multi-axial loading, and extend the MoE
+architecture with physics-informed regularization to improve interpretability and robustness in
+data-sparse regions. Furthermore, integration of uncertainty quantification techniques will be
+explored to support the use of these surrogates in probabilistic simulations and design applica-
+tions.
+
+
+Acknowledgements
+This work was supported by the U.S. Department of Energy, Office of Nuclear Energy, and Office
+of Science, Office of Advanced Scientific Computing Research through the Scientific Discovery
+through Advanced Computing project on Simulation of the Response of Structural Metals in
+Molten Salt Environment.
+    This research made use of Idaho National Laboratory’s High Performance Computing sys-
+tems located at the Collaborative Computing Center and supported by the Office of Nuclear
+Energy of the U.S. Department of Energy and the Nuclear Science User Facilities under Contract
+No. DE-AC07-05ID14517.
+    This article has been co-authored by employees of National Technology and Engineering So-
+lutions of Sandia, LLC under Contract No. DE-NA0003525 with the U.S. Department of Energy
+(DOE). The employees co-own right, title and interest in and to the article and are responsible
+for its contents. The United States Government retains and the publisher, by accepting the ar-
+ticle for publication, acknowledges that the United States Government retains a non-exclusive,
+paid-up, irrevocable, world-wide license to publish or reproduce the published form of this article
+or allow others to do so, for United States Government purposes. The DOE will provide public
+access to these results of federally sponsored research in accordance with the DOE Public Access
+Plan https://www.energy.gov/downloads/doe-public-access-plan.
+    Los Alamos National Laboratory, United States, an affirmative action/equal opportunity
+employer, is operated by Triad National Security, LLC, for the National Nuclear Security Ad-
+ministration of the U.S. Department of Energy under Contract No. 89233218CNA000001.
+
+
+
+
+                                                20
+References
+ [1] M. F. Horstemeyer, Multiscale modeling: A review, in: Practical Aspects of Computational
+     Chemistry: Methods, Concepts and Applications, Springer, 2010, pp. 87–135. doi:10.100
+     7/978-90-481-2687-3_4.
+
+ [2] R. J. Asaro, Crystal plasticity, Journal of Applied Mechanics 50 (1983) 921–934. doi:
+     10.1115/1.3167205.
+
+ [3] H. Gao, Y. Huang, W. D. Nix, J. W. Hutchinson, Mechanism-based strain gradient plasticity
+     I. Theory, Journal of the Mechanics and Physics of Solids 47 (6) (1999) 1239–1263. doi:
+     https://doi.org/10.1016/S0022-5096(98)00103-3.
+
+ [4] R. A. Lebensohn, P. P. Castañeda, R. Brenner, O. Castelnau, Full-field vs. homogeniza-
+     tion methods to predict microstructure–property relations for polycrystalline materials,
+     Computational methods for microstructure-property relationships (2011) 393–441.doi:
+     10.1007/978-1-4419-0643-4_11.
+
+ [5] R. Lebensohn, C. Tomé, A self-consistent anisotropic approach for the simulation of plastic
+     deformation and texture development of polycrystals: Application to zirconium alloys, Acta
+     Metallurgica Et Materialia 41 (1993) 2611–2624. doi:10.1016/0956-7151(93)90130-K.
+
+ [6] R. Lebensohn, C. Tomé, P. Maudlin, A selfconsistent formulation for the prediction of the
+     anisotropic behavior of viscoplastic polycrystals with voids, Journal of the Mechanics and
+     Physics of Solids 52 (2) (2004) 249–278.
+
+ [7] H. Wang, B. Clausen, L. Capolungo, I. J. Beyerlein, J. Wang, C. N. Tome, Stress and
+     strain relaxation in magnesium AZ31 rolled plate: In-situ neutron measurement and elastic
+     viscoplastic polycrystal modeling, International Journal of Plasticity 79 (2016) 275–292.
+
+ [8] W. Wen, A. Kohnert, M. A. Kumar, L. Capolungo, C. N. Tomé, Mechanism-based modeling
+     of thermal and irradiation creep behavior: An application to ferritic/martensitic HT9 steel,
+     International Journal of Plasticity 126 (2020) 102633.
+
+ [9] M. Knezevic, R. McCabe, R. Lebensohn, C. Tomé, C. Liu, M. Lovato, B. Mihaila,
+     Integration of self-consistent polycrystal plasticity with dislocation density based hard-
+     ening laws within an implicit finite element framework: Application to low-symmetry
+     metals, Journal of the Mechanics and Physics of Solids 61 (2013) 2034–2046. doi:
+     10.1016/J.JMPS.2013.05.005.
+
+[10] A. Patra, C. Tomé, Finite element simulation of gap opening between cladding tube and
+     spacer grid in a fuel rod assembly using crystallographic models of irradiation growth and
+     creep, Nuclear Engineering and Design 315 (2017) 155–169. doi:10.1016/J.NUCENGDES.
+     2017.02.029.
+
+[11] M. Khadyko, J. Sturdy, S. Dumoulin, L. R. Hellevik, O. S. Hopperstad, Uncertainty quan-
+     tification and sensitivity analysis of material parameters in crystal plasticity finite element
+     models, Journal of Mechanics of Materials and Structures 13 (3) (2018) 379–400.
+
+[12] A. Ruybalid, A. Tallman, W. Wen, C. Matthews, L. Capolungo, Data-driven surrogate
+     modeling with microstructure-sensitivity of viscoplastic creep in grade 91 steel, Integrating
+     Materials and Manufacturing Innovation 13 (4) (2024) 895–914.
+
+[13] J. Dornheim, L. Morand, H. J. Nallani, D. Helm, Neural networks for constitutive modeling:
+     From universal function approximators to advanced models and the integration of physics,
+     Archives of Computational Methods in Engineering 31 (2) (2024) 1097–1127.
+
+                                                21
+[14] M. Daoud, W. Jomaa, J.-F. Chatelain, A. Bouzid, V. Songmene, Identification of material
+     constitutive law constants using machining tests: a response surface methodology based
+     approach, WIT Transactions on The Built Environment 137 (2014) 25–36.
+[15] A. E. Tallman, M. Arul Kumar, C. Matthews, L. Capolungo, Surrogate modeling of vis-
+     coplasticity in steels: Application to thermal, irradiation creep and transient loading in
+     HT-9 cladding, JOM 73 (2021) 126–137.
+[16] J. He, R. Gao, Z. Tang, A data-driven multi-scale constitutive model of concrete mate-
+     rial based on polynomial chaos expansion and stochastic damage model, Construction and
+     Building Materials 334 (2022) 127441.
+[17] A. L. Frankel, R. E. Jones, L. P. Swiler, Tensor basis gaussian process models of hyperelastic
+     materials, Journal of Machine Learning for Modeling and Computing 1 (1) (2020).
+[18] I. Rocha, P. Kerfriden, F. van Der Meer, On-the-fly construction of surrogate constitu-
+     tive models for concurrent multiscale mechanical analysis through probabilistic machine
+     learning, Journal of Computational Physics: X 9 (2021) 100083.
+[19] J. N. Fuhg, M. Marino, N. Bouklas, Local approximate Gaussian process regression for data-
+     driven constitutive models: development and comparison with neural networks, Computer
+     Methods in Applied Mechanics and Engineering 388 (2022) 114217.
+[20] J. Segurado, R. A. Lebensohn, J. LLorca, C. N. Tomé, Multiscale modeling of plasticity
+     based on embedding the viscoplastic self-consistent formulation in implicit finite elements,
+     International Journal of Plasticity 28 (1) (2012) 124–140.
+[21] F. Roters, P. Eisenlohr, L. Hantcherli, D. D. Tjahjanto, T. R. Bieler, D. Raabe, Overview of
+     constitutive laws, kinematics, homogenization and multiscale methods in crystal plasticity
+     finite-element modeling: Theory, experiments, applications, Acta materialia 58 (4) (2010)
+     1152–1211.
+[22] A. Forrester, A. Sobester, A. Keane, Engineering design via surrogate modelling: a practical
+     guide, John Wiley & Sons, 2008.
+[23] J. Ghaboussi, J. Garrett Jr, X. Wu, Knowledge-based modeling of material behavior with
+     neural networks, Journal of engineering mechanics 117 (1) (1991) 132–153.
+[24] T. Furukawa, G. Yagawa, Implicit constitutive modelling for viscoplasticity using neural
+     networks, International Journal for Numerical Methods in Engineering 43 (2) (1998) 195–
+     219.
+[25] S. Jung, J. Ghaboussi, Neural network constitutive model for rate-dependent materials,
+     Computers & Structures 84 (15-16) (2006) 955–963.
+[26] S. Ye, B. Li, Q. Li, H.-P. Zhao, X.-Q. Feng, Deep neural network method for predicting the
+     mechanical properties of composites, Applied Physics Letters 115 (16) (2019).
+[27] S. Ye, W.-Z. Huang, M. Li, X.-Q. Feng, Deep learning method for determining the surface
+     elastic moduli of microstructured solids, Extreme Mechanics Letters 44 (2021) 101226.
+[28] M. Al-Haik, M. Hussaini, H. Garmestani, Prediction of nonlinear viscoelastic behavior of
+     polymeric composites using an artificial neural network, International journal of plasticity
+     22 (7) (2006) 1367–1392. doi:https://doi.org/10.1016/j.ijplas.2005.09.002.
+[29] H. Yang, H. Qiu, Q. Xiang, S. Tang, X. Guo, Exploring elastoplastic constitutive law of
+     microstructured materials through artificial neural network – A mechanistic-based data-
+     driven approach, Journal of Applied Mechanics 87 (9) (2020) 091005.
+
+                                                22
+[30] Y. Zhang, Q.-J. Li, T. Zhu, J. Li, Learning constitutive relations of plasticity using neural
+     networks and full-field data, Extreme Mechanics Letters 52 (2022) 101645.
+
+[31] X. Li, C. C. Roth, D. Mohr, Machine-learning based temperature-and rate-dependent plas-
+     ticity model: application to analysis of fracture experiments on dp steel, International
+     Journal of Plasticity 118 (2019) 320–344.
+
+[32] K. S. Pandya, C. C. Roth, D. Mohr, Strain rate and temperature dependent fracture of
+     aluminum alloy 7075: Experiments and neural network modeling, International Journal of
+     Plasticity 135 (2020) 102788.
+
+[33] J. Wen, Q. Zou, Y. Wei, Physics-driven machine learning model on temperature and time-
+     dependent deformation in lithium metal and its finite element implementation, Journal of
+     the Mechanics and Physics of Solids 153 (2021) 104481.
+
+[34] U. Ali, W. Muhammad, A. Brahme, O. Skiba, K. Inal, Application of artificial neural
+     networks in micromechanics for polycrystalline metals, International Journal of Plasticity
+     120 (2019) 205–219. doi:https://doi.org/10.1016/j.ijplas.2019.05.001.
+
+[35] J. Storm, I. Rocha, F. van der Meer, A microstructure-based graph neural network for
+     accelerating multiscale simulations (2024). arXiv:2402.13101.
+
+[36] S. Jafarzadeh, S. Silling, N. Liu, Z. Zhang, Y. Yu, Peridynamic neural operators: A data-
+     driven nonlocal constitutive model for complex material responses, Computer Methods in
+     Applied Mechanics and Engineering 425 (2024) 116914.
+
+[37] K. Linka, M. Hillgärtner, K. P. Abdolazizi, R. C. Aydin, M. Itskov, C. J. Cyron, Constitutive
+     artificial neural networks: A fast and general approach to predictive data-driven constitutive
+     modeling by deep learning, Journal of Computational Physics 429 (2021) 110010.
+
+[38] J. N. Fuhg, G. Anantha Padmanabha, N. Bouklas, B. Bahmani, W. Sun, N. N. Vlassis,
+     M. Flaschel, P. Carrara, L. De Lorenzis, A review on data-driven constitutive laws for solids,
+     Archives of Computational Methods in Engineering (2024) 1–43.
+
+[39] M. Rosenkranz, K. A. Kalina, J. Brummund, M. Kästner, A comparative study on differ-
+     ent neural network architectures to model inelasticity, International Journal for Numerical
+     Methods in Engineering 124 (21) (2023) 4802–4840.
+
+[40] L. Herrmann, S. Kollmannsberger, Deep learning in computational mechanics: A review,
+     Computational Mechanics (2024) 1–51.
+
+[41] A. I. Khuri, S. Mukhopadhyay, Response surface methodology, Wiley interdisciplinary re-
+     views: Computational statistics 2 (2) (2010) 128–149.
+
+[42] S. Masoudnia, R. Ebrahimpour, Mixture of experts: a literature survey, Artificial Intelli-
+     gence Review 42 (2014) 275–293.
+
+[43] N. Shazeer, A. Mirhoseini, K. Maziarz, A. Davis, Q. Le, G. Hinton, J. Dean, Outrageously
+     large neural networks: The sparsely-gated mixture-of-experts layer (2017). arXiv:1701.0
+     6538.
+
+[44] G. E. Box, K. B. Wilson, On the experimental attainment of optimum conditions, in:
+     Breakthroughs in statistics: methodology and distribution, Springer, 1992, pp. 270–310.
+
+[45] Z. Shen, R. Wu, C. Yuan, W. Jiao, Comparative study of metamodeling methods for
+     modeling the constitutive relationships of the TC6 titanium alloy, Journal of Materials
+     Research and Technology 10 (2021) 188–204.
+
+                                                23
+[46] R. A. Jacobs, M. I. Jordan, S. J. Nowlan, G. E. Hinton, Adaptive mixtures of local experts,
+     Neural computation 3 (1) (1991) 79–87.
+
+[47] S. E. Yuksel, J. N. Wilson, P. D. Gader, Twenty years of mixture of experts, IEEE trans-
+     actions on neural networks and learning systems 23 (8) (2012) 1177–1193.
+
+[48] D. Eigen, M. Ranzato, I. Sutskever, Learning factored representations in a deep mixture of
+     experts (2013). arXiv:1312.4314.
+
+[49] L. Morand, D. Helm, A mixture of experts approach to handle ambiguities in parameter
+     identification problems in material modeling, Computational Materials Science 167 (2019)
+     85–91.
+
+[50] W. Wen, L. Capolungo, A. Patra, C. Tomé, A physics-based crystallographic modeling
+     framework for describing the thermal creep behavior of Fe-Cr alloys, Metallurgical and
+     Materials Transactions A 48 (2017). doi:10.1007/s11661-017-4011-3.
+
+[51] R. Coble, A Model for Boundary Diffusion Controlled Creep in Polycrystalline Materials,
+     Journal of Applied Physics 34 (1963) 1679–1682. doi:10.1063/1.1702656.
+
+[52] R. A. Lebensohn, C. S. Hartley, C. N. Tomé, O. Castelnau, Modeling the mechanical
+     response of polycrystals deforming by climb and glide, Philosophical Magazine 90 (5) (2010)
+     567–583.
+
+[53] I. Loshchilov, F. Hutter, Decoupled weight decay regularization (2017). arXiv:1711.05101.
+
+[54] I. Loshchilov, F. Hutter, SGDR: Stochastic gradient descent with warm restarts (2016).
+     arXiv:1608.03983.
+
+[55] J. Bergstra, Y. Bengio, Random search for hyper-parameter optimization, The journal of
+     machine learning research 13 (1) (2012) 281–305.
+
+[56] A. C. Hindmarsh, ODEPACK, a systemized collection of ODE solvers, IMACS Transactions
+     on Scientific Computation 1 (1983) 55–64.
+
+
+A    Input/output transformations
+Figure 12 shows the effect of the subsampling of the raw simulation data on the distribution of
+the retained time instances. Figure 13 shows the effect of subsampling and input transforma-
+tions on the retained input data. After transformation, the input training data is much more
+evenly distributed across the input range. Figure 14 shows the effect of subsampling and output
+transformations on the retained output data. Note that the top row with raw output samples
+shows the log10 of the frequency. We found the output transformations to be a critical addition
+to achieve high accuracy of the surrogate models.
+
+
+
+
+                                              24
+                                                           Raw data                                                    Subsampled data
+
+
+
+
+                               frequency                                                              frequency
+
+
+
+                                           0                0.5             1                                     −5         0            5
+
+                                                         time (×109 ) [s]                                                  log10 time [s]
+
+
+                 Figure 12: Effect of subsampling on the selected time-indices for the training data.
+
+
+
+                                σvm                                                   temperature                                             εvm (×10−2 )
+
+
+
+
+ frequency
+
+
+
+             0           100                   200            300     600               800                  1000                0     0.5            1         1.5    2
+
+
+
+
+ frequency
+
+
+
+       −1           −0.5             0           0.5              1   −1        −0.5          0           0.5          1         0    0.2       0.4       0.6    0.8   1
+
+
+                         ρwall (×1013 )                                               ρcell (×1012 )                                           ϕ̇ (×10−7 )
+
+
+
+
+ frequency
+
+
+
+                   0.6          0.8                  1        1.2      0          2               4               6                   2         4         6       8    10
+
+
+
+
+ frequency
+
+
+
+       −1           −0.5             0           0.5              1   −1        −0.5          0           0.5          1         −1   −0.5            0         0.5    1
+
+
+Figure 13: Effect of subsampling and transformations for the input data, see Table 1. Rows 1
+and 3 show the distribution of the raw input data, and rows 2 and 4 show the distribution of
+the transformed input data.
+
+
+
+                                                                                          25
+                                  ε̇vm                       ρ̇cell (×1018 )                   ρ̇wall (×1016 )
+
+
+
+
+  log10 frequency
+
+
+                    0    2000     4000      6000            −2          −1         0       0             5
+
+
+
+
+  log10 frequency
+
+
+                    0   0.2     0.4   0.6    0.8   1   0   0.5      1        1.5       0           1             2
+
+
+Figure 14: Effect of subsampling and transformations for the output data, see Table 2. The top
+row shows the distribution of the raw output data, and the bottom row shows the distribution
+of the transformed output data.
+
+
+
+
+                                                                 26
+

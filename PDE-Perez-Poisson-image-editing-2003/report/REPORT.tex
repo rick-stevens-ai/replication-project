@@ -1,0 +1,231 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{siunitx}
+
+\title{Independent Replication Report\\
+       P\'erez, Gangnet, Blake (2003) ``Poisson Image Editing''}
+\author{Replication set PDE-100 (Ollie)}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently reproduce the three core numerical claims of P\'erez et al.\
+(SIGGRAPH 2003) ``Poisson Image Editing'' on two synthetic RGB test scenes,
+built from first principles against paper equations (6)--(7), (11), (13).
+Seamless-cloning boundary gradients match the source's own local gradient to
+$\approx$12 decimal places (naive-paste seam reduced by \(8.5\text{--}43.9\times\)).
+The membrane case (\(v=0\)) satisfies \(\Delta f\equiv 0\) to
+$\sim 10^{-13}$ (machine epsilon). Mixed-gradient guidance preserves
+structure from both source and destination as the paper claims. Three
+independent Argo LLM judges (gpt-4.1, gemini-2.5-pro, claude-sonnet-4.6)
+independently return \textbf{REPLICATED}. \textbf{Verdict: REPLICATED.}
+\end{abstract}
+
+\section{Paper}
+P\'erez, P., Gangnet, M., Blake, A. (2003). \textit{Poisson Image Editing.}
+ACM SIGGRAPH / TOG 22(3): 313--318. Local copy:
+\texttt{work/poisson\_paper.pdf} (SHA-256 prefix \texttt{2f62b451}).
+
+\section{Formulation}
+For a user-selected region \(\Omega\subset\) destination \(f^*\), guidance
+vector field \(\mathbf v\) (typically derived from source \(g\)):
+\begin{equation}
+  \min_{f}\iint_\Omega |\nabla f - \mathbf v|^2 \;\text{s.t.}\;
+  f|_{\partial\Omega}=f^*|_{\partial\Omega}
+  \iff \Delta f = \mathrm{div}\,\mathbf v \text{ on }\Omega,\;
+  f|_{\partial\Omega}=f^*|_{\partial\Omega}.
+\end{equation}
+Discretized directly at the variational level on the 4-connected pixel grid
+(paper eq.\ 7):
+\begin{equation}
+  |N_p|\, f_p - \sum_{q\in N_p\cap\Omega} f_q
+  = \sum_{q\in N_p\cap\partial\Omega} f^*_q + \sum_{q\in N_p} v_{pq}.
+\end{equation}
+Guidance modes tested:
+\emph{seamless} \(v_{pq}=g_p-g_q\) (paper eq.\ 11);
+\emph{mixed} \(v_{pq}=f^*_p-f^*_q\) if \(|f^*_p-f^*_q|>|g_p-g_q|\) else
+\(g_p-g_q\) (paper eq.\ 13);
+\emph{membrane} \(v_{pq}=0\) (Laplace correctness check).
+
+\section{Method (replication)}
+\begin{itemize}
+  \item \texttt{work/poisson\_editing.py}: assembles the sparse SPD system per
+        eq.\ (7) and solves it with \texttt{scipy.sparse.linalg.spsolve}.
+        Direct sparse solve differs in \emph{solver} from the paper's
+        Gauss--Seidel-with-SOR / V-cycle multigrid, but is the identical
+        \emph{discretization} and converges to the same numerical solution up
+        to floating-point roundoff.
+  \item RGB solved as three independent per-channel systems.
+  \item Fixed RNG seed \texttt{np.random.default\_rng(0)} throughout;
+        replication is bit-for-bit reproducible.
+  \item Test scenes:
+        \emph{disk-in-gradient} (\(200\times280\), \(|\Omega|=5013\)) and
+        \emph{text-on-stripes} (\(180\times260\), \(|\Omega|=30800\)).
+  \item Three claim-specific verifiers: \texttt{verify\_c1\_correct.py} (C1),
+        \texttt{run\_experiments.py} experiment 2 (C2) and experiment 3 (C3).
+  \item LLM-judge (\texttt{llm\_judge.py}) fed exact numeric evidence, no
+        regex, three Argo models scoring independently against a rubric.
+\end{itemize}
+
+\section{Results}
+
+\subsection*{C1 --- Seamless cloning eliminates visible seams}
+Mean absolute boundary gradients over \(\partial\Omega\):
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\toprule
+ch & edited jump & src's jump & naive jump & \(|\text{edit}-\text{src}|\) &
+   \(|\text{naive}-\text{src}|\) & seam reduction \\
+\midrule
+R & 49.97 & 49.97 & 143.87 & 2.14 & 93.90 & $43.9\times$ \\
+G & 50.00 & 50.00 &  30.72 & 2.39 & 80.25 & $33.6\times$ \\
+B & 90.00 & 90.00 &  69.94 & 2.36 & 20.14 &  $8.5\times$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Edited boundary jump matches the source's own local gradient to 12 decimal
+places in per-channel mean; \(\approx 2\)-unit residual on a 0--255 scale is
+the membrane offset on the interior side of \(\partial\Omega\).
+\textbf{C1 numerically reproduced.}
+
+\subsection*{C2 --- Correct membrane interpolant}
+Membrane case (\(v=0\)) at strict interior of \(\Omega\):
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+ch & \(\max|\Delta f|\) & \(\text{mean}|\Delta f|\) \\
+\midrule
+R & \(3.84\times 10^{-13}\) & \(3.89\times 10^{-14}\) \\
+G & \(3.41\times 10^{-13}\) & \(4.08\times 10^{-14}\) \\
+B & \(4.26\times 10^{-13}\) & \(5.88\times 10^{-14}\) \\
+\bottomrule
+\end{tabular}
+\end{center}
+Machine epsilon for double precision; the discrete Poisson system is the
+correct one and it inverts correctly. \textbf{C2 numerically reproduced.}
+
+\subsection*{C3 --- Mixed gradients preserve both structures}
+Total \(\sum|\nabla f|\) over channels and edges inside \(\Omega\)
+(text-on-stripes):
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+variant & \(\sum|\nabla f|\) \\
+\midrule
+destination alone (stripes) & 2\,539\,186 \\
+source alone (text)         &   911\,400 \\
+seamless clone (\(v=\nabla g\)) & 1\,210\,641 \\
+\textbf{mixed clone (eq.\ 13)} & \textbf{3\,408\,319} \\
+\bottomrule
+\end{tabular}
+\end{center}
+Mixed exceeds both destination-only and seamless-clone; visually
+(\texttt{08\_mixed\_text\_on\_stripes.png}) shows both the text bars and the
+underlying stripes, replicating paper Fig.\ 6b vs.\ 6d.
+\textbf{C3 numerically reproduced.}
+
+\subsection*{Timing}
+Paper: \(\approx 0.4\)\,s / 60k-pixel disk (Pentium 4, GS+SOR / V-cycle).
+This work (2020s CPU, direct sparse solve, 3 RGB channels): disk (5\,013 px)
+seamless 0.063\,s; text-stripes (30\,800 px) seamless/mixed 0.387\,s each.
+Same order of magnitude; not directly comparable (23 yr hardware $+$ solver
+change) but plausible.
+
+\section{LLM-judge verdicts (Argo, free-endpoint, no regex)}
+\begin{itemize}
+  \item \texttt{argo:gpt-4.1}: \textbf{REPLICATED}.
+  \item \texttt{argo:gemini-2.5-pro}: \textbf{REPLICATED}.
+  \item \texttt{argo:claude-sonnet-4.6}: \textbf{REPLICATED}.
+\end{itemize}
+Full JSON in \texttt{evidence/llm\_judge\_response\_argo\_*.json}.
+
+\section{Verdict}
+\textbf{REPLICATED.}
+All three tested core claims (C1 boundary match, C2 membrane correctness,
+C3 mixed-gradient structure preservation) reproduce numerically on
+independently generated synthetic images; three independent LLM referees
+concur. Claim C4 (further downstream editing effects) is out of scope for a
+minimal reproduction --- it is a straightforward application of the same
+solver already verified here.
+
+\section{Genuine Critique}
+
+This section deliberately separates what was actually shown from what remains
+unshown. Nothing here changes the verdict, but honest replication owes both.
+
+\paragraph{Scope limits (what this replication does \emph{not} establish).}
+\begin{enumerate}
+  \item \textbf{Synthetic imagery only.} Both test scenes are procedurally
+        generated (RGB ramp $+$ textured disk; sinusoidal stripes $+$ dark
+        bars). Real photographs --- with sensor noise, chromatic aberration,
+        JPEG blocking, and non-Gaussian gradient statistics --- were not
+        tested. The paper's headline demos (face swap, sky insertion,
+        transparent-object cloning) are visually more challenging than
+        anything shown here.
+  \item \textbf{C4 untested.} Local illumination change, local color change,
+        texture flattening, seamless tiling, and monochrome-transfer effects
+        (paper \S 3.2--\S 4) are omitted. They all use the same solver, so
+        the C4 claim inherits correctness \emph{if} the guidance-field
+        recipes are transcribed correctly --- but ``inherits'' is an
+        assumption, not a measurement.
+  \item \textbf{Solver substitution.} The paper's Gauss--Seidel-with-SOR /
+        V-cycle multigrid was replaced by direct sparse LU
+        (\texttt{scipy.sparse.linalg.spsolve}). Mathematically both converge
+        to the same $f$; but the paper's timing, convergence-rate, and
+        memory-footprint claims cannot be evaluated against a direct solver.
+        An iterative-solver replication (with SOR $\omega$ tuning and
+        multigrid comparison) would be a strictly stronger test.
+  \item \textbf{Small problem sizes.} $|\Omega|$ tops out at 30\,800 pixels.
+        The paper's timing claims are for the same $\sim 60$k range;
+        modern applications (4K, 8K, HDR panoramas) push $|\Omega|$ into
+        $10^7$--$10^8$, where direct sparse LU stops being viable and only
+        iterative / multigrid / GPU-preconditioned methods survive.
+        Nothing in this replication speaks to that regime.
+  \item \textbf{No perceptual metric.} ``Seam elimination'' is verified
+        gradient-analytically, not with a human observer or a perceptual
+        metric (LPIPS, DISTS, human-preference). Boundary-gradient identity
+        is \emph{necessary} for seamlessness but is not by itself
+        \emph{sufficient} to guarantee no perceived seam on textured
+        imagery.
+\end{enumerate}
+
+\paragraph{Methodological caveats.}
+\begin{itemize}
+  \item \textbf{LLM-judge is convergent, not independent evidence.} All
+        three referees were shown the same evidence bundle and rubric; their
+        agreement is confirmatory, not corroborative. The primary evidence
+        remains the numerical tables in \S 4.
+  \item \textbf{Bit-for-bit reproducibility} is claimed under a fixed NumPy
+        RNG seed \emph{and} the specific SciPy/BLAS versions installed at
+        run time. Cross-platform bit-identity is not guaranteed.
+  \item \textbf{Boundary-jump equivalence is a mean over $\partial\Omega$.}
+        Per-edge worst-case residuals were not audited; the interior
+        membrane offset ($\approx 2$ units on 0--255) is a mean not a max.
+\end{itemize}
+
+\paragraph{What would strengthen this replication.}
+An iterative-solver reference implementation (SOR + multigrid) with
+convergence-rate curves; real-photo test suite (paper's own or a
+publicly-shared alternative like Poisson-blending datasets); a perceptual
+seam-visibility study; scaling curves to $|\Omega|\sim 10^6$--$10^8$ with
+GPU FFT and algebraic multigrid preconditioners. None of these are needed
+to verify the paper as stated; all would extend the envelope of
+independently-verified claims.
+
+\section{Files}
+See \texttt{report/REPORT.md} \S 7 for the full inventory.
+Evidence: \texttt{report/evidence/} (raw scene $+$ result PNGs, 5-panel
+comparison figures, \texttt{results.json},
+\texttt{c1\_boundary\_gradient\_match.json}, LLM-judge prompt + three
+response JSONs).
+Code: \texttt{work/} (\texttt{poisson\_editing.py},
+\texttt{run\_experiments.py}, \texttt{verify\_c1\_correct.py},
+\texttt{make\_comparison\_figure.py}, \texttt{llm\_judge.py}).
+
+\end{document}

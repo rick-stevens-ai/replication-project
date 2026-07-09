@@ -1,0 +1,19 @@
+# Attempt Log — Intrepid MCMC (OSTI 3028840)
+
+Chronological log of the independent replication. All heavy compute on `uicgpu` (A100 node), free Argo endpoint for the LLM judge.
+
+1. **Candidate selection.** Read WAVE_BRIEF; listed existing OSTI-* dirs (skipped 2997724, 2480245, 3007459). Went down the priority list; fetched two strong candidates via the uicgpu proxy: OSTI 2564727 (spectral tensor trains, open quantum systems) and OSTI 3028840 (Intrepid MCMC). Picked **3028840** — a self-contained MH sampler with (a) analytically defined test distributions (exact validation targets), (b) fully specified algorithm (Algorithms 1–2, Eqs. 9–31), (c) pure CPU numerics, (d) clean quantitative metrics (TVD, error-in-mean, acceptance). No proprietary data. Ideal for clean scoring.
+
+2. **PDF fetch + extraction.** `curl https://www.osti.gov/servlets/purl/3028840` over `ssh uicgpu` (21.7 MB, 37 pp). Extracted text with pymupdf (pdfminer/fitz absent → pip-installed pymupdf on uicgpu). No public code repo exists for the paper → full reimplementation from equations.
+
+3. **Reimplementation (`work/intrepid.py`).** Coded the 9 targets exactly (Tables 2–4: indicators I1–I6, densities f1 Gaussian / f2 Gumbel / f3 Rosenbrock). Parent p=f1 (radially symmetric) for all cases → identity RTF. Implemented the Intrepid step in hyperspherical coords (anchor xa=parent mean=origin; angular proposal Uniform full-circle; radial gamma~Uniform(0.5,2.0); rc=gamma*rs); for d=2, identity RTF, symmetric proposals the acceptance reduces to alpha=min(1, pi(xc)/pi(xs)) (Eqs. 23/26 give Gamma=1). Implemented component-wise MH (CMH) with N(x,1) per-component proposals. Mixture kernel: prob beta Intrepid else CMH (Algorithm 1). Added rejection-sampling IID reference generator and a 60×60-histogram TVD metric.
+
+4. **Self-test.** Single chain, Case 2, beta=0.1: acc≈0.73, ran clean. Bimodal-coverage check (Case 2): Intrepid std of frac(x1>0)=0.020 vs CMH 0.081 — Intrepid reliably reaches both disconnected planes. Verified true IID balance frac(x1>0)=0.725 (positive plane closer to origin), confirming both methods hit the *correct* mean but CMH is erratic per-trial.
+
+5. **First full sweep (30 trials × 7 beta × 9 cases × 100k chains).** Cases 3/6/9 (disconnected "Circles") produced `nan` TVD. **Root cause:** chains randomly initialized near the origin where pi=0 for the Circles targets (tiny circles far from origin) → all samples in a zero region → empty histogram → nan. Also caught float overflow in density eval when Intrepid radial jumps threw candidates to huge radii.
+
+6. **Fixes.** (a) Overflow-safe density eval (clip exponent to [-700,0]); (b) reject Intrepid candidates with radius >1e6 (pi=0 anyway); (c) NaN-filter samples in TVD; (d) **initialize chains at a random *valid* support point** (pi(x0)>0) — the standard MCMC requirement; a chain cannot start where the target density is zero. Denser (1000×1000) grid + 1.5× safety for rejection-sampling pmax. Verified fix on Circles cases: Gauss/Gumbel-Circles TVD 0.24/0.43 (CMH) → 0.033/0.053 (Intrepid), no nan.
+
+7. **Final full sweep (30 trials × 7 beta × 9 cases × 100k chains, 10k burn-in, 3M-sample IID refs, 32-way parallel).** Completed clean, no nan. Intrepid(beta=0.1) ≤ CMH(beta=0) TVD in 8/9 cases; dramatic gains on disconnected targets (Rosenbrock-Circles 34×, Gumbel-Circles 10.6×, Rosenbrock-Ring 7.9×). Acceptance-rate pattern and error-in-mean collapse reproduced. `results.json` saved (v1 first-pass retained for transparency).
+
+8. **LLM judge (free Argo gpt-5.2).** Fed paper claims + reproduced evidence tables; judge returned per-claim SUPPORT/PARTIALLY-SUPPORT and an overall **PARTIAL** verdict — core mechanism robustly reproduced; paper's universal "consistently/near-zero" phrasing tempered by Gumbel-Ring (near-unimodal, no gain) and Rosenbrock-Ring/Planes (heavy-tailed mean stays large — a nuance the paper itself notes). Verdict text at `evidence/llm_judge_verdict.txt`.

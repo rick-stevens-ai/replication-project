@@ -1,0 +1,5 @@
+# BVBRC-81 Brief
+
+**Paper:** Mollova et al. (2023), *Microorganisms* 11(10):2440 — "Illuminating the Genomic Landscape of *Lactiplantibacillus plantarum* PU3—A Novel Probiotic Strain Isolated from Human Breast Milk, Explored through Nanopore Sequencing." PMID 37894099, DOI 10.3390/microorganisms11102440.
+
+**What / why:** The paper reports a complete Oxford Nanopore MinION assembly of *L. plantarum* PU3 isolated from human breast milk, comprising a 3,180,940-bp circular chromosome plus 9 plasmids, with annotation-based screens for virulence factors, antimicrobial-resistance genes, bacteriocins, CRISPR, and probiotic markers. This BV-BRC-set replication independently pulls the deposited NCBI accessions (CP120642–CP120651, GCA_045010995.1), re-verifies the assembly (lengths, GC), reruns the paper's own screens (Prokka annotation, FastANI vs *L. plantarum* M19, Abricate CARD/VFDB/ResFinder/ARG-ANNOT), and cross-checks with three independent LLM judges via free Argo endpoints. The paper's genomic claims reproduce with essentially exact agreement — verdict REPLICATED.

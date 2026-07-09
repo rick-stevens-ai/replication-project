@@ -1,0 +1,114 @@
+\section{Open Questions}
+\label{sec:open-questions}
+
+Five truly-open questions surfaced by re-reading the paper and looking at
+what this audit \emph{did not} test. Each is a concrete, actionable audit
+that would materially change the strength of the REPLICATED verdict if
+answered.
+
+\begin{enumerate}
+
+\item \textbf{Does Fig.~7's headline $R^2 = 0.91$ / $0.96$ actually hold
+      when recomputed from our regenerated survival curves?}
+
+  \emph{Basis.} The audit re-ran the authors' code, regenerated
+  \texttt{Model Data - Survival.tsv}, and verified 11/11 fitted parameters
+  and Figs.~1--6. But Fig.~7's $R^2$ numbers were not recomputed: only
+  the underlying per-line survival predictions were regenerated, not the
+  observed-vs-predicted scatter or its regression. The paper leans on
+  Fig.~7 in the Abstract and Discussion as the main out-of-sample sanity
+  check, so the paper's most prominent single validation number is
+  currently \emph{structurally bracketed} rather than tested.
+
+  \emph{Next steps.} Parse observed per-cell-line MIDs from
+  \texttt{Full Survival Data Sets.csv} (grouped by cell-line index),
+  compute predicted MIDs from \texttt{Model Data - Survival.tsv} on the
+  same doses, run a linear regression per phase (G1, G2), and publish
+  $R^2$ with 95\% CI. If $R^2$ falls materially below $0.91$/$0.96$,
+  escalate as a paper-level discrepancy; if it matches, promote Fig.~7
+  from ``not tested'' to ``verified'' and bump COVERAGE to 10/10.
+
+\item \textbf{Are the misrepair-kernel constants $A = 0.757$ and
+      $B = 5.39$ (SI Fig.~S2) reproducible from an independent MC, or is
+      the whole analytic chain riding on one unaudited 2016
+      calibration?}
+
+  \emph{Basis.} The paper pins $A$ and $B$ once from an independent MC
+  (SI Fig.~S2), but that MC code is not in the supplementary ZIP. Every
+  fitted parameter in Table 1 was obtained with $A$ and $B$ held fixed
+  at those values. If either is wrong or fit to a biased MC, the shift
+  propagates silently into $\sigma$, $p_c$, $p_{\text{fail}}$, and the
+  survival fits. The sibling Medras-MC 2021 repo
+  (\texttt{sjmcmahon/Medras-MC}, replicated in \texttt{lucid-medras-mc/})
+  is the plausible modern surrogate for the 2016 MC.
+
+  \emph{Next steps.} Use the Medras-MC 2021 chromatin-on-sphere driver to
+  regenerate SI Fig.~S2 (misrepair fraction vs.\ $\sigma/R$ across break
+  counts), fit $A,B$ to $\omega(R,\sigma) = A + (1{-}A) e^{-B\sigma/R}$,
+  report the recovered constants with uncertainty, then re-run
+  \texttt{DNAModelFit.py} and \texttt{SurvivalFit.py} with those
+  constants. Check whether any of the 11 fitted parameters drift outside
+  their paper $\pm 1\sigma$ bands.
+
+\item \textbf{How is the high survival $\chi^2/N = 16.3$ distributed
+      across cell lines and dose bins, and does the pattern point to a
+      specific missing mechanism?}
+
+  \emph{Basis.} The audit accepted the authors' framing that clonogenic
+  survival is inherently noisy and treated $16.3$ as expected. But
+  $16.3$ is $12\times$ the DNA residual ($1.34$) --- uniform noise
+  supports the mechanistic story; concentrated residuals would be a
+  paper-level testable claim about which cell lines the model does and
+  does not describe. The paper does not stratify.
+
+  \emph{Next steps.} From SurvivalFit.py residuals, compute
+  $(\text{pred} - \text{obs})^2 / \sigma^2$ per row, group by cell-line
+  index and by dose bin, and publish a stacked-bar of $\chi^2$
+  contribution per cell line and a boxplot of residuals per dose bin. If
+  one or two lines dominate ($>30\%$ each), name them and check SI
+  Table~S1 for shared biology (repair-pathway status, ploidy, phase)
+  that hints at a missing model term.
+
+\item \textbf{Are the 11 Table-1 parameters actually independently
+      identifiable, or do strongly-correlated pairs
+      (candidates: $p_c \leftrightarrow p_{\text{fail}}$, $\lambda_S
+      \leftrightarrow \lambda_M$, $\sigma \leftrightarrow A,B$) hide a
+      lower true dimensionality?}
+
+  \emph{Basis.} The re-fit reproduces the authors' point estimates
+  bit-for-bit but reports only diagonal $\pm 1\sigma$ from the covariance
+  matrix; the SI itself flags that this underestimates true uncertainty.
+  With 11 parameters against heterogeneous data, non-identifiability is
+  a real risk --- and if two parameters trade off along a ridge, the
+  mechanistic interpretation of each is weaker than the point-estimate
+  table implies.
+
+  \emph{Next steps.} Compute the full $11\times 11$ covariance matrix
+  from the fit Jacobian; publish the eigenvalue spectrum (tiny
+  eigenvalues $=$ flat directions). For any pair with
+  $|\text{corr}| > 0.9$, run a 1-D profile-likelihood scan along that
+  direction. Optionally run an \texttt{emcee} MCMC around the MAP for
+  proper posterior marginals; then recompute the ``within $\pm 1\sigma$''
+  verdict with the wider intervals.
+
+\item \textbf{Is the paper's ``NHEJ-defective cells are $2.4\times$ more
+      resistant in G2 than G1 because HR rescues complex breaks'' claim
+      supported by the raw per-cell-line clonogenic data, or is it only
+      a consequence of the fitted model?}
+
+  \emph{Basis.} The audit verified $2.4\times$ by dividing model
+  predictions ($0.135 / 0.056$ at 2 Gy). But the paper's causal story is
+  biological: HR rescues complex breaks in G2. That story only holds if
+  the input clonogenic data actually show $G2 > G1$ for NHEJ-defective
+  cells with a consistent effect size across lines (AT, LIG4$^-$,
+  DNA-PKcs$^-$, etc.), not just as a fitted-model consequence.
+
+  \emph{Next steps.} From \texttt{Full Survival Data Sets.csv}, extract
+  observed 2 Gy survival for each NHEJ-defective line in both G1 and G2,
+  compute per-line G2/G1 ratios with error bars, and check whether the
+  population mean centres near $2.4\times$ and whether the sign is
+  consistent across lines. If not (e.g.\ one line dominates), the causal
+  claim needs a caveat; if it holds, promote ``G2 rescue'' from a
+  fitted-model consequence to a data-supported observation.
+
+\end{enumerate}

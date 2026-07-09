@@ -1,0 +1,36 @@
+{
+  "paper": "Treeby & Cox (2010), k-Wave: MATLAB toolbox for the simulation and reconstruction of photoacoustic wave fields, J. Biomed. Opt. 15(2) 021314",
+  "verdict": "REPLICATED (kernel: C1-C3)",
+  "open_questions": [
+    {
+      "id": "OQ1",
+      "q": "Does the k-space correction κ = sinc(c₀Δt|k|/2) preserve stability and accuracy when the toolbox's fractional power-law absorption operator (Chen & Holm / Treeby-Cox 2010 companion) is switched on, and if so up to what CFL and what fractional-power exponent y?",
+      "basis": "Our REPORT.md replicated C1-C3 in a *homogeneous, lossless* medium only (Section 3.1, 'homogeneous case'; C5 explicitly marked out-of-scope). k-Wave's real production use case in tissue includes fractional power-law absorption; the interaction of κ (which assumes a single reference c₀ and pure dispersive-free propagation) with the added fractional-Laplacian absorption term is not tested here, and the paper's 'arbitrarily large time steps' phrasing does not obviously extend to that regime.",
+      "next_steps": "Add the paper's fractional absorption term to the same 1D k-space kernel used in exp_C1_temporal_dispersion.py; run the same CFL sweep (0.1..5.0) for y ∈ {1.0, 1.1, 1.5, 2.0} against an analytic power-law-absorbed traveling Gaussian (Chen-Holm closed form). Report the CFL at which L2 error crosses 1e-3 and where the scheme goes unstable. Cross-check against k-Wave's own kspaceFirstOrder1D at matched settings."
+    },
+    {
+      "id": "OQ2",
+      "q": "How large is the interface error at a sharp c₀/ρ₀ discontinuity (e.g. water-fat, water-bone) for the k-space PSTD kernel, and does the paper's single-reference κ produce Gibbs ringing that dominates the error budget in realistic photoacoustic tissue geometries?",
+      "basis": "REPORT.md tests only homogeneous media (C1, C2a, C3) plus one hard-edged initial condition on a homogeneous background (C2b disk PSA). C5 ('heterogeneous media, PML boundaries') was explicitly marked out-of-scope. Since κ uses a scalar reference c₀, its temporal-dispersion-cancellation is not exact where c₀ varies spatially, and Fourier collocation Gibbs on step-changes in ρ₀ is a well-known pseudospectral weakness.",
+      "next_steps": "Two-slab 1D benchmark: half-water / half-fat (c₀ 1500 vs 1450 m/s, ρ₀ 1000 vs 950). Send in a Gaussian pulse; measure reflected/transmitted amplitudes against Fresnel and time-of-arrival against exact ray theory on grids N ∈ {256, 512, 1024, 2048}. Repeat with k-Wave's smooth() utility on and off. Report L2 error vs Δx and Gibbs peak amplitude at the interface. If ringing is O(1), quantify how many smoothing kernel widths kill it."
+    },
+    {
+      "id": "OQ3",
+      "q": "What are the strong- and weak-scaling limits of the k-space PSTD kernel on modern GPU/multi-node hardware (single-A100, 8×A100, multi-node NCCL) given that every timestep requires a global 3D FFT — is the paper's Fig.-of-merit still achievable at grids ≥ 1024³?",
+      "basis": "REPORT.md was CPU-only, single-machine (CherryRd MacBook), and all timings quoted are ~seconds for 1D / 256². The paper's C4/C5 (toolbox, PML, HPC/GPU scaling) were explicitly declared out-of-scope. Global FFT-per-step is exactly the operation that stops scaling on multi-node clusters (all-to-all bandwidth bound), and the paper does not enumerate this cost.",
+      "next_steps": "Run a fixed 512³ / 1024³ / 2048³ homogeneous k-space PSTD sweep on 1, 2, 4, 8 A100s on uicgpu (cuFFT + NCCL all-to-all), and separately on 1..8 nodes of Polaris using PBS. Measure wall-clock per step, FFT vs update vs communication breakdown (nsys profile), and effective PPW-throughput. Compare against advertised k-Wave CUDA (kspaceFirstOrder3DG) numbers if available. Identify grid size where all-to-all dominates > 50% of step time."
+    },
+    {
+      "id": "OQ4",
+      "q": "Does the k-space correction methodology extend to full linear elastic wave propagation (two wave speeds c_p, c_s coexisting in the same grid) without loss of the temporal-exactness property, and if not, what is the practical CFL cost?",
+      "basis": "REPORT.md verified C1-C3 for the *scalar* acoustic wave equation only (paper Eq. 1, coupled first-order acoustic system). The κ correction is derived for a single reference c₀; in an elastic medium there are two intrinsic wave speeds (P and S) that cannot both be exactly corrected by one scalar sinc. The paper does not claim elastic support (that is left to companion works / k-Wave-Elastic), but the general question of how much of the k-space PSTD advantage survives elastic extension is untested here and is a natural next boundary.",
+      "next_steps": "Implement a 2D linear elastic PSTD kernel (Virieux velocity-stress staggered grid) with two candidate corrections: κ(c_p) applied to P-modes, κ(c_s) to S-modes via helmholtz split; and a single-κ(c_max) baseline. Benchmark against the analytic Lamb-wave half-space solution (Garvin's problem) at CFL 0.1, 0.3, 0.5, 1.0. Report where each variant loses machine-precision behavior and the stability edge. Cross-reference k-Wave-Elastic if a Treeby group implementation is available."
+    },
+    {
+      "id": "OQ5",
+      "q": "In photoacoustic tomography (PAT) forward-modeling accuracy — the paper's actual application — how does the k-space PSTD kernel compare against a modern high-order FDTD (e.g. 4th- or 6th-order Yee-like) and a discontinuous-Galerkin (DG) acoustic solver on the same heterogeneous phantom, in terms of accuracy-per-wall-clock and reconstructed-image quality after time-reversal inversion?",
+      "basis": "REPORT.md compared k-space PSTD against plain PSTD and 2nd-order FD (C3 table). The paper claims 2 PPW vs 6-10 PPW for 'other methods'; we replicated that against FD2 but did not test against modern high-order FDTD (which achieves ~4 PPW) or DG (h/p-adaptive, arbitrary order). C4 (PAT reconstruction quality) was explicitly out-of-scope. For the paper's stated application these are the meaningful competitors, not FD2.",
+      "next_steps": "Pick a canonical 2D PAT phantom (Shepp-Logan on acoustic parameters, or the k-Wave demo 'B-mode phantom'). Implement / obtain: (a) our k-space PSTD; (b) 4th-order Yee FDTD; (c) nodal-DG acoustic (nodal-DG book / MFEM). Fix reconstruction quality target (PSNR ≥ 40 dB after time-reversal). Report grid size, wall-clock, and memory each method needs to hit the target. Publish accuracy-per-second and accuracy-per-GB curves. Include heterogeneous c₀(x) with 5% contrast fat/muscle inclusions to stress each scheme."
+    }
+  ]
+}

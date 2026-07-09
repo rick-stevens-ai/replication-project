@@ -1,0 +1,244 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{siunitx}
+
+\title{Independent Replication Report:\\
+\emph{Space-Time Continuous Analysis of Waveform Relaxation\\
+for the Heat Equation} (Gander \& Stuart, 1998)}
+\author{Independent replication (PDE-100 set, rank 77)}
+\date{2026-07-02}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently replicate the four principal claims of Gander \& Stuart,
+\emph{SIAM J.\ Sci.\ Comput.} \textbf{19}(6):2014--2031, 1998
+(DOI \href{https://doi.org/10.1137/S1064827596305337}{10.1137/S1064827596305337}).
+A from-scratch \texttt{numpy} backward-Euler overlapping-Schwarz waveform-relaxation (SWR)
+solver reproduces the two-subdomain per-double-iteration contraction rate
+$\rho = \alpha(1-\beta)/(\beta(1-\alpha))$ to $\sim 0.1\%$ for three overlaps,
+confirms mesh robustness (factor $0.4439$ invariant across an $8\times$ refinement of
+$\Delta x=\Delta t$), and matches the eight-subdomain Theorem~3.10 upper bound together
+with the predicted early stagnation phase. Three independent free-Argo LLM referees
+(\texttt{gpt-5.2}, \texttt{gemini-2.5-pro}, \texttt{gpt-4.1}) unanimously score the
+outcome REPLICATED. Verdict: \textbf{REPLICATED}.
+\end{abstract}
+
+\section{Paper summary}
+Waveform relaxation (WR) is a parallel iterative method for time-dependent problems
+in which the space-time domain is split and each piece is solved over the
+\emph{whole} time interval, iterating until the interface data converges. Classical
+WR discretizes in space first and then algebraically splits the resulting ODE system;
+for the heat equation this yields linear (unbounded time) and superlinear (bounded time)
+convergence, but the rate degrades under mesh refinement. Gander \& Stuart instead
+split in the \emph{physical} domain using \emph{overlapping} domain decomposition
+(a Schwarz iteration acting in space-time). Their contributions are:
+\begin{itemize}
+\item A space-time continuous convergence theory. For two overlapping subdomains
+$\Omega_1=[0,\beta L]$ and $\Omega_2=[\alpha L, L]$ with $0<\alpha<\beta<1$ of the 1D
+heat equation, the interface error contracts linearly on the infinite time interval
+with per-double-iteration factor
+\[
+\rho \;=\; \frac{\alpha(1-\beta)}{\beta(1-\alpha)}
+\qquad (\text{Lemma 2.3, Thm 2.4; semidiscrete Thm 2.8}).
+\]
+\item This rate is \emph{robust to mesh refinement} provided the physical overlap is
+held fixed---the key advantage over algebraic-splitting WR.
+\item Generalization to $N$ equal-overlap subdomains with rate bounded above by
+$1 - 4r(1-r)\sin^2\!\big(\pi/(2(N+1))\big)$ (Thm 3.10), plus an initial stagnation
+phase while boundary information propagates inward.
+\item Numerical experiments (\S 4, test problem 4.1) confirming the theory.
+\end{itemize}
+
+\paragraph{Test problem (paper eq.~4.1), $L=1$.}
+\[
+u_t = u_{xx} - \exp\!\big(-(t-1)^2 - (x-1/4)^2\big),\quad
+0<x<1,\; 0<t<3,
+\]
+with $u(0,t)=e^{-2t}$, $u(1,t)=e^{-t}$, $u(x,0)=1$.
+Discretization: centered second-order finite differences in space with
+$\Delta x = 1/(n+1)$, backward Euler in time, $\Delta x = \Delta t = 0.01$.
+
+\section{Claims table}
+\begin{tabular}{cllcc}
+\toprule
+ID & Claim & Type & Testable? & Tested? \\
+\midrule
+C1 & 2-subdomain SWR error contracts at rate $\rho=\alpha(1-\beta)/(\beta(1-\alpha))$ & thm+num & yes & yes \\
+C2 & The rate is robust to mesh refinement at fixed physical overlap & quantitative & yes & yes \\
+C3 & $N$ equal-overlap subdomains: rate $\le 1-4r(1-r)\sin^2(\pi/(2(N+1)))$; initial stagnation & thm+num & yes & yes \\
+C4 & Larger overlap $\Rightarrow$ faster convergence; \S 4 numerics match theory & quantitative & yes & yes \\
+\bottomrule
+\end{tabular}
+
+\section{Method (from scratch)}
+All code is in \texttt{work/}; no author code was used (none is distributed).
+Language: Python 3, \texttt{numpy} only for the solver (\texttt{matplotlib} for figures).
+\begin{enumerate}
+\item \textbf{Reference full-domain solver} (\texttt{solve\_full}): backward-Euler heat
+solver on $[0,1]$ with Dirichlet BCs $g_1,g_2$ at all times, custom Thomas tridiagonal
+solve per step---the ``true'' solution against which the DD algorithm is compared.
+\item \textbf{Subdomain solver} (\texttt{solve\_subdomain}): same discretization on a
+sub-interval, with time-dependent Dirichlet data at each end supplied from the neighbor's
+\emph{previous iterate} interface trace over the entire time strip, implementing the
+space-time continuous overlapping-Schwarz WR update (eqs.~2.4--2.7, 2.21--2.24, 3.2--3.3).
+\item \textbf{Experiment 1} (\texttt{run\_two\_subdomain}): $\Omega_1=[0,\beta]$,
+$\Omega_2=[\alpha,1]$, constant-in-time initial guess equal to the IC value; measured
+interface error at grid point $b$ vs the full solution per iteration; fit geometric decay
+to obtain the per-double-iteration factor and compared to $\rho$. Overlaps
+$(\alpha,\beta) \in \{(0.40,0.60),(0.45,0.55),(0.48,0.52)\}$, $\Delta x=\Delta t = 0.01$.
+\item \textbf{Experiment 2} (\texttt{run\_N\_subdomain}): $N=8$ equal subdomains with 35\%
+overlap snapped to grid; Jacobi-style parallel sweeps; measured max interface error
+(proxy for $\|\xi^k\|_\infty$) vs the Thm 3.10 bound.
+\item \textbf{Mesh robustness} (\texttt{mesh\_robust.py}, C2): fixed overlap $(0.4,0.6)$,
+$\Delta x$ refined from $0.02$ down to $0.0025$.
+\item \textbf{Judging}: three independent free-Argo LLM referees
+(\texttt{gpt-5.2}, \texttt{gemini-2.5-pro}, \texttt{gpt-4.1}) scored claims C1--C4.
+\end{enumerate}
+Reproduce:
+\begin{verbatim}
+cd work && python3 -m venv .venv && . .venv/bin/activate
+pip install numpy scipy matplotlib
+python swr_heat.py && python mesh_robust.py && python make_figs.py
+\end{verbatim}
+
+\section{Results vs.\ paper}
+
+\subsection*{C1 --- Two-subdomain contraction rate (Fig 4.1)}
+\begin{tabular}{lcccc}
+\toprule
+$(\alpha,\beta)$ & overlap & $\rho$ predicted & measured (per double iter) & rel.\ error \\
+\midrule
+$(0.40,0.60)$ & $0.20$ & $0.4444$ & $0.4439$ & $0.11\%$ \\
+$(0.45,0.55)$ & $0.10$ & $0.6694$ & $0.6690$ & $0.06\%$ \\
+$(0.48,0.52)$ & $0.04$ & $0.8521$ & $0.8518$ & $0.04\%$ \\
+\bottomrule
+\end{tabular}\\[4pt]
+The measured per-double-iteration contraction factor matches theoretical $\rho$ to
+$\sim 0.1\%$ or better across all three overlaps. Error decays cleanly geometrically
+(e.g.\ $(0.4,0.6)$: interface error $0.65 \to 1.3\times 10^{-4}$ over 22 iterations).
+\textbf{C1 reproduced.} (Figure \texttt{evidence/fig41\_two\_subdomain.png}.)
+
+\subsection*{C2 --- Mesh robustness (headline claim)}
+Fixed overlap $(\alpha,\beta)=(0.4,0.6)$, $\rho_{\text{pred}}=0.4444$:\\[2pt]
+\begin{tabular}{ccc}
+\toprule
+$\Delta x$ & $\Delta t$ & measured (per double iter) \\
+\midrule
+$0.02$   & $0.02$   & $0.4439$ \\
+$0.01$   & $0.01$   & $0.4439$ \\
+$0.005$  & $0.005$  & $0.4439$ \\
+$0.0025$ & $0.0025$ & $0.4439$ \\
+\bottomrule
+\end{tabular}\\[4pt]
+The contraction factor is invariant to four significant figures across an $8\times$ mesh
+refinement, exactly confirming the paper's central claim that the overlapping-Schwarz
+WR rate is robust to mesh refinement (in contrast to classical algebraic-splitting WR).
+\textbf{C2 reproduced.}
+
+\subsection*{C3 --- $N$-subdomain bound and stagnation (Fig 4.2)}
+Eight subdomains, 35\% overlap:
+\begin{itemize}
+\item Predicted upper bound (per double iter) $=0.9726$; measured decay $=0.9327$.
+\item Measured $\le$ bound, as Thm 3.10 requires (it is an upper bound, not equality).
+\item Observed $\sim 4$ iterations of stagnation (error $\approx 0.99$) before clean
+geometric decay---precisely the paper's remark that ``the error stagnates since information
+has to be propagated across domains.''
+\end{itemize}
+\textbf{C3 reproduced} for the tested $(N,r)$ configuration.
+(Figure \texttt{evidence/fig42\_eight\_subdomain.png}.)
+
+\subsection*{C4 --- Overlap vs.\ speed}
+From the C1 table, larger overlap $\Rightarrow$ smaller $\rho \Rightarrow$ faster
+convergence: overlap $0.20$ gives $\rho=0.444$ (fast), overlap $0.04$ gives $\rho=0.852$
+(slow). The monotone relationship, together with the tight agreement with theory
+throughout, confirms \S 4's numerical conclusions. \textbf{C4 reproduced.}
+
+\section{LLM-judge panel (free Argo, localhost:44497)}
+\begin{tabular}{ll}
+\toprule
+Judge & Verdict \\
+\midrule
+\texttt{argo:gpt-5.2}         & REPLICATED (C1,C2 supported; C3,C4 supported/consistent) \\
+\texttt{argo:gemini-2.5-pro}  & REPLICATED (all four claims supported) \\
+\texttt{argo:gpt-4.1}         & REPLICATED (all four claims supported) \\
+\bottomrule
+\end{tabular}\\[4pt]
+Unanimous REPLICATED. Full referee texts in \texttt{evidence/judges/}.
+(\texttt{argo:claude-opus-4.8/4.7} were attempted but hit an Argo chat-endpoint
+response-serialization quirk; the gpt/gemini panel was used instead, all free endpoints.)
+
+\section{Genuine critique}
+The replication is quantitatively tight on the two headline analytic results (C1,C2),
+but a scrupulous reading suggests several limitations that we flag honestly rather than
+paper over:
+
+\begin{description}
+\item[Scope of C3 is thin.]
+Only a single $(N,r)=(8,0.35)$ configuration was tested against an \emph{upper} bound. The
+measured rate lying below the bound is necessary but not sufficient to say Theorem~3.10 has
+been ``verified'' in a strong sense. A sweep over multiple $N$ and $r$ would tighten this
+by exposing whether the ratio of measured-to-bound is stable, monotone in $N$, or shows
+regimes where the bound becomes loose. The current evidence supports \emph{consistency}
+with C3, not a stress test of it.
+
+\item[Discretization matches the paper exactly, which is a strength \emph{and} a weakness.]
+Choosing centred second-order finite differences with backward Euler at
+$\Delta x = \Delta t = 0.01$ reproduces \S 4 faithfully, but it means we have not probed
+whether the same overlap-in-physical-space robustness survives other reasonable
+discretizations (Crank--Nicolson, higher-order FD, spectral, larger CFL-like ratios
+$\Delta t / \Delta x^2$). The paper's headline claim is about the continuous method, so
+alternative discretizations should preserve C2 asymptotically; showing so empirically
+would extend the paper rather than reproduce it, and we did not attempt it.
+
+\item[Contraction factor extracted from a scalar summary.]
+For C1 and C2, we fit the per-double-iteration factor from the interface error at a single
+grid point $b$ (or $\|\cdot\|_\infty$ over interfaces for C3). This matches the paper's
+own presentation, but the space-time continuous theory bounds an $L^\infty$-in-time
+maximum-principle quantity; a stronger check would evaluate the contraction of
+$\sup_{t\in[0,T]}|\text{error}(b,t)|$ across all iterations, not the peak-value fit we
+extracted. The agreement to $\sim 0.1\%$ is convincing evidence that the two agree in
+practice on this problem, but the metric is a scalar proxy for a functional.
+
+\item[No stress test against algebraic-splitting WR.]
+The paper motivates its result by contrast with algebraic-splitting WR, whose rate
+degrades with mesh refinement. We did not implement algebraic-splitting WR and compare;
+so our C2 result confirms the \emph{positive} claim (rate is mesh-robust) but does not
+demonstrate the \emph{comparative} claim (that this is a real improvement over the
+alternative). The comparative claim is well established in the literature independently,
+so this is a limitation of scope, not evidence against the paper.
+
+\item[Initial guess and stagnation observation.]
+The 4-iteration stagnation phase in the 8-subdomain experiment depends on the
+constant-in-time initial guess we used (as specified in the paper). Alternative initial
+guesses (e.g.\ warm starts from a coarser solve) could shorten or reshape this phase.
+Our observation confirms the paper's qualitative remark under its own conditions but does
+not characterise how sensitive the stagnation length is to the initial iterate---an aspect
+the paper itself treats only qualitatively.
+
+\item[Free-Argo LLM referees are correlated evaluators.]
+All three referees are large closed-source models that may share training data and priors.
+Their unanimous REPLICATED verdict adds confidence but should not be interpreted as three
+independent expert reviews. The core evidence remains the numerical agreement in Tables C1
+and C2, which speaks for itself.
+\end{description}
+
+\section*{Verdict}
+\textbf{REPLICATED.}
+
+\medskip
+\noindent\texttt{WAVE\_RESULT set=PDE-100
+paper=Gander-Stuart-1998-waveform-relaxation-heat(DOI:10.1137/S1064827596305337,rank77)
+verdict=REPLICATED
+dir=\textasciitilde/Dropbox/REPLICATE-PROJECT/PDE-Gander-Stuart-waveform-relaxation-heat-1998
+one\_line=From-scratch numpy backward-Euler overlapping-Schwarz WR solver reproduces the
+2-subdomain contraction rate rho=alpha(1-beta)/(beta(1-alpha)) to \textasciitilde 0.1\% for three overlaps,
+confirms mesh-robustness (factor 0.4439 invariant across 8x refinement), and matches the
+8-subdomain Thm 3.10 bound with the predicted stagnation phase; 3/3 free-Argo LLM judges
+say REPLICATED.}
+
+\end{document}

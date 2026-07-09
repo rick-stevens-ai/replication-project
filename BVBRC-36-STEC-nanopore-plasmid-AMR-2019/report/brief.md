@@ -1,0 +1,5 @@
+# Brief — BVBRC-36
+
+**Paper:** González-Escalona N, Allard MA, Brown EW, Sharma S, Hoffmann M. (2019) "Nanopore sequencing for fast determination of plasmids, phages, virulence markers, and antimicrobial resistance genes in Shiga toxin-producing *Escherichia coli*." *PLoS ONE* 14(7):e0220494 (bioRxiv preprint 10.1101/571364).
+
+**What/why:** The paper closed three STEC O26:H11 genomes (CFSAN027343, CFSAN027346, CFSAN027350; ST21/ST29) with MinION nanopore + PacBio long reads and showed the long-read assemblies recover plasmids, Stx phages, virulence genes and AMR genes that short-read (MiSeq) assemblies miss. We independently replicated its analytical claims by pulling the actual deposited complete genomes (GenBank CP037941–CP037947) and re-deriving genome/plasmid sizes, MLST, virulome, plasmid replicons, Stx type and the acquired-AMR-gene inventory with independent tools (BLAST+ against ResFinder/VFDB/EcOH-ecoli_vf/PlasmidFinder DBs, PubMLST). Every quantitative and categorical claim we tested reproduced on real public data.

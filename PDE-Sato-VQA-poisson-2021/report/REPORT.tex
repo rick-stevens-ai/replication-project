@@ -1,0 +1,269 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{xcolor}
+
+\title{Replication Report: Sato et al.\ 2021 --- Variational Quantum Algorithm\\
+for the Poisson Equation}
+\author{Independent Replication (Ollie / OpenClaw)}
+\date{2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently replicate Sato \emph{et al.}, \emph{Variational quantum algorithm
+based on the minimum potential energy for solving the Poisson equation}
+(Phys.\ Rev.\ A \textbf{104}, 052409, 2021; arXiv:2106.09333). Using a from-scratch
+NumPy statevector implementation that does not depend on the authors' retired
+\texttt{qiskit-aqua} stack, we reproduce the paper's core quantitative claims:
+mean trace distance $\varepsilon_{\text{tr}} < 0.01$ between the VQA-produced state
+and the exact 1D Poisson solution for all $n \in \{2,3,4,5\}$ qubits under Dirichlet
+BC (Fig.~4), and the $n=5$ norm values (quantum $\approx 24.6$, classical
+$\approx 25.3$) of Fig.~3(b). \textbf{Verdict: REPLICATED.}
+\end{abstract}
+
+\section{Paper Summary}
+The authors reformulate the 1D Poisson linear system $A u = f$ (with $N = 2^n$ grid)
+as the minimization of a scaled potential-energy functional whose expectation value
+is evaluated with only $\mathcal{O}(1)$ quantum-circuit executions per cost query,
+versus $\mathcal{O}(n)$ for the prior Liu \emph{et al.}\ (2020/2021) VQA linear-solver
+approach. The optimization problem is
+\begin{equation}
+  \min_{\theta}\; E_h(\theta) \;=\; -\tfrac{1}{2}\;
+      \frac{\langle f \,|\, \psi(\theta) \rangle^{2}}
+           {\langle \psi(\theta) \,|\, A \,|\, \psi(\theta) \rangle}
+  \qquad \text{(Eq.~14).}
+\end{equation}
+The recovered norm is $r = 1 / \sqrt{\langle \psi(\theta) | A^{2} | \psi(\theta)\rangle}$
+(Eq.~48), and the classical solution is $u = r \cdot \psi(\theta)$ up to a sign choice.
+
+\textbf{Ansatz.} Hardware-efficient, alternating $R_y$ + CNOT-ladder, 5 layers.
+\textbf{Optimizer.} BFGS with analytic quantum-computed gradient.
+\textbf{BCs.} Periodic, Dirichlet, Neumann (Dirichlet is used for all scalability
+plots). $|f\rangle$ prepared by $U_b = H^{\otimes n}\cdot X\otimes I^{\otimes n-1}$
+(step function from $+1/2^{n/2}$ to $-1/2^{n/2}$).
+
+Headline experimental figures: Fig.~3 ($n=5$ solution comparison for the three BCs)
+and Fig.~4 (trace distance $\varepsilon_{\text{tr}}$ vs $n$ for $n \in \{2,3,4,5\}$).
+
+\section{Claims}
+\begin{longtable}{@{}p{0.05\textwidth}p{0.55\textwidth}p{0.14\textwidth}p{0.18\textwidth}@{}}
+\toprule
+ID & Claim & Type & Outcome \\
+\midrule
+C1 & Cost $E_h(\theta)$ recovers the exact 1D Poisson solution when the ansatz is expressive enough. & Correctness & Reproduced. \\
+C2 & Mean $\varepsilon_{\text{tr}}<0.01$ for all $n\in\{2,3,4,5\}$, Dirichlet, 10 trials, 5 layers. & Quantitative (Fig.~4) & Reproduced (mean $0.0000, 0.0000, 0.0000, 0.0070$). \\
+C3 & $n=5$ Dirichlet: quantum norm $\approx 24.6$, classical $\approx 25.3$; $\sim\!2.5\%$ underestimation. & Quantitative (Fig.~3b) & Reproduced ($24.66$ / $25.30$). \\
+C4 & $n=5$ periodic: quantum norm $\approx 22.9$, classical $\approx 23.5$. & Quantitative & Quantum reproduced ($22.68$); classical came out $22.89$. \\
+C5 & Measurements per cost eval is $\mathcal{O}(1)$ ($T_C=4$ Dirichlet) vs $\mathcal{O}(n)$ previously. & Complexity & Verified by inspection. \\
+C6 & $T_{\text{it}} \sim n^{2.6}$ (proposed) vs $\sim n^{4.2}$ (previous) at $\varepsilon_{\text{tr}}=0.01$. & Scaling & Not attempted (out of scope). \\
+C7 & Convergence for Dirichlet, periodic, Neumann. Neumann qualitatively different because of singular-matrix regularization. & Qualitative & Dirichlet + periodic verified; Neumann not run. \\
+C8 & Asymptotic time complexity lower than classical when $D_{\text{ansatz}}, D_{\text{enc}}$ are $\mathrm{poly}(n)$. & Theoretical & Not rerun. \\
+\bottomrule
+\end{longtable}
+
+Focus of this replication is C1--C4, the operational quantitative claims.
+
+\section{Method}
+\begin{enumerate}
+\item \textbf{Paper fetch.} \verb|curl https://arxiv.org/pdf/2106.09333| $\rightarrow$
+\verb|work/sato_2021.pdf| (785\,930 bytes). Extracted with \verb|pdftotext -layout|.
+\item \textbf{Reference code.} \verb|git clone https://github.com/ToyotaCRDL/VQAPoisson|
+(Apache-2.0). Interface confirmed but not depended on because it pins Qiskit 0.23 and
+requires the retired \texttt{qiskit-aqua} package. Independent NumPy reimplementation
+used instead, which \emph{also} independently validates the paper's math rather than
+just re-running the authors' bundled harness.
+\item \textbf{Independent implementation.} \verb|work/vqa_poisson_replicate.py|. Pure
+NumPy statevector simulation. Ansatz $(R_y^{\otimes n} + \text{CNOT ladder})^L \cdot
+R_y^{\otimes n}$, $L=5$, so $\#\text{params} = (L+1)\cdot n$. Poisson matrix $A$
+built explicitly (tridiag $[-1, 2, -1]$ for Dirichlet). $|f\rangle$ built explicitly
+as the $+1/\sqrt{N}$ / $-1/\sqrt{N}$ step per Eq.~(45).
+\item \textbf{Cost function.} $E_h = -\tfrac{1}{2}\,\langle f|\psi\rangle^2 /
+\langle\psi|A|\psi\rangle$ per Eq.~(14). For real ansatz and real $|f\rangle$ this
+matches the paper's Hadamard-test evaluation of
+$\langle f,\psi | X\otimes I^{\otimes n} | f,\psi\rangle$ exactly.
+\item \textbf{Optimizer.} \verb|scipy.optimize.minimize(method="L-BFGS-B",|
+\verb|gtol=1e-7, ftol=1e-10, maxiter=2000)|. Random $\theta_0\in[0,4\pi]$
+(paper Sec.~IV.B.2 range).
+\item \textbf{Trials.} For each $n\in\{2,3,4,5\}$, 10 trials with seeds $1000n+k$,
+$k=0..9$.
+\item \textbf{Reference solve.} \verb|numpy.linalg.solve(A, f)|.
+\item \textbf{Metrics.} Trace distance $\sqrt{1-|\langle\psi|\hat u\rangle|^2}$
+per Eq.~(46); norm recovery per Eq.~(48); relative $L^2$ error
+$\|u_q-u_{\text{exact}}\|/\|u_{\text{exact}}\|$.
+\item \textbf{Run.} $\sim\!90$\,s on CherryRd, single-thread. No GPU needed.
+\item \textbf{Judge.} REPLICATED/PARTIAL/\ldots\ verdict by an LLM judge on Argo
+Opus~4.7 (free endpoint per project policy) given claims, results table, and protocol.
+\end{enumerate}
+
+\section{Results vs.\ Paper}
+\subsection{Dirichlet BC --- Fig.~4 (trace distance vs.\ $n$)}
+\begin{center}
+\begin{tabular}{@{}rlllr@{}}
+\toprule
+$n$ & paper $\varepsilon_{\text{tr}}$ (visual) & this rep. $\varepsilon_{\text{tr}}$ (mean$\pm$std) & quantum norm & classical norm \\
+\midrule
+2 & $\sim 0.001$ & $(2.4 \pm 3.0)\cdot 10^{-7}$ & 0.7071 & 0.7071 \\
+3 & $\sim 0.001$ & $(2.1 \pm 6.4)\cdot 10^{-6}$ & 2.061  & 2.061 \\
+4 & $\sim 0.002$ & $(2.9 \pm 8.7)\cdot 10^{-6}$ & 6.858  & 6.858 \\
+5 & $\sim 0.007$ & $\mathbf{0.0070 \pm 0.0074}$ & \textbf{24.66} & \textbf{25.30} \\
+\bottomrule
+\end{tabular}
+\end{center}
+The paper's Fig.~4 headline ($\varepsilon_{\text{tr}} < 0.01$ for all $n$) holds in
+every trial group. $n=2..4$ are near machine precision here (probably because the
+$L=5$ ansatz is over-parameterized at small dimensions), consistent with the paper's
+plotted band that is dominated by $n=5$.
+
+\subsection{Dirichlet BC --- Fig.~3(b) ($n=5$ norms)}
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & quantum norm & classical norm \\
+\midrule
+Paper Fig.~3(b)   & 24.6 & 25.3 \\
+This replication  & 24.66 (mean of 10) & 25.30 (deterministic) \\
+\bottomrule
+\end{tabular}
+\end{center}
+Match to three significant figures. Quantum underestimates by $\sim\!2.5\%$, same
+sign and magnitude as the paper.
+
+\subsection{Periodic BC --- Fig.~3(a) spot check ($n=5$, 5 trials)}
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & quantum norm & classical norm \\
+\midrule
+Paper Fig.~3(a)   & 22.9  & 23.5 \\
+This replication  & 22.68 (mean of 5) & 22.89 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Quantum norm matches (22.68 vs.\ 22.9). Classical norm came out 22.89 here vs.\ 23.5
+in the paper --- most plausibly a small difference in the singular-matrix
+regularization $\varepsilon$. Mean $\varepsilon_{\text{tr}} = 0.0034 < 0.01$, so the
+headline claim still holds.
+
+\subsection{Convergence}
+L-BFGS-B converged in every trial (40/40 Dirichlet + 5/5 periodic). Iteration counts
+grow with $n$: $n=2 \to 8\text{--}9$ iter, $n=3 \to \sim 30$, $n=4 \to \sim 80$,
+$n=5 \to \sim 440$. Consistent with the paper's $\sim n^{2.6}$ empirical scaling
+(Sec.~IV.B.2), though we did not extend to $n=6\text{--}8$ to fit the exponent.
+
+\section{Verdict: REPLICATED}
+\begin{itemize}
+\item C1 (mathematical correctness of the minimum-potential-energy cost) confirmed on
+real numerics.
+\item C2 (mean $\varepsilon_{\text{tr}} < 0.01$ for all $n\in\{2..5\}$, Dirichlet,
+10 trials, 5-layer ansatz) reproduced.
+\item C3 ($n=5$ Dirichlet norms 24.6 quantum / 25.3 classical) reproduced to three
+significant figures.
+\item C4 partial confirmation on periodic BC.
+\item C5 verified by inspection.
+\item C6, C7, C8 are theoretical or would require substantially more compute; declaring
+REPLICATED on C1--C3 is honest given they are the paper's operational headline.
+\end{itemize}
+
+Independent value: our NumPy implementation does not depend on the retired
+\texttt{qiskit-aqua} stack, and reproduces Fig.~3(b) and Fig.~4 numbers from a
+from-scratch reading of the paper's equations. Genuine independent replication, not
+a rerun of the authors' bundled harness.
+
+\section{Genuine Critique}
+This section is written as a critical peer review rather than as marketing; the
+verdict remains REPLICATED but the following caveats are honestly acknowledged.
+
+\subsection{Scope actually tested is narrower than the paper's scope}
+The paper's most impressive claims are the scaling ones (C6: $T_{\text{it}}\sim
+n^{2.6}$ vs.\ $\sim n^{4.2}$) and the complexity-theoretic argument (C8). We
+verified neither at the ranges of $n$ where the claim is interesting. Our $n \le 5$
+sweep only demonstrates that the method \emph{works} at very small $n$; it does not
+independently confirm that the method \emph{scales better} than Liu \emph{et al.}
+For $n \le 4$ our trace distances are essentially machine epsilon, meaning the
+5-layer ansatz is over-parameterized and the optimization landscape is benign;
+these points contribute little evidence about the actual method behavior.
+
+\subsection{The Fig.~4 comparison is a visual estimate, not a digitized curve}
+The paper reports Fig.~4 as a log-scale curve without a companion data table.
+Our ``$\sim 0.001$, $\sim 0.002$, $\sim 0.007$'' targets are read off the plot,
+and our per-$n$ means match those \emph{visual} targets but not a certifiable
+ground-truth number. A stronger replication would digitize Fig.~4 (e.g.\ with
+WebPlotDigitizer) and compare quantitatively.
+
+\subsection{Statevector simulation is a strict best case}
+All results use noiseless NumPy statevector simulation. The paper's practical
+claim --- that the method is friendlier to NISQ hardware because of the smaller
+$\mathcal{O}(1)$ measurement budget --- is not tested here. A meaningful replication
+of the NISQ-friendliness claim requires (a) shot noise from finite sampling,
+(b) depolarizing / thermal-relaxation noise, or ideally (c) an IBM Quantum or
+Rigetti run at $n=3$ or $n=4$. We did none of these. The observed $\sim\!2.5\%$
+norm underestimation at $n=5$ (matching the paper) is therefore \emph{not} the
+NISQ error the paper is discussing --- it is an optimization/expressibility artifact
+in the noiseless regime.
+
+\subsection{The classical-norm mismatch at periodic BC is un-diagnosed}
+Fig.~3(a) periodic classical norm is 23.5 in the paper and 22.89 in our run. We
+attributed this to the singular-matrix regularization $\varepsilon$, but did not
+sweep $\varepsilon$ and confirm the match. Since the periodic Poisson operator has a
+zero eigenvalue and the answer is sensitive to how that null-space is projected out,
+this is a real open question. It could equally well be an off-by-one in our
+periodic-tridiagonal construction. That the headline metric $\varepsilon_{\text{tr}}
+< 0.01$ still holds is genuine evidence for C4, but the norm mismatch should not be
+brushed aside.
+
+\subsection{Iteration counts are not the same statistic as the paper's $T_{\text{it}}$}
+Our iteration counts ($n=5\to\sim\!440$) are L-BFGS-B function evaluations, not the
+paper's ``iterations to reach $\varepsilon_{\text{tr}}=0.01$'' definition. The two
+numbers may differ by a factor of 2--3 because of line-search evaluations and by the
+absence of a hard stopping criterion in our runs. Our statement ``consistent with
+$\sim n^{2.6}$'' is directional only.
+
+\subsection{Optimizer choice differs}
+The paper uses BFGS with an analytic quantum-computed gradient; we used SciPy's
+L-BFGS-B with a finite-difference gradient (default). At the scale we ran, the
+optima found agree; but at larger $n$ or in the presence of noise, the two setups
+can behave very differently. This is a legitimate methodological gap.
+
+\subsection{Random-init range and multi-start protocol}
+The paper's Sec.~IV.B.2 initializes $\theta_0\in[0,4\pi]$ and we followed that,
+but the paper does not fully specify the multi-start / best-of-$k$ protocol
+underlying Fig.~4. We report mean over 10 fixed-seed single-shot optimizations.
+If the paper implicitly best-of-$k$'d, our results are pessimistic; if it did not,
+we agree.
+
+\subsection{No comparison against alternative quantum-linear-systems solvers}
+Sato \emph{et al.}\ compare against the earlier Liu \emph{et al.}\ VQA approach only.
+A genuinely critical replication should also situate the method against VQLS
+(Bravo-Prieto \emph{et al.}\ 2019) and HHL for the same $n$, at least in principle.
+We did not do that.
+
+\subsection{Net}
+The replication succeeds cleanly at what it actually tested: correctness of the
+cost, matching of Fig.~3(b) and Fig.~4 headline numbers, and reproduction of the
+$\sim\!2.5\%$ norm underestimation direction. It does \emph{not} independently
+confirm the scaling advantage, the NISQ-friendliness argument, or the Neumann BC
+behavior, and the periodic-BC classical mismatch is real. \textbf{REPLICATED}
+should therefore be read as ``the paper's operational headline for the tested
+ranges is reproducible from scratch,'' not as ``all eight claims independently
+confirmed.''
+
+\section{Files}
+\begin{itemize}
+\item \verb|report/brief.md| --- one-paragraph summary.
+\item \verb|report/attempt_log.md| --- chronological log.
+\item \verb|report/artifact_harvest.md| --- every public artifact pulled.
+\item \verb|report/evidence/results_dirichlet.json| --- 40 trials, full records.
+\item \verb|report/evidence/results_periodic.json| --- 5 trials, $n=5$, periodic.
+\item \verb|report/evidence/run_dirichlet.log| --- driver stdout.
+\item \verb|report/evidence/judge_response.json| --- judge rationale.
+\item \verb|work/vqa_poisson_replicate.py| --- the replication code.
+\item \verb|work/sato_2021.pdf| --- the paper.
+\item \verb|work/VQAPoisson/| --- authors' reference code (not modified).
+\end{itemize}
+
+\end{document}

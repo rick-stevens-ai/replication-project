@@ -1,0 +1,5 @@
+# Brief — BVBRC-43
+
+**Paper:** Akter et al. (2023), *Scientific Reports* 13:1551, "Virulence and antibiotic-resistance genes in *Enterococcus faecalis* associated with streptococcosis disease in fish" (DOI 10.1038/s41598-022-25968-8, PMC9883459).
+
+**What/why:** The paper whole-genome-sequenced three fish-pathogenic *E. faecalis* strains — BFF1B1 and BFFF11 from streptococcosis-infected Nile tilapia and BFPS6 from Thai sarpunti — and profiled their virulence factors (VFDB/VirulenceFinder/PATRIC) and antibiotic-resistance genes (ResFinder/CARD/ARG-ANNOT/PATRIC). Headline findings: a conserved core of ~69 virulence genes across all three (with aggregation substance *agg/prgB* present only in BFFF11), 39 AMR genes, and tetracycline-resistance genes found **only** in BFPS6. This replication independently re-downloaded the three deposited genomes from NCBI and re-derived genome statistics, AMR profiles (AMRFinderPlus), MLST types, ANI, and virulence-marker presence (tblastn of curated V583 VF proteins) — all on free public data and tools — to test whether the paper's central claims reproduce.

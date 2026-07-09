@@ -1,0 +1,13 @@
+# Brief — BVBRC-79 · *Bacillus smithii* DSM 4216^T complete genome (Bosma et al. 2016)
+
+**Paper.** Bosma EF, Koehorst JJ, van Hijum SAFT, Renckens B, Vriesendorp B. "Complete genome sequence of thermophilic *Bacillus smithii* type strain DSM 4216^T." *Standards in Genomic Sciences* **11**:52, 2016. PMID 27559429, DOI 10.1186/s40793-016-0172-8. Open-access via Europe PMC (PMC4995803).
+
+**What.** A "complete genome announcement" for a thermophilic Firmicute of biotech interest. The falsifiable claims are numeric (chromosome length 3,368,778 bp, plasmid 12,514 bp, GC 40.8%, 3,880 total genes, 127 RNA genes, 126 pseudogenes) and one strong biological interpretation: *B. smithii* **lacks** pyruvate formate lyase, phosphotransacetylase, and acetate kinase — the three canonical enzymes of Firmicute acetate production. The paper also positions the organism against 13 other Bacillaceae genomes in a comparison table.
+
+**Why replicable.** All accessions (CP012024.1 chromosome, CP012025.1 plasmid, BioProject PRJNA258357) are public via NCBI E-utilities with no auth or fee.
+
+**What we did.** Pulled both accessions as FASTA + GenBank flat file via NCBI eUtils; independently recomputed length, GC, total-gene/CDS/RNA/pseudogene counts from the GenBank feature table; ran (a) a PlasmidFinder-DB (Bitbucket `genomicepidemiology/plasmidfinder_db`) blastn screen of the plasmid to test the BV-BRC-style plasmid-detection workflow, and (b) BLASTP (e-value ≤ 1e-10) of *B. subtilis* Pta/AckA/PflA and *E. coli* PflB references against the 3,601 chromosomal proteins to independently test the metabolic-gene-absence claim; used a positive control (B. subtilis L-LDH → cleanly hits BSM4216_1297). Ran ANIb-style fragmented BLASTN (1,000 × 1,020-bp fragments) against *B. coagulans* 2-6 (CP002472.1) and *B. subtilis* 168 (AL009126.3). Three LLM judges (Argo Opus-4.7, GPT-5.2, Sonnet-4.6) reviewed the numeric claims table against the empirical results.
+
+**Result.** All primary numeric claims reproduce **exactly** (C1–C3, C5, C7) or within 0.05 pp / 0.22 % (C4, C6); pseudogene count is 134 vs paper's 126 (~6% higher, RefSeq re-annotation delta). Metabolic-gene absence (Pfl/Pta/AckA) confirmed by both name-search and homology (positive-control LDH hits, none of Pta/AckA/PflA/PflB hit). Plasmid rep-family screen returns 0 PlasmidFinder hits, congruent with the paper's own "hypothetical protein"-only annotation. ANIb-style comparisons place *B. smithii* well below the 95 % species boundary vs *B. coagulans* (89 % ANI) and *B. subtilis* (90 % ANI), and comparator genome sizes/GC% match paper Table 6 to the byte. LLM-judge vote: **3/3 REPLICATED**, mean coverage ≈ 90 %, mean agreement ≈ 96 %.
+
+**Verdict.** REPLICATED.

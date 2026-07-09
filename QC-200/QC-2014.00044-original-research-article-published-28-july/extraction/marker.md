@@ -1,0 +1,491 @@
+# Marker extraction — status: FALLBACK (pdftotext-layout used in lieu of Marker)
+
+**Reason:** No pre-parsed Marker output for this Frontiers article exists in the
+central QC corpus (there is no `_QC200_ADMIN` marker cache analogous to
+`~/Dropbox/REPLICATE-PROJECT/LUCID-replications/_LUCID100_ADMIN/marker_md_uicgpu_20260622/`).
+Running Marker locally requires a ~5 GB layout-model download plus GPU (or slow
+CPU inference) which exceeds this replication's per-paper time budget. To keep
+the artifact bar satisfied, a `pdftotext -layout` extraction of `paper.pdf`
+is included below; it preserves the paper's readable text and figure captions
+so downstream QA (LLM-judge scoring, quote extraction) remains possible.
+
+**Provenance of the fallback text:** `pdftotext -layout ../paper.pdf ../work/paper.txt`
+(system pdftotext, Poppler build). SHA256 of `paper.pdf` byte-verified in
+`work/paper_provenance.md`. Full plain-text follows.
+
+---
+
+                                                                                                        ORIGINAL RESEARCH ARTICLE
+                                                                                                                            published: 28 July 2014
+PHYSICS                                                                                                              doi: 10.3389/fphy.2014.00044
+
+
+
+Fourier-transforming with quantum annealers
+Itay Hen *
+Information Sciences Institute, University of Southern California, Marina del Rey, CA, USA
+
+
+
+Edited by:                               We introduce a set of quantum adiabatic evolutions that we argue may be used as
+Jacob Biamonte, ISI Foundation,          “building blocks,” or subroutines, in the construction of an adiabatic algorithm that
+Italy
+                                         executes Quantum Fourier Transform (QFT) with the same complexity and resources as
+Reviewed by:
+                                         its gate-model counterpart. One implication of the above construction is the theoretical
+Bryan Andrew O’Gorman, NASA,
+USA                                      feasibility of implementing Shor’s algorithm for integer factorization in an optimal manner,
+Daniel Nagaj, Simons Institute for       and any other algorithm that makes use of QFT, on quantum annealing devices. We discuss
+Theory of Computation, UC                the possible advantages, as well as the limitations, of the proposed approach as well as
+Berkeley, USA
+                                         its relation to traditional adiabatic quantum computation.
+*Correspondence:
+Itay Hen, Information Sciences           Keywords: adiabatic quantum computing, quantum adiabatic algorithm, quantum fourier transform, integer
+Institute, University of Southern        factorization, Shor’s algorithm
+California, 4676 Admiralty Way,
+Marina del Rey, CA 90292, USA
+e-mail: itayhen@isi.edu
+
+
+
+
+1. INTRODUCTION                                                                    simple yet potentially-powerful quantum-adiabatic algorithmic
+The birth of Quantum Computation may be traced back to the                         approach proposed by Farhi et al. [24] about a decade ago. AQC
+seminal papers of Feynman [1] and Deutsch [2] in the 1980’s.                       is an analog, continuous, quantum computing paradigm, and as
+However, it was Peter Shor in 1994 who rekindled the inter-                        such it has the potential of being easier to implement successfully,
+est in the field among both scientists and the general public, by                  offering several advantages over the “traditional” gate model,
+devising an efficient algorithm for factoring large integers [3].                  in the form of inherent fault-tolerance and natural robustness
+This discovery by Shor was exciting for two main reasons. First,                   against decoherence and dephasing [25, 26].
+because it was the first complete (i.e., non-blackbox) algorithm to                    These aforementioned findings have generated a great deal of
+show that quantum algorithms may in principle be exponentially                     theoretical and experimental research set out to explore the prac-
+faster than their classical counterparts, and second, because of the               tical capabilities, as well as the limitations, of quantum annealers.
+practical significance of the algorithm, namely, undermining the                   One of the most interesting questions raised in this regard, was
+security of one of the most widely used cryptographic protocols,                   naturally, the possibility of implementing hugely-practical and
+the RSA [4].                                                                       powerful algorithms such as Shor’s integer factorization on a
+   Despite intensive efforts, the actual implementation of Shor’s                  quantum adiabatic device. However, despite numerous efforts
+algorithm in an experimental setup is, almost 20 years after its                   [see, e.g., 27, 28], an efficient quantum-adiabatic analog to Shor’s
+inception, very limited. This is due to the multitude of techno-                   algorithm has not been found to date. This is despite recent stud-
+logical challenges that quantum-computer engineers and experi-                     ies [29–32] suggesting that the equivalence between AQC and the
+mentalists are still facing, the most prominent being the control                  gate model is even stronger than the one implied by the princi-
+or removal of quantum decoherence [5]. Since the first demon-                      ples of polynomial equivalence prescribed in the seminal study of
+stration of Shor’s algorithm in 2001 at IBM, factoring the number                  Aharonov et al. [33].
+15 using an NMR implementation of a quantum computer with                              A recent work that examined the theoretical feasibility of
+7 qubits [6], Shor’s algorithm has been demonstrated by several                    an optimally-constructed adiabatic algorithm for Simon’s prob-
+other groups that have implemented the algorithm using pho-                        lem [34], which shares many similarities with, and in fact pro-
+tonic qubits [7, 8]. However, the most recent attempt in 2012                      vided the motivation for, Shor’s algorithm, has introduced a
+which also set the record for largest number factorized by Shor’s                  somewhat-novel approach for constructing quantum adiabatic
+algorithm, successfully factorized only 21 [9], where even these                   algorithms [32]. Within this approach, which will be discussed
+limited achievements have been recently contested by arguments                     in more detail next, a multitude of adiabatic evolutions is exe-
+that factoring small numbers quantum-mechanically for which                        cuted simultaneously in parallel and a single measurement at the
+the answer is known in advance extremely oversimplifies the                        end of the run, performed on the entire system, is used to extract
+procedure [10].                                                                    valuable information.
+   Recent promising experimental research findings [11–13], as                         Here, we shall attempt to generalize the above approach in
+well as intensive theoretical work [see, e.g.,14–23] in the field                  order to construct an algorithm for the “quantum component”
+of Adiabatic Quantum Computing (AQC) suggest the possibil-                         of Shor’s algorithm, namely the Quantum Fourier Transform
+ity that some of the experimental difficulties may be overcome                     (QFT). As we shall see, the QFT algorithm, used in Shor’s integer
+by the use of “quantum annealing” devices, which implement the                     factorization routine to detect the periodicity of a cyclic function,
+
+
+
+www.frontiersin.org                                                                                                       July 2014 | Volume 2 | Article 44 | 1
+Hen                                                                                                      Fourier-transforming with quantum annealers
+
+
+
+
+may be constructed quantum-adiabatically very similarly to the            to the manner in which the unitary gates of the gate model
+way it is implemented in the gate model, namely broken into               are used to construct circuits. We begin by describing the QFT
+“building blocks” each operating on a small number of qubits at           algorithm.
+a time. This construction of adiabatic QFT can then be used to
+adiabatically implement Shor’s integer factorization algorithm as         3. THE QFT ALGORITHM
+well as other important quantum algorithms, such as the quan-             QFT is a linear transformation on quantum bits, and is the quan-
+tum phase estimation algorithm for estimating the eigenvalues             tum analog of the classical discrete Fourier transform (DFT) [41]
+of a unitary operator, and algorithms for the hidden subgroup             applied to the vector of amplitudes of a quantum state. The
+problem [see, e.g., 35] for more details.                                 classical Fourier transform acts on a vector of complex num-
+    As we shall see, the approach taken here to convert the QFT           bers (x0 , · · · , xN−1 ) and maps it to another (y0 , · · · , yN−1 )
+circuit to adiabatic processes differs in several important aspects       according to
+from existing protocols designed to efficiently translate gate-
+                                                                                                             N −1
+model circuits into quantum adiabatic algorithms, such as history                                      1 
+state-based constructions [33], ground-state quantum compu-                                      yk = √       xj ωjk ,                               (1)
+                                                                                                        N j=0
+tation approaches [36] or other schemes [37]. Moreover, the
+adiabatic procedure that emerges from the procedure suggested
+                                                                                        2πi
+here, will turn out to fundamentally differ from traditional AQC          where ω = e N is a primitive N-th root of unity. Similarly, − 1 the
+evolutions. These matters will be discussed in some detail in the         quantum Fourier transform acts on a quantum state N          i = 0 xi |i
+concluding section.                                                                                               N − 1
+                                                                          and maps it to a quantum state             i=0  y i |i via the   above
+    In the following, we first briefly discuss the main principles of     mapping.
+AQC in order to demonstrate the idea behind this paradigm of                  Shor [3] was the first to show that using a simple decompo-
+computing and to establish notation. We move on to consider in            sition, the discrete Fourier transform can be implemented as a
+some detail the QFT algorithm and the gates used there, and then          quantum circuit consisting of only O(n2 ) Hadamard, controlled-
+describe how these may be constructed via adiabatic evolutions to         phase shift and SWAP gates, each being efficiently implementable,
+form an adiabatic QFT algorithm. Finally, we conclude with some           where n is the number of qubits [35]. The remarkable feature of
+comments about the experimental feasibility of the algorithm,             Shor’s quantum circuit was that the classical analog of the algo-
+and its relations to the gate model and traditional AQC.                  rithm, the DFT, is known to be exponentially-slower and takes
+                                                                          O(n 2n ) basic (classical) operations. It is important to note how-
+2. PRINCIPLES OF ADIABATIC QUANTUM COMPUTING                              ever, that while the classical discrete Fourier transform outputs
+In AQC, one normally (albeit not exclusively) seeks the minimum           a vector whose components are all fully accessible at the end of
+value and corresponding input configuration of a given cost func-         the algorithm, in the quantum case, the outcome of QFT is a
+tion, that is encoded as a final (or “problem”) Hamiltonian, Ĥf ,        quantum state, the amplitudes of which are only very partially
+such that the ground state of the final Hamiltonian and its energy        accessible by quantum measurements. The circuit for QFT is
+are the solution to the original problem [38]. To find the solution,      given in Figure 1 for the reader’s convenience [for more details,
+the system is prepared in the ground state of another “begin-             see, e.g., 35].
+ning” (or “driver”) Hamiltonian Ĥb that must not commute with                In what follows, we show that the Hadamard, controlled-
+Ĥf and has a ground state that is fairly easy to prepare. The            phase-shift and SWAP gates may also be implemented using
+Hamiltonian of the system is then slowly interpolated between             only adiabatic evolutions. To that aim, we shall describe sev-
+Ĥb and Ĥf , normally by an interpolation of the form Ĥ(t) =            eral quantum adiabatic algorithms that we shall argue may be
+f1 (t)Ĥb + f2 (t)Ĥf where f1 (t) [f2 (t)] is a smoothly-varying func-   used to mimic the outcome of the above gates, and by doing
+tion of time that is positive (zero) at t = 0 and zero (positive)         so allow for the construction of an equivalent “adiabatic cir-
+at t = T . Here, T stands for the runtime of the algorithm. If            cuit” for QFT that may be constructed similarly to the way it
+this process is done slowly enough, the system will stay close            is constructed in the gate model. We shall begin by describ-
+to the ground state of the instantaneous Hamiltonian through-             ing the adiabatic Hadamard gate and then move on to describe
+out the evolution [39, 40], so that one finally obtains a state           the slightly more complicated controlled-phase-shift and SWAP
+close to the ground state of Ĥf . At this point, measuring the           gates.
+state will give the solution of the original problem with high
+probability.                                                              3.1. ADIABATIC HADAMARD
+    It is clear from the above description, that the analog, con-         The Hadamard gate is a single-qubit gate that acts on the states
+tinuous, nature of AQC is inherently very different form the              of the computational basis in the following way: |0  → |+x  and
+discrete nature of gate model algorithms within which unitary             |1  → |−x . Here, |0 and |1 stand for the two computational-
+operations act sequentially to advance the state of the system. For       basis states, which we shall identify as spins pointing in the
+this reason it has been hard so far to draw meaningful analo-             positive and negative z-directions, respectively, and |±x  are the
+gies between AQC and the gate model. Nonetheless, in what                 corresponding x-basis states.
+follows, we shall show how one could utilize the above principles            To apply a Hadamard gate quantum-adiabatically, consider
+to construct the necessary “building blocks” or “adiabatic gates”         now a single qubit (that may or may not be a part of a larger sys-
+for the construction of an adiabatic QFT algorithm, analogously           tem of qubits) in an arbitrary unknown state |ψ = α|0 + β|1.
+
+
+
+Frontiers in Physics | Interdisciplinary Physics                                                                    July 2014 | Volume 2 | Article 44 | 2
+Hen                                                                                                              Fourier-transforming with quantum annealers
+
+
+
+
+Let us now attach to it an auxiliary qubit, initialized to the              surface of the Bloch sphere are depicted in Figure 2 for the con-
+computational |0 state:                                                    venience of the reader. Rewriting the input qubit in terms of the
+                                                                            y-basis states, the initial state is
+                     |ψb  = (α|0 + β|1) ⊗ |0 .                   (2)
+                                                                                                  
+                                                                                                      α − iβ     α + iβ
+This will be the initial (or “beginning”) state of an adiabatic                        |ψb  =          √ |+y  + √ |−y  ⊗ |0 .                            (6)
+                                                                                                         2          2
+algorithm whose evolution will be governed by the two-local
+Hamiltonian:
+                                                                            The adiabatic procedure will evolve the system into the final
+                                                                            state:
+       Ĥ(t) = |+y +y | ⊗ Ĥx (t) + |−y −y | ⊗ Ĥ−y (t) ,        (3)
+
+where |±y  are the y-basis states and Ĥx (t) and Ĥ−y (t) are
+adiabatic-evolution Hamiltonians that act only within the respec-
+tive subspaces of the y-axis basis states of the first qubit,
+                                                             pro-
+                                                                
+jected by the orthogonal projections |±y ±y | = 1/2 1 ± σy .
+The adiabatic-evolution Hamiltonians are given by:
+
+                  Ĥx (t) = − cos θ(t)σz − sin θ(t)σx                (4)
+                 Ĥ−y (t) = − cos θ(t)σz + sin θ(t)σy .              (5)
+
+The time-dependence of these Hamiltonians is given by the angle
+θ(t) such that θ(t = 0) = 0 and θ(t = T ) = θf where θf is the
+value of the polar angle θ at the end of the evolution. For sim-
+plicity, we shall henceforth assume the dependence θ (t) = θf t/T ,
+although it should be noted that the precise time dependence of
+the polar angle θ does not have to be linear. Note that the gaps of
+the above one-qubit Hamiltonians are constant throughout the
+evolution and equal to 2.
+   As can be immediately read off the expressions above, in the
+course of the adiabatic evolution, the Hamiltonians Ĥx (t) and
+Ĥ−y (t) will act inside two complementary subspaces spanned                  FIGURE 2 | (Color online) adiabatic evolution trajectories of the
+                                                                              auxiliary qubit on the surface of the Bloch sphere in the adiabatic
+by |±y , evolving theauxiliary qubit, initially at |0, to |GSx  =
+                                                                             Hadamard gate. Starting at the |0 state, the state of the qubit “splits”
+ cos θ2f |0 + sin θ2f |1   [the latter being the ground state of            into two trajectories. In the first, it adiabatically evolves from the |0 state
+                                                                              (north pole) toward the |1 (south pole) passing through |+x , maintaining
+Ĥx (T )] in the subspace
+                        projected by |+y +y | and to |GS−y  =            the azimuthal angle of φ = 0 (blue dots). The second path passes through
+      θf           θf                                                         |−y  (red dots) with φ = 3π/2 throughout the evolution. The final states of
+ cos 2 |0 − i sin 2 |1 in the subspace projected by |−y −y |.
+                                                                              the two paths, namely, |GSx  and |GS−y  are described in the text.
+The trajectories of the auxiliary qubit in the two subspaces on the
+
+
+
+
+ FIGURE 1 | Implementation of the QFT circuit [for more details, see, e.g., 35] using Hadamard, controlled-phase-shift and SWAP gates.
+
+
+
+
+www.frontiersin.org                                                                                                         July 2014 | Volume 2 | Article 44 | 3
+Hen                                                                                                    Fourier-transforming with quantum annealers
+
+
+
+                           
+             α − iβ            θf          θf                            and constructing the slightly more complicated (in this case,
+      |ψf  =  √ |+y  ⊗ cos |0 + sin |1                               three-local) Hamiltonian:
+                 2             2           2
+                             
+               α + iβ             θf          θf
+             + √ |−y  ⊗ cos |0 − i sin |1        (7)                         Ĥ(t) = |0|0| ⊗ 1 ⊗ Ĥx (t)                          (10)
+                   2              2           2                                                                                     
+                                                                                     + |11| ⊗ |00| ⊗ Ĥx (t) + |11| ⊗ Ĥφ (t)
+                 θf α − iβ         α + iβ
+           = cos      √ |+y  + √ |−y  ⊗ |0
+                 2      2             2
+                                                                        where Ĥx (t) is as before            and Ĥφ (t) = − cos θ (t)σz −
+                   θf α − iβ         α + iβ                              sin θ(t) cos φσx + sin φσy whose ground state is |+φ  =
+             + sin      √ |+y  − i √ |−y  ⊗ |1 .                                        
+                   2      2              2                               √1 |0 + eiφ |1 .
+                                                                           2
+                                                                             The above Hamiltonian, Equation (10), should be interpreted
+ which can also be rewritten (neglecting the immaterial global           in the following way. If the control qubit is in the |0 state then
+phase) as:                                                               the auxiliary qubit will evolve according to Ĥx (t) independently
+                                                                         of the state of the second qubit. Conversely, if the control qubit is
+                      θf                                                 in the |1 state, the auxiliary qubit will evolve according to Ĥx (t)
+          |ψf  = cos    (α|0 + β|1) ⊗ |0                      (8)    when projected onto the |00| subspace of the second qubit and
+                       2
+                                                                        according to Ĥφ (t) when projected onto the |11| subspace.
+                      θf α + β         α−β
+                − sin       √ |0 + √ |1 ⊗ |1 .                            Choosing, as before, the final polar angle to be θf = π ,
+                      2       2           2                              the auxiliary qubit during the application of the above adi-
+                                                                         abatic Hamiltonian will follow, depending on the state of
+The above expression reveals that a choice of a final polar angle of     the first two qubits, either the path [|0  → |+x   → |1] or
+θf = π would yield, with certainty, a final state that is a product of    |0  → |+φ   → |1 on the surface of the Bloch sphere. Since the
+a Hadamard-transformed first qubit and a flipped auxiliary qubit.        two traversed paths are taken at different azimuthal angles, the
+   It is crucially important to notice that the above adiabatic          final states will differ by a relative phase of φ, yielding
+evolution introduces no relative phase between the two paths,
+                                                                                                                         
+passing through |+x  and |−y , respectively. This can be directly            |ψf  = α|00 + β|01 + γ |10 + δ eiφ |11 ⊗ |1 ,             (11)
+inferred from the symmetries of the Hamiltonian (and can also be
+deduced by examining the two trajectories described in Figure 2).
+That there is no relative phase between the two paths is signifi-        i.e., the final state of the first two qubits will be the desired
+cant for the amplitude-interference in the resultant final states at     controlled-phase-shifted state with the auxiliary qubit flipped, as
+the end of the process [cf. Equation (8)]. It is therefore important     before.
+to note at this point that in practical experimental setups, inter-
+                                                                         3.3. ADIABATIC SWAP GATE
+actions of the system with the environment will generally act to
+                                                                         The QFT algorithm uses mainly the Hadamard and controlled-
+destroy this coherence between the two final states, forcing the
+                                                                         phase-shift gates discussed above (see Figure 1). However, at
+time scale of the adiabatic evolution to be significantly shorter
+                                                                         the end of the QFT, the qubits of the Fourier-transformed state
+than the typical decoherence time of the system-environment
+                                                                         appear in reverse order. To rectify that, the qubits can be swapped
+interactions.
+                                                                         using a SWAP gate, which is a two qubit gate that swaps |01 ↔
+   We have so far shown how a Hadamard gate may be applied
+                                                                         |10 and leaves |00 and |11 unchanged. It is easy to show that
+quantum-adiabatically without the use of actual conventional
+                                                                         SWAP can be accomplished by three controlled-NOT operations
+gates. The same principles introduced above can be utilized to
+                                                                         where the role of the control qubit switches place at each step [42].
+construct the slightly more complicated controlled-phase-shift
+                                                                            Let us now show how a controlled-NOT gate can be adia-
+and SWAP adiabatic gates.
+                                                                         batically accomplished in much the same way as the other two
+                                                                         adiabatic gates introduced thus far. Consider now the action of
+3.2. ADIABATIC CONTROLLED-PHASE-SHIFT GATE                               the total Hamiltonian:
+The above scheme may now be modified to apply a controlled-
+phase-shift gate adiabatically. The controlled-phase-shift gate,          Ĥ(t) = |00| ⊗ 1 ⊗ Ĥx (t)                                 (12)
+depending on the state of the control qubit, will either leave                                                                        
+the target qubit unchanged or will execute the transformation                   + |11| ⊗ |+x +x | ⊗ Ĥx (t) + |−x −x | ⊗ Ĥ−x (t) ,
+(α|0 + β|1)  → (α|0 + β eiφ |1). The adiabatic implementa-
+tion of the gate is as follows. Our system initially contains two
+                                                                         where Ĥ−x (t) = − cos θ (t)σz + sin θ(t)σx , on the initial state
+input qubits, the first of which shall be regarded as a control qubit:
+                                                                         given in Equation (9). Under the evolution governed by this
+|ψ = α|00 + β|01 + γ |10 + δ|11. An adiabatic controlled-
+                                                                         Hamiltonian, the auxiliary qubit will transform, depending on
+phase-shift is obtained by attaching, as before, an auxiliary qubit
+                                                                         the states of the first and second qubits, according to either |0  →
+to the initial state:
+                                                                         |+x   → |1 or |0  → |−x   → |1 or a combination of both. In
+                                                                         a perfect analogy to the controlled-phase-shift gate discussed
+        |ψb  = (α|00 + β|01 + γ |10 + δ|11) ⊗ |0 ,          (9)    above, it is easy to show that the final state of the above adiabatic
+
+
+
+Frontiers in Physics | Interdisciplinary Physics                                                                July 2014 | Volume 2 | Article 44 | 4
+Hen                                                                                                    Fourier-transforming with quantum annealers
+
+
+
+
+evolution is simply a product of a CNOT-transformed two-qubit             correction schemes and principles. Finally, as was also briefly dis-
+state and a flipped auxiliary qubit:                                      cussed in the preceding section, the gate constructions suggested
+                                                                          above require a high level of coherence in the system, due to
+        |ψf  = (α|00 + β|01 + δ|10 + γ |11) ⊗ |1 ,          (13)    the requirement that independently evolving parts of the system
+                                                                          maintain their relative phase throughout the adiabatic evolution.
+as expected. By applying three controlled-NOT gates in sequence           Perhaps unlike other quantum adiabatic algorithms, the time
+(with alternating control qubits) [42], the desired SWAP action is        scale of the adiabatic evolutions of the adiabatic gates, should
+carried out.                                                              be significantly shorter than the typical decoherence time of the
+                                                                          system.
+3.4. ADIABATIC QFT
+Having constructed the adiabatic versions of the one- and two-            4. CONCLUSIONS
+qubit gates appearing in the QFT circuit, namely the Hadamard,            We have shown how to construct a set of quantum adiabatic
+the controlled-phase-shift and the SWAP, the QFT algorithm in             algorithms which we claimed may be treated as the equivalents
+its entirety may be adiabatically constructed.                            of the Hadamard, controlled-phase-shift and SWAP gates of the
+    To see why this is so, note that while the above adiabatic “gates”    gate model. We argued that these “adiabatic gates” may be used
+were shown to act on isolated qubits, the linearity of Quantum            in a sequence to construct the algorithm of Quantum Fourier
+Mechanics ensures that the above results hold even if the qubit is        Transform. We have also demonstrated that the construction of
+a part of a larger system of qubits in a more complicated state.          such adiabatic gates comes at no additional complexity cost or
+A sequence of gates in the above form may be used, one after the          resource overhead.
+other, and on different qubits of a larger system, as needed. The             Clearly, the theoretical and practical implications of an imple-
+final state of one gate will serve as the initial state of the next one   mentable Shor’s algorithm on a many-qubit quantum annealer
+in the sequence. Moreover, since the various gates act at different       that may become available in the near future [11–13], are tremen-
+time slices, they can all utilize the same auxiliary qubit as their       dous, both in the field of Quantum Computing and well beyond
+ancillary resource.                                                       it. Moreover, QFT is the main ingredient of many other important
+    The proper combination of Hadamard, controlled-phase and              algorithms, notably the quantum phase estimation algorithm for
+SWAP gates can thus be sequentialized to form the desired adia-           estimating the eigenvalues of a unitary operator, and algorithms
+batic circuit of QFT (as shown in Figure 1). The constancy of the         for the hidden subgroup problem. As such, the adiabatic gates
+gap within each gate application reveals that the required run-           introduced above to construct QFT, allow for optimal implemen-
+time for each adiabatic gate does not scale with the total number         tations of many other important algorithms.
+of qubits in the system or with the number of gates in the circuit.           As has already been noted in the previous section, it is clear
+The total runtime of a circuit of S gates will therefore be simply        that the adiabatic-evolution constructions proposed here differ
+O(S). The algorithm can therefore be executed efficiently, at least       from traditional AQC. First, the usual AQC is normally thought
+in theory, on a quantum annealer with the proper interactions,            of as one continuous process interpolating between one begin-
+just as it can be performed on a device that implements the gate          ning Hamiltonian and one final Hamiltonian, thereby eliminating
+model.                                                                    the need for gates, that usually also carry around gate errors and
+    At this point, a few remarks are in order. First, it should be        therefore need error correction. Second, within the usual AQC
+noted that our ability to apply gates using purely adiabatic evolu-       scheme, the existence of a gap between the ground state and the
+tions comes at a cost. The independently evolving processes that          rest of the spectrum throughout the adiabatic evolution serves
+yield the aforementioned adiabatic gates have ground state man-           to protect the system against decoherence and dephasing. That
+ifolds that are doubly-degenerate. This is in contrast with tradi-        the method proposed above utilizes adiabatic gates and degen-
+tional AQC setups in which the ground state is uniquely defined.          erate ground states implies a lack of some of the natural AQC
+The distinction between these two cases is important mainly               robustness. It still remains to be seen exactly how much of the
+because it is this uniqueness that normally provides AQC with the         fault-tolerance and robustness of AQC is present the scheme pre-
+attractive property of being robust (to the extent that it is) against    sented here. This would be important for establishing the power
+the devastating effects of decoherence, unlike other paradigms of         of this proposed machinery.
+quantum computation [25, 26]. The doubly-degenerate ground                    As was discussed in the Introduction, the scheme proposed
+state manifolds of the adiabatic gates suggest that, while very ver-      here to convert circuit-model gates to adiabatic evolutions dif-
+satile, they are likely to be more vulnerable to certain types of         fers in several important aspects from existing prescriptions that
+noise, specifically to dephasing in the energy eigenbasis, similarly      offer polynomially-equivalent reductions from quantum circuits
+to the situation that arises in holonomic quantum computa-                to adiabatic algorithms [33, 36, 37]. One crucial difference is the
+tion [43, 44] and adiabatic gate teleportation [45, 46]. However,         requirement that the emerging adiabatic algorithm has a unique
+while these schemes do not possess the natural robustness of              ground state. As discussed in the previous section, this condi-
+AQC, degenerate ground state quantum computation may cer-                 tion is key in the natural robustness of AQC stemming from the
+tainly benefit from other types of fault tolerance schemes [see,          ground state being protected or “gapped” against higher “erro-
+e.g., 47]. Second, it is worth mentioning that the fact that QFT          neous” levels. This protection however comes at a cost in the
+constructed via the method presented here consists of gates,              form of a high-polynomial overhead in terms of resources and
+advantageously allows for the utilization of gate-model error             runtime-complexity [33, 36] or the need for highly non-local
+
+
+
+www.frontiersin.org                                                                                             July 2014 | Volume 2 | Article 44 | 5
+Hen                                                                                                                      Fourier-transforming with quantum annealers
+
+
+
+
+interactions (or conversely, exponentially small gaps) [37], ren-                     11. McGeoch CC, Wang C. Experimental Evaluation of an adiabiatic quantum
+dering these protocols highly impractical for any foreseeable-                            system for combinatorial optimization. In: Proceedings of the 2013 ACM
+                                                                                          Conference on Computing Frontiers. New York, NY (2013).
+future implementation. On the other hand, in our approach the
+                                                                                      12. Berkley AJ, Przybysz AJ, Lanting T, Harris R, Dickson N, Altomare F, et al.
+degeneracy of the ground state allows for a very efficient (i.e., no                      Tunneling spectroscopy using a probe qubit. Phys Rev B. (2013) 87:020502(R).
+overhead) “reduction” and in addition exhibits a constant gap                         13. Johnson MW, Amin MHS, Gildert S, Lanting T, Hamze F, Dickson N, et al.
+between the ground-state manifold and higher-energy levels. As                            Quantum annealing with manufactured spins. Nature (2011) 473:194–8. doi:
+was already discussed, the price that we pay here is vulnerabil-                          10.1038/nature10012
+                                                                                      14. Kadowaki T, Nishimori H. Quantum annealing in the transverse Ising model.
+ity to certain types of errors that AQC is normally thought of as
+                                                                                          Phys Rev E. (1998) 58:5355. doi: 10.1103/PhysRevE.58.5355
+immune to.                                                                            15. Brooke J, Bitko D, Rosenbaum TF, Aepli G. Quantum annealing of a disordered
+    In addition, it should be noted that currently available quan-                        magnet. Science (1999) 284:779. doi: 10.1126/science.284.5415.779
+tum annealing devices, based on superconducting flux qubits                           16. Santoro G, Tosatti E. Optimization using quantum mechanics: quantum
+acting as spins [12, 13], are limited to only certain types of two-                       annealing through adiabatic evolution. J Phys A. (2006) 39:R393. doi:
+                                                                                          10.1088/0305-4470/39/36/R01
+qubit (namely, only ZZ) interactions. Application of the gates                        17. Hogg T. Adiabatic quantum computing for random satisfiability problems.
+discussed above requires, in contrast, more general two-qubit                             Phys Rev A. (2003) 67:022314. doi: 10.1103/PhysRevA.67.022314
+interactions in arbitrary directions (i.e., XX, XY, XZ, . . .) as well                18. Farhi E, Goldstone J, Gutmann S. Quantum adiabatic algorithms versus
+as three-qubit interactions. While it is plausible to believe that                        simulated annealing. (2002). arXiv:quant-ph/0201031.
+two-qubit interactions will become technologically feasible in the                    19. Farhi E, Goldstone J, Gutmann S, Nagaj D. How to make the quantum
+                                                                                          adiabatic algorithm fail. Int J Q Inf. (2008) 6:503. arXiv:quant-ph/0512159.
+near future, adiabatic gates based on three-local interactions (i.e.,                 20. Altshuler B, Krovi H, Roland J. Adiabatic quantum optimization fails for
+the controlled phase-shift and CNOT) are currently beyond any                             random instances of NP-complete problems. (2009). arXiv:0908.2782v2.
+practical reach. A possible remedy may very well be the utilization                   21. Young AP, Knysh S, Smelyanskiy VN. First order phase transition in
+of exact or approximate gadgets to reduce the three-locality of                           the quantum adiabatic algorithm. Phys Rev Lett. (2010) 104:020502. doi:
+                                                                                          10.1103/PhysRevLett.104.020502
+the Hamiltonians to the experimentally more attractive two-local
+                                                                                      22. Hen I, Young AP. Exponential complexity of the quantum adiabatic algo-
+Hamiltonians.                                                                             rithm for certain satisfiability problems. Phys Rev E. (2011) 84:061152. doi:
+    The potential encompassed in the usage of quantum adiabatic                           10.1103/PhysRevE.84.061152
+gates therefore remains to be explored. We end by noting that                         23. Hen I. Excitation gap from optimized correlation functions in quan-
+despite the drawbacks of the proposed method mentioned above,                             tum Monte Carlo simulations. Phys Rev E. (2012) 85:036705. doi:
+                                                                                          10.1103/PhysRevE.85.036705
+recent experimental evidence [48] demonstrating a controlled
+                                                                                      24. Farhi E, Goldstone J, Gutmann S, Lapan J, Lundgren A, Preda D. A quantum
+phase-shift gate relying on adiabatic interactions in supercon-                           adiabatic evolution algorithm applied to random instances of an NP-complete
+ducting Xmon transmon qubits with very high fidelities, suggests                          problem. Science (2001) 292:472. doi: 10.1126/science.1057726
+that adiabatic gates may certainly be more powerful in practice                       25. Childs A M, Farhi E, Preskill J. Robustness of adiabatic quantum computation.
+than non-adiabatic ones.                                                                  Phys Rev A. (2001) 65:012322. doi: 10.1103/PhysRevA.65.012322
+                                                                                      26. Amin MHS, Averin DV, Nesteroff JA. Decoherence in adiabatic quantum com-
+                                                                                          putation. Phys Rev A. (2009) 79:022107. doi: 10.1103/PhysRevA.79.022107
+REFERENCES                                                                            27. Peng X, Liao Z, Xu N, Qin G, Zhou X, Suter D, et al. Quantum adiabatic algo-
+ 1. Feynman R. Simulating physics with computers. Int J Theor Phys. (1982)                rithm for factorization and its experimental implementation. Phys Rev Lett.
+    21:467. doi: 10.1007/BF02650179                                                       (2008) 101:220405. doi: 10.1103/PhysRevLett.101.220405
+ 2. Deutsch D. The Church-Turing principle and the universal quantum com-             28. Henelius P, Girvin S. A statistical mechanics approach to the factorization
+    puter. Proc R Soc Lond A (1985) 400:97. doi: 10.1098/rspa.1985.0070                   problem. (2011). arXiv:1102.1296.
+ 3. Shor PW. Algorithms for quantum computing: discrete logarithms and factor-        29. Roland J, Cerf NJ. Quantum search by local adiabatic evolution. Phys Rev A.
+    ing. In: Goldwasser S, editor. Proceedings of the 35th Symposium on Foundations       (2002) 65:042308. doi: 10.1103/PhysRevA.65.042308
+    of Computer Science. Santa Fe, NM (1994). p. 124. doi: 10.1109/SFCS.1994.         30. Hen I. Continuous-time quantum algorithms for unstructured problems.
+    365700                                                                                J Phys A Math Theor. (2014) 47:045305. doi: 10.1088/1751-8113/47/4/
+ 4. Rivest R, Shamir A, Adelman L. A method for obtaining digital signa-                  045305
+    tures and public-key cryptosystems. Commun ACM (1978) 21:120–6. doi:              31. Hen I. How fast can quantum annealers count? J Phys A Math Theor. (2014)
+    10.1145/359340.359342                                                                 47:235304. doi: 10.1088/1751-8113/47/23/235304
+ 5. Schlosshauer M. Decoherence, the measurement problem, and interpre-               32. Hen I. Period finding with adiabatic quantum computation. Europhys Lett.
+    tations of quantum mechanics. Rev Mod Phys. (2004) 76:1267–305. doi:                  (2014) 105:50005. doi: 10.1209/0295-5075/105/50005
+    10.1103/RevModPhys.76.1267                                                        33. Aharonov D, van Dam W, Kempe J, Landau Z, Lloyd S, Regev O. Adiabatic
+ 6. Vandersypen LMK, Steffen M, Breyta G, Yannoni CS, Sherwood MH, Chuang                 quantum computation is equivalent to standard quantum computation. SIAM
+    IL. Experimental realization of Shors quantum factoring algorithm using               J. Comput. (2007) 37:166. doi: 10.1137/S0097539705447323
+    nuclear magnetic resonance. Nature (2001) 414:883–7. doi: 10.1038/414883a         34. Simon DR. On the power of quantum computation. In: Proceedings 35th
+ 7. Chao-Yang L, Browne DE, Yang T, Jian-Wei P. Demonstration of a compiled               Annual Symposium on Foundations of Computer Science (1994). p. 116–23. doi:
+    version of shor’s quantum factoring algorithm using photonic qubits. Phys Rev         10.1109/SFCS.1994.365701
+    Lett. (2007) 99:250504. doi: 10.1103/PhysRevLett.99.250504                        35. Nielsen MA, Chuang IL. Quantum Computation and Quantum Information.
+ 8. Lanyon BP, Weinhold TJ, Langford NK, Barbieri M, James DFV, Gilchrist                 Cambridge: Cambridge University Press (2000).
+    A, et al. Experimental demonstration of a compiled version of shor’s algo-        36. Mizel A, Lidar DA, Mitchell M. Simple proof of equivalence between adiabatic
+    rithm with quantum entanglement. Phys Rev Lett. (2007) 99:250505. doi:                quantum computation and the circuit model. Phys Rev Lett. (2007) 99:070502.
+    10.1103/PhysRevLett.99.250505                                                         doi: 10.1103/PhysRevLett.99.070502
+ 9. Martin-Lopez E, Laing A, Lawson T, Alvarez R, ZHou X-Q, O’Brien J L               37. Siu MS. From quantum circuits to adiabatic algorithms. Phys Rev A. (2005)
+    Experimental realization of Shor’s quantum factoring algorithm using qubit            71:062314. doi: 10.1103/PhysRevA.71.062314
+    recycling. Nat Photon. (1997) 6:773–6. doi: 10.1038/nphoton.2012.259              38. Farhi E, Goldstone J, Gutmann S, Lapan J, Lundgren A, Preda D. A quantum
+10. Smolin JA, Smith G, Vargo A. Oversimplifying quantum factoring. Nature                adiabatic evolution algorithm applied to random instances of an NP-complete
+    (2013) 499:163–5. doi: 10.1038/nature12290                                            problem. Science (2001) 292:472. doi: 10.1126/science.1057726
+
+
+
+
+Frontiers in Physics | Interdisciplinary Physics                                                                                   July 2014 | Volume 2 | Article 44 | 6
+Hen                                                                                                                      Fourier-transforming with quantum annealers
+
+
+
+
+39. Kato T. On the adiabatic theorem of quantum mechanics. J Phys Soc Jap. (1951)    48. Martinis JM, Geller MR. Fast adiabatic control of qubits using optimal
+    5:435. doi: 10.1143/JPSJ.5.435                                                       windowing theory. (2014). arXiv:1402.5467.
+40. Messiah A. Quantum Mechanics. Amsterdam: North-Holland (1962).
+41. Brigham EO. The Fast Fourier Transform and its Applications. Englewood Cliffs,    Conflict of Interest Statement: The author declares that the research was con-
+    NJ: Prentice Hall; 1988.                                                          ducted in the absence of any commercial or financial relationships that could be
+42. Vidal G, Dawson CM. A universal quantum circuit for two-qubit trans-              construed as a potential conflict of interest.
+    formations with three CNOT gates. Phys Rev A. (2004) 69:010301. doi:
+    10.1103/PhysRevA.69.010301                                                        Received: 29 January 2014; accepted: 08 July 2014; published online: 28 July 2014.
+43. Zanardi P, Rasetti M. Holonomic quantum computation. Phys Lett A. (1999)          Citation: Hen I (2014) Fourier-transforming with quantum annealers. Front. Phys.
+    264:94–9. doi: 10.1016/S0375-9601(99)00803-8                                      2:44. doi: 10.3389/fphy.2014.00044
+44. Carollo ACM, Vedral V. Holonomic quantum computation. (2005).                     This article was submitted to Interdisciplinary Physics, a section of the journal
+    arXiv:quant-ph/0504205.                                                           Frontiers in Physics.
+45. Bacon D, Flammia ST. Adiabatic gate teleportation. Phys Rev Lett. (2009)          Copyright © 2014 Hen. This is an open-access article distributed under the
+    103:120504. doi: 10.1103/PhysRevLett.103.120504                                   terms of the Creative Commons Attribution License (CC BY). The use, dis-
+46. Bacon D, Flammia ST. Adiabatic cluster-state quantum computing. Phys Rev          tribution or reproduction in other forums is permitted, provided the origi-
+    A. (2009) 82:030303(R). doi: 10.1103/PhysRevA.82.030303                           nal author(s) or licensor are credited and that the original publication in
+47. Fault tolerance for holonomic quantum computation. In: Lidar DA, Brun TA,         this journal is cited, in accordance with accepted academic practice. No use,
+    editors. Quantum Error Correction. Cambridge: Cambridge University Press          distribution or reproduction is permitted which does not comply with these
+    (2013). arXiv:1312.0165.                                                          terms.
+
+
+
+
+www.frontiersin.org                                                                                                                July 2014 | Volume 2 | Article 44 | 7
+

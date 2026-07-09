@@ -1,0 +1,60 @@
+{
+  "paper": "Hyun JC, Kavvas ES, Monk JM, Palsson BO. Machine learning with random subspace ensembles identifies antimicrobial resistance determinants from pan-genomes of three pathogens. PLOS Comput Biol, 2020. DOI: 10.1371/journal.pcbi.1007608",
+  "replication_scope": "S. aureus 6/6 antibiotic cases end-to-end; P. aeruginosa and E. coli protein FASTAs only partially downloaded (PA 372/456, EC 327/1588); no pan-genome, feature matrix, or ML for PA/EC.",
+  "verdict": "PARTIAL",
+  "open_questions": [
+    {
+      "id": "Q1",
+      "q": "Does the accessory-gene presence/absence + core-per-allele feature encoding out-perform SNP-based or k-mer-based encodings on the same 16 antibiotic cases, or is it merely competitive on the clonal / small-core S. aureus slice?",
+      "basis": "Our replication tested only Hyun 2020's chosen encoding (CD-Hit clusters at 80% identity, per-allele core + presence/absence accessory). Every rank-1 known AMR determinant was recovered for S. aureus, but SA is the paper's easiest, most clonal organism. The paper does not compare against a SNP-only or k-mer-only baseline on the same 16 phenotypes, so we cannot tell from the replicated evidence whether the accessory-based encoding is doing the work or whether the SA signal is so strong that any reasonable encoding wins.",
+      "next_steps": [
+        "Once the PA and EC protein FASTAs are harvested, rebuild the feature matrix under three encodings on the same genomes: (a) Hyun 2020 CD-Hit accessory + per-allele core (baseline), (b) core-genome SNP matrix from a fixed reference alignment, (c) reference-free k-mer sketch (e.g., k=15..21).",
+        "Hold SVM-RSE hyperparameters constant across encodings and re-run 5-fold CV on all 16 antibiotic cases.",
+        "Compare per-case MCC/AUC and per-case top-50 known-AMR recovery to isolate encoding effect from organism effect."
+      ]
+    },
+    {
+      "id": "Q2",
+      "q": "Do the 6 SA-trained SVM-RSE models transfer at all to P. aeruginosa or E. coli genomes with the same drug label (cross-species generalization), or does the accessory-gene feature space break the moment the pan-genome changes?",
+      "basis": "Hyun 2020 trains one SVM-RSE per (organism, antibiotic) pair; the paper does not test cross-species transfer of the trained models. Our replication only produced SA models. Because the accessory feature space is defined by CD-Hit clusters over each organism's own pan-genome, the feature indices are non-comparable across organisms out of the box, and the paper never resolves whether the *biology* transfers (e.g., a tet(K) hit in SA aligning to a homologous efflux locus in EC).",
+      "next_steps": [
+        "After PA/EC harvest, build a joint pan-genome across all three organisms via CD-Hit-2D or a shared MMseqs2 clustering at multiple identity thresholds (e.g., 50% / 70% / 80%).",
+        "Retrain SVM-RSE per drug on one organism, evaluate on the other two using the joint feature space; report MCC vs same-organism baseline.",
+        "For each cross-species transfer, audit whether the top-50 features on the source organism map to homologous clusters on the target and whether those homologs are actually predictive."
+      ]
+    },
+    {
+      "id": "Q3",
+      "q": "For the antibiotic cases where SVM-RSE reports high MCC but the top-50 does NOT contain a known canonical AMR gene, is the model picking up (a) a genuine novel resistance-linked locus, (b) a lineage/phylogenetic-confounder hitchhiking with the resistance label, or (c) an accessory-genome plasmid marker that co-segregates with but does not mechanistically cause resistance?",
+      "basis": "The paper claims known-AMR-gene recovery in 15/16 cases, implying one case has strong metrics without a known determinant in the top-50. Even within the 6 SA cases we did replicate, two LmrS placements at ranks 40 and 43 in the original paper were misses in our ensemble --- suggesting the tail of the ranked list is dominated by non-canonical features whose biological meaning is unresolved. The paper does not distinguish (a)/(b)/(c) among these tail features.",
+      "next_steps": [
+        "For each ensemble top-50 feature that is NOT in the known-AMR gene list, compute (i) its distribution across the phylogenetic tree of the strain set, (ii) its linkage to known AMR loci (physical distance on assembled contigs, plasmid co-occurrence), and (iii) its predictive residual after regressing out MLST/clonal-complex labels.",
+        "Flag features whose predictive power vanishes after clonal-complex adjustment as likely confounders (case b).",
+        "Flag features that ride on known plasmid backbones alongside canonical AMR genes as case (c) --- markers not mechanisms.",
+        "Residual features that survive both filters are candidate novel resistance-linked loci (case a) --- forward those for wet-lab knockout validation."
+      ]
+    },
+    {
+      "id": "Q4",
+      "q": "Does re-casting the AMR prediction task as MIC-regression (numeric minimum inhibitory concentration) instead of binary S/R classification recover more, or different, causal AMR features --- and does the binary framing hide dose-dependent resistance loci?",
+      "basis": "Hyun 2020's SVM-RSE is a binary S/R classifier trained on BV-BRC's dichotomized labels. BV-BRC AMR JSON records the underlying MIC values in many cases, but the paper collapses to S/R via CLSI/EUCAST breakpoints. Binary framing discards dose-response information and treats a genome at 1 doubling-dilution above breakpoint identically to a genome at 8 doublings above --- yet the loci that determine *how* resistant a strain is may differ from those that determine *whether* it crosses the breakpoint. Our replication inherits this binary framing and cannot address the question.",
+      "next_steps": [
+        "For each of the 16 antibiotic cases, extract MIC values from the BV-BRC AMR JSON (already downloaded for SA/PA/EC).",
+        "Train parallel SVR / random-forest-regression / L1-linear-regression models on log2(MIC) with the same accessory + per-allele-core features.",
+        "Compare regression-top-50 to binary-top-50 per case; features that appear in regression-top-50 but NOT in binary-top-50 are candidate dose-modifier loci.",
+        "Report Spearman correlation of predicted vs observed log2(MIC) as a metric that binary MCC cannot express."
+      ]
+    },
+    {
+      "id": "Q5",
+      "q": "How robust is SVM-RSE to class imbalance and rare-drug data scarcity --- specifically, does the 261/27 R/S split for S. aureus erythromycin (and similarly imbalanced PA/EC cases we did not run) inflate MCC by exploiting a majority-class prior, and would a resampled or focal-loss reformulation change either the metrics or the recovered top-50?",
+      "basis": "The replicated SA results include severely imbalanced cases (CIP 260/28, CLI 256/32, ERY 261/27) where the minority class is under 12%. The paper reports class-weighted SVMs, and our ERY MCC is 0.811 +/- 0.114 --- the highest std among the 6 SA cases, indicating fold-to-fold instability precisely where the minority class is smallest. The paper does not systematically probe imbalance sensitivity, and our replication does not add such a probe.",
+      "next_steps": [
+        "Rerun the 3 highly-imbalanced SA cases (CIP, CLI, ERY) with (a) SMOTE / random-oversample of the minority class, (b) undersample of the majority class, (c) focal-loss L1-linear surrogate, and (d) stratified 10-fold CV instead of 5-fold to reduce per-fold minority-class starvation.",
+        "For each variant, compare MCC / balanced-accuracy / minority-class-recall and top-50 overlap with the class-weighted baseline.",
+        "Explicitly report PPV and NPV in the minority class rather than global MCC to make imbalance-sensitivity legible.",
+        "Once PA/EC data is harvested, repeat the same probe on any PA/EC case with < 15% minority class."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,464 @@
+# Marker extraction — FALLBACK
+
+`marker` (VikParuchuri/marker) is not installed on this host as of 2026-07-05.
+The QC wave brief instructs "pull from central corpus if parsed, else run Marker".
+There is no central corpus copy for quant-ph/0301093, and Marker requires
+substantial GPU/download time (>1 GB models).  We fall back to `pdftotext -layout`
+extraction below, clearly marked so downstream consumers can re-run Marker later
+without confusion.
+
+Command run: `pdftotext -layout work/paper.pdf`
+
+Paper: **Michele Mosca and Christof Zalka**, *Exact quantum Fourier transforms
+and discrete logarithm algorithms*, arXiv:quant-ph/0301093 (2003).
+
+---
+
+                                        Exact quantum Fourier transforms and discrete
+                                                    logarithm algorithms
+
+
+
+
+arXiv:quant-ph/0301093v1 17 Jan 2003
+                                                        Michele Mosca           and        Christof Zalka
+
+                                                  Department of Combinatorics and Optimization
+                                                    University of Waterloo, Waterloo, Ontario
+                                                                Canada N2L 3G1
+                                                         e-mail: mmosca@iqc.ca       and     zalka@iqc.ca
+
+                                                                       August 27, 2018
+
+                                                                            Abstract
+                                                 We show how the quantum fast Fourier transform (QFFT) can be
+                                            made exact for arbitrary orders (first for large primes). For most quantum
+                                            algorithms only the quantum Fourier transform of order 2n is needed,
+                                            and this can be done exactly. Kitaev [9] showed how to approximate the
+                                            Fourier transform for any order. Here we show how his construction can be
+                                            made exact by using the technique known as “amplitude amplification”.
+                                            Although unlikely to be of any practical use, this construction e.g. allows
+                                            to make Shor’s discrete logarithm quantum algorithm exact. Thus we
+                                            have the first example of an exact non black box fast quantum algorithm,
+                                            thereby giving more evidence that “quantum” need not be probabilistic.
+                                                We also show that in a certain sense the family of circuits for the exact
+                                            QFFT is uniform. Namely the parameters of the gates can be calculated
+                                            efficiently.
+
+
+                                       1    Introduction
+                                       The “quantum fast Fourier transformation” (QFFT) plays an important role
+                                       in quantum algorithms. It is a unitary transformation that applies the discrete
+                                       Fourier transform to the amplitudes of a quantum register. The standard version
+                                       has order 2n and is applied to a quantum register consisting of n qubits. It was
+                                       found by Coppersmith [5] (see also Shor [11]). The construction is essentially
+                                       identical to the standard classical fast Fourier transform (FFT). Like the FFT
+                                       it generalises to orders which are a power of a small prime and more generally
+                                       to smooth numbers, thus integers who have only small prime factors (see Cleve
+                                       [4]). These constructions implement the desired unitary transformation exactly.
+                                           In contrast, so far no exact (and efficient) constructions for arbitrary or-
+                                       ders have been known. For his “Abelian stabiliser problem” Kitaev [9] gave an
+
+                                                                                 1
+approximate implementation based on “eigenvalue estimation”. Here we show
+how this eigenvalue estimation step can be made exact using “amplitude am-
+plification”. Amplitude amplification [1] is a slight generalisation of Grover’s
+algorithm, allowing to apply the square root speed up to any heuristic algo-
+rithm. Brassard and Høyer [2] used a variant of it to make Simon’s algorithm
+exact.
+    Finally we point out that an exact quantum Fourier transform for large
+prime orders can be used to make Shor’s discrete logarithm algorithm exact.
+
+
+2    The exact QFFTp for large prime p
+The quantum Fourier transform of order (or “modulus”) N acts on “computa-
+tional” basis states |xi as follows:
+                                                                 N −1
+                                                            1 X 2πi xy
+              QFFTN :          |xi    →           |Ψx i =         e N |yi.
+                                                            N y=0
+
+For arbitrary, in particular non-smooth N, Kitaev [9] proposes to do this in two
+steps (second part of section 5 in [9], see also the review by Jozsa [8]):
+                        |xi     →         |x, Ψx i      →    |Ψx i
+where, as usual, registers that “appear out of nowhere” are understood to have
+been initialised in the standard state |0i. Similarly in the second step, one of
+the registers is reset to this state and can thus again be left away.
+   The first step constructs the Fourier state |Ψx i for a given x. This can be
+done exactly by first obtaining the “uniform amplitude” superposition |Ψ0 i of
+the first p basis states of a register and then “rephasing” it:
+                      |x, 0i    →     |x, Ψ0 i          →    |x, Ψx i.       (1)
+As pointed out by Kitaev, |Ψ0 i can be obtained from |0i by a sequence of SO(2)
+rotations applied to each qubit in order from high to low significance, whereby
+the rotation angle has to be controlled by the previously touched qubits. The
+rephasing then simply consists of a rephasing on each qubit, proportional to x
+and the place value of the qubit.
+   The second step of Kitaev’s construction is the reverse of
+                               |Ψx , 0i      →       |Ψx , xi.
+This is done through a technique known as “eigenvalue estimation” (see also
+the article by Cleve et al. [3]), which details how to find the eigenvalue of an
+unknown eigenstate of some unitary U . We will describe this in more detail
+later. Here we only need to note that although this operation is not exact, it
+leaves the eigenstate |Ψx i unchanged. Thus it does:
+                                          X
+                      |Ψx , 0i → |Ψx i        cx,x′ |x′ , gx,x′ i            (2)
+                                                   x′
+
+
+                                              2
+where on the right hand side the superposition should be dominated by the term
+with x′ = x, such that a measurement would yield x with good probability. We
+also included some (unwanted) “garbage” gx,x′ which may be produced along
+with the eigenvalue.
+
+2.1     Using amplitude amplification
+We now use “amplitude amplification” [1] to eliminate all but the desired term
+|x, gx,x i. We give here a quick review of this generalisation of Grover’s algorithm.
+We are given a unitary operator A which, when applied to the initial state |0i,
+gives an output state which has some component in a “good” subspace. Thus
+the probability |Pgood A|0i|2 is not too small, where Pgood is the projector onto
+the good subspace. The amplitude of the good component can be increased
+through the following procedure
+                                                                    T
+                A(1 + (eiφ − 1)|0ih0|)A−1 (1 + (eiϕ − 1)Pgood )
+            
+                                                                         A|0i
+
+where the sequence of operations in the brackets is repeated T times, depending
+on the “success probability” of the “algorithm” A alone. As in Grover’s algo-
+rithm, the fastest increase is achieved when both phases are chosen φ = ϕ = π.
+The algorithm can be analysed by noting that the state always remains in a sub-
+space spanned by the state we are seeking Pgood A|0i and by (1 − Pgood ) A|0i.
+Usually an integer number of iterations will not lead exactly to the desired state
+and so we need to chose different (non-optimal) phases, either in all steps or
+only in the last one or two. In our case we will leave the phases at their stan-
+dard settings, but will modify A so that its success probability is reduced to 1/4
+where a single iteration leads exactly to the desired state.
+    The operator A will be given by eq. 2, where the state |Ψx i will have to be
+added as a “spectator” that is not changed.
+
+2.1.1   “Recognising” the correct solution
+Apart from the “heuristic” algorithm A, amplitude amplification requires a way
+to “recognise” the good states. More precisely, we need a way to apply the phase
+eiϕ to the good subspace and leave its orthogonal complement unchanged. So
+how can we check whether a number x′ is the right eigenvalue of |Ψx i, thus
+whether x′ = x? This can be done because thePeigenstate |Ψx i is still available
+exactly. Thus given a state of the form |Ψx i x′ cx,x′ |x′ , gx,x′ i, we can check
+the second register against the first one. To do this we apply the reverse of the
+steps in eq. 1 to these two registers, thus:
+
+                    |x′ , Ψx i   →   |x′ , Ψx−x′ i   →   |x′ , θx−x′ i
+
+where in the second step we only act on the second register. The state |Ψ0 i is
+mapped back to |0i, while for x′ 6= x we get some state |θx−x′ i orthogonal to
+|0i. We can now apply the phase eiϕ to the |0i state and undo the previous
+operations.
+
+                                            3
+2.2    “Uniformising” the success probability
+One obstacle to using amplitude amplification to make algorithms exact is that
+the success probability of the “heuristic” algorithm A must be known. But this
+probability may depend on the (unknown) instance of the problem. In our case
+the success probability of eigenvalue estimation on |Ψx i indeed does depend on
+x. We can fix this problem by modifying A such that the new success probability
+will become instance independent and equal to the average over all instances
+for the original A. To do this uniformisation we pick an integer r uniformly
+at random from {0, 1, . . . p − 1} and replace |Ψx i with |Ψx+r i, which is just
+a rephasing. We keep a record of r and subtract it again from the result of
+eigenvalue estimation. To do this with a unitary A we will need an additional
+register for r, but this is no problem, as we have already included the possibility
+that eigenvalue estimation (eq. 2) also generates some unwanted garbage gx,x′ .
+    So now exact amplitude amplification will allow us to do
+
+                           |Ψx , 0i    →       |Ψx i|x, gx,x i.
+
+To get rid of the “garbage” we can do the usual trick of copying the wanted
+result x into an additional “save” register and then undoing the previous steps.
+In total this will lead to six applications of A for an exact QFFT.
+    In summary, the construction of an exact QFFT relies on making eigenvalue
+estimation (on Fourier states |Ψx i) exact. The essential observations are that
+eigenvalue estimation leaves the eigenstate |Ψx i exactly unchanged and so it
+can be used for the checking stage of amplitude amplification. Furthermore we
+used that the success probability of estimating x from |Ψx i can rather easily be
+“uniformised” across all x = 0 . . . p − 1.
+
+
+3     An exact discrete logarithm algorithm
+An exact algorithm for the QFFT leads in a straightforward manner to an exact
+algorithm for the discrete logarithm algorithm of the same order. This was also
+observed for finite fields of prime order by Brassard and Høyer [2] (Theorem
+12). For smooth orders (only small prime factors) the problem can easily be
+solved classically. Here we give a quick review for the case when the order is a
+large prime (see also [12], section 2.2.3).
+    In a discrete logarithm problem we are given an element α which generates
+a cyclic group of some finite order, here a prime. Thus αp = e. Then another
+element β of the group is given and we want to know which power of α it is; that
+is, the integer a for which β = αa . This is also written as a = logα β. In the
+quantum solution (see Shor [11]), we prepare two registers, each in a uniform
+amplitude superposition of p basis states:
+                                      p−1 p−1
+                                  1 XX
+                                            |x, yi.
+                                  p x=0 y=0
+
+
+
+                                           4
+Then we compute the function αx β y in an additional registerP        and measure it.
+This will leave the two registers in a superposition of the form y |x0 − a · y, yi
+where all arithmetic operations are understood to be modulo p, x0 is random
+and y runs over 0 . . . p − 1. By Fourier transforming each register with a QFFTp
+we get a similar state but without the offset x0 , namely an equally weighted
+superposition of all states of the form |x, a · xi with x = 0 . . . p − 1. A measure-
+ment will now allow to compute a in all cases except when x = 0. Thus we have
+the known and instance independent success probability of 1 − 1/p, which allows
+to easily make the algorithm exact by using (exact) amplitude amplification.
+
+3.1    Alternatively: directly uniformising dlog
+Actually one can directly make the success probability of the dlog algorithm
+instance independent. Thus one uses the usual algorithm with a QFFT2n , but
+replaces β with β·αr where r is again chosen uniformly at random from 0 . . . p−1.
+We have noted this approach a while ago, but were not able to show that the
+(now averaged) success probability can be computed efficiently, thus it is not
+clear whether the circuit for a given p can be computed efficiently.
+
+
+4     Eigenvalue estimation
+In our case we want to estimate the eigenvalue of |Ψx i under the (unitary)
+cyclic shift operator U which acts on computational basis states as: |xi →
+|(x + 1) mod pi. For eigenvalue estimation we need to do large powers of U ,
+which in this case is easy. Namely we first prepare an auxiliary n-qubit register
+in a uniform amplitude superposition of all its N = 2n basis states. (We will
+choose N to be larger than p, see below.) Then we do:
+      N −1                      N −1                          N −1
+ 1 X                        1 X                           1 X −2πi xy
+√      |yi |Ψx i     →     √      |yi U y |Ψx i     =    √      e   p |yi |Ψ i.
+                                                                            x
+ N y=0                      N y=0                         N y=0
+
+where we used that the eigenvalue of |Ψx i under U is e−2πix/p . Note that the
+operation we have to do is simply a modular addition on computational basis
+states, thus |a, bi → |a, (a + b) mod pi. After a Fourier transform of size 2n on
+the auxiliary register, the probability of measuring y would be given by:
+                                                          sin(πz)
+             py = f 2 (y − xN/p)       where f (z) =                 .
+                                                        N sin(πz/N )
+ We illustrate the function f (z) with N → ∞ in figure 1. It is peaked around
+z = 0 so that after measuring some y we would guess for the number we want
+to find x ≈ y · p/N . The choice with the highest probability of obtaining the
+correct x would be to simply round y · p/N to the closest integer. Partially
+to simplify notation, here we round up to the next integer, thus our guess is
+x′ = ⌈y · p/N ⌉. (For us the loss of some success probability does not matter, at
+least not as long as it is at least 1/4.)
+
+                                         5
+                                           1
+
+
+
+
+                                         0.5
+
+
+
+
+         –5    –4      –3     –2    –1    0        1    2        3   4   5
+                                                             x
+
+
+
+
+                            Figure 1: The function sin(πx)
+                                                      πx .
+
+
+
+
+    Because we have N > p, it is clear that if we measure y = ⌊x · N/p⌋ we will
+calculate the correct x. For a given x, smaller y may also lead to the correct x,
+but here we would like to eliminate this contribution to the success probability,
+as it will lead to a simpler expression. Given a y it is possible to eliminate
+these cases by also checking y > ⌈y · p/N ⌉ · N/p − 1 and “throwing away” y’s
+which do not satisfy this. (Note that in order to obtain an algorithm A with
+a certain success probability, we can think as if this were a non-reversible algo-
+rithm including measurements and classical computations. Such an algorithm
+can then easily be turned into a unitary A which, besides the intended answer,
+also produces some “garbage”.) So now the success probability px for correctly
+getting x from |Ψx i is:
+                                                       xN mod p
+                    px = f 2 (⌊xN/p⌋ − xN/p) = f 2 (            ).
+                                                          p
+To get the instance independent success probability of the uniformised algo-
+rithm, we average this over all x = 0 . . . p − 1:
+                             p−1                       p−1
+                          1 X 2 xN mod p    1X 2
+                     p̄ =       f (      )=   f (k/p)
+                          p x=0     p       p
+                                                       k=0
+
+where we have used that N and p are coprime and so for each x there is exactly
+one k.
+
+4.1    Efficiently calculating the success probability
+For large p this sum of course is well approximated by the corresponding integral,
+which (for large N ) is approximately 0.4514. Here we show that for each p and
+N , the success probability can be approximated efficiently in the sense that the
+computation time is polynomial in the number of (e.g. decimal) digits we want
+
+                                               6
+to compute. The following method achieves this in a simple way, although it is
+probably not the best one could do. Note that f 2 (z) can be expanded in a (fast
+converging) power series in x and 1/N . (To compute p̄ to d digits we will only
+use polynomially many terms in d.) Now each power z m of z can be summed
+separately, giving:
+               p−1                           m+1
+             1 X              1            1 X
+                   (k/p)m = m+1 Sm (p) = m+1     Am,i pi
+             p              p            p   i=0
+                k=0
+
+where for each power m the coefficients Am,i can be calculated (in various ways)
+in time polynomial in m. (A straightforward way is to simply solve the equations
+resulting from Sm (p + 1) − Sm (p) = pm for the Am,i . E.g. for m = 1 we get the
+                 Pp−1
+familiar formula k=0 k = p(p − 1)/2.)
+
+4.2    Adjusting the success probability
+Once we have calculated the success probability p (to arbitrary precision) for a
+given p, we can use this to modify the algorithm A so that it will succeed exactly
+with probability 1/4, so that just one iteration of amplitude amplification leads
+to an exact algorithm. One way to do this is to add a qubit prepared in state
+cos(α)|0i + sin(α)|1i with p sin2 (α) = 41 and additionally require for success that
+this qubit be in state |1i. The preparation of this qubit will now require the one
+“strange” gate in our algorithm, although its rotation angle α can be computed
+efficiently in the above sense.
+
+
+5     Further remarks and observations
+5.1    Generalisation to arbitrary orders
+The construction of the exact QFFTq easily generalises to arbitrary orders q.
+Above we only needed the primality of the order for (efficiently) computing the
+success probability. And there we only needed that N = 2n and q should be
+coprime. Things can easily be adjusted for the case when q is even. Either we
+can modify (a bit) the calculation of the success probability, or we can consider
+the QFFTq as a tensor product of a QFFT with odd order and a standard one
+with order a power of 2. Similarly, of course, we can generalise to QFFT’s over
+finite Abelian groups, not just cyclic ones.
+    Also the discrete logarithm algorithm can be generalised to arbitrary orders
+q. Given the exact QFFTq , the algorithm will be successful whenever the first
+number in the measured pair (x, xa mod q) is coprime to q. So the success
+probability is φ(q)/q where φ(q) is the Euler totient function. If we know the
+factorisation of q, this is easily calculated and so amplitude amplification can
+be used to make the algorithm exact.
+
+
+
+
+                                         7
+5.1.1   Factorisation of the order of the dlog not known
+In the following we give a more involved solution for the case when the factori-
+sation of the order q is not known. It consists of O(log q) runs of (variants of)
+the dlog quantum circuit. What is important is, that these variants still only
+use the special gates calculated (efficiently) at the beginning from q.
+    In the first run it is enough, as before, to use amplitude amplification only to
+get rid of the case x = 0. We now measure a pair (x, xa mod q). If x is coprime
+to q we can directly calculate a and are done. If gcd(x, q) = d > 1, we still get
+some information about a, namely a′ = a mod q/d, and of course the factor d
+of q. Now we have a = a′ + a′′ · q/d, where, in a standard way, a′′ can be found
+                                                              ′
+by solving the dlog problem with α̃ = αq/d and β̃ = βα−a . This dlog problem
+has smaller order, as α̃d = e, but we want to reuse the original quantum circuit
+for order q. If in this original circuit we simply replace α, β with α̃, β̃, we get
+(after the two QFFT’s):
+                            d−1
+                         1 X
+                        √         |k · q/d, a′′ k · q/d mod qi
+                           d k=0
+                                             P
+(Note that this is essentially the same as k |k, a′′ k mod di.) We want to avoid
+only the case k = 0, but in order not to introduce new “special” gates, we
+prefer to eliminate 3/4 of all states, such that one step of standard amplitude
+amplification will lead to an exact solution. We can e.g. only retain the last
+quarter of the values k = 0 . . . d − 1, although, if d is not divisible by 4, we will
+have to “partially tag” some states. (This can be done by appending a qubit in
+state c|0i + s|1i with |s|2 = 1/4, 1/2 or 3/4.)
+    Now, like in the first step, we will either directly get a′′ , or will gain partial
+information on a′′ , together with a factor of d. This can be iterated (at most
+O(log q) times) till the order of the dlog problem is small.
+    Note that in our construction we have taken care not to introduce new
+“special” gates during the computation. This means that really the O(log q)
+quantum runs can be put together into one quantum circuit whose gates can be
+computed from q alone (without knowing its factorisation).
+
+5.2     No exact factorisation algorithm
+Let us also note that it is not clear how to make Shor’s integer factorisation
+algorithm exact with the techniques used here. Thus this is a challenge that
+remains. We note that Mosca [10] shows how to make factorisation exact in a
+slightly generalised model of exact quantum computation.
+
+5.3     Review of other work on quantum Fourier transforms
+It is interesting to note that after Kitaev [9] a more efficient and probably also
+more natural way to approximate the QFFT for arbitrary orders has been given
+by Hallgren and Hales [7]. In particular their construction uses fewer qubits,
+but it seems not to lend itself to the techniques used here to make it exact.
+
+                                          8
+   Also note the simplified “semiclassical” version of the standard QFFT by
+Griffiths and Niu [6]. For practical implementations of Shor’s algorithms this
+would probably be the method of choice.
+
+Acknowledgements
+The two authors have independently found the results described here, although
+Ch.Z. acknowledges inspiration by related work of M.M. on using amplitude
+amplification to make algorithms exact. Ch.Z. would like to thank Professor
+David Jackson of our department for discussions on summing the mth powers of
+the first n integers. He is supported by CSE (Communications Security Estab-
+lishment) and MITACS (Mathematics of Information Technology and Complex
+Systems), both from Canada. M.M. thanks Richard Cleve, Lisa Hales, and John
+Watrous for discussions at MSRI that prompted him to think about solving the
+QFFT exactly in this context. M.M. is the Canada Research Chair in Quan-
+tum Computation and is supported by NSERC, MITACS, CFI, ORDCF, and
+PREA.
+
+
+References
+ [1] G. Brassard, P. Høyer and A. Tapp, Quantum Counting, ICALP’98, (also
+     quant-ph/9805082)
+ [2] G. Brassard and P. Høyer, An Exact Quantum Polynomial-Time Algorithm
+     for Simon’s Problem, ISTCS’97, (also quant-ph/9704027)
+ [3] R. Cleve, A. Ekert, C. Macchiavello and M. Mosca, Quantum Algo-
+     rithms revisited, Proc. R. Soc. Lond. A (1998) 454, pp. 339-354, (also
+     quant-ph/9708016)
+ [4] R. Cleve, A note on computing Fourier transforms by quantum programs
+     Unpublished (1994)
+     (available at http://pages.cpsc.ucalgary.ca/~cleve/papers.html)
+ [5] D. Coppersmith, IBM Research Report RC 19642 (1994) (also
+     quant-ph/0201067)
+ [6] R. B. Griffiths and C. Niu, Semiclassical Fourier Transform for Quan-
+     tum Computation, Phys. Rev. Lett. 76 (1996) pp.3228-3231 (also
+     quant-ph/9511007)
+ [7] S. Hallgren and L. Hales, An Improved Quantum Fourier Transform Algo-
+     rithm and Applications, FOCS 2000,
+     (also available at http://www.cs.caltech.edu/~hallgren/)
+ [8] R. Jozsa, Quantum Algorithms and the Fourier Transform, Proc. R. Soc.
+     Lond. A (1998) 454, pp. 323-337, (also quant-ph/9707033)
+
+
+
+                                      9
+ [9] A. Yu. Kitaev, Quantum measurements and the Abelian Stabilizer Problem,
+     quant-ph/9511026
+[10] M. Mosca, On the Quantum Derandomization of Algorithms, manuscript
+     in preparation; based on presentation at MSRI workshop on Quantum In-
+     formation Processing, Dec. 2002.
+[11] P. Shor, Algorithms for Quantum Computation: Discrete Logarithms and
+     Factoring, Proc. 35th Annual Symposium on Foundations of Computer
+     Science. IEEE Press, pp 124-134, Nov. 1994, (also quant-ph/9508027)
+[12] Ch. Zalka and J. Proos, Shor’s discrete logarithm quantum algorithm for
+     elliptic curves, manuscript in preparation
+
+
+
+
+                                    10
+

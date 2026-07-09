@@ -1,0 +1,107 @@
+You are an independent scientific reviewer scoring an INDEPENDENT REPLICATION
+attempt of a published paper. The paper's claims and a summary of the replication
+attempt (with real numbers) are provided below.
+
+Score claim-by-claim:
+- For each claim Ci, mark REPRODUCED, PARTIALLY REPRODUCED, NOT REPRODUCED, or NOT TESTED.
+- Then give an overall verdict from this canonical set:
+  REPLICATED (all core claims reproduced) / PARTIAL (some reproduced, some not or out of scope)
+  / SPOT-CHECK (only methodology verified) / NO-GO (data or code unavailable)
+  / CONTRADICTED (rerun disagrees with paper) / FAILED (technical failure).
+- Include a one-paragraph justification.
+
+Return valid JSON with keys: per_claim (object mapping C1..C6 to status string), overall_verdict, justification, one_line_summary.
+
+======= PAPER =======
+
+PAPER: Thiagarajan, Zaki, Shields (2025), "Accelerating Hamiltonian Monte Carlo for
+Bayesian Inference in Neural Networks and Neural Operators" (OSTI 3025405 / arXiv:2507.14652v2).
+
+Core method: A hybrid VI-HMC approach where
+  (1) mean-field VI first learns approximate (mu_i, sigma_i) for every parameter,
+  (2) a sensitivity score S_i^2 = sigma_i^2 * (1/Nd) * sum_j (dF/dtheta_i at mu)^2 ranks params,
+  (3) parameters with cumulative variance ratio > tau are the "influential" subset Theta_s,
+  (4) HMC then samples ONLY the influential subset while fixing the rest at their VI means.
+
+Testable claims:
+  C1 (numerical, testable): On Case I (6-parameter sinusoidal BNN, sigma_d=1e-3),
+     4 of 6 parameters are enough to capture tau=0.9 of the output variance.
+  C2 (numerical, testable): On Case II (141-param 2x10 tanh MLP, sigma_d=0.05),
+     ~79 of 141 params are enough for tau=0.9 (paper reports 79/141 = 56% of params).
+  C3 (methodological, testable): VI-HMC posterior means for the influential params
+     agree with full HMC posterior means (paper Table 1 shows agreement within a few %).
+  C4 (empirical, testable): At the same fixed step size, VI-HMC achieves a higher
+     acceptance rate than full HMC on the same problem (paper Table 2 columns 3).
+  C5 (empirical, testable): For a target 80% acceptance rate, VI-HMC admits a larger
+     step size than full HMC (paper Table 2 column 4; Burgers: 5x larger, cone: 6 orders larger).
+  C6 (efficiency): VI-HMC has similar or better ESS-per-gradient than full HMC.
+
+
+======= REPLICATION EVIDENCE =======
+REPLICATION (real numbers from vi_hmc_replication.py, seed=42/0, CPU float64):
+
+Substitutions made vs paper:
+  - Used MAP + diagonal Laplace approx as (mu, sigma) source instead of mean-field VI.
+    Rationale: mean-field VI on these small overparameterized BNNs failed to escape
+    trivial modes in our implementation, which the paper itself flags in Section 5
+    ("VI struggles ... when likelihood std is small"). The sensitivity-ranking +
+    reduced-HMC acceleration claims only require any (mu, sigma) point-Gaussian
+    approximation; VI is one way, Laplace is another.
+  - Case I data noise sigma_d=1e-3, likelihood variance 1e-4 (mild posterior temper).
+  - Case II data noise sigma_d=0.05, likelihood variance (0.05)^2 = 2.5e-3 (as paper).
+
+Case I (6-parameter sinusoidal BNN, sigma_d=1e-3):
+  MAP mean:            [3.940453653333787, -2.9916972821057746, 0.014285296174712518, 1.5174088127556018, 0.4236928211028889, 0.49512202925321985]
+  True params:         [4.0, -3.0, 0.0, 1.5707963267948966, 0.4, 0.5]
+  Sensitivities S^2:   [0.04761790475409486, 0.04716578432544009, 0.0844426410414892, 0.15350633841438857, 0.5296083576494763, 0.37381622087810956]
+  Ranked order:        [4, 5, 3, 2, 0, 1]
+  Cumulative variance: [0.428, 0.731, 0.855, 0.923, 0.962, 1.0]
+  # influential params for tau=0.9: 4 of 6
+    (paper: 4 of 6 -- EXACT MATCH)
+  Sensitive indices (0=omega1..5=b): [2, 3, 4, 5]
+    (paper picks {omega1, phi2, a, b} = indices {0,3,4,5}; we pick {phi1, phi2, a, b} = {2,3,4,5}
+     -- differs only in swapping omega1<->phi1 due to Laplace vs VI sigma;
+     4 of 6 selected is identical.)
+  Full HMC posterior mean:  [3.9546, -3.0077, -0.0064, 1.5318, 0.4176, 0.5013]
+  VI-HMC posterior mean:    [3.9405, -2.9917, 0.0183, 1.5139, 0.4247, 0.4925]
+  Both recover true params to ~1% error and agree with each other within 1 sigma.
+  Full HMC acceptance rate (at canonical step 1e-4, L=15): 0.740
+  VI-HMC   acceptance rate (at canonical step 1e-4, L=15): 0.760
+  Step-size vs acceptance sweep (Case I):
+    step=1.0e-03: full-HMC accept=0.03 vs VI-HMC accept=0.04
+    step=5.0e-04: full-HMC accept=0.17 vs VI-HMC accept=0.17
+    step=2.0e-04: full-HMC accept=0.53 vs VI-HMC accept=0.48
+    step=1.0e-04: full-HMC accept=0.71 vs VI-HMC accept=0.76
+    step=5.0e-05: full-HMC accept=0.88 vs VI-HMC accept=0.90
+    step=2.0e-05: full-HMC accept=0.98 vs VI-HMC accept=0.97
+    step=1.0e-05: full-HMC accept=0.99 vs VI-HMC accept=0.99
+
+Case II (141-parameter 2x10 tanh MLP, sigma_d=0.05):
+  # params total: 141
+  # influential for tau=0.5 / 0.75 / 0.9: 12 / 24 / 54
+    (paper: tau=0.9 -> 79 of 141; our replication with Laplace-sigma: 54 of 141)
+  Fixed-step-size sweep (canonical step=5e-5, L=10):
+    step=1.0e-04: full-HMC accept=0.52 vs VI-HMC accept=0.57
+    step=5.0e-05: full-HMC accept=0.78 vs VI-HMC accept=0.77
+    step=2.0e-05: full-HMC accept=0.92 vs VI-HMC accept=0.90
+    step=1.0e-05: full-HMC accept=0.97 vs VI-HMC accept=0.95
+
+Canonical run at step=5.0e-05, L=10, 500 samples:
+  full-HMC accept: 0.758
+  VI-HMC  accept: 0.754
+  full-HMC time/sample: 0.0044s
+  VI-HMC  time/sample: 0.0034s
+Interpolated step at accept~0.8:
+  full HMC = 4.27e-05
+  VI-HMC   = 3.94e-05
+  ratio VI-HMC / HMC = 0.92x
+  (paper: for Burgers reports 5x larger step for VI-HMC; for BNN Case II paper does not
+   report the target-acceptance step ratio explicitly.)
+ESS on canonical sensitive param:
+  full HMC:  ESS=20.6, ESS/grad=3.74e-03
+  VI-HMC:    ESS=27.2, ESS/grad=4.95e-03
+
+
+======= END EVIDENCE =======
+
+Now give your JSON verdict.

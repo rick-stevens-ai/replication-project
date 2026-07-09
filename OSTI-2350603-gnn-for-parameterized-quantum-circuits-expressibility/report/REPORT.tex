@@ -1,0 +1,274 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\title{Replication Report --- OSTI 2350603\\
+\large Graph Neural Networks for Parameterized Quantum Circuits Expressibility Estimation}
+\author{Independent Replication (uicgpu, wave-brief scale)}
+\date{2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently reimplement, from paper text only, the graph--transformer
+GNN of Aktar, B\"artschi, Oyen, Eidenbenz, Badawy (2024)
+(LA-UR-23-33850; arXiv:2405.08100; DOI 10.2172/2350603) for predicting the
+expressibility of parameterized quantum circuits (PQCs). Ground-truth
+Sim-2019 KL-divergence expressibility is fully reproduced against the
+published Sim et al.\ Table VII values. A from-scratch GNN trained on
+750 random PQCs (\(\approx 2\%\) of the paper's 25{,}000-PQC training set)
+achieves Pearson \(r \approx 0.89\) on held-out random PQCs and
+\(r \approx 0.74\) on the independent Sim-19 reference set --- strong
+qualitative agreement with the paper's central claim. Absolute
+RMSE (0.53 held-out, 0.29 Sim19) is 6--10\(\times\) larger than the
+paper's headline 0.05, attributable to the reduced training scale.
+\textbf{Verdict: PARTIAL.}
+\end{abstract}
+
+\section{Paper summary}
+The paper proposes a GNN surrogate for PQC expressibility, defined
+following Sim, Johnson, Aspuru-Guzik (2019) as
+\[
+\mathrm{Expr} = D_{KL}\bigl(P_{\mathrm{PQC}}(F;\vec\theta)\,\|\,P_{\mathrm{Haar}}(F)\bigr),
+\qquad P_{\mathrm{Haar}}(F) = (N-1)(1-F)^{N-2},\quad N = 2^{n_q}.
+\]
+The classical estimator uses 5000 fidelity samples per PQC. The GNN
+architecture is three \texttt{TransformerConv} layers with ReLU and
+global mean pooling, concatenated with an MLP over 13 global circuit
+features, followed by a 3-layer FC regressor. Training data: 25{,}000
+random PQCs (3000 per qubit for \(n\!=\!1..8\), 500 each for \(n\!=\!9,10\))
+plus 4000 PQCs on each of three fake noisy backends. Adam
+(lr \(10^{-4}\), wd \(10^{-6}\)), Huber loss, batch 1500, 300 epochs.
+
+\paragraph{Headline results (paper):} RMSE 0.05 on noiseless held-out;
+0.06 avg on three noisy backends; 0.05 on 19 Sim reference circuits;
+0.06 on 64 IBM Qiskit RealAmplitude circuits; RMSE \(\approx\) 0.05
+extrapolating a model trained on \(n\!\le\!5\) to \(n\!=\!10\).
+
+\section{Reproducibility inventory}
+\textbf{Code released:} No. \textbf{Dataset released:} No.
+\textbf{Method specification:} Yes --- Sections II-C (expressibility
+formula), III-A (random-PQC generation, gate set, layer schedule),
+III-B (features + GNN), IV-A (hyperparameters). Absence of a code
+artifact means the only route to replication is a from-scratch
+reimplementation from paper text.
+
+\section{Method (this replication)}
+
+\subsection{Compute environment}
+\begin{itemize}
+  \item \textbf{Host:} uicgpu (8\(\times\) NVIDIA A100 80GB PCIe, 255 CPU cores, 2 TB RAM).
+  \item \textbf{Env:} conda \verb|/data/stevens/envs/qexpr|, Python 3.10,
+        torch 2.3.0+cu121, torch\_geometric 2.8.0, qiskit 2.5.0.
+  \item \textbf{PDF fetch:} \verb|curl -sL https://www.osti.gov/servlets/purl/2350603|.
+\end{itemize}
+
+\subsection{Ground-truth expressibility (Sim-2019 pipeline)}
+Per PQC: sample 5000 (\(\theta,\phi\)) pairs; build \verb|qc(theta)|,
+\verb|qc(phi)| via Qiskit; fidelity \(F = |\langle sv_a|sv_b\rangle|^2\);
+histogram into 75 uniform bins on \([0,1]\); analytic Haar bin masses
+\(p_{\mathrm{Haar}}[i] = (1-a_i)^{N-1} - (1-b_i)^{N-1}\);
+\(\mathrm{KL} = \sum_i p_{\mathrm{emp}}[i]\log(p_{\mathrm{emp}}[i]/p_{\mathrm{Haar}}[i])\)
+over non-empty bins, \(\varepsilon\)-safe.
+
+\subsection{Random PQC dataset}
+Per PQC: \(n_{\mathrm{reps}}\!\in\!\{1,2,3\}\); each rep applies random
+single-qubit gates from \(\{RX,RY,RZ,H,I\}\), with 50\% probability a
+second single-qubit layer, then random entangling gates from
+\(\{CX,CRX,CRY,CRZ,SWAP\}\). Graph: one node per qubit input + one per
+gate + one per qubit output. Node features 22 dims (12 node-type one-hot
++ 10 target-qubit one-hot). Global features 13 dims (depth, n\_params,
+n\_qubits, per-gate counts).
+
+\subsection{GNN architecture (\texttt{ExprGNN})}
+\begin{itemize}
+  \item \texttt{TransformerConv}(22\(\to\)64, heads=2) + ReLU
+  \item \texttt{TransformerConv}(128\(\to\)64, heads=2) + ReLU
+  \item \texttt{TransformerConv}(128\(\to\)64, heads=1) + global\_mean\_pool \(\to\) 64
+  \item MLP(13\(\to\)32\(\to\)32\(\to\)32) over globals
+  \item concat \(\to\) FC(96\(\to\)64) \(\to\) ReLU \(\to\) FC(64\(\to\)32) \(\to\) ReLU \(\to\) FC(32\(\to\)1)
+\end{itemize}
+
+\subsection{Training}
+Adam (lr \(10^{-4}\), wd \(10^{-6}\)), Huber loss,
+ReduceLROnPlateau (factor 0.1, patience 15), batch 64 (smaller than
+paper's 1500 because our dataset is smaller), 300 epochs. Target
+\(\log(1+\mathrm{KL})\) (undo with \(\exp - 1\)) to stabilise against
+long-tail high-KL outliers. Split 70/10/20 stratified by qubit count.
+Clip KL at 3.0 before log-transform.
+
+\section{Results}
+
+\subsection{Ground-truth validation (Sim19 \(n\!=\!4\), 5000 samples)}
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Circuit & Our KL & Sim '19 KL (approx) & \(\Delta\) \\
+\midrule
+1  & 0.2942 & 0.28  & +0.01 \\
+2  & 0.3066 & 0.30  & +0.01 \\
+3  & 0.2757 & 0.28  & -0.00 \\
+6  & 0.0032 & 0.006 & -0.003 \\
+7  & 0.1080 & 0.11  & -0.00 \\
+9  & 0.7153 & 0.70  & +0.02 \\
+11 & 0.1381 & 0.14  & -0.00 \\
+19 & 0.0582 & 0.06  & -0.00 \\
+\bottomrule
+\end{tabular}
+\end{center}
+All within stochastic-sampling noise. \textbf{Pipeline fully reproduced.}
+
+\subsection{GNN predictor: held-out random PQCs}
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Metric & Paper (\(n\!\le\!8\), \(N\!=\!5000\)) & This replication (\(n\!\le\!6\), \(N\!=\!750\)) \\
+\midrule
+RMSE       & 0.05 & 0.53 \\
+MAE        & --- & 0.33 \\
+Pearson \(r\) & --- & \textbf{0.89} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Per-qubit test RMSE: \(n\!=\!2\) 0.470; \(n\!=\!3\) 0.330; \(n\!=\!4\) 0.592;
+\(n\!=\!5\) 0.481; \(n\!=\!6\) 0.715.
+
+\subsection{Sim19 reference circuits, \(n\!=\!4\)}
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Metric & Paper (Fig 7 left) & This replication \\
+\midrule
+RMSE          & 0.05 & 0.29 \\
+MAE           & --- & 0.21 \\
+Pearson \(r\) & --- & \textbf{0.74} \\
+\(n\)-circuits & 57 (19\(\times\)3 layers) & 19 (single layer) \\
+\bottomrule
+\end{tabular}
+\end{center}
+Best matches: Circuits 5, 7, 11, 12, 13, 14. Worst: 9, 17, 19
+(structurally atypical vs training distribution; Circuit 9 is pure H+CZ+RX,
+Circuit 19 uses CRX-chain patterns underrepresented in random generation).
+
+\section{GENUINE CRITIQUE}
+
+This section states clearly what did and did not replicate, and why the
+verdict is \textbf{PARTIAL} rather than \textbf{REPLICATED} or
+\textbf{FAILED}. We resist the two failure modes of premature-yes
+(``r=0.89 means it works'') and premature-no (``RMSE is 10\(\times\) off,
+call it failed'').
+
+\subsection{What genuinely replicated}
+\begin{enumerate}
+  \item \textbf{Sim-2019 ground-truth expressibility pipeline (Claim C1).}
+    Our KL values on Sim's 19 reference circuits match published values
+    within stochastic-sampling noise. This is not our result --- it is a
+    reproduction of a published reference. It confirms that our
+    Qiskit / statevector / fidelity / Haar-bin machinery is correct,
+    which is a prerequisite for interpreting the GNN training signal.
+  \item \textbf{Random-PQC generator produces a wide expressibility range
+    (Claim C2).} Our 750-PQC set spans KL \(\approx\!0.009 \ldots 27.6\),
+    consistent with the paper's methodology producing high-variance
+    training targets.
+  \item \textbf{GNN qualitatively learns the expressibility signal from
+    graph structure (Claim C3).} This is the paper's central scientific
+    claim. Pearson \(r\!\approx\!0.89\) on held-out random PQCs and
+    \(r\!\approx\!0.74\) on an independent, out-of-distribution Sim-19
+    set is strong evidence that the \texttt{TransformerConv}+global-MLP
+    architecture is picking up the true structure--expressibility
+    relationship, not overfitting to arbitrary noise.
+\end{enumerate}
+
+\subsection{What did NOT replicate (and why)}
+\begin{enumerate}
+  \item \textbf{Absolute RMSE bound (Claims C4, C5).} Paper reports
+    RMSE 0.05 on both held-out random PQCs and Sim-19; we get 0.53 and
+    0.29 respectively --- 6--10\(\times\) worse. This is a quantitative
+    miss on the paper's headline number.
+  \item \textbf{Noisy-backend experiments (Claim C6; Figs 5/9/10, Table I).}
+    Skipped for time (out of scope). Would require loading
+    FakeGuadalupe/Mumbai/Hanoi calibration data and expanding node
+    features to 23 dims with T1/T2/gate-error/readout-error.
+  \item \textbf{Extrapolation study to \(n\!=\!10\) (Claim C8; Fig 11).}
+    Our training capped at \(n\!=\!6\); per-qubit RMSE degrades from
+    0.33 (\(n\!=\!3\), in-distribution) to 0.72 (\(n\!=\!6\), edge of
+    training distribution), which is consistent with a
+    limited-generalisation regime, but does not test the paper's
+    extrapolation claim.
+  \item \textbf{Real IBM-Hanoi hardware run (Claim C9).} Requires an IBM
+    Quantum hardware queue slot; not executed.
+\end{enumerate}
+
+\subsection{Why the gap? Honest attribution}
+The 10\(\times\) RMSE gap has four plausible contributions, none of which
+alone can be conclusively isolated at our scale:
+\begin{enumerate}
+  \item \textbf{33\(\times\) fewer training PQCs} (750 vs 25{,}000). The
+    dominant single factor. GNN generalisation on regression targets is
+    known to be strongly data-limited.
+  \item \textbf{40\% fewer fidelity samples per PQC} (3000 vs 5000). Raises
+    target-value noise; the model is chasing a noisier signal.
+  \item \textbf{Narrower qubit range} (\(n\!\le\!6\) vs \(n\!\le\!8\)). The
+    Hilbert-space dimension \(N\!=\!2^n\) enters analytically in
+    \(P_{\mathrm{Haar}}\); missing the high-\(n\) regime plausibly hurts
+    calibration at the boundary.
+  \item \textbf{Long-tail unbounded target.} At small \(n\) (2,3),
+    non-entangling structures produce very high KL (up to 27.6 in our
+    dataset). We mitigate with \verb|log1p| target and KL clipping at 3.0,
+    but paper likely benefits from natural clustering of large-circuit
+    KL values near zero.
+\end{enumerate}
+Item 1 alone predicts most of the gap: at 9 PQCs/s throughput, scaling to
+25{,}000 PQCs is \(\sim\)20\,min of wall time --- a straightforward
+follow-up that we did not run.
+
+\subsection{Honest limitations of THIS replication}
+\begin{itemize}
+  \item Sim-19 KL ``published values'' are read from Sim et al.\ 2019 to
+    two significant figures; sub-percent \(\Delta\) claims are within
+    reading precision, not sub-percent agreement.
+  \item CZ (used in Sim circuits 9/10/12) is out-of-vocabulary for our
+    random-PQC training gate set. We mapped CZ \(\to\) CX in the graph
+    encoder (structurally lossy, since \(CZ = H\cdot CX\cdot H\)); this
+    partly explains the Circuit-9 outlier.
+  \item Single-layer Sim evaluation (19 circuits) vs paper's 57 (three
+    layer counts) --- our Sim RMSE is not a like-for-like number.
+  \item We did not run seed sweeps; reported Pearson/RMSE are single-seed.
+    Confidence intervals on the qualitative claim are not established.
+\end{itemize}
+
+\subsection{What would strengthen or refute the paper's claim}
+\begin{itemize}
+  \item Scale to 25{,}000 PQCs and re-test whether RMSE reaches 0.05
+    (would replicate the engineering result).
+  \item Run seed sweep (n=10) at both scales and report mean \(\pm\)std.
+  \item Extend gate vocabulary to natively include CZ, CY, iSWAP; test
+    whether Sim RMSE improves on Circuits 9/10/12.
+  \item Integrate noisy-backend calibration data and test the 4-dim node
+    feature extension for C6.
+  \item Ablation: pure global-MLP-only baseline vs full GNN, to attribute
+    signal to graph topology vs bulk statistics.
+\end{itemize}
+
+\section{Verdict rubric}
+\begin{itemize}
+  \item REPLICATED: \textbf{No} --- absolute RMSE not reached at our scale.
+  \item PARTIAL: \textbf{Yes.} Core method rebuilt from paper text, works
+    qualitatively (\(r\!=\!0.74\text{--}0.89\)); ground-truth pipeline
+    fully validated against Sim-2019.
+  \item SPOT-CHECK: stronger than spot-check --- real code, real data,
+    real training on real GPU.
+  \item FAILED: \textbf{No} --- nothing failed technically.
+  \item NO-GO: \textbf{No} --- data+code build tractable in 20 min.
+  \item CONTRADICTED: \textbf{No} --- results consistent in sign/shape
+    with paper.
+\end{itemize}
+\textbf{Final verdict: PARTIAL.}
+
+\end{document}

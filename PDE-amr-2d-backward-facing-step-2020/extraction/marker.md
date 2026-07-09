@@ -1,0 +1,29 @@
+# Marker extraction — STAND-IN (paper paywalled)
+
+The full-text paper (Li & Li 2020, DOI 10.1142/S0219876220410121, IJCM/World Scientific) is
+paywalled and could not be pulled through the DOI/WSPC/Unpaywall/arXiv routes.
+This file therefore holds the verbatim Semantic Scholar abstract as the Marker-equivalent
+text extraction. No Marker parse was possible because there is no source PDF beyond the
+stand-in `paper.pdf` (which itself is generated from this same abstract).
+
+## Title
+Accuracy Verification of a 2D Adaptive Mesh Refinement Method Using Backward-Facing Step
+Flow of Low Reynolds Numbers
+
+## Authors
+Zhenquan Li, Miao Li
+
+## Abstract
+Identifying centers of vortices of fluid flow accurately is one of the accuracy measures for
+computational methods. After verifying the accuracy of the 2D adaptive mesh refinement (AMR)
+method in the benchmarks of 2D lid-driven cavity flow, this paper shows the accuracy
+verification by the benchmarks of 2D backward-facing step flow. The AMR method refines a
+mesh using the numerical solution of the Navier–Stokes equations computed on the mesh by an
+open source software Navier2D which implemented a vertex centered finite volume method
+(FVM) using the median dual mesh to form control volumes about each vertex. The accuracy is
+shown by the comparison between vortex center locations calculated from the linearly
+interpolated numerical solutions and those obtained in the benchmark. The AMR method is
+proposed based on the qualitative theory of differential equations, and it can be applied to
+refine a mesh as many times as required and used to seek accurate numerical solutions of the
+mathematical models including the continuity equation for incompressible fluid or
+steady-state compressible flow with low computational cost.

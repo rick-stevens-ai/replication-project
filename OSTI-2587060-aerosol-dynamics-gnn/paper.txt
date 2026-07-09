@@ -1,0 +1,755 @@
+                                                    Learning to Simulate Aerosol Dynamics with
+                                                              Graph Neural Networks
+                                                 Fabiana Ferracina1,2 , Payton Beeler1 , Mahantesh Halappanavar3 ,
+                                                     Bala Krishnamoorthy2 , Marco Minutoli3 , Laura Fierce1*
+                                                 1* Atmospheric, Climate, and Earth Sciences Division, Pacific Northwest
+
+
+
+
+arXiv:2409.13861v1 [physics.ao-ph] 20 Sep 2024
+                                                      National Laboratory, 902 Battelle Boulevard, Richland, 99352,
+                                                                           Washington, USA.
+                                                     2 Department of Mathematics and Statistics, Washington State
+
+                                                       University, 14204 NE Salmon Creek Ave, Vancouver, 98686,
+                                                                           Washington, USA.
+                                                    3 Advanced Computing, Mathematics, and Data Division, Pacific
+
+                                                   Northwest National Laboratory, 902 Battelle Boulevard, Richland,
+                                                                        99352, Washington, USA.
+
+
+                                                       *Corresponding author(s). E-mail(s): laura.fierce@pnnl.gov;
+                                                           Contributing authors: fabiana.ferracina@wsu.edu;
+                                                          payton.beeler@pnnl.gov; hala@pnnl.gov; kbala@wsu;
+                                                                       marco.minutoli@pnnl.gov;
+
+
+                                                                                      Abstract
+                                                   Aerosol effects on climate, weather, and air quality depend on characteristics of
+                                                   individual particles, which are tremendously diverse and change in time. Particle-
+                                                   resolved models are the only models able to capture this diversity in particle
+                                                   physiochemical properties, and these models are computationally expensive. As
+                                                   a strategy for accelerating particle-resolved microphysics models, we introduce
+                                                   Graph-based Learning of Aerosol Dynamics (GLAD) and use this model to train
+                                                   a surrogate of the particle-resolved model PartMC-MOSAIC. GLAD implements
+                                                   a Graph Network-based Simulator (GNS), a machine learning framework that
+                                                   has been used to simulate particle-based fluid dynamics models. In GLAD, each
+                                                   particle is represented as a node in a graph, and the evolution of the particle
+                                                   population over time is simulated through learned message passing. We demon-
+                                                   strate our GNS approach on a simple aerosol system that includes condensation
+                                                   of sulfuric acid onto particles composed of sulfate, black carbon, organic carbon,
+                                                   and water. A graph with particles as nodes is constructed, and a graph neural
+
+
+                                                                                           1
+     network (GNN) is then trained using the model output from PartMC-MOSAIC.
+     The trained GNN can then be used for simulating and predicting aerosol dynam-
+     ics over time. Results demonstrate the framework’s ability to accurately learn
+     chemical dynamics and generalize across different scenarios, achieving efficient
+     training and prediction times. We evaluate the performance across three scenar-
+     ios, highlighting the framework’s robustness and adaptability in modeling aerosol
+     microphysics and chemistry.
+
+
+
+
+1 Introduction
+Aerosol particles, which are solid or liquid particles suspended in a gas, are a large
+source of uncertainty in understanding human impacts on climate (Masson-Delmotte
+et al., 2021; Stier et al., 2013). Particles influence Earth’s energy balance directly by
+scattering and absorbing solar radiation (Chung et al., 2005; Bellouin et al., 2005)
+and indirectly by modifying the reflectivity and lifetime of clouds (Twomey, 1977;
+Albrecht, 1989; Rosenfeld et al., 2008). A particle’s optical properties and its ability
+to cloud droplets or ice crystals depends on its size, shape, and chemical composition.
+Atmospheric aerosol particles exhibit tremendous variability in these particle-level
+characteristics (Schwarz et al., 2008; Healy et al., 2014; Gautam et al., 2024, e.g.). This
+particle-to-particle variability in physiochemical properties impacts climate-relevant
+aerosol properties, but is not easily represented in models (Riemer et al., 2019).
+    Particle-resolved models have emerged as a modeling strategy for simulating the
+evolution of complex particle distributions (Riemer et al., 2009; Shima et al., 2009,
+e.g.). The Particle Monte Carlo Model for Simulating Aerosol Interactions and Chem-
+istry (PartMC-MOSAIC) (Riemer et al., 2009; Zaveri et al., 2008) tracks the size and
+composition of individual Monte Carlo particles as they evolve during transport. Sim-
+ilar Monte Carlo approaches have emerged for simulations of cloud particles, often
+implemented using the Super Droplet method introduced by Shima et al. (2009).
+    Although particle-resolved models of aerosol and cloud particles have elucidated
+the role of small-scale processes on large-scale aerosol and cloud effects (Grabowski
+and Abade, 2017; Fierce et al., 2017; Riemer et al., 2019; Fierce et al., 2020; Morrison
+et al., 2020; Zheng et al., 2021; Fierce et al., 2024, e.g.), these detailed models are com-
+putationally expensive. To accurately represent multivariate aerosol size-composition
+distributions, PartMC-MOSAIC must track the evolution of 104 –106 particles that
+interact with each other and with co-simulated trace gases.
+    As a strategy to accelerate particle-resolved models, we introduce Graph-based
+Learning of Aerosol Dynamics (GLAD), a novel graph neural network (GNN) approach
+for learning aerosol dynamics on a per-particle level. Once the behavior is learned and
+represented on a graph, we can use this graph to simulate aerosol particle microphysics
+and chemistry. By encoding aerosol systems as graphs, with particles represented as
+nodes and interactions represented as edges, GNNs can capture spatial and temporal
+dependencies between particles and their interactions with the environment.
+    The GLAD framework builds on previous approaches that apply GNNs and graph
+network simulators (GNS) to represent multiscale interactions. For example, GNNs
+
+
+                                             2
+have been used to simulate molecular dynamics, where they predict the behavior of
+particles over time by learning from the interactions within the system Battaglia et al.
+(2016). In chemistry, GNNs have found applications in predicting molecular properties
+and reactions. By representing molecules as graphs, where atoms are nodes and bonds
+are edges, GNNs can learn to predict properties such as molecular energy, stability, and
+reactivity Gilmer et al. (2017). For example, GNNs have been utilized to predict the
+outcomes of chemical reactions, aiding in the design of new compounds with desired
+properties Schütt et al. (2017).
+    The development of graph network simulators (GNS) for modeling complex phys-
+ical systems offer new possibilities for simulating dynamic interactions in evolving
+systems. Sanchez-Gonzalez et al. (2020) introduced a framework that utilizes GNNs
+to simulate physical interactions, demonstrating the capability of GNNs to accurately
+model dynamics in particle-based systems by representing particles as nodes and inter-
+actions as edges. Building on this foundational work, Kumar and Vantassel (2022)
+developed the Generalizable Graph Neural Network-based Simulator, which extends
+the principles of GNNs to more generalizable and scalable simulations for particu-
+late and fluid modeling. Their approach leverages the inherent flexibility of GNNs to
+handle different types of interactions and scales, making it particularly suitable for
+modeling complex systems like aerosols.
+    The GLAD framework introduced here leverages GNS in a new way to accelerate
+particle-resolved simulations of aerosol dynamics. As a proof of concept, we focus on
+an idealized aerosol system consisting of sulfuric acid condensation onto black and
+organic particles and the subsequent water uptake. We hope to extend this approach
+to more complex particle systems in the future, which will make it possible to simulate
+more particles, to incorporate more complete representation of complex processes, and
+to perform the large simulation ensembles needed to train machine learning models
+for large-scale atmospheric models.
+
+2 Approach
+Our approach leverages the capabilities of Graph Neural Networks to address the chal-
+lenging and computationally expensive modeling of particle dynamics. By representing
+aerosol particles along with their chemical compositions (nodes) and their similarities
+and interactions (edges) as a graph, we aim to improve the computational efficiency
+of aerosol microphysics and chemistry simulations.
+
+2.1 Simulating dynamics with GNNs
+GNNs have emerged as a powerful tool for modeling and analyzing data with inherent
+graph structures. They extend traditional neural networks by incorporating graph-
+based data, allowing for the effective learning of representations that capture relational
+information Scarselli et al. (2008). GNNs have been successfully applied across various
+domains, including social networks, biology, and physics, where data naturally form
+graph structures Wu et al. (2020).
+    GNNs consist of multiple layers, each processing information from neighboring
+nodes and edges to update node, edge or global representations. Their architecture
+
+
+                                            3
+typically includes message passing mechanisms, aggregation functions, and learnable
+parameters. The neural networks can operate on both homogeneous and heterogeneous
+graphs, capturing complex relationships between entities in the graph structure (Wu
+et al., 2020). By iteratively aggregating information from neighboring nodes and edges,
+GNNs can learn representations that encode the structural and semantic properties of
+the graph. Training involves optimizing the parameters of the network to minimize a
+predefined loss function, with objectives ranging from node classification to graph-level
+prediction tasks. Recent advancements in GNN architectures, such as message passing
+neural networks and attention mechanisms, have further enhanced their capability
+to model complex graph-based data Veličković et al. (2017). These innovations have
+improved the accuracy and scalability of GNNs, making them a valuable tool in both
+microphysics and chemistry research.
+    Simulators built with neural networks, particularly Graph Neural Networks
+(GNNs), have shown significant promise in various domains due to their ability to
+model complex systems with relational data structures. The operation of a graph net-
+work simulator involves training a graph neural network (GNN) on historical data to
+learn the underlying dynamics of the system. During training, the parameters of the
+neural network are optimized using gradient-based algorithms to minimize a specified
+loss function, which measures the disparity between the predicted and actual values
+of the target variables (Wu et al., 2020). Once trained, the GNN can simulate the
+dynamic evolution of the system over time by iteratively updating the states of the
+nodes and edges based on the learned relationships encoded in its parameters. This
+iterative updating allows the model to capture and predict complex temporal changes
+within the system (Sanchez-Gonzalez et al., 2020).
+
+
+
+2.2 Procedure for training and using GNS of aerosol dynamics
+The GNS framework uses graph neural networks for learning to simulate the chemical
+composition changes going on within the particles. Our GNN uses an Encode-Process-
+Decode architecture with a step to pre-process the data before it is fed into the encoder
+and a step to post-process the data after it is output by the decoder.
+
+
+
+2.2.1 Pre-processing
+Pre-processing involves computing the rate of change in mass or concentration for
+each chemical in the particle or gas in the system, over two time steps, that is ∆mC =
+(mC      C                           C
+   t −mt−1 )/(t−(t−1)). These ∆m ’s along particle properties p, which are properties
+that differ by particle but do not vary with time, as well as masses (or concentrations)
+differences from the known minima and maxima, are combined in the node data of
+our GNN. This means that each node is a particle who holds information about its
+own specific properties, and of its mass changes over time.
+    We connect our network nodes using their Euclidean distance to two closest neigh-
+bors in the chemical composition space. The chemical composition space refers to the
+multi-dimensional space where each dimension represents the concentration or amount
+
+
+                                           4
+of a particular element or compound within a mixture or material. Although, not usu-
+ally an Euclidean space, through some care we may consider the composition space as
+locally Euclidean:
+- When considering small variations in composition, the space can be approximated
+  as Euclidean. For instance, in a quaternary system (four elements), the composition
+  space is a tetrahedron. Within a small region of this tetrahedron, changes in com-
+  position can be linearly interpolated, and distances can be measured using standard
+  Euclidean metrics.
+- For a system with n components, the composition can be represented in an (n − 1)-
+  dimensional simplex. For example, for a ternary system, this is a 2-dimensional
+  triangle, and for a quaternary system, this is a 3-dimensional tetrahedron. Within
+  small regions of these simplices, the space can be treated as locally Euclidean.
+- If the chemical composition space is embedded in a metric space where distances
+  between points (compositions) are defined in a way that obeys Euclidean properties
+  (e.g., using the Euclidean distance formula), then locally, the space can behave like
+  a Euclidean space.
+    In the pre-processing step, we also combine data that will serve as edge representa-
+tion. Specifically, we store in the edge structure information on the displacement and
+ℓ2 distances between the two nodes which the edge connects.
+
+2.2.2 Encode-Process-Decode Architecture
+Once the pre-processing is done, we can move to the Encode step. The Encoder is an
+embedding function that takes the chemistry-state representations on the nodes and
+edges, X and assigns them to a latent graph G0 . We denote the graph as Gm = (V, E)
+with vertices vi = fv (xi ) ∈ V and edges ei,j = fe (di,j ) ∈ E. The functions fv and fe
+are learned functions that embed the particle chemistry information (xi , di,j ) into the
+latent nodes and edges respectively.
+    The Process phase is when interactions amongst the connected nodes occur through
+a sequence of M message-passing steps. In this phase, the Processor takes G0 as
+its input, computes (G1 , . . . , GM ), and outputs the final GM . In each graph of the
+sequence, messages (rules and constraints) are propagated, information is aggregated,
+and nodes and edges are updated. The interaction network starts with learning the
+message embeddings on the nodes. In general, for node i, we have:
+                                                                   
+                                      M
+                        m  m−1
+                  xm                           ϕm xm−1 , xm−1
+                                                                   
+                   i =ξ    xi   ,                  i      j   , ej,i  ,             (1)
+                                     j∈N (i)
+
+
+where the features xmi are updated through a differentiable function ξ
+                                                                       m
+                                                                         (e.g. a multi-
+layer perceptron as in our case). The updates takes the features for node i from graph
+m − 1 and combines them with new information using some sort of aggregator such
+as sum. For all other nodes j in i’s neighborhood, apply a differentiable function ϕm
+which specifies how the information in node i will combine with those of nodes j and
+the respective edges ej,i ’s that connect them.
+
+
+                                               5
+    Once all message passing steps have been performed, the output graph GM is given
+to the Decoder. The Decode phase involves converting the latent graph representation
+GM back into the original space of particle properties. Note that we do not decode the
+edges as we wish to learn only node representations given our framework. The node
+contains the chemistry information, while the edges are simply tracking the particles
+proximity in chemical composition space. The Decoder computes:
+
+                                      ŷi = δ v (viM ),
+
+where δ v is a learned function that maps the latent node representation back to the
+predicted property ŷi . In our framework, the dynamics extracted from the nodes,
+pertain to how fast the changes in masses or concentrations are occurring within each
+particle. After decoding, we compute the loss between the predicted rates and the
+target rates - target rates are computed using an Inverse Decoder from the ground-
+truth masses and concentrations. After training for several steps to minimize the loss,
+the post-processing of the predicted rates involves Euler integration to obtain the
+predicted masses and concentrations.
+    Figure 1 illustrates the architecture of a Graph Neural Network (GNN) designed
+for simulating aerosol microphysics. The process involves several key stages: input
+preprocessing, encoding, message passing, processing, decoding, and output postpro-
+cessing. The input data, consisting of various aerosol particles and their properties
+(e.g., ∆SO4 , ∆H2 O, ∆H2 SO4 - the rates of change in mass and concentration of each
+chemical species), are normalized and preprocessed. Each particle is further character-
+ized by parameters such as type, chemical species’ mass (or concentration) distances to
+minimum and maximum values (dmin , dmax ), black carbon mass (BC), organic carbon
+mass (OC), and aerosol number concentration (N).
+    The system constructs a graph where each node (v1 , v2 , v3 ) represents a particle or a
+state, and edges (e12 , e13 , e23 ) - added to the graph by a k-nearest neighbors algorithm
+- represent the Euclidean distance (i.e. ||vi − vj ||2 ) and displacement between all mass
+and concentration (e.g. (SO4 )vi − (SO4 )vj ) quantities represented by the nodes. These
+input features are encoded using Multi-Layer Perceptrons (MLPs) for both nodes and
+edges, transforming them into a format suitable for processing within the GNN.
+    In the message passing phase, information is exchanged between nodes through
+edges. This step involves building messages, forwarding them along the edges, and
+aggregating information at each node. The process is iteratively applied across layers
+to capture complex interactions. The encoded data undergoes processing in Layer 1,
+where node and edge features are updated using MLPs. Activation functions such as
+Parametric ReLU (PReLU) are applied to introduce non-linearity.
+    The processed information is then decoded back into the original feature space
+using MLPs. This step translates the learned representations into predictions for the
+aerosol properties. The output data is post-processed to predict new quantities and
+compute the loss for model training. The predicted properties are compared to the
+target values to refine the model through backpropagation, which involves adjusting
+the weights of the network based on the computed loss, optimizing the model to
+improve accuracy in predicting aerosol microphysical properties.
+
+
+                                             6
+Fig. 1: Architecture of a Graph Neural Network (GNN) for aerosol microphysics sim-
+ulation. The process begins with input data normalization and preprocessing, followed
+by encoding using Multi-Layer Perceptrons (MLPs) for nodes and edges. Message pass-
+ing is performed to exchange information between nodes, which is processed through
+multiple layers with activation functions like PReLU. The data is then decoded back
+into the original feature space, post-processed to predict new quantities, and refined
+through backpropagation to optimize model accuracy.
+
+
+
+2.2.3 Simulating Aerosol Dynamics with a Learned Graph Network
+Once the GNN is trained, it is then used as a simulator to predict aerosol micro-
+physical dynamics iteratively. Figure 2 illustrates the integration of a Graph Neural
+Network (GNN) within a graph network simulator (GNS) designed to predict aerosol
+microphysics over time. The GNN acts as the core computational engine, enabling the
+simulation of complex interactions between aerosol particles.
+    The simulator employs a learned update mechanism, denoted as dθ , to iteratively
+refine predictions. This mechanism adjusts the state of the system based on the GNN’s
+output, ensuring accurate simulation of aerosol dynamics over time. The final out-
+put provides predictions of mass and concentration trajectories for various chemical
+
+
+                                          7
+Fig. 2: Schematics of our graph network simulator. This figure was adapted from
+Sanchez-Gonzalez et al. (2020) to depict our GNS framework. The first row shows the
+progress of the simulated data through time. At each time step the learned simulator
+is called to predict the next time step. The learned simulator is a pre-trained GNN
+using the Encode-Process-Decode scheme as shown in Figure 1.
+
+
+species present in the aerosol particles, which are visualized over time. The simulator
+incorporates a feedback loop, using these predictions to update the graph and improve
+subsequent iterations.
+
+2.3 Target application: GNS surrogate of PartMC-MOSAIC
+We explore our GNS framework for aerosol dynamics with using data simulated by
+PartMC-MOSAIC. We explore a simple system where H2 SO4 condenses on particles
+containing SO4 , black carbon (BC), organic carbon (OC) and H2 O. Within PartMC-
+MOSAIC, we simulate multiple 24-hour scenarios in which the initial concentrations
+of H2 SO4 and total number concentration of particles were varied among scenarios.
+Data was recorded every 600 seconds, giving us a total of 144 time steps in which
+the gas interacts with the particles. The environmental properties are kept constant
+with relative humidity set to 95%, temperature set to 293.15 K, and pressure set to
+101325 Pa.
+    For each scenario, we train the GNS using the per-particle mass of OC, BC, SO4 ,
+and H2 O, the number concentration associated with each computational particle, and
+the concentration of H2 SO4 . In these condensation-only scenarios, the particle number
+concentration, OC mass, and BC mass do not vary over time and, in our framework,
+are treated as “material properties” of the particles. On the other hand, H2 SO4 varies
+with time but does not vary among particles, such that each particle “sees” the same
+concentration of H2 SO4 at a time.
+    Data from PartMC-MOSAIC is processed through our data preparation pipeline.
+Once the information has been loaded, each array is determined to be either a “mate-
+rial property” - a feature that does not change with time, but differs per particle, or
+
+
+                                          8
+a time changing feature which may or may not vary per particle. We can also specify
+“particle types” which can be used to encode a categorical characteristic for a par-
+ticle such as CCN active or not, for instance, though this feature is not applied the
+examples presented here. For each scenario simulated in PartMC-MOSAIC, we assign
+a categorical variable (called “universe number”) which is used by the algorithm to
+learn the differences between the scenarios.
+    Before taking the simulation data into our framework, we perform a data trans-
+formation step where gas concentrations are placed on a logarithmic scale and all
+quantities are normalized to fall in the [0, 1] interval. We also split the dataset into
+training, testing and validation scenarios. The splits can be determined as desired, but
+for the examples shown in our experiments we use a 60/30/10 train/test/validation
+split.
+
+
+
+2.4 Implementation Details
+As in the work of Sanchez-Gonzalez et al. (2020) and Kumar and Vantassel (2022),
+our GNS uses standard neural networks and k-nearest neighbors (k-NN) algorithms
+as building blocks. We use PyTorch (Paszke et al., 2019) and PyTorch Geometric (Fey
+and Lenssen, 2019) classes and functions for these purposes.
+    As aforementioned, particle’s input are a sequence of per-particle masses of con-
+stituent aerosol species or gas concentrations, which are used to compute the rate of
+change in these quantities over each time step. We also include particle features that
+do not change over time, so called “material properties”. Unlike previous GNS imple-
+mentations, our GNS framework is designed to operate in beyond a three-dimensional
+space. In our case, both the time-changing and material property features can be
+arrays of arbitrary dimensions. We also add a novel global categorical variable called
+“universe number”, which represents the particles’ scenario conditions.
+    Our Encoder constructs a k-NN graph with k = 2, that is each particle is con-
+nected to the nearest 2 neighbors in the chemical composition domain, with necessary
+transformations applied so that we could use Euclidean distances. The data contained
+in nodes and edges are encoded as 2-hidden-layer perceptrons (MLP) with parametric
+rectified linear unit functions PReLU(x; a) = max(0, x) + a ∗ min(0, x) applied at each
+of 256 channels, that learns the embeddings.
+    The Processor performs M = 1 message passing step, which means that the inter-
+action network contains one message exchange between each of the nodes and their
+neighbors (and the edge that connects them). Both k and M are parameters on
+which we experimented for performance improvements. Messages are combined and
+exchanged with the same MLP from the Encoder, and are aggregated via addition.
+    Our Decoder is an alternative 2-hidden-layer perceptron whose activation func-
+tions are the regular non-parametric ReLU, that is δ v (x) = max(0, x). After being
+decoded, the data represent the dynamics of chemical compositions of each particle.
+The predicted compositions are obtained using an Euler integrator.
+    As in Sanchez-Gonzalez et al. (2020)’s work, we implement training noise to mit-
+igate error accumulation over the rollouts. The “ground-truth” input data, which is
+PartMC-MOSAIC simulated data is not corrupted by noise. However, as our model
+
+
+                                           9
+predicts each time step based on its previous predictions, substantial error accumula-
+tion can occur. Mitigating this accumulation involves introducing noise to the training
+data. After computing the rates of changes, we add a random-walk noise that is dis-
+tributed normally as N (µ = 0, σ = 6.3 × 10−5 ), thus making the training distribution
+closer to the distribution generated from rollouts.
+    We also standardize all input and target vectors with means and standard devia-
+tions summarized from the training dataset. Without this transformation, we noticed
+poor performance due to the large mean and variability ranges of the multi-dimensional
+chemical composition space.
+    Loss at training was computed by comparing the predicted per-particle dynamics
+with target ones obtained from the ground-truth data. We use a multi-output mean
+squared error function to compute this loss:
+                                         N    D
+                                     1 XX                   2
+                           LMSE =              (yij − ŷij ) ,                      (2)
+                                     N i=1 j=1
+
+where N is the total number of particles, D is the total number of dimensions (i.e.
+chemistry in the particles), yij is the target rate of chemical change based on ground-
+truth data, and ŷij is the predicted rate of chemical change.
+    We minimize this loss using the Adam optimization algorithm. Adam, which stands
+for Adaptive Moment Estimation, computes individual adaptive learning rates for dif-
+ferent parameters by estimating the first moment (mean) and the second moment
+(uncentered variance) of the gradients (Kingma and Ba, 2014). We set an initial learn-
+ing rate of 5 × 10−5 and perform a total of 6300 gradient update steps, 300 steps at a
+time, for each available scenario.
+
+3 Results and Discussion
+Our main findings are that a physics-based GNS can be adapted to work in multi-
+dimensional chemical composition space, and it can learn accurate chemistry dynamics
+information from just the initial values. It is generalizable to different scenarios and
+conditions for the same simple system of sulfuric acid condensation. Although the
+system used here is simple, so is our GNS, which does not specify any formulas or
+constraints on how the particles should behave.
+    Our GNS is also efficient. Training on GPU usually took less than 12 seconds
+when using three aggregated scenarios with a total of 7267 particles and performing
+200 training steps, while testing and prediction time was always under 1 second for
+all the results presented here. The GNS framework is also quite modular, allowing
+for many of the parameters and hyperparameters to be set as appropriate or tuned
+differently. This allowed us to quickly experiment with different inputs to obtain the
+better performance.
+
+3.1 Demonstrating performance with three example scenarios
+The results presented here are for three testing scenarios which were predicted using
+a model trained on three aggregated training scenarios. Each scenario has different
+
+
+                                             10
+         Scenarios             Total # particles    Initial H2 SO4 Concentration (ppb)
+         Training Scenario 1         1975                          2.3153
+         Training Scenario 2         2315                          1.9610
+         Training Scenario 3         2977                          4.3907
+         Testing Scenario 1          2019                          5.7245
+         Testing Scenario 2          2829                          9.2196
+         Testing Scenario 3          3821                          9.9237
+         Table 1: Total number of particles and initial H2 SO4 concentra-
+         tions in each of the scenarios presented here.
+
+
+          Scenarios            # particles   LMSE      SO4 NMAE       H2 SO4 NMAE
+          Testing Scenario 1     2019        0.0495      0.1347           0.2660
+          Testing Scenario 2     2829        0.0211      0.0494           0.3632
+          Testing Scenario 3     3821        0.0003      0.1285           0.2270
+          Table 2: Results for a subset three of the nine scenarios tested.
+          NMAE is the normalized mean absolute error between the pre-
+          diction and the ground-truth data (PartMC-MOSAIC simulated
+          data). SO4 ’s NMAE is between masses in kg, H2 SO4 ’s NMAE is
+          between concentrations in ppb.
+
+
+initial conditions, and the trained model has no apriori knowledge of the testing sce-
+narios’ initial conditions. Although neural networks work best on predicting scenarios
+whose initial conditions have already been learned, we wanted to test our model’s
+performance on examples spawned from completely novel conditions. Scenario input
+parameters are summarized in Table 1, and the performance measures for each sce-
+nario are provided in Table 2. Accuracy of per-particle properties is quantified as the
+normalized mean absolute error (NMAE), defined as:
+                                             m   Pn
+                                  1 X                 |y − ŷij |
+                           NMAE =                  Pn ij
+                                                  i=1
+                                                                  ,                      (3)
+                                  m j=1              i=1 |yij |
+
+
+where y = yij and ŷ = ŷij are the true and predicted vectors, respectively, each of
+size n, the number of time steps by m, the number of particles.
+
+3.2 Per-particle composition and trace gases over time
+As illustrated by Figure 3, the GLAD model accurately predicts per-particle SO4 and
+H2 O, as well as the corresponding concentration in H2 SO4 in the first 4 to 6 hours
+- this is impressive given its small initial condition corpus of knowledge. In both the
+particle-resolved and GLAD model, the mass of SO4 in individual particles as H2SO4
+partitions to the particle phase, corresponding to a decrease in the concentration of
+H2 SO4 gas. The increase in per-particle SO4 mass leads to an increase in the mass of
+water taken up by particles, again in both the PartMC-MOSAIC simulation and in
+the learned GNS model.
+    While the model performs well overall in all scenarios, slight discrepancies at the
+extremes of the size range highlight areas for potential improvement. The SO4 mass
+
+
+                                             11
+Fig. 3: Comparison between “ground-truth” data (PartMC-MOSAIC accepted simu-
+lation results) and our GNS simulation for each scenario’s SO4 and H2 O masses in µg,
+and H2 SO4 concentration in ppb. Each line represents the chemical mass/concentra-
+tion trajectory for each particle over time for 24 hours. Trajectories where predicted
+using the first two masses/concentrations of each chemical for each particle.
+
+
+fraction ranges predominantly between 0.4 and 1.0 in all three scenarios, providing
+insight into the typical composition of these aerosol particles under the studied con-
+ditions. These observations underscore the complex interplay between particle size,
+composition, and atmospheric processing, while also demonstrating the efficacy of our
+predictive model in capturing these intricate dynamics.
+
+3.3 Evolution of the aerosol size distribution
+With such accurate predictions in per-particle properties during early dynamics, it is
+unsurprising that the GLAD framework predicts the initial evolution of the aerosol
+size distribution nearly perfect accuracy in comparison with PartMC-MOSAIC (see
+Figure 5). The size distribution at different points in time (0 hr, 2 hrs, and 4 hrs)
+are shown for the three example scenarios, shown for the true PartMC-MOSAIC
+simulations (solid red lines) and the GLAD predictions (dashed black lines).
+
+
+4 Conclusion
+This study demonstrates the effectiveness of a physics-based Graph Neural Network
+(GNN) approach in modeling multi-dimensional chemical composition dynamics in
+
+
+                                         12
+Fig. 4: Comparison of true and predicted SO4 mass fraction versus total dry diameter
+for aerosol particles over time for all three scenarios. The left panels show the true
+values for each scenario, while the right panels displays their respective predicted
+values. Each color represents a different time point ranging from 0 to 24 hours. The
+x-axis shows the total dry diameter in µm on a logarithmic scale, and the y-axis
+represents the SO4 mass fraction.
+
+
+aerosols. By adapting the Graph Network Simulator (GNS) framework to work with
+chemical composition space, we have shown that accurate chemistry dynamics informa-
+tion can be learned from initial conditions alone, without specifying explicit formulas
+or constraints on particle behavior.
+    Our GNS framework, applied to a simple system of sulfuric acid condensation,
+exhibits several key strengths:
+- Accuracy and efficiency: The model demonstrates relatively high accuracy across
+  different scenarios it has never seen before. Although predictions diverge from truth
+  over time, this divergence can be made smaller as the model’s knowledge corpus
+  grows. Training times are notably efficient, typically requiring approximately 12
+  seconds for 200 training steps to learn the chemistry dynamics of 7267 particles over
+
+
+                                          13
+Fig. 5: Comparison of true and predicted total diameter density distributions across
+three scenarios at different time intervals (0 hr, 2 hrs, and 4 hrs). Solid lines represent
+true distributions, while dashed lines indicate predictions by the simulator. Each row
+corresponds to a different scenario, demonstrating the model’s ability to accurately
+capture aerosol dynamics over time.
+
+
+
+
+  a 24 hours period (on GPU), while testing and prediction times consistently remain
+  under 1 second.
+- Generalizability: The framework shows robust performance across various scenarios
+  with different initial concentrations of H2 SO4 and total number of particles, indi-
+  cating its ability to adapt to diverse environmental conditions within the studied
+  system.
+- Flexibility: The modular nature of the GNS allows for easy adjustment of parame-
+  ters and hyperparameters, facilitating rapid experimentation and optimization for
+  different input conditions.
+   The comparison between true and predicted SO4 mass fractions across different
+scenarios demonstrates the model’s ability to capture complex relationships between
+particle size, composition, and temporal evolution. The striking similarities between
+true and predicted plots, particularly in representing the inverse relationship between
+
+
+                                            14
+particle size and SO4 mass fraction, underscore the model’s efficacy in simulating
+intricate aerosol dynamics.
+    As for future work, several promising directions emerge, such as
+- Incorporating global nodes could provide a more efficient representation of uniform
+  properties like H2 SO4 concentration, potentially improving the model’s performance
+  and computational efficiency.
+- Exploring distance functions beyond Euclidean, such as Mahalanobis or cosine dis-
+  tances, may offer better representations of the complex relationships in chemical
+  composition space, potentially leading to improved model performance and deeper
+  insights into underlying chemical processes.
+- Extending the framework to more complex aerosol systems with additional chemical
+  species and processes would test the limits of the GNS approach and potentially
+  broaden its applicability in atmospheric microphysics and chemistry modeling.
+    Further investigation into optimal parameter settings could also yield improve-
+ments in prediction accuracy, particularly for scenarios that currently show higher
+prediction errors. In conclusion, this study presents a significant step forward in the
+application of machine learning techniques to aerosol microphysics and chemistry
+modeling. The demonstrated ability of GLAD - our GNS framework - to accurately
+and efficiently simulate aerosol dynamics opens up new possibilities for understand-
+ing and predicting atmospheric processes. As we continue to refine and expand this
+approach, we anticipate that it will become an increasingly valuable tool in the study
+of atmospheric chemistry and climate science, offering new insights into the complex
+interactions that shape our environment.
+
+Data availability
+The GLAD package is available at github.com/fabstat/glad. The repository also
+includes the PartMC-MOSAIC data that was used for training, validation, and test-
+ing, as well as the example test cases and plotting scripts. PartMC is available at
+https://github.com/compdyn/partmc, and MOSAIC is available from Rahul Zaveri
+(rahul.zaveri@pnnl.gov).
+
+Acknowledgements
+The study was supported through the Laboratory Directed Research and Development
+program of Pacific Northwest National Laboratory (PNNL). PNNL is operated for the
+DOE by the Battelle Memorial Institute under Contract DE-AC05-76RL01830.
+
+
+References
+Albrecht, B.A.: Aerosols, cloud microphysics, and fractional cloudiness. Science
+  245(4923), 1227–1230 (1989) https://doi.org/10.1126/science.245.4923.1227
+
+Bellouin, N., Boucher, O., Haywood, J., Reddy, M.S.: Global estimate of aerosol direct
+  radiative forcing from satellite measurements. Nature 438(7071), 1138–1141 (2005)
+
+
+                                          15
+Battaglia, P., Pascanu, R., Lai, M., Jimenez Rezende, D., et al.: Interaction networks
+  for learning about objects, relations and physics. Advances in neural information
+  processing systems 29 (2016)
+
+Chung, C.E., Ramanathan, V., Kim, D., Podgorny, I.: Global anthropogenic aerosol
+  direct forcing derived from satellite and ground-based observations. Journal of
+  Geophysical Research: Atmospheres 110(D24) (2005)
+
+Fey, M., Lenssen, J.E.: Fast graph representation learning with pytorch geometric.
+  arXiv preprint arXiv:1903.02428 (2019)
+
+Fierce, L., Onasch, T.B., Cappa, C.D., Mazzoleni, C., China, S., Bhandari, J., Davi-
+  dovits, P., Fischer, D.A., Helgestad, T., Lambe, A.T., et al.: Radiative absorption
+  enhancements by black carbon controlled by particle-to-particle heterogeneity in
+  composition. Proceedings of the National Academy of Sciences 117(10), 5196–5203
+  (2020)
+
+Fierce, L., Riemer, N., Bond, T.C.: Toward reduced representation of mixing state
+  for simulating aerosol effects on climate. Bulletin of the American Meteorological
+  Society 98(5), 971–980 (2017)
+
+Fierce, L., Yao, Y., Easter, R., Ma, P.-L., Sun, J., Wan, H., Zhang, K.: Quantifying
+  structural errors in cloud condensation nuclei activity from reduced representation
+  of aerosol size distributions. Journal of Aerosol Science, 106388 (2024)
+
+Grabowski, W.W., Abade, G.C.: Broadening of cloud droplet spectra through eddy
+  hopping: Turbulent adiabatic parcel simulations. Journal of the Atmospheric
+  Sciences 74(5), 1485–1493 (2017) https://doi.org/10.1175/JAS-D-17-0043.1
+
+Gilmer, J., Schoenholz, S.S., Riley, P.F., Vinyals, O., Dahl, G.E.: Neural message
+  passing for quantum chemistry. In: International Conference on Machine Learning,
+  pp. 1263–1272 (2017). PMLR
+
+Gautam, T., Vandergrift, G.W., Lata, N.N., Cheng, Z., Rahman, A., Minke, A., Lai,
+ Z., Dexheimer, D.N., Zhang, D., Marcus, M.A., et al.: Chemical insights into the
+ molecular composition of organic aerosols in the urban region of houston, texas.
+ ACS ES&T Air (2024)
+
+Healy, R.M., Riemer, N., Wenger, J.C., Murphy, M., West, M., Poulain, L., Wieden-
+  sohler, A., O’Connor, I.P., McGillicuddy, E., Sodeau, J.R., et al.: Single particle
+  diversity and mixing state measurements. Atmospheric Chemistry and Physics
+  14(12), 6289–6299 (2014)
+
+Kingma, D.P., Ba, J.: Adam: A method for stochastic optimization. arXiv preprint
+  arXiv:1412.6980 (2014)
+
+Kumar, K., Vantassel, J.: Gns: A generalizable graph neural network-based simulator
+
+
+                                         16
+  for particulate and fluid modeling. arXiv preprint arXiv:2211.10228 (2022)
+
+Masson-Delmotte, V., Zhai, P., Pirani, A., Connors, S.L., Péan, C., Berger, S., Caud,
+ N., Chen, Y., Goldfarb, L., Gomis, M., et al.: Climate change 2021: the physical
+ science basis. Contribution of working group I to the sixth assessment report of the
+ intergovernmental panel on climate change 2 (2021)
+
+Morrison, H., Lier-Walqui, M., Fridlind, A.M., Grabowski, W.W., Harrington, J.Y.,
+ Hoose, C., Korolev, A., Kumjian, M.R., Milbrandt, J.A., Pawlowska, H., et al.:
+ Confronting the challenge of modeling cloud and precipitation microphysics. Journal
+ of advances in modeling earth systems 12(8), 2019–001689 (2020)
+
+Paszke, A., Gross, S., Massa, F., Lerer, A., Bradbury, J., Chanan, G., Killeen, T., Lin,
+  Z., Gimelshein, N., Antiga, L., et al.: Pytorch: An imperative style, high-performance
+  deep learning library. Advances in neural information processing systems 32 (2019)
+
+Riemer, N., Ault, A., West, M., Craig, R., Curtis, J.: Aerosol mixing state: Measure-
+  ments, modeling, and impacts. Reviews of Geophysics 57(2), 187–249 (2019)
+
+Rosenfeld, D., Lohmann, U., Raga, G.B., O’Dowd, C.D., Kulmala, M., Fuzzi, S., Reis-
+  sell, A., Andreae, M.O.: Flood or drought: how do aerosols affect precipitation?
+  science 321(5894), 1309–1313 (2008) https://doi.org/10.1126/science.1160606
+
+Riemer, N., West, M., Zaveri, R.A., Easter, R.C.: Simulating the evolution of soot mix-
+  ing state with a particle-resolved aerosol model. Journal of Geophysical Research:
+  Atmospheres 114(D9) (2009)
+
+Schütt, K.T., Arbabzadah, F., Chmiela, S., Müller, K.R., Tkatchenko, A.: Quantum-
+  chemical insights from deep tensor neural networks. Nature communications 8(1),
+  13890 (2017)
+
+Sanchez-Gonzalez, A., Godwin, J., Pfaff, T., Ying, R., Leskovec, J., Battaglia, P.:
+  Learning to simulate complex physics with graph networks. In: International
+  Conference on Machine Learning, pp. 8459–8468 (2020). PMLR
+
+Schwarz, J.P., Gao, R., Spackman, J., Watts, L., Thomson, D., Fahey, D., Ryerson,
+  T., Peischl, J., Holloway, J., Trainer, M., et al.: Measurement of the mixing state,
+  mass, and optical size of individual black carbon particles in urban and biomass
+  burning emissions. Geophysical Research Letters 35(13) (2008)
+
+Scarselli, F., Gori, M., Tsoi, A.C., Hagenbuchner, M., Monfardini, G.: The graph
+  neural network model. IEEE transactions on neural networks 20(1), 61–80 (2008)
+
+Shima, S.-i., Kusano, K., Kawano, A., Sugiyama, T., Kawahara, S.: The super-droplet
+  method for the numerical simulation of clouds and precipitation: A particle-based
+  and probabilistic microphysics model coupled with a non-hydrostatic model. Quar-
+  terly Journal of the Royal Meteorological Society: A journal of the atmospheric
+
+
+                                          17
+  sciences, applied meteorology and physical oceanography 135(642), 1307–1320
+  (2009)
+
+Stier, P., Schutgens, N.A., Bellouin, N., Bian, H., Boucher, O., Chin, M., Ghan, S.,
+  Huneeus, N., Kinne, S., Lin, G., et al.: Host model uncertainties in aerosol radia-
+  tive forcing estimates: results from the aerocom prescribed intercomparison study.
+  Atmospheric Chemistry and Physics 13(6), 3245–3270 (2013)
+
+Twomey, S.: The influence of pollution on the shortwave albedo of clouds. Jour-
+ nal of the atmospheric sciences 34(7), 1149–1152 (1977) https://doi.org/10.1175/
+ 1520-0469(1977)034⟨1149:TIOPOT⟩2.0.CO;2
+
+Veličković, P., Cucurull, G., Casanova, A., Romero, A., Lio, P., Bengio, Y.: Graph
+  attention networks. arXiv preprint arXiv:1710.10903 (2017)
+
+Wu, Z., Pan, S., Chen, F., Long, G., Zhang, C., Yu, P.S.: A comprehensive survey
+ on graph neural networks. IEEE Transactions on Neural Networks and Learning
+ Systems 32(1), 4–24 (2020)
+
+Zaveri, R.A., et al.: Development and evaluation of an explicit aqueous-phase chem-
+  istry module in the aerosol dynamics, gas- and aerosol-phase chemistry, and
+  transport model, partmc-mosaic. Journal of Geophysical Research: Atmospheres
+  113(D7) (2008)
+
+Zheng, Z., West, M., Zhao, L., Ma, P.-L., Liu, X., Riemer, N.: Quantifying the struc-
+  tural uncertainty of the aerosol mixing state representation in a modal model.
+  Atmospheric Chemistry and Physics 21(23), 17727–17741 (2021)
+
+
+
+
+                                         18
+

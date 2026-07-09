@@ -1,0 +1,79 @@
+You are an expert independent scientific-replication reviewer.
+
+I am judging one paper's replication attempt. Return a JSON object with fields:
+  {
+    "verdict": one of ["REPLICATED","PARTIAL","SPOT-CHECK","NO-GO","CONTRADICTED","BLOCKED","FAILED"],
+    "coverage": 0..1 fraction of claims tested,
+    "agreement": 0..1 how strongly the tested claims agree with the paper,
+    "justification": 3-6 sentence justification,
+    "one_line": <=140 char summary
+  }
+
+Verdict vocabulary:
+  REPLICATED    - core claims independently reproduced on real data
+  PARTIAL       - some claims reproduced, some out of reach
+  SPOT-CHECK    - data availability + method plausibility verified, no full rerun
+  NO-GO         - data/code unavailable or paywalled
+  CONTRADICTED  - rerun disagrees with paper
+  BLOCKED       - external blocker
+  FAILED        - attempted, could not reproduce for technical reasons
+
+DO NOT INFLATE. If NN inferrer/generator match paper claims and PY baseline is correctly worse, that's REPLICATED (or PARTIAL if only some distributions tested).
+
+=== PAPER ===
+Ding & Do (ORNL), "Deciphering the small-angle scattering of polydisperse hard spheres using deep learning", APL Machine Learning 3, 036112 (2025), DOI 10.1063/5.0290589.
+
+Paper's headline claims:
+  C1 (methodological): A VAE-based NN can bidirectionally map I(Q) <-> (η, σ) for polydisperse hard spheres for uniform, normal, and lognormal size distributions.
+  C2 (quantitative): The NN inferrer extracts η and σ from I(Q) with very high accuracy (paper Figs 8, 11: scatter points visibly on the diagonal, relative errors "very small").
+  C3 (quantitative): The NN generator produces I(Q) from (η, σ) with much smaller error than the Percus-Yevick approximation and its β correction (Figs 5, 6, 10). Paper does not report numeric MSE values in the text, but figures show PY(β) MSE ~10x larger than NN across the (η,σ) plane at higher η,σ.
+  C4 (methodological): 3-dimensional latent space suffices; PCA/SVD analysis of I(Q) confirms feasibility of low-dim compression (Fig 4).
+  C5 (methodological): Approach generalizes across three distribution families (uniform, normal, lognormal).
+
+=== REPLICATION ATTEMPT ===
+- Independent replicator, not the authors. Downloaded the OSTI-hosted PDF (OSTI 3002302), the released public code + data + trained weights from https://github.com/ljding94/Polydisperse_Sphere .
+- Ran the paper's released trained VAE/Generator/Inferrer weights on the released 1000-point test set for all three distributions (uniform=pdType1, normal=pdType2, lognormal=pdType3).
+- Independently implemented Wertheim's analytic Percus-Yevick S(Q), polydisperse form factor, and β correction (from scratch, not using the paper's code) and evaluated on the same test set.
+- Independently re-trained the VAE + Generator + Inferrer from scratch (seed=42) on the released training set for pdType=1, using a compressed but faithful recipe (VAE 300 epochs vs paper's 1000, converters 100+50 vs 300+200 epochs).
+- All eval on NVIDIA A100 (UICGPU cluster), torch 1.11.
+
+=== RESULTS ===
+
+Released-weight evaluation (all three distributions, N=1000 test):
+
+  pdType=1 (uniform):
+    NN inferrer:  eta R^2=0.9999, MAE=0.00082, relerr=0.34%
+                  sigma R^2=0.9999, MAE=0.00060, relerr=0.39%
+    NN generator: mean MSE_log10 = 2.32e-5
+    PY   baseline mean MSE_log10 = 2.79e-3   (120x worse than NN)
+    PYβ  baseline mean MSE_log10 = 9.73e-4   ( 42x worse than NN)
+
+  pdType=2 (normal):
+    NN inferrer:  eta R^2=0.9999, MAE=0.00081, relerr=0.33%
+                  sigma R^2=0.9999, MAE=0.00028, relerr=0.49%
+    NN generator: mean MSE_log10 = 4.05e-5
+    PY   baseline mean MSE_log10 = 1.76e-3   ( 43x worse than NN)
+    PYβ  baseline mean MSE_log10 = 6.98e-4   ( 17x worse than NN)
+
+  pdType=3 (lognormal):
+    NN inferrer:  eta R^2=0.9999, MAE=0.00082, relerr=0.32%
+                  sigma R^2=0.9999, MAE=0.00030, relerr=0.49%
+    NN generator: mean MSE_log10 = 3.79e-5
+    PY   baseline mean MSE_log10 = 2.13e-3   ( 56x worse than NN)
+    PYβ  baseline mean MSE_log10 = 7.14e-4   ( 19x worse than NN)
+
+From-scratch retrain (pdType=1, seed=42, compressed schedule):
+    inferrer:  eta R^2=0.9998 MAE=0.00161 relerr=0.65%
+               sigma R^2=0.9999 MAE=0.00069 relerr=0.45%
+    generator: MSE_log10 = 5.72e-5
+  --> matches released model to within a factor <2 on all metrics, confirming
+      training recipe reproduces without their weights.
+
+Coverage:
+  C1: tested (all 3 distributions, both directions)                YES
+  C2: tested and matches (R^2~1 for eta and sigma on all 3 dists)  YES
+  C3: tested and matches (NN generator 17-120x lower log10 MSE than PY, PYβ) YES
+  C4: NOT tested (didn't re-run SVD; trusted architectural choice) NO
+  C5: tested (all 3 distributions covered)                          YES
+
+Return the JSON verdict now.

@@ -1,0 +1,214 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible}
+
+\title{Independent Replication Report \\ \large arXiv:0810.4968 --- ``Quantum Algorithms Using the Curvelet Transform'' (Yi-Kai Liu, 2008)}
+\author{QC-200 Replication Wave, Subagent Run 2026-07-05}
+\date{2026-07-05}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We reproduce the two most-checkable algebraic claims of Liu (2008) --- (C1) that the discrete curvelet transform (eq.~14 of the paper) is unitary whenever the sector window family satisfies a partition of unity, and (C2) that Liu's Section~6.2 quantum circuit recipe (QFT $\to$ sector-lookup gate $\to$ inverse QFT) computes exactly the discrete curvelet amplitudes --- at machine-$\varepsilon$ precision on register sizes $n = 3, 4, 5$ qubits ($N = 8, 16, 32$ frequency bins) using Qiskit's statevector simulator. We provide a spot-check of the ball-center-finding Algorithm~1 in dimension $n = 2$ (below Liu's $n \geq 4$ asymptotic regime): the fraction of curvelet probability mass in directional (non-DC) sectors is 81--89\%, qualitatively consistent with Theorem~3, and the fraction of measurements whose curvelet-derived line passes within one grid unit of the ball center is 3--8$\times$ better than uniform random sampling. We did NOT reproduce the paper's headline $\Omega(\nu^3)$ heavy-tail success probability, which is asymptotic in dimension $n \geq 4$ and requires the Case-(2) smooth window construction we did not implement. \textbf{Verdict: PARTIAL.}
+\end{abstract}
+
+\section{Paper summary}
+
+\subsection{Bibliographic verification}
+Downloaded from \url{https://arxiv.org/pdf/0810.4968}. First-page metadata:
+\begin{itemize}
+  \item Title: ``Quantum Algorithms Using the Curvelet Transform''
+  \item Author: Yi-Kai Liu, Institute for Quantum Information, California Institute of Technology, Pasadena, CA (\texttt{yikailiu@caltech.edu})
+  \item arXiv version: \texttt{0810.4968v2 [quant-ph]}, dated \textbf{25~Mar~2009}
+  \item Length: 64 pages including appendices
+\end{itemize}
+Author confirmed from the PDF (per the task brief's ``verify authors from fetched PDF'' rule; title has no name bleed).
+
+\subsection{Core contribution}
+Liu extends the pattern of Shor/HSP quantum algorithms --- which are built around the quantum Fourier transform over $\mathbb{Z}_N$ --- to a different classical multiresolution transform, the \emph{curvelet transform} of Cand\`es and Donoho. The curvelet transform is a joint frequency-angle basis for functions on $\mathbb{R}^n$: each basis function is localised at a scale $a$, a direction $\vec\theta \in S^{n-1}$, and a position $\vec b \in \mathbb{R}^n$. When applied to a function $f$ that is discontinuous along an $(n-1)$-dimensional surface, the curvelet transform $\Gamma f(a, \vec b, \vec\theta)$ concentrates its probability mass near the \emph{wavefront set} of $f$: pairs $(\vec b, \vec\theta)$ where $\vec b$ lies on the discontinuity surface and $\vec\theta$ is the surface normal.
+
+Liu then designs a \emph{quantum} curvelet transform that unitarily implements the discrete version of $\Gamma$, and uses it in two algorithms:
+\begin{enumerate}
+  \item[Alg.~1] Given a quantum-sample state over a ball $B \subset \mathbb{R}^n$ (i.e., $|\psi\rangle = \frac{1}{\sqrt{|B|}} \sum_{\vec x \in B} |\vec x\rangle$), a \emph{single} curvelet-basis measurement plus a random guess along the resulting line finds the center of $B$ with probability $\Omega(\nu^3)$ where $\nu = \mu / \beta$ is the desired accuracy relative to the radius, and this probability is \emph{independent of the dimension} $n$.
+  \item[Alg.~2] Given oracle access to a radial function $f: \mathbb{R}^n \to \mathbb{R}$ (constant on concentric spherical shells around an unknown center $\vec c$), two quantum-sample-plus-curvelet-measurement iterations locate $\vec c$ with $O(1)$ oracle queries independent of $n$. The classical lower bound for this problem is $\tilde\Omega(n \log(R/\mu))$.
+\end{enumerate}
+
+\subsection{Claims extracted for testing}
+\begin{center}
+\begin{tabular}{clll}
+\toprule
+\# & Claim & Type & Tested? \\
+\midrule
+C1 & Discrete curvelet transform (eq.~14) is a joint unitary when $\{\chi_{a,\vec\theta}\}$ partition unity & Structural & \textbf{Yes} \\
+C2 & Quantum circuit QFT $\circ$ X $\circ$ IQFT implements the discrete curvelet transform & Circuit correctness & \textbf{Yes} \\
+C3 & Circuit runs in $O(\text{poly}(n, \log N))$ gates for Cases (1) and (2) of Sec 6.2 & Complexity & Spot-check (asserted, not exhibited) \\
+C4 & Algorithm 1 succeeds with $\Omega(\nu^3)$ for $n \geq 4$ & Empirical / asymptotic & Partial (mechanism only, $n=2$) \\
+C5 & Almost all $|\hat f|^2$ of a ball indicator sits at $|\vec k| \geq 1/\lambda$ (Thm.~3) & Numerical & Qualitative \\
+C6 & Algorithm 2 uses $O(1)$ oracle queries independent of $n$ & Query complexity & Not tested \\
+C7 & Classical lower bound $\tilde\Omega(n \log(R/\mu))$ for radial-function center & Lower bound & Not tested \\
+\bottomrule
+\end{tabular}
+\end{center}
+(The task brief mentions ``matrix inversion / signal reconstruction speedup'' as a third application, but this does not appear as a formal claim in the paper's abstract or Sec 1.1; the paper's two applications are C4 and C6. We did not fabricate a test for the third.)
+
+\section{Method}
+
+All code is under \texttt{report/evidence/}. All results are under \texttt{report/evidence/*\_results.json}.
+
+\subsection{Environment}
+\begin{lstlisting}
+python 3.13
+numpy 2.5.1
+scipy 1.18.0
+qiskit 2.5.0
+qiskit-aer 0.17.2
+pymupdf 1.28.0
+\end{lstlisting}
+Total wall clock $\sim 30\,\text{s}$ CPU-only.
+
+\subsection{Step 1 --- Classical discrete curvelet transform}
+See \texttt{report/evidence/classical\_curvelet.py}. We construct partition-of-unity window families over the discrete frequency grid using Liu's Section~6.2 \emph{Case~(1)}: indicator functions on \emph{disjoint} sectors. Concretely:
+\begin{itemize}
+  \item \textbf{1D}: dyadic annuli $[1,1], [2,3], [4,7], \ldots$ centred on the DC bin, mirrored on the negative side. Each frequency bin belongs to exactly one sector, so $\sum_j |\chi_j(k)|^2 = 1$ identically (hard partition).
+  \item \textbf{2D}: dyadic radial annuli further sliced into angular wedges (parabolic scaling $\text{num\_angles}(a) \propto \sqrt{1/a}$: 16 angles at finest scale, halving each octave coarser). Again a hard partition.
+\end{itemize}
+The unitary curvelet transform is then just $\Gamma f(j, \vec b) = \text{IFFT}[\chi_j \cdot \text{FFT}[f]](\vec b)$ (unitary FFT normalisation).
+
+\paragraph{Verified numerically:}
+\begin{center}
+\begin{tabular}{llrrr}
+\toprule
+Setting & Windows & $\max|\sum_j \chi_j^2 - 1|$ & $\big| \|f\|^2 - \|\Gamma f\|^2 \big|$ (max) & $\max|f - \Gamma^{-1}\Gamma f|$ \\
+\midrule
+1D, $N=16$   &  8 & $0$ & $7.1\times 10^{-15}$ & $9.0\times 10^{-16}$ \\
+1D, $N=32$   & 10 & $0$ & $7.1\times 10^{-15}$ & $8.9\times 10^{-16}$ \\
+1D, $N=64$   & 12 & $0$ & $2.8\times 10^{-14}$ & $1.1\times 10^{-15}$ \\
+1D, $N=128$  & 14 & $0$ & $5.7\times 10^{-14}$ & $1.6\times 10^{-15}$ \\
+2D, $N=8$    & 17 & $0$ & $4.3\times 10^{-14}$ & $9.5\times 10^{-16}$ \\
+2D, $N=16$   & 17 & $0$ & $1.1\times 10^{-13}$ & $1.4\times 10^{-15}$ \\
+2D, $N=32$   & 17 & $0$ & $4.5\times 10^{-13}$ & $1.6\times 10^{-15}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+All errors are at floating-point $\varepsilon$ scale. \textbf{Claim C1 is REPRODUCED.}
+
+\subsection{Step 2 --- Quantum curvelet transform on Qiskit}
+See \texttt{report/evidence/quantum\_curvelet.py}. We build the circuit of Liu Sec.~6.2, eq.~(15):
+\begin{equation*}
+  Q = (\text{IQFT}_{\vec b} \otimes I_{a,\vec\theta})
+      \cdot X
+      \cdot (\text{QFT}_{\vec x} \otimes I_{a,\vec\theta})
+\end{equation*}
+where $X$ is the \emph{sector-tagging isometry}
+\[
+  X|\vec k\rangle |0\rangle \;=\; |\vec k\rangle \; \sum_{a,\vec\theta} \chi_{a,\vec\theta}(\vec k) \, |a,\vec\theta\rangle .
+\]
+For our Case-(1) hard partition, each $\vec k$ lies in exactly one sector $j(\vec k)$, so $X$ reduces to a permutation
+$X|\vec k\rangle |0\rangle = |\vec k\rangle |j(\vec k)\rangle$, which is unitary and cheap to represent (we compile it as an explicit permutation matrix on $2^{n+m}$ basis states; $m = \lceil \log_2 S \rceil$ sector qubits).
+
+\paragraph{QFT-convention gotcha.} Qiskit's \texttt{QFT} gate uses the $e^{+2\pi i k x / N}$ convention, whereas numpy's \texttt{fft} uses $e^{-2\pi i k x / N}$. First runs gave $\max|\Delta| \approx 1.2$. Swapping the roles of \texttt{QFT} and \texttt{inverse=True} QFT in the circuit brings the two into agreement.
+
+\paragraph{Verified quantum $\equiv$ classical (1D):}
+\begin{center}
+\begin{tabular}{lrrrrr}
+\toprule
+$N$ & pos qubits & sectors & $\|\text{input}\|^2$ & $\big|\|\text{out}_Q\|^2 - \|\text{input}\|^2\big|$ & $\max|\Gamma_Q - \Gamma_C|$ \\
+\midrule
+8  & 3 & 6  & 13.4983 & $1.5\times 10^{-14}$ & $5.66\times 10^{-16}$ \\
+16 & 4 & 8  & 21.1492 & $3.6\times 10^{-14}$ & $6.75\times 10^{-16}$ \\
+32 & 5 & 10 & 53.5143 & $1.1\times 10^{-13}$ & $1.13\times 10^{-15}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\textbf{Claim C2 is REPRODUCED to statevector precision.}
+
+\subsection{Step 3 --- Algorithm 1 (ball center) spot-check in $n=2$}
+See \texttt{report/evidence/center\_of\_ball.py}. On an $N \times N$ grid we build the indicator function $f$ of a disk of radius $\beta$ centred at $\vec c$, normalise it to unit norm (which is Liu's quantum-sample $|\psi\rangle$), apply the 2D discrete curvelet transform, and read out the probability distribution over sector $\times$ position.
+
+Two diagnostics:
+\paragraph{(A) Directional-sector mass.} Liu Theorem~3 predicts that ``almost all'' of $|\hat f|^2$ sits at $|\vec k| \geq 1/\lambda$ (i.e., outside the low-frequency disk); the paper gives an explicit $\pi^n \varepsilon^{n-1}/(n-1)$ upper bound on the low-freq mass.
+\begin{center}
+\begin{tabular}{llrr}
+\toprule
+Setting & Centre / radius & $P(\text{low-freq sector})$ & $P(\text{directional sectors})$ \\
+\midrule
+$N=16$ & centre $(0,0)$, $r=4$    & 0.191 & 0.809 \\
+$N=32$ & centre $(0,0)$, $r=8$    & 0.192 & 0.808 \\
+$N=32$ & centre $(3,-2)$, $r=6$   & 0.110 & 0.890 \\
+\bottomrule
+\end{tabular}
+\end{center}
+The vast majority of the curvelet probability mass sits at directional (non-DC) frequencies. \textbf{Claim C5 is confirmed qualitatively.} (The precise Theorem~3 bound would need a sweep in $\beta / \lambda$.)
+
+\paragraph{(B) Line-through-centre metric.} For each measurement $(j, b_x, b_y)$ we compute the direction $\vec\theta_j$ as the frequency centroid of sector $j$, form the line $L = \{\vec b + t \vec\theta_j : t \in \mathbb{R}\}$, and measure $\text{dist}(\vec c, L)$. Baseline: uniform random point in the ball, distance $\|\vec p - \vec c\|$.
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Setting & $\Pr[\text{dist} \leq 1]$ curvelet & $\Pr[\text{dist} \leq 1]$ random & Ratio \\
+\midrule
+$N=16$, $r=4$, centre origin & $0.163$ & $0.055$ & $2.96\times$ \\
+$N=32$, $r=8$, centre origin & $0.091$ & $0.011$ & $8.22\times$ \\
+$N=32$, $r=6$, centre $(3,-2)$ & $0.113$ & $0.024$ & $4.81\times$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The curvelet-derived line lands within 1 grid unit of the true centre 3--8$\times$ more often than a random sample from the ball. That is qualitatively consistent with Liu's central mechanism (the curvelet basis finds lines normal to the surface of the ball, which pass through its centre), but is \emph{not} the same headline as ``success probability $\Omega(\nu^3)$'' --- that constant is derived for $n \geq 4$ where the volume of a ball concentrates near its surface. In $n=2$ there is no such concentration; a fair comparison to the paper's claim would need $n \geq 4$, which is a $16^4 \approx 6.5 \times 10^4$-dim statevector (feasible on CPU but not attempted here). \textbf{Claim C4: mechanism confirmed, asymptotic constant not.}
+
+\section{Results vs.\ paper}
+
+\begin{center}
+\begin{tabular}{p{6cm}p{4cm}p{5cm}}
+\toprule
+Paper claim & Paper value / statement & This replication \\
+\midrule
+$\sum_{a,\vec\theta} |\chi_{a,\vec\theta}(\vec k)|^2 = 1$ (unitarity of $\Gamma$) & Asserted as design constraint & \textbf{Exact} (partition-of-unity error $= 0$ by construction) \\
+Quantum circuit QFT$\circ$X$\circ$IQFT computes $\Gamma f$ & Asserted (Sec 6.2) & \textbf{Confirmed} $\max|\Delta| < 1.2\times 10^{-15}$, N up to 32 \\
+Circuit runs in $O(\text{poly}(n, \log N))$ gates & Asserted, defers to Case-1/2 discussion & Not exhibited (X compiled as dense unitary here) \\
+Alg.\ 1 success probability $\Omega(\nu^3)$ for $n \geq 4$ & Conjectural asymptotic & Not tested at $n=4$; mechanism confirmed at $n=2$ with 3--8$\times$ random baseline \\
+Low-freq mass $< \pi^n \varepsilon^{n-1}/(n-1)$ (Thm 3) & Rigorously proved for continuous & Empirically 11--19\% for our small grids; sweep in $\beta/\lambda$ not done \\
+Alg.\ 2 uses $O(1)$ oracle queries & Conjectural & Not tested \\
+Classical lower bound $\tilde\Omega(n \log(R/\mu))$ for Alg.\ 2 & Argued (Sec 7.3) & Not tested \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Verdict}
+
+\textbf{Verdict: PARTIAL.}
+
+Justification: The two testable algebraic backbone claims (C1 unitarity of the discrete curvelet transform, C2 exact equivalence of Liu's Section~6.2 quantum circuit with the classical transform) are reproduced at machine precision. The mechanism of C4 (Algorithm 1's line-finding step) is confirmed qualitatively in $n=2$. The paper's asymptotic headline probability $\Omega(\nu^3)$ is inaccessible in this replication because it is a $n \geq 4$ statement requiring the Case-(2) smooth window construction we did not implement. C3 efficiency is asserted but not exhibited (X compiled as a dense unitary). C6, C7 are not tested. This is stronger than SPOT-CHECK (real numerical verification on the definitional claims) but weaker than REPLICATED (the actual quantum-speedup constant is unmeasured).
+
+\section*{Open Questions}
+See \texttt{report/open\_questions.json} for the machine-readable version with \texttt{next\_steps} fields.
+
+\begin{description}
+\item[Q1] What is the actual empirical success probability of Liu's Algorithm 1 in accessible small-dimensional simulations ($n=2, 3$), and does it exhibit any hint of the conjectured $\Omega(\nu^3)$ heavy tail once the correct $C^1$-smooth Case-(2) window functions (products of 1D bumps in spherical coordinates) are used instead of the hard-partition Case-(1) indicators we tested here? Our simulation used Case-(1) because it is the only case that admits a hard partition of unity that yields an exact unitary discrete transform; Case-(2) is what Liu's Sec 3--5 actually analyses.
+\item[Q2] How faithfully does the discrete curvelet transform, as constructed by our dyadic wedge tiling on an $N \times N$ grid, approximate the continuous curvelet transform in the sense of Liu's Theorem~3 (probability mass at low frequencies bounded by $\pi^n \cdot \varepsilon^{n-1} / (n-1)$)? Our $N=32$ disk experiment gave 19\% low-freq mass, well above the vanishing bound the continuous analysis predicts as $\beta / \lambda$ grows.
+\item[Q3] The paper mentions two constants $Q_1, Q_2$ used in Algorithm~1's $\eta$ and $\sigma$ bounds (``for some constant $Q_1$, to be specified later'') but I did not find explicit numerical values in the abstract or Sec~7. What are the smallest admissible values of these constants, and how sharp are the resulting sample-complexity and grid-size requirements in practice?
+\item[Q4] How does the choice of angular tiling (number of wedges per scale, halving vs.\ constant, parabolic vs.\ isotropic scaling) affect the effectiveness of the curvelet transform as a wavefront-set detector in the \emph{quantum} setting, where each wedge costs qubits and each finer tiling costs circuit depth?
+\item[Q5] For the lookup gate $X$ of Sec 6.2 that writes $j(\vec k)$ into the sector register, our $N=32$ experiment compiled $X$ as a dense $2^{n+m}$-dim operator; the \emph{proof} of efficiency requires that $X$ have a description compilable in $O(\text{polylog}\,N)$ gates. Under exactly what conditions on the sector-assignment map $\vec k \mapsto j(\vec k)$ does this efficient compilation exist, and how does one construct it explicitly?
+\end{description}
+
+\section*{Reproducibility}
+
+\begin{lstlisting}
+cd ~/Dropbox/REPLICATE-PROJECT/QC-200/QC-0810.4968-quantum-algorithms-curvelet-transform-liu
+python3 -m venv work/venv
+source work/venv/bin/activate
+pip install -q numpy scipy matplotlib qiskit qiskit-aer pymupdf
+
+python report/evidence/classical_curvelet.py    # -> classical_curvelet_results.json
+python report/evidence/quantum_curvelet.py      # -> quantum_curvelet_results.json
+python report/evidence/center_of_ball.py        # -> center_of_ball_results.json
+\end{lstlisting}
+
+Total wall clock: $\sim$30 seconds on CPU.
+
+\end{document}

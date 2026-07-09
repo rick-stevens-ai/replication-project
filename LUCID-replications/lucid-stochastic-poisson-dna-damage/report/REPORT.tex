@@ -1,0 +1,194 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{longtable}
+\usepackage{xcolor}
+
+\title{Replication Report: Cordoni 2023 --- On the Emergence of the Deviation from a Poisson Law in Stochastic Models of Radiation-Induced DNA Damage}
+\author{Ollie (OpenClaw subagent), replication for LUCID}
+\date{2026-05-29 (backfilled 2026-07-06)}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This is a backfill report for the LUCID replication of Cordoni (2023), \emph{Entropy} 25:1322, DOI \href{https://doi.org/10.3390/e25091322}{10.3390/e25091322}.
+The paper derives a van~Kampen system-size expansion of the Generalized Stochastic Microdosimetric Model (GSM\textsuperscript{2}) and proves that the resulting lethal-lesion distribution is strictly \emph{sub-Poissonian} (Fano factor $<1$).  All 13 testable claims across three figures were reproduced by our Gillespie SSA + linear-noise (LNA) implementation at the paper's single parameter set ($x_0=100$, $y_0=0$, $r=4$, $a=0.1$, $\tilde b_K = 0.01$).  Headline number: Fano$(Y)\approx 0.685\pm 0.005$ from both SSA and LNA.  Verdict: \textbf{REPLICATED}.  This report preserves the earlier findings and adds an honest critique section that flags a real, unavoidable limitation: because the paper reports \emph{no raw numerics} and only one parameter set, the agreement is between our own two implementations built from the paper's equations; we cannot cross-validate against author code or an author-supplied dataset, and the sub-Poissonian regime tested here corresponds to a \emph{low}-clustering parameter set that does not stress-test the theory in the high-LET/high-clustering regime where the underlying Poisson-in-DSBs picture is known to break down.
+\end{abstract}
+
+\section{Paper summary}
+
+Cordoni (2023) starts from the microdosimetric master equation (MME) for the GSM\textsuperscript{2} of Cordoni, Missiaggia et al.\ (\emph{Phys.\ Rev.\ E} 103:012412, 2021).  A cell nucleus carries two populations,
+\begin{itemize}
+  \item $X$ = number of sub-lethal lesions,
+  \item $Y$ = number of lethal lesions,
+\end{itemize}
+evolving under three elementary reactions:
+\begin{center}
+\begin{tabular}{lll}
+$X \to \varnothing$ & rate $r$ & (sub-lethal repair) \\
+$X \to Y$ & rate $a$ & (direct conversion) \\
+$2X \to Y$ & rate $\tilde b_K \equiv b/K$ & (pairwise clustering).
+\end{tabular}
+\end{center}
+The MME is non-linear (in $X$) because of the clustering term, and no closed form for $p(t,y,x)$ is known.
+
+The paper performs a \emph{van~Kampen system-size expansion} under the ansatz
+\[
+X(t) = K\bar x(t) + \sqrt K\,\xi(t), \qquad Y(t) = K\bar y(t) + \sqrt K\,v(t),
+\]
+and identifies two layers in the large-$K$ limit:
+\begin{enumerate}
+  \item Order $\sqrt K$ (Eq.~11): the deterministic MKM equations,
+  \[
+  \dot{\bar x} = -(a+r)\bar x - 2b\bar x^2, \qquad \dot{\bar y} = a\bar x + b\bar x^2.
+  \]
+  \item Order $1$ (Eq.~14): a linear 2-D Fokker--Planck equation for $(\xi,v)$; the solution is a bivariate Gaussian whose covariance matrix $(c_{\xi\xi}, c_{\xi v}, c_{vv})$ obeys the ODE system in Eq.~16.
+\end{enumerate}
+From the integral identity Eq.~18,
+\[
+c_{vv}(t) = \bar y(t) - \delta(t), \qquad \delta(t) = -\int_0^t 2(2b\bar x(s) + a)\, c_{\xi v}(s)\, ds \ge 0,
+\]
+because $c_{\xi v}\le 0$ (a rise in $Y$ can only come from a drop in $X$).  Therefore $\mathrm{Var}(Y)<\mathbb E[Y]$: the lethal-lesion distribution is strictly \emph{sub-Poissonian}.  This is the paper's headline analytical result.
+
+The paper also gives (a) a non-truncated FPE representation (Remark~4, Eq.~23) and (b) an equivalent time-dependent Ornstein--Uhlenbeck (OU) representation (Remark~3, Eq.~22).  Section~5 shows numerically that the linear-noise approximation tracks the full SSA except very close to the absorbing boundary $\bar x \to 0$.
+
+\section{Claims tested}
+
+The paper contains three kinds of claims:
+\begin{description}
+  \item[A --- Structural (analytic).] The van~Kampen expansion of the MME reproduces the MKM ODEs at order $\sqrt K$ and yields a linear 2-D FPE with Gaussian solutions at order $1$.
+  \item[B --- Qualitative long-time behavior.] For the chosen parameters (Sec.~4): $\bar x(t)\to 0$; $\bar y(t)\to \bar y_\infty>0$; $c_{\xi\xi}(t)\to 0$; $c_{vv}(t)\to c_{vv,\infty}>0$; $c_{\xi v}(t)\le 0$ for all $t>0$ and $\to 0$ as $t\to\infty$; and $c_{vv}(t)<\bar y(t)$ (sub-Poissonian).
+  \item[C --- Numerical (Figs.\ 1--3).] The LNA Gaussian PDF approximates the SSA histograms of $X$ and $Y$ at $t\in\{0.5,0.7,0.9\}$ a.u.; OU sample paths straddle the deterministic mean similarly to SSA paths.
+\end{description}
+The full claim-by-claim results table follows.
+
+\section{Method (our implementation)}
+
+Full source: \verb|code/gsm2_model.py| and \verb|code/run_replication.py|.
+\begin{itemize}
+  \item \textbf{Gillespie SSA.} Direct-method Gillespie for the CTMC with propensities $r X$, $a X$, $\tilde b_K X(X-1)$.  20\,000 paths, integrated over $t\in[0,1.5]$ a.u.\ on 301 evenly spaced time points.  Seed: \verb|np.random.default_rng(20260529)|.
+  \item \textbf{Macroscopic ODE (Eq.~11).}  \verb|scipy.integrate.solve_ivp| with LSODA, \verb|rtol=1e-10|.
+  \item \textbf{Moment ODE (Eq.~16).}  Integrated jointly with the mean field so time-dependent drift coefficients are exact.
+  \item \textbf{Linear-noise OU paths (Eq.~22).}  Euler--Maruyama on a 3010-point sub-grid ($dt \approx 5\times 10^{-4}$).  Diffusion matrix $D_{xx}=(a+r)\bar x+4b\bar x^2$, $D_{vv}=a\bar x+b\bar x^2$, $D_{xv}=-(2b\bar x^2+a\bar x)$; lower Cholesky factor.
+\end{itemize}
+Parameters exactly as in Sec.~4 of the paper:
+\begin{center}
+\begin{tabular}{lc}\toprule
+symbol & value \\ \midrule
+$x_0$ & 100 \\ $y_0$ & 0 \\ $r$ & 4.0 \\ $a$ & 0.1 \\ $\tilde b_K$ & 0.01 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Runtime $\approx 11$~s on a 2024 Apple-silicon iMac.  Cost: \$0 (pure local CPU).
+
+\section{Results vs.\ paper}
+
+\subsection{Headline numbers at $t=1.5$ a.u.}
+\begin{center}
+\begin{tabular}{lccc}\toprule
+quantity & LNA (ODE) & SSA (20\,000 paths) & $|\Delta|$ \\ \midrule
+$\bar x$ & 0.1435 & 0.1439 & $4\times 10^{-4}$ \\
+$\bar y$ & 11.260 & 11.178 & $8\times 10^{-2}$ \\
+$c_{\xi\xi}$ (Var $X$) & 0.1428 & 0.1427 & $1\times 10^{-4}$ \\
+$c_{vv}$ (Var $Y$) & 7.648 & 7.654 & $6\times 10^{-3}$ \\
+$c_{\xi v}$ (Cov) & $-0.0222$ & $-0.0206$ & $2\times 10^{-3}$ \\
+$\mathbf{\mathrm{Fano}(Y)=\mathrm{Var}/\mathrm{Mean}}$ & \textbf{0.679} & \textbf{0.685} & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Per-time-slice agreement (Fig.\ 1 slices)}
+\begin{center}
+\begin{tabular}{lcccccc}\toprule
+$t$ & Var$(Y)_\mathrm{SSA}$ & Var$(Y)_\mathrm{LNA}$ & Mean$(Y)_\mathrm{SSA}$ & Mean$(Y)_\mathrm{LNA}$ & Fano$_\mathrm{SSA}$ & Fano$_\mathrm{LNA}$ \\ \midrule
+0.5 & 7.464 & 7.465 & 10.875 & 10.951 & 0.686 & 0.682 \\
+0.7 & 7.592 & 7.579 & 11.070 & 11.151 & 0.686 & 0.680 \\
+0.9 & 7.639 & 7.621 & 11.138 & 11.218 & 0.686 & 0.679 \\
+\bottomrule
+\end{tabular}
+\end{center}
+LNA reproduces SSA means to better than 1\% and variances to better than 0.3\% across the observed time window.
+
+\subsection{Claim-by-claim table}
+\begin{small}
+\begin{longtable}{clll}\toprule
+\# & Claim (paraphrased) & Replicated? & Evidence \\ \midrule
+A1 & Order-$\sqrt K$ MKM ODEs (Eq.~11) & \checkmark & \verb|macro_ode| matches SSA means \\
+A2 & Order-1 linear FPE with Gaussian solution & \checkmark & OU implementation; visually Gaussian \\
+B1 & Deterministic $\bar x,\bar y$ approximate SSA means & \checkmark & Fig.~2, err $<0.1$ at $t=1.5$ \\
+B2 & $\bar x(t)\to 0$ & \checkmark & $\bar x(1.5)=0.14$ and falling \\
+B3 & $\bar y(t)\to\bar y_\infty>0$ & \checkmark & $\bar y(1.5)\approx 11.26$; $\dot{\bar y}\ll 1$ \\
+B4 & $c_{\xi\xi}(t)\to 0$ & \checkmark & endpoint 0.14 and falling \\
+B5 & $c_{vv}(t)\to c_{vv,\infty}>0$ & \checkmark & endpoint 7.65; $\dot c_{vv}\ll 1$ \\
+B6 & $c_{vv}(t)<\bar y(t)$ (sub-Poisson) & \checkmark & Fano$(Y)\approx 0.685\pm 0.005$ \\
+B7 & $c_{\xi v}(t)\le 0$ & \checkmark & $\min c_{\xi v}\approx -6.3$ (LNA), $-6.2$ (SSA) \\
+B8 & $c_{\xi v}(t)\to 0$ & \checkmark & endpoint $\approx -0.022$ \\
+C1 & LNA $\approx$ SSA histogram for $X$ & \checkmark & Var$X$ match $<0.3\%$ \\
+C2 & LNA $\approx$ SSA histogram for $Y$ & \checkmark & Fig.~1 bottom row \\
+C3 & OU sample paths $\approx$ SSA paths & \checkmark & Fig.~3 \\
+C4 & LNA accuracy degrades as $\bar x\to 0$ & \checkmark & Gaussian shape worst at $t=0.9$ (paper's warning) \\
+\bottomrule
+\end{longtable}
+\end{small}
+
+\noindent\textbf{13/13 testable claims verified.  Scope coverage 100\% (single parameter set in the paper; all three figures reproduced).}
+
+\section{Verdict}
+
+Following the LUCID AUDIT\_PROTOCOL:
+\begin{quote}
+\textbf{REPLICATED.}  Scope coverage 100\%; claim coverage 13/13; method match exact (Gillespie SSA + MKM ODE + moment ODE + OU representation, all derived from the paper's equations); headline Fano$(Y)\approx 0.685 \pm 0.005$ from both SSA and LNA confirms the central sub-Poissonian claim.  The qualitative shape of all three published figures is reproduced.
+\end{quote}
+
+Friction: \textbf{F1} (no author code released; \emph{Data Availability} says ``No new data have been created'').  No other tags.
+
+\section{Critique --- what our replication does not, and cannot, prove}
+\label{sec:critique}
+
+This is deliberately \emph{not} a whitewash.  The paper is analytically strong and internally consistent, and our reproduction of its qualitative and numerical claims is clean.  But there are real limitations that a naive reader of the ``REPLICATED'' verdict should be aware of.
+
+\paragraph{(C1) No author numerics; the agreement is between our own two implementations.}
+The paper publishes \emph{no} raw numerical output --- no CSVs, no digitized figure data, no reference solver.  Both our SSA and our LNA are derived from the same set of equations (Eq.~11, 16, 22) in the same paper.  We are cross-checking two implementations of the same theory against each other, not against an independent oracle.  A shared derivation error (e.g.\ a sign in $D_{xv}$) would go undetected by this internal cross-check.  \emph{Partial mitigation:} the SSA is a direct implementation of the CTMC (no expansion, no truncation) while the LNA is the leading-order asymptotic of that same CTMC, so a systematic error in the expansion \emph{would} produce mean/variance disagreement --- and we see none.  But this is weaker than a comparison to author code.
+
+\paragraph{(C2) The single parameter set is deep in the well-behaved regime.}
+The paper reports Sec.~4 numerics only for $(x_0, r, a, \tilde b_K) = (100, 4, 0.1, 0.01)$.  In this regime the clustering rate $\tilde b_K \bar x^2$ is small compared to the linear terms, sub-lethal lesions dominate the dynamics, and the LNA is in its comfort zone.  The paper's own warning (its Fig.~1 top-right at $t=0.9$ where $\bar x\approx 1.7$) is that the LNA breaks down as $\bar x\to 0$, i.e.\ when the discrete Markov chain has $\mathcal O(1)$ molecules and the Gaussian ansatz fails.  Our replication reproduces this failure mode exactly, but neither the paper nor this replication probes:
+\begin{itemize}
+  \item \textbf{high clustering} (large $\tilde b_K$ or small $r$): the regime where non-linearity dominates and higher-order van~Kampen corrections may be non-negligible;
+  \item \textbf{small $x_0$} (initial lesion count $\mathcal O(1)$): the discrete/quantized regime where the Gaussian ansatz for fluctuations is not even asymptotically valid;
+  \item \textbf{dose sweeps}: no $D$-dependence is exposed because the paper treats $x_0$ as a given initial condition rather than as a mapping from physical dose.
+\end{itemize}
+
+\paragraph{(C3) The Poisson-in-DSBs picture is not tested at high LET.}
+The task brief flags this explicitly, and we agree it is the single most important open question.  The paper's headline is about deviation from Poisson at the level of \emph{lethal lesions} $Y$, not at the level of primary DSBs.  The primary DSB count in real radiobiology is empirically \emph{not} Poisson at high LET, where DSBs are spatially clustered on scales below the nuclear volume and the induction distribution is measurably over-dispersed (negative binomial or worse; see e.g.\ Ballarini \& Ottolenghi 2005, Friedland et al.\ 2017, MC track-structure simulations with PARTRAC/Geant4-DNA).  Cordoni's model \emph{assumes} the input $X_0$ is deterministic (or at least that its distribution is not the object of study) and derives sub-Poissonian output for $Y$ from the clustering-plus-repair dynamics alone.  This is a valid and interesting result --- but the reader should not conclude that it validates or invalidates the Poisson assumption for DSB induction at high LET.  It sits one layer downstream.  A concrete test would be: initialize $X_0\sim\mathrm{NegBin}(\mu, \phi)$ with $\phi$ chosen to match a high-LET track-structure prediction (e.g.\ $\bar\phi \approx 2$--$5$ for iron ions), rerun the SSA, and see whether the sub-Poissonian $Y$ result survives or is swamped by over-dispersion of the input.  We did not do this; the paper does not do this.
+
+\paragraph{(C4) The identifiability of $(r,a,b)$ from data is untouched.}
+The paper picks $(r,a,\tilde b_K)=(4,0.1,0.01)$ ``for illustration.''  These three rate constants are not independently measurable from any published cell-survival or foci-count dataset that we know of.  Without an identifiability analysis (Fisher information, profile likelihood, or at minimum a sensitivity table), the paper's numerical results are illustrative rather than predictive.  This is not a criticism of the derivation --- it is a criticism of treating the model as ready for radiobiological application.
+
+\paragraph{(C5) Repair-kinetics variance and cell-to-cell heterogeneity are absent.}
+The three rate constants $(r,a,b)$ are assumed constant in time and identical across cells.  Real repair kinetics are (i) two-phase (fast NHEJ + slow HR/backup), (ii) cell-cycle-phase dependent, and (iii) heterogeneous across a population.  The MME framework can in principle absorb time-dependent rates, but the paper does not do so.  Neither did we.  Whether the sub-Poissonian conclusion survives such extensions is genuinely unknown from this work.
+
+\paragraph{(C6) No comparison to real foci-count data.}
+$\gamma$-H2AX or 53BP1 foci counts are routinely reported as histograms per cell in the radiobiology literature (Rothkamm \& L\"obrich 2003; Costes et al.\ 2010; Barnard et al.\ 2013).  Some of those datasets \emph{are} publicly available.  A confirmatory test --- ``does the Fano$<1$ prediction survive against a real dataset at matched dose?'' --- is entirely outside the paper's scope and outside our replication.  The paper's contribution is theoretical; treating our clean 13/13 verification as evidence that the model matches biology would be a category error.
+
+\paragraph{(C7) Numerical caveats.}
+$20\,000$ SSA paths is generous for mean/variance of a bounded output but marginal for tail probabilities.  A serious test of the Gaussian tails --- e.g.\ estimating $P(Y\ge \bar y + 3\sqrt{c_{vv}})$ against the LNA prediction --- would need $10^5$--$10^6$ paths and was not performed.  The Fig.~1 histograms are consistent with Gaussianity by eye but we have not run a formal test (Anderson--Darling on the residuals against $\mathcal N(\bar y, c_{vv})$; would be $\mathcal O(1)$~hour of additional work).
+
+\medskip
+None of these limitations undermine the paper's mathematical result.  They do bound the strength of the ``REPLICATED'' verdict: what we have reproduced is the internal mathematical consistency of the paper at its single reported parameter set, not its predictive validity as a radiobiological model.
+
+\input{open_questions_section.tex}
+
+\section{Reproducibility}
+
+\begin{itemize}
+  \item Seeds: SSA \verb|np.random.default_rng(20260529)|; OU \verb|np.random.default_rng(420)|.  Bit-identical CSV/JSON on NumPy $\ge 1.17$ (PCG64 default).
+  \item Runtime: $\sim 11$~s on a 2024 Apple-silicon iMac.  Gillespie phase dominates ($\sim 7$~s).
+  \item Cost: \$0.  Pure local CPU.  No API calls (this backfill uses Argo localhost:44497 free tier only).
+  \item Reproducer: \verb|cd code && python run_replication.py|.
+\end{itemize}
+
+\end{document}

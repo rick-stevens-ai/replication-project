@@ -1,0 +1,5 @@
+# Brief — BVBRC-61
+
+**What:** Independent replication of Heo, Kim, Kwak, Jeong & Sung (2021), *"Functional Genomic Insights into Probiotic Bacillus siamensis Strain B28 from Traditional Korean Fermented Kimchi"*, **Foods** 10(8):1906, DOI 10.3390/foods10081906 (PMC8394110, CC BY, open access).
+
+**Why:** The paper is a complete-genome functional-genomics/safety study of a candidate probiotic *Bacillus*. Its central claims — (1) taxonomic reclassification B28 from *B. polyfermenticus* → *B. siamensis* via ANI/16S/MLST; (2) genome architecture (1 chromosome ~3.95 Mb + 2 plasmids, GC ~45.85%, ~3573 CDS); (3) safety: absence of enterotoxin/hemolysin/acquired-AMR genes; (4) probiotic gene content (bacteriocin operons, GABA, bile-salt hydrolase, sporulation, adhesion, essential-AA biosynthesis) — are all testable against the deposited public genome (GenBank **CP066219–CP066221**) using free, BV-BRC-mappable tools (genome stats, ANI/FastANI, MLST, AMR via AMRFinderPlus/CARD/abricate, virulence, antiSMASH/bacteriocin). This maps to the BV-BRC *Comprehensive Genome Analysis + AMR + Similar Genome Finder* workflow.

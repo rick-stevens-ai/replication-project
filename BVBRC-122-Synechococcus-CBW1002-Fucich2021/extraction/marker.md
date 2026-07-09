@@ -1,0 +1,226 @@
+                                                                                                                                                                     GBE
+
+Complete Genome Sequences of Chesapeake Bay
+Synechococcus Strains CBW1002 and CBW1006 Isolated in
+Winter
+Daniel Fucich1,†, Yongle Xu2,†, Ana Sosa1, Yufeng Jia1, Rui Zhang3,4, Nianzhi Jiao3, and Feng Chen1,*
+
+1
+ The Institute of Marine and Environmental Technology, University of Maryland Center for Environmental Science, Baltimore, MD, USA
+2
+ Institute of Marine Science and Technology, Shandong University, Qingdao, China
+3
+ State Key Laboratory of Marine Environmental Science, Fujian Key Laboratory of Marine Carbon Sequestration, College of Ocean and Earth
+Sciences, Xiamen University, Xiamen, China
+4
+ Southern Marine Science and Engineering Guangdong Laboratory (Zhuhai), Zhuhai, PR China
+
+*Corresponding author: E-mail: chenf@umces.edu.
+Accepted: 11 January 2021
+†These authors contributed equally to this work.
+
+
+
+Abstract
+Synechococcus are picocyanobacteria with a cosmopolitan distribution. They are capable of surviving in a wide variety of environ-
+mental conditions. Synechococcus have been isolated from the Chesapeake Bay during winter months, and they show an impressive
+tolerance to cold temperatures. Cold-adapted Synechococcus are unique and diverse, as they have complex phylogenetic lineages
+closely related to subalpine cluster II, Bornholm Sea cluster, CB7 cluster, and some novel lineages which are independent from
+summer estuarine strains in subcluster 5.2. CBW1002 and CBW1006 are the first complete genomes to represent Bornholm Sea
+cluster Synechococcus strains. They have some of the largest genomes among the Synechococcus (3.8 Mb) and share many unique
+and cryptic homologs which could give insight into their ability to tolerate such cold and dynamic conditions in the Chesapeake Bay
+estuary.
+
+
+    Signiﬁcance
+    These two Synechococcus strains CBW1002 and CBW1006 were isolated from the estuarine environment during the
+    winter, and they are able to grow in low temperature (4–10  C). The analysis of these two genomes gives some insight
+    into the mechanisms that these organisms may have in order to survive traditionally adverse conditions, such as cold
+    temperatures.
+
+
+
+Key words: Bornholm Sea cluster, genome, cold adaptation, Synechococcus, Cyanobium.
+
+
+
+Introduction                                                                                     the Bay in summer (Wang et al. 2011), and their abundance
+The Chesapeake Bay (CB) is the largest estuary in the United                                     can exceed more than 1 million cells per milliliter during the
+States. As a temperate ecosystem, CB exhibits dynamic sea-                                       bloom season. A large portion of picocyanobacterial strains
+sonal and spatial patterns of microbial community (Kan et al.                                    that have been isolated belong to marine subcluster 5.2
+2006; Wang et al. 2020). Picocyanobacteria contribute signif-                                    Synechococcus (Chen et al. 2004, 2006) and two genomes
+icantly to phytoplankton biomass and primary production in                                       of CB Synechococcus strains (CB0101 and CB0205) have
+
+
+ß The Author(s) 2021. Published by Oxford University Press on behalf of the Society for Molecular Biology and Evolution.
+This article is published and distributed under the terms of the Oxford University Press, Standard Journals Publication Model (https://academic.oup.com/journals/pages/open_access/funder_
+policies/chorus/standard_publication_model)
+
+
+
+
+Genome Biol. Evol. 13(2) doi:10.1093/gbe/evab009 Advance Access publication 2 February 2021                                                                                            1
+Fucich et al.                                                                                                       GBE
+
+been sequenced, representing two different clades CB4 and          templates and formed into a dumbbell shape called
+CB5 of subcluster 5.2 (Marsan et al. 2014, 2017; Fucich et al.     SMRTbell, which is deposited in the SMRT cell with 1 million
+2019).                                                             Zero-Mode Waveguides (ZMV) wells. ZMV wells with only
+    During the winter, picocyanobacterial abundance in CB          one template (P1) were selected to generate polymerase
+decreases dramatically (<1,000 cells/ml). The community            reads. Adapters and poor-quality reads were cut from poly-
+structure of CB picocyanobacteria in winter is distinct from       merase reads to generate multiple subreads. Subreads with
+that in summer (Cai et al. 2010). In order to understand their     less than 1,000 nucleotides were filtered out, and remaining
+cold adaptation, we isolated 17 strains of CB picocyanobac-        subreads were integrated into one circular consensus se-
+teria from the Baltimore Inner Harbor in winter (Xu et al.         quencing read of insert. Subreads were corrected with multi-
+2015). The water temperature varied between 2 and 8  C            ple programs (Pbdagocon, FalconConsensus, and Proovread)
+during the sampling period and salinity ranged between 5           to generate corrected reads, which were further constructed
+and 22 ppt. These winter isolates are able to grow in low          using Celera and Falcon to yield optimal assemblies. The
+temperatures and tolerate a wide range of salinities. All the      yielded assemblies were checked with second-generation
+CB winter isolates are not affiliated with marine subcluster 5.2   Illumina seq for single-nucleotide correction (Quiver, GATK,
+but instead related to subalpine cluster II, Bornholm Sea clus-    SOAPsnp/SOAPindel) for the final assemblies. CBW1002 and
+ter (named after the 50-m halocline Bornholm Basin located in      CBW1006 contain one circular chromosome with no
+the Baltic Sea; Jakobsen 1996), CB7 cluster, and some novel        plasmids.
+lineages. Interestingly, more than half of these CB winter iso-        Both genomes were annotated using the BGI pipeline and
+lates (9 of 17) are closely related to the Bornholm Sea cluster    were confirmed with the Rapid Annotations using
+picocyanobacteria, and CBW1002 and CBW1006 are the two             Subsystems Technology (RAST) server (Aziz et al. 2008;
+members in this cluster. CBW1002 and CBW1006 were iso-             Overbeek et al. 2014). Homologs were determined in silico
+lated from water with temperature at 6.5 and 6.2  C, and          using reciprocal best hits were using the BlastP (e-value < 1 
+salinity at 17 and 19 PSU, respectively. Many members of           1010) of amino acid sequences from open reading frames.
+the Bornholm Sea cluster were isolated from the Baltic Sea,        Homologs were visualized using the online Circos table viewer
+a large brackish estuarine ecosystem (Ernst et al. 2003). The      (http://mkweb.bcgsc.ca/tableviewer/visualize/)       (Krzywinski
+close phyletic relationship between CB winter isolates and the     et al. 2009).
+Baltic Sea isolates suggests that this group of picocyanobac-
+teria could be important in the estuarine environment, espe-
+                                                                   Results and Discussion
+cially under cold climate conditions. It is noteworthy that
+many CB winter strains in the Bornholm Sea are able to elon-       The genome size of CBW1002 and CBW1006 is similar, 3.85
+gate their cells during the cultivation, an interesting feature    and 3.86 Mb, respectively (fig. 1, table 1). These genome sizes
+not commonly seen in other picocyanobacterial lineages (Xu         are among the largest genomes for picocyanobacteria.
+et al. 2015). To the best of our knowledge, no genome              According to the publicly available JGI and NCBI databases,
+sequences have been reported for picocyanobacteria in the          the largest complete Synechococcus genome was the fresh-
+Bornholm Sea cluster prior to this study.                          water Synechococcus PCC6312 (3.72 Mb) in current data-
+                                                                   bases. CBW1002 and CBW1006 contain high GC content
+                                                                   (>65%). This high GC content is not normally seen in
+Materials and Methods                                              Synechococcus.
+CBW1002 and CBW1006 were grown in SN15 media (Xu                      The large genome size and high GC content make the
+et al. 2015). For DNA extraction, Synechococcus cells of           classification of CBW1002 and CBW1006 uncertain. We
+each strain were collected from 20 ml of exponential culture       named them Synechococcus primarily based on their
+by centrifugation at 10,000  g for 10 min. Cell pellets were      Synechococcus-like morphology. Given the current revolu-
+then ground with liquid nitrogen, transferred into 2-ml tubes      tionary classification restructuring among Synechococcus
+with CTAB lysis buffer, and then incubated at 65  C in a water    and adjacent picocyanobacteria (Coutinho et al. 2016;
+bath for 60 min. Genomic DNA was then extracted by using           Salazar et al. 2020), it is probably more appropriate to
+the phenol–chloroform method described by Kan et al.               name them Cyanobium after considering their genomic fea-
+(2006). The DNA samples were sent to the Beijing Genome            tures and phylogenetic position. Cyanobium spp. in
+Institute (BGI) for sequencing. CBW complete genome                Cyanobiaceae tend to have higher GC content (>65%)
+sequences were obtained using a combination of Illumina            and larger genome size compared with the rest members
+HiSeq and PacBio Sequel platforms. For the raw reads from          in the order Synechococcales (Salazar et al. 2020). With
+Illumina sequencing, low quality (20), high N nucleotide          CBW1002 and CBW1006 genome sequences available, we
+percentage (>10%), adapter, and duplication reads were re-         are now trying to understand their genomic function and
+moved to obtain clean reads. For PacBio raw sequences,             evolution via comparative genomics and phylogenomic
+hairpin-shaped adapters were concatenated to DNA                   analysis.
+
+
+2   Genome Biol. Evol. 13(2) doi:10.1093/gbe/evab009 Advance Access publication 2 February 2021
+Complete Genome Sequences of Winter Synechococcus Strains                                                                                GBE
+
+
+
+
+     FIG. 1.—Circular genome representation of (A) CBW1002 and (B) CBW1006. From the outer to inner, circles represent: 1) genome size; 2) forward
+strand genes, colored according to cluster of orthologous groups (COG) classification; 3) reverse strand genes, colored according to COG classification; 4)
+forward strand ncRNA; 5) reverse strand ncRNA; 6) repeat regions; 7) percent GC content; 8) percent GC-SKEW.
+
+
+
+Table 1.
+Genomic Statistics of CBW1002 and CBW1006.
+Strain Name           Status          Contigs         Length (bp)        G1C % Content            Gene Number            ncRNA         Accession Number
+CBW1002             Complete             1             3,854,122               65.15                   3,994               61               CP060398
+CBW1006             Complete             1             3,860,130               65.08                   4,047               62               CP060396
+
+
+
+
+   In their large genomes, CBW1002 and CBW1006 have an                           and have developed mechanisms to survive in the CB. Detailed
+expansive capacity of coding sequences. CBW1002 contains                         comparative genomics between CBW1002 and CBW1006
+3,854,122 bp, a 65.15% GC content, 3,994 coding sequen-                          and other picocyanobacteria is underway.
+ces, and 61 ncRNAs. CBW1006 has a slightly larger genome                            CBW strains share unique homologs among themselves. In
+with 3,860,130 bp, 65.08% GC content, 4,047 coding                               congruence with the phylogeny described previously (Xu et al.
+sequences, and 62 ncRNAs (table 1). Both genomes encode                          2015), all CBW strains share more homologs with each other
+many genes induced by cold conditions (Barria et al. 2013),                      than with CB0101 (subcluster 5.2), marine Synechococcus
+such as fatty acid synthesis and desaturation related to mem-                    WH8102, or freshwater Synechocystis PCC6803 (fig. 2). The
+brane fluidity modulation, and chaperone proteins that sup-                      proportion of a strains shared homologs can be seen on the
+port proper protein folding (supplementary table S1,                             outer most ring, whereas the number of homologs shared
+Supplementary Material online). CBW1002 and CBW1006                              between any two strains can be read on the inner ring.
+contain eight and nine desaturase-related genes, and 29 and                      CBW1002 and CBW1006 share the most homologs among
+33 chaperone-related genes, respectively. In addition,                           the CBW strains (n ¼ 3,023), have the largest genomes, and
+CBW1002 and CBW1006 have 59 and 35 transposase genes,                            are the most closely related with regard to the partial 16S
+respectively, suggesting that the ability of acquiring new genes                 rRNA gene marker (Xu et al. 2015). Unfortunately, many of
+via horizontal gene transfer is important to these two winter                    these shared homologs do not have well-annotated functions
+strains. Coastal and open ocean picocyanobacteria have no or                     and may be cryptic in nature. Further research should be
+very low number of transposase genes. Surprisingly, neither                      completed on genes of interest unique to CBW1002 and
+strain contained any bacterial cold shock proteins (cspA,                        CBW1006 genomes, as they could play an integral role into
+cspB, cspC, or cspG). This suggests that CB winter strains                       how Bornholm Sea cluster Synechococcus are able to survive
+have an alternate capacity to handle cold weather conditions                     the harsh winters of the CB estuary.
+
+
+Genome Biol. Evol. 13(2) doi:10.1093/gbe/evab009 Advance Access publication 2 February 2021                                                              3
+Fucich et al.                                                                                                                             GBE
+
+
+
+
+      FIG. 2.—Homologs between selected picocyanobacteria genomes. Chesapeake Bay strains include two winter (CBW) and one summer (CB0101) strain.
+Model marine strain WH8102, and model freshwater strain Synechocystis PCC6803 were included as outgroups for comparison. Highly shared homologs
+are in color (top 50th percentile), whereas the fewest shared homologs are in gray. Homologs were determined in silico using reciprocal best hits were using
+the BlastP (e-value < 1  1010) of amino acid sequences from open reading frames.
+
+Supplementary Material                                                           Data Availability
+Supplementary data are available at Genome Biology and                           Full genome sequences can be found on the National Center
+Evolution online.                                                                for Biotechnology Information (NCBI) website under the ac-
+                                                                                 cession numbers CP060398 for CBW1002 and CP060396 for
+                                                                                 CBW1006.
+Acknowledgments
+This work was supported by the National Key Research and                         Literature Cited
+Development Program of China (2018YFA0605800), the                               Aziz RK, et al. 2008. The RAST server: rapid annotations using subsystems
+                                                                                     technology. BMC Genomics 9(1):75.
+National Natural Science Foundation of China
+                                                                                 Barria C, Malecki M, Arraiano CM. 2013. Bacterial adaptation to cold.
+(41861144018, 41706161), the Ratcliffe Environmental                                 Microbiology (United Kingdom) 159(Pt_12):2437–2443.
+Entrepreneurship Fellowship, and the Senior User Project of                      Cai H, Wang K, Huang S, Jiao N, Chen F. 2010. Distinct patterns
+RV KEXUE (KEXUE2020G10).                                                             of picocyanobacterial communities in winter and summer in
+
+
+
+4   Genome Biol. Evol. 13(2) doi:10.1093/gbe/evab009 Advance Access publication 2 February 2021
+Complete Genome Sequences of Winter Synechococcus Strains                                                                           GBE
+
+    the      Chesapeake        Bay.      Appl      Environ    Microbiol.   Krzywinski M, et al. 2009. Circos: an information aesthetic for comparative
+    76(9):2955–2960.                                                           genomics. Genome Res. 19(9):1639–1645.
+Chen F, Wang K, Kan J, Suzuki MT, Wommack KE. 2006. Diverse and            Marsan D, Place A, Fucich D, Chen F. 2017. Toxin-antitoxin systems in
+    unique picocyanobacteria in Chesapeake Bay, revealed by 16S-23S            estuarine Synechococcus strain CB0101 and their transcriptomic
+    rRNA internal transcribed spacer sequences. Appl Environ Microbiol.        responses to environmental stressors. Front Microbiol. 8:1213.
+    72(3):2239–2243.                                                       Marsan D, Wommack KEK, Ravel J, Chen F. 2014. Draft genome sequence
+Chen F, et al. 2004. Phylogenetic diversity of Synechococcus in the            of Synechococcus sp. strain CB0101, isolated from the Chesapeake
+    Chesapeake Bay revealed by Ribulose-1,5-bisphosphate carboxylase-          Bay Estuary. Genome Announc. 2(1):e01111–13.
+    oxygenase (RuBisCO) large subunit gene (rbcL) sequences. Aquat         Overbeek R, et al. 2014. The SEED and the Rapid Annotation of microbial
+    Microb Ecol. 36:153–164.                                                   genomes using Subsystems Technology (RAST). Nucleic Acids Res.
+Coutinho F, Tschoeke DA, Thompson F, Thompson C. 2016. Comparative             42:206–214.
+    genomics of Synechococcus and proposal of the new genus                Salazar VW, et al. 2020. A new genomic taxonomy system for the
+    Parasynechococcus. PeerJ. 4:e1522.                                         Synechococcus collective. Environ Microbiol. 22(11):4557–4570.
+Ernst A, Becker S, Wollenzien UIA, Postius C. 2003. Ecosystem-dependent    Wang K, Wommack KE, Chen F. 2011. Abundance and distribution of
+    adaptive radiations of picocyanobacteria inferred from 16S rRNA and        Synechococcus spp. and cyanophages in the Chesapeake Bay. Appl
+    ITS-1 sequence analysis. Microbiology 149(1):217–228.                      Environ Microbiol. 77(21):7459–68.
+Fucich D, Marsan D, Sosa A, Chen F. 2019. Complete genome sequence         Wang H, Zhang C, Chen F, Kan J. 2020. Spatial and temporal variations of
+    of subcluster 5.2 Synechococcus sp. strain CB0101, isolated from the       bacterioplankton in the Chesapeake Bay: A re-examination with high-
+    Chesapeake Bay. Microbiol Resour Announc. 8(35):e00484-19.                 throughput sequencing analysis. Limnol Oceanogr. 65(12):3032-
+Jakobsen F. 1996. The dense water exchange of the Bornholm basin in the        3045.
+    Baltic Sea. Dtsch Hydrogr Zeitschrift. 48(2):133–145.                  Xu Y, Jiao N, Chen F. 2015. Novel psychrotolerant picocyanobacteria iso-
+Kan J, Crump BC, Wang K, Chen F. 2006. Bacterioplankton community in           lated from Chesapeake Bay in the winter. J Phycol. 51(4):782–790.
+    Chesapeake Bay: predictable or random assemblages. Limnol
+    Oceanogr. 51(5):2157–2169.                                             Associate editor: Howard Ochman
+
+
+
+
+Genome Biol. Evol. 13(2) doi:10.1093/gbe/evab009 Advance Access publication 2 February 2021                                                         5
+

@@ -1,0 +1,298 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\small,frame=single,breaklines=true}
+\title{Independent Replication Report:\\
+       \emph{Quantum Algorithms for some Hidden Shift Problems}\\
+       (van Dam, Hallgren, Ip; arXiv:quant-ph/0211140)}
+\author{QC-200 Replication (independent, numpy exact-statevector)}
+\date{2026-07-05}
+\begin{document}
+\maketitle
+
+\section{Paper summary}
+
+van Dam, Hallgren and Ip \cite{vDHI02} give the first quantum algorithms
+for the \emph{hidden shift problem}: given oracle access to
+$f(x) = g(x + s)$ where $g$ is a completely known function on an abelian
+group $G$ and $s \in G$ is an unknown shift, find $s$.  Three families are
+studied:
+
+\begin{enumerate}
+  \item[(A)] $g$ is a nontrivial multiplicative character of a finite
+        field $\mathbb{F}_q$ (the flagship case is the shifted Legendre
+        symbol on $\mathbb{F}_p$).  A single-query algorithm succeeds
+        with probability $(1-1/q)^2$.
+  \item[(B)] $g$ is a multiplicative character of $\mathbb{Z}/n\mathbb{Z}$
+        (Jacobi-symbol analogue), where the shift need not be unique.
+  \item[(C)] Same as (B), but with $n$ unknown.
+\end{enumerate}
+
+Their central circuit (Fig.~1 of the paper) is
+\[
+  |0\rangle \xrightarrow{F_G} \xrightarrow{|x\rangle \mapsto f(x)|x\rangle}
+  F_G \xrightarrow{|x\rangle \mapsto \hat g^{-1}(x)|x\rangle} F_G
+  \xrightarrow{\text{measure}} \, -s,
+\]
+where $F_G$ is the QFT on $G$ and $\hat g$ is the (classically
+computable) Fourier transform of the known function $g$.
+
+\section{Claims table}
+
+\begin{tabular}{lp{7.5cm}ll}
+\toprule
+ID  & Claim & Testable? & Tested? \\
+\midrule
+C1 & Algorithm~1 (Sec.~4) solves the shifted-multiplicative-character
+     problem over $\mathbb{F}_q$ with success probability
+     $(1-1/q)^2$ from ONE oracle query. & Yes (small $p$) & \textbf{Yes} \\
+C2 & Specialisation to Legendre symbol on $\mathbb{F}_p$: recover $s$
+     in polynomial time. & Yes ($p=13$) & \textbf{Yes} \\
+C3 & The same circuit template (QFT-oracle-QFT with phase-uncompute
+     $\hat g^{-1}$) recovers $s$ on any abelian $G$ provided $\hat g$
+     is nowhere zero. & Yes ($G=\mathbb{Z}_N$, $N=8,16,32$) & \textbf{Yes} \\
+C4 & Exponential quantum-vs-classical separation in oracle
+     complexity: $O(1)$ vs $\Omega(\log N)$ classical queries to recover
+     $s$ information-theoretically. & Yes (info-theoretic + empirical
+     distinguisher) & \textbf{Yes} \\
+C5 & Extension to $\mathbb{Z}/n\mathbb{Z}$ with possibly non-unique
+     shifts (Sec.~5). & Yes but scope-cap & Partial (skipped) \\
+C6 & Extension to unknown $n$ (Sec.~5.2) via approximate Fourier
+     sampling. & Yes but scope-cap & Not tested \\
+C7 & Hidden coset framework (Sec.~6) unifying HSP + hidden shift. &
+     Definitional (no numerical value) & Not applicable \\
+\bottomrule
+\end{tabular}
+
+Testing scope: this replication targets the core testable numerical
+claims C1--C4.  The framework-level C5--C7 are algorithmic
+generalisations without a single numerical headline number.
+
+\section{Method}
+
+\subsection{Environment}
+\begin{itemize}
+  \item Host: \texttt{CherryRd}, macOS 25.3.0, Python 3.13.
+  \item Venv: \verb|~/.openclaw/workspace/venvs/qc-replicate/|.
+  \item Packages: \texttt{numpy 2.5.1}, \texttt{sympy} (unused at
+        runtime; imported for future extension).
+  \item No Qiskit / Cirq were needed: the paper's circuits act on
+        $\le 32$ amplitudes, so an exact statevector implemented as
+        $N\times N$ numpy matrices is faster and truer to the paper
+        than a gate-decomposed simulator.
+  \item No GPU / HPC.
+\end{itemize}
+
+\subsection{Marker / Nougat extractions}
+Neither \texttt{marker-pdf} nor \texttt{nougat-ocr} was installed on the
+host, and their pip installs pulled \texttt{torch} which the local wheel
+index could not resolve within the wave-time budget (see
+\texttt{failure\_analysis.md}).  \texttt{extraction/marker.md} and
+\texttt{extraction/nougat.mmd} were therefore produced from
+\texttt{pdftotext} of the source PDF with a documented disclaimer
+header, per the ``fallback to pdftotext with disclosure'' pattern used
+by other QC-200 backfills.  The raw \texttt{pdftotext} outputs
+(\texttt{work/paper.txt} and \texttt{work/paper\_layout.txt}) are
+retained as ground-truth backups.
+
+\subsection{Numerical replication}
+Code: \texttt{report/evidence/hidden\_shift\_zn.py}
+(\textasciitilde 300 LOC).  Runs in $\sim 1$ s on a laptop.
+
+\subsubsection*{Algorithm 1 on $\mathbb{Z}_N$}
+For each $N \in \{8, 16, 32\}$ we choose a known function
+$g:\mathbb{Z}_N\to\mathbb{C}$ and a random hidden shift $s$, then execute
+the four steps of the paper's Fig.~1 circuit as exact matrix--vector
+multiplications:
+\begin{enumerate}
+  \item Amplitude-encode $|\psi\rangle = N^{-1/2}\sum_x g(x+s)|x\rangle$.
+  \item Apply the exact $N$-dim DFT matrix $F$.
+  \item Apply the diagonal phase $\mathrm{diag}(\overline{\hat g(y)}/|\hat g(y)|)$.
+  \item Apply $F^\dagger$ and read the argmax of $|\psi|^2$.
+\end{enumerate}
+
+Two families of $g$ were tested per $N$:
+\begin{description}
+  \item[Chirp $g$:] $g(x) = \exp(2\pi i\, a x^2/(2N))$ (Zadoff-Chu
+        sequence) with $a$ tuned so $|\hat g| \equiv 1$.  This is the
+        cleanest analogue of the paper's multiplicative character:
+        \emph{flat} spectrum and known closed form.  Predicted outcome:
+        deterministic $(N-s)\bmod N$ with probability 1.
+  \item[Boolean $g$:] random $g:\mathbb{Z}_N\to\{\pm 1\}$ rejection-sampled
+        until $|\hat g(y)|>0$ for all $y$.  This is the task-brief's
+        request for a Boolean $g$ and lets us stress-test the
+        algorithm on functions with non-flat spectrum.  Predicted:
+        $s$ recoverable as argmax but with peak probability $<1$.
+\end{description}
+
+Ten independent random shifts were run per $(N, g\text{-type})$ pair.
+
+\subsubsection*{Shifted Legendre symbol on $\mathbb{F}_{13}$}
+Exact $p$-dim statevector implementation of Algorithm~1 with
+$\chi = \left(\tfrac{\cdot}{13}\right)$.  Ten random nonzero shifts.
+
+\subsubsection*{Classical query lower bound}
+For each $N$ we compute both the information-theoretic
+$\lceil\log_2 N\rceil$ bound (each classical query into a $\pm 1$
+oracle yields $\le 1$ bit) and an empirical average -- over 200
+random non-adaptive size-$k$ query sets -- of the worst-case number of
+shifts still consistent with the observed answer vector.
+
+\section{Results vs.\ paper}
+
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+Instance & Trials & Successes & Empirical peak prob. & Paper prediction & Verdict \\
+\midrule
+$\mathbb{Z}_8$ chirp $g$   & 10 & 10/10 & 1.000 & 1 (flat spec.) & MATCH \\
+$\mathbb{Z}_{16}$ chirp $g$& 10 & 10/10 & 1.000 & 1 (flat spec.) & MATCH \\
+$\mathbb{Z}_{32}$ chirp $g$& 10 & 10/10 & 1.000 & 1 (flat spec.) & MATCH \\
+$\mathbb{Z}_8$ Boolean $g$ & 10 & 10/10 (argmax) & 0.729 & --- (not in paper) & MATCH scope \\
+$\mathbb{Z}_{16}$ Boolean $g$ & 10 & 10/10 (argmax) & 0.699 & --- & MATCH scope \\
+$\mathbb{Z}_{32}$ Boolean $g$ & 10 & 10/10 (argmax) & 0.804 & --- & MATCH scope \\
+Legendre $\mathbb{F}_{13}$ & 10 & 10/10 (argmax) & 0.923 & $(1-1/13)^2 = 0.852$ & MATCH \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The Legendre empirical peak probability $0.923$ exceeds the paper's
+$(1-1/13)^2 = 0.852$.  This is not a discrepancy: the paper's number
+bounds the overall success probability of the ENTIRE algorithm
+including Lemma~1 (which fails with probability $1/p$ due to $\chi(0)=0$).
+Our exact-statevector implementation skips the Lemma~1
+measurement branch and directly builds the phase-encoded state, so we
+see the conditional success probability given the amplitude
+construction succeeded.  Multiplying by $(1-1/p)$ for the Lemma-1
+success probability gives $0.923 \cdot (1-1/13) = 0.852$, exactly
+matching the paper.
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+$N$ & Quantum oracle queries & Classical info-theoretic bound & Speedup \\
+\midrule
+8  & 2 (Lemma 1)  & $\lceil\log_2 8\rceil = 3$  & exponential in $\log N$ \\
+16 & 2           & $\lceil\log_2 16\rceil = 4$ & exponential in $\log N$ \\
+32 & 2           & $\lceil\log_2 32\rceil = 5$ & exponential in $\log N$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For the Legendre variant the classical separation is much larger: the
+best known classical algorithm for the shifted Legendre symbol is
+subexponential \cite{DKPP96}; the quantum algorithm is polynomial-time.
+
+\section{Per-claim what worked / what did not work}
+
+\paragraph{C1 (finite-field Alg.~1 success probability).}
+Worked cleanly on $\mathbb{F}_{13}$.  Empirical $p_{\max}=0.923$;
+theory $(1-1/13)^2=0.852$; discrepancy fully explained by our
+Lemma-1-conditioning (see Results section).  Would need Chinese-Remainder
+plumbing to test on prime powers $q=p^r$, which we did not do.
+
+\paragraph{C2 (Legendre recovery).}
+Worked. 10/10 random nonzero shifts on $\mathbb{F}_{13}$ recovered.
+The measurement outcome $(p-s)\bmod p$ matched the theory prediction
+in all trials.
+
+\paragraph{C3 (generalisation to $\mathbb{Z}_N$).}
+Worked for three group sizes $N=8,16,32$.  With the chirp $g$
+(flat-spectrum, mimics a multiplicative character), recovery is
+deterministic (peak prob.\ = 1).  With Boolean $g$ (task-brief-requested
+variant, non-flat but nowhere-zero spectrum), recovery is
+probabilistic ($\approx 0.7$--$0.8$) but the correct shift is always
+the argmax over 10 trials.
+
+\paragraph{C4 (query separation).}
+Confirmed both info-theoretically ($k \ge \lceil\log_2 N\rceil$
+classical queries required) and empirically: at $k=1$--$2$ classical
+non-adaptive queries the worst-case ambiguity class contains many
+shifts, only shrinking to a single shift once $k$ reaches $\log_2 N$.
+
+\paragraph{C5--C6 (Sec.~5 extensions to $\mathbb{Z}/n\mathbb{Z}$
+composite and unknown-$n$).}
+\emph{Not tested.}  The Jacobi-symbol case requires Chinese-Remainder
+decomposition of the character and its Fourier transform (paper's
+Sec.~5.1); the unknown-$n$ case additionally requires the approximate
+Fourier sampling machinery of \cite{HH00} (paper's Sec.~2.3).  Both
+extensions are algorithmically documented in the paper but their
+concrete implementation was outside the wave-time budget.  Recorded
+as a follow-up.
+
+\paragraph{C7 (hidden coset framework).}
+Definitional; nothing to numerically test.
+
+\section{Verdict}
+
+\textbf{REPLICATED.}  The paper's core algorithm reproduces on three
+group sizes ($\mathbb{Z}_8, \mathbb{Z}_{16}, \mathbb{Z}_{32}$) with
+polylog quantum query count, and the flagship Legendre-symbol
+specialisation recovers the shift on $\mathbb{F}_{13}$ with the
+paper-predicted success probability.  All numerical predictions we
+could test matched, once the Lemma-1 conditioning is accounted for.
+The Sec.~5 extensions (composite $n$, unknown $n$) were not
+implemented; the definitional Sec.~6 (hidden coset) has no numerical
+content.
+
+\section*{Open Questions}
+
+\textbf{Q1.} The Lemma-1 amplitude-construction success probability
+$(1-1/q)$ is the ONLY probabilistic branch in the paper's finite-field
+algorithm; conditioned on Lemma~1 succeeding, our simulation shows
+$p_{\max} = (1-1/q)$ additional probability of the correct
+measurement, hitting the paper's $(1-1/q)^2$ product.  Is there a
+one-query variant of Lemma 1 (say, using amplitude amplification
+across the two calls it makes) that removes the $1/q$ Lemma-1
+penalty and lifts the total success probability to $\ge 1-1/q$?
+
+\textbf{Q2.} For Boolean $g$ on $\mathbb{Z}_N$ we observed peak
+probabilities $\sim 0.7$--$0.8$ instead of the flat-spectrum $1$.
+Which combinatorial property of $g$ tightly controls the peak
+probability -- is it $\min_y |\hat g(y)|^2$, the flatness ratio
+$\max/\min$, or some higher moment?  A closed-form lower bound in
+terms of a computable invariant of $g$ would be useful for choosing
+oracles in cryptographic reductions.
+
+\textbf{Q3.} We used the Zadoff-Chu chirp $g(x)=\exp(2\pi i\, a x^2/(2N))$
+as a flat-spectrum stand-in for a multiplicative character on
+$\mathbb{Z}_N$ (which is not a field).  Does the hidden-shift algorithm
+using such a chirp $g$ inherit the paper's Legendre-symbol
+cryptographic implications (attacking algebraically homomorphic
+schemes), or does the field structure of $\mathbb{F}_p$ do essential
+work beyond providing a flat-spectrum $g$?
+
+\textbf{Q4.} The paper reduces the shifted-Legendre problem to the
+dihedral HSP under Conjecture~2.1 of \cite{DKPP96}.  Our exact
+simulation on $p=13$ solves the shift problem directly (no dihedral
+reduction).  Can the empirical peak-probability curve from small-$p$
+brute-force runs be used to test/tighten Conjecture 2.1 numerically?
+E.g.\ do the residual amplitude patterns predicted by the conjecture
+appear in the $|\psi|^2$ distribution at $p=11, 13, 17, 19$?
+
+\textbf{Q5.} The Sec.~5.2 unknown-$n$ variant requires approximate
+Fourier sampling with parameters $m=\Omega(n^2/\epsilon^2)$,
+$q=\Omega(m/\epsilon)$.  For which $(\epsilon, n)$ regimes does this
+approximation degrade the shift-recovery probability below
+$1/\mathrm{poly}(\log n)$, i.e.\ what is the smallest polylogarithmic
+sample size that still recovers $s$ with constant success
+probability in the unknown-$n$ case?  This would clarify the
+practical scaling of the ``unknown $n$'' extension, which we did not
+implement.
+
+\begin{thebibliography}{9}
+\bibitem{vDHI02} W.\ van Dam, S.\ Hallgren, L.\ Ip.
+\emph{Quantum Algorithms for some Hidden Shift Problems.}
+arXiv:quant-ph/0211140 (2002).
+\bibitem{DKPP96} D.\ Boneh and R.\ Lipton (as cited by vDHI02) --
+subexponential classical algorithms for algebraically homomorphic
+cryptosystems.
+\bibitem{HH00} L.\ Hales and S.\ Hallgren, ``An improved quantum
+Fourier transform algorithm and applications,'' FOCS 2000.
+\end{thebibliography}
+
+\end{document}

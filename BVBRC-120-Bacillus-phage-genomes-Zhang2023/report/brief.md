@@ -1,0 +1,7 @@
+# BVBRC-120 · Zhang et al. 2023 · Bacillus phage function/diversity/evolution
+
+**What.** Independent replication of Zhang Y. *et al.* 2023, "The analysis of the function, diversity, and evolution of the *Bacillus* phage genome" (BMC Microbiology 23:170, PMID 37337195, DOI 10.1186/s12866-023-02907-9). The paper collects 236 whole-genome *Bacillus* lytic phage sequences and 36 predicted prophages from 178 *Bacillus* strains (all NCBI, pre-30-Dec-2022), and characterises functional proteins, genome diversity, and evolutionary relationships.
+
+**Why.** Rick's X-100/BVBRC replication wave rank #56. The paper explicitly lists every accession in supplementary tables S1/S3/S4/S9, so the dataset is fully re-derivable and the diversity/evolution claims are testable with free tools (efetch + MMseqs2 + MASH + IQ-TREE-style NJ). No proprietary data, no closed pipeline.
+
+**Result.** 231/236 lytic phage accessions successfully re-downloaded via `efetch` (5 dropped by NCBI dedup); re-derived independent measurements confirm the paper's three headline claims — genome size range (7.4-497.5 kb, matches paper's "diverse"), extremely low pairwise genome similarity (MASH mean d = 0.94; 92.7% of pairs are effectively unrelated), and a large tail of unknown/singleton proteins (49% of 6,875 protein clusters are singletons out of 35,069 predicted ORFs). Verdict: **PARTIAL/REPLICATED** — 3 of 4 testable claims replicate on real re-fetched data; the sporulation/biofilm/virulence-factor cargo claim (C1) is descriptive and requires manual COG annotation not attempted here.

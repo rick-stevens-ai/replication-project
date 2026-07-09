@@ -1,0 +1,168 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\title{Replication Report: Cogno, Bauer, Durante (2024) --- Coupled 3D ABM-MC Model of Radiotherapy-Induced Lung Fibrosis}
+\author{LUCID Replication Track \\ Ollie subagent (OpenClaw)}
+\date{2026-05-28 (report), backfilled 2026-07-06}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Cogno, Bauer, and Durante (\emph{Commun Med} 4:16, 2024) built a 3D
+BioDynaMo agent-based model (ABM) of an 18-alveolus segment coupled to
+TOPAS-nBio Monte Carlo (MC) dose scoring to simulate radiation-induced
+lung fibrosis (RILF). They report sigmoidal FSU-survival vs.\ dose,
+sigmoidal $\Delta$ECM(D) saturating at $\sim 3\times 10^{-3}$~g/cm$^3$,
+fractionation sparing (5-fx right-shift vs.\ 1-fx), photon source/energy
+effects, bystander-threshold sensitivity, and 60~MeV proton RBE$_{\mathrm{FSU}}$
+$\approx 1.12$--$1.15$. All artifacts are open (Zenodo
+\texttt{10.5281/zenodo.10185637}, CC-BY-4.0). We did \textbf{not} build
+or run the full BioDynaMo + TOPAS-nBio + OpenTOPAS + Geant4 stack in
+this replication --- that build is multi-hour and requires $\sim 5$~GB
+of Geant4 physics data plus OpenTOPAS registration. Instead we built a
+compartmental ABM surrogate (\texttt{abm\_lite.py}) using the paper's
+published equations (Eqs.\ 2--4) and parameter values lifted from
+\texttt{sim-param.h}. \textbf{Verdict: PARTIAL.} We reproduce the
+qualitative dose-response shapes (FSU sigmoid, $\Delta$ECM sigmoid, RSI
+sigmoid, 5-fx sparing) with ED$_{50}$ values within 10--25\% of the
+paper, but we do \textbf{not} exercise the MC-coupled central novelty,
+we do \textbf{not} reproduce proton-vs-photon RBE$_{\mathrm{FSU}}$, and we do
+\textbf{not} reproduce the strong bystander-threshold sensitivity (the
+compartmental rule loses the 3D spatial neighbour mechanic). Overall
+claim coverage: 5.5/10 ($\sim 55\%$).
+\end{abstract}
+
+\section{What the paper actually claims}
+
+The paper's \emph{headline} exercises are:
+
+\begin{enumerate}
+  \item A 3D coupled ABM (BioDynaMo, C++) + MC (TOPAS-nBio, Geant4-based)
+        stack representing an 18-alveolus lung segment with three concentric
+        cell layers, spherical envelopes (900~$\mu$m outer box, 260~$\mu$m
+        alveolar diameter).
+  \item Late-time $\Delta$ECM(D) that is sigmoidal and saturates near
+        $\Delta$ECM$_{\max} \approx 3\times 10^{-3}$~g/cm$^3$.
+  \item Fractionation sparing: 5-fx delivery right-shifts the dose-response
+        vs.\ 1-fx at the same total dose (agreement with Zhou et al.\ 2017
+        mouse fibrosis-index data).
+  \item Photon source/energy matters: 4 coplanar fields at $E_\gamma = 10$~keV
+        gives most homogeneous dose; 1~keV isotropic is markedly worse.
+  \item Bystander effect dominates over single-cell radiosensitivity:
+        threshold 2$\rightarrow$1 substantially worsens damage; $\alpha,\beta$
+        $\times 0.9$ is only marginal.
+  \item 60~MeV protons give higher RSI per unit dose than photons ---
+        \emph{driven by dose-distribution heterogeneity, not DNA-damage
+        biology} (they explicitly do not simulate DNA-scale differences).
+  \item RBE$_{\mathrm{FSU}} \approx 1.12$--$1.15$ at 50\%, 37\%, 10\% FSU
+        survival --- close to the clinical 1.10 assumption but driven by
+        heterogeneity, not biology.
+\end{enumerate}
+
+\section{What we did}
+
+\begin{itemize}
+  \item \textbf{Artifact discovery + inspection.} Located Zenodo
+        \texttt{10.5281/zenodo.10185637}. Downloaded \texttt{Code.zip}
+        (598~KB). Confirmed BioDynaMo ABM C++ source, TOPAS-nBio
+        extension classes, pre-equilibrated initial-structure files, and
+        the orchestration bash script \texttt{ABM\_MC\_script.sh}. Lifted
+        parameter values from \texttt{sim-param.h}: $\alpha=0.07427$~Gy$^{-1}$,
+        $\alpha/\beta=7$~Gy, bystander threshold = 2, phag fraction = 0.4,
+        phag index = 1, damaged$\rightarrow$senescent = 0.25~day$^{-1}$,
+        ECM baseline = $3.26\times 10^{-3}$~g/cm$^3$, 18 alveoli,
+        $\sim 60$ AEC2/alveolus, 1200-day late endpoint.
+  \item \textbf{Built \texttt{abm\_lite.py}} --- a Python compartmental
+        surrogate: per-alveolus stochastic state with healthy AEC2,
+        damaged, senescent, apoptotic, myofibroblasts, cumulative ECM.
+        Daily dynamics: damage commit, bystander (threshold-gated),
+        myofibroblast Hill activation, ECM deposition with logistic cap,
+        macrophage clearance, ECM-gated repopulation (chronic
+        fibrosis lock-in).
+  \item \textbf{Re-implemented Eqs.\ 2--4} (ΔECM sigmoid, RSI, LQ-CV FSU
+        survival) and fit them to our surrogate's output.
+  \item \textbf{Ran 10 stochastic replicates per dose $\times$
+        condition} for single-fraction sweeps, 5-fx sweeps, and
+        parameter-sensitivity variants (bystander threshold, $\alpha,\beta$
+        $\times 0.9$).
+\end{itemize}
+
+\section{What we did NOT do (honest critique)}
+
+\begin{itemize}
+  \item \textbf{Did not build BioDynaMo.} Apache-2.0, buildable from
+        source, but the build brings in ROOT and is multi-hour on
+        first try.
+  \item \textbf{Did not build TOPAS-nBio / OpenTOPAS / Geant4.} $\sim 5$~GB
+        of Geant4 physics data, OpenTOPAS free-but-registration-gated
+        download form, multi-hour build. This is the dominant friction.
+  \item \textbf{Did not run the paper's actual ABM-MC coupled loop.}
+        \texttt{ABM\_MC\_script.sh} iterates ABM $\rightarrow$ TOPAS
+        $\rightarrow$ ABM per fraction; running it requires both stacks
+        above on PATH.
+  \item \textbf{Did not reproduce proton-vs-photon RBE$_{\mathrm{FSU}}$}
+        (Claim 7). This requires the MC.
+  \item \textbf{Did not reproduce photon source/energy sensitivity}
+        (Claim 4). Also requires MC.
+  \item \textbf{Did not reproduce the strong bystander-threshold
+        sensitivity} (Claim 5b). Our compartmental rule triggers
+        identically for thresholds 1 or 2 once an alveolus has $\ge 2$
+        senescent cells (true after even modest dose), so the surrogate
+        \emph{cannot} reveal this dependence. The paper's 3D
+        neighbour-count mechanic is genuinely spatial.
+  \item \textbf{Did not reproduce the full 10-substance
+        reaction-diffusion cytokine field} (MMP/TIMP/ECM/TGF-$\beta$/PDGF/
+        IL-13/TNF-$\alpha$/MCP1/etc.). We collapsed to one TGF-$\beta$-like
+        signal and one ECM variable.
+  \item \textbf{Did not refit the paper's LQ parameters} from primary
+        data --- we used their published $\alpha,\beta$ directly.
+        A true fit-reproduction would require the earlier Cogno et al.\
+        IJMS 2022 workflow.
+  \item \textbf{Did not fetch supplementary datasets 2--4} or the
+        ``raw simulation data available on reasonable request'' ---
+        would have required author contact.
+\end{itemize}
+
+\section{Results (headline comparisons)}
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Quantity & Ours & Paper & Agreement \\
+\midrule
+FSU ED$_{50}$ (1 fx)              & $\approx 20$~Gy       & $\approx 25$~Gy         & within 25\% \\
+Late $\Delta$ECM saturation       & $\sim 1.1\times 10^{-3}$~g/cm$^3$ & $\sim 3\times 10^{-3}$~g/cm$^3$ & same scale, $3\times$ low \\
+Late $\Delta$ECM D$_{50}$         & $\approx 7$~Gy        & $\approx 12$--$15$~Gy   & within $2\times$ \\
+RSI ED$_{50}$                     & $\approx 20$~Gy       & $\approx 18$--$20$~Gy   & within 10\% \\
+RSI plateau                       & $\sim 0.56$           & $\sim 0.5$--$0.6$       & match \\
+FSU @ 30 Gy total, 1 fx vs 5 fx   & 0.01 vs 0.79          & $\sim 0$ vs $\sim 1.0$  & direction matches \\
+RSI @ 30 Gy total, 1 fx vs 5 fx   & 0.56 vs 0.24          & $\sim 0.5$ vs $\sim 0.15$ & direction matches \\
+$\alpha,\beta \times 0.9$ shift   & small right-shift     & small right-shift       & qualitative match \\
+Bystander 2$\rightarrow$1         & no change             & substantial worsening   & \textbf{miss} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Verdict}
+
+\textbf{PARTIAL.} We independently confirmed that the paper's artifact
+stack is completely open (Zenodo CC-BY-4.0 + BioDynaMo Apache-2.0 +
+TOPAS-nBio BSD-style + OpenTOPAS free), verified the parameter values
+in the deposited \texttt{sim-param.h}, and reproduced the paper's
+qualitative dose-response shapes and fractionation-sparing behaviour
+with a compartmental surrogate driven by the paper's own equations and
+parameters. However, we did \emph{not} exercise the paper's central
+methodological novelty (ABM$\leftrightarrow$MC coupling), we did not
+reproduce the proton-vs-photon RBE$_{\mathrm{FSU}}$ claim, and we did
+not reproduce the bystander-threshold sensitivity. Claim coverage
+5.5/10. This is a substantive PARTIAL, not a REPLICATED, and not a
+NO-GO --- everything the paper claims is testable given the build time
+we did not have.
+
+\input{open_questions_section.tex}
+
+\end{document}

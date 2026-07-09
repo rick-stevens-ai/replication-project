@@ -1,0 +1,5 @@
+# Brief — BVBRC-58
+
+**What:** Independent replication of Zheng et al. (2017, *Sci Rep* 7:17885), the complete-genome characterization of two *E. coli* bloodstream isolates (EC1002/ST405, EC2474/ST131) co-producing the colistin-resistance gene **mcr-1** and the carbapenemase **blaNDM-1** on separate plasmids.
+
+**Why:** A textbook BV-BRC-mappable genome-replication workflow — complete public GenBank genomes (CP021202–CP021210), well-defined testable claims (genome stats, MLST, per-plasmid AMR content, plasmid replicon typing), and a clinically important "pandrug-resistance dissemination" conclusion. We re-downloaded the actual deposited sequences and independently re-derived genome statistics (Biopython), sequence types (mlst 2.35.0), acquired-resistance genes (AMRFinderPlus 3.12.8 / DB 2024-07-22), and plasmid replicon types (PlasmidFinder DB via blastn) — then LLM-judged the agreement (free Argo gpt-5.2). Verdict: **PARTIAL** (5/6 core claims reproduced; per-plasmid AMR inventory partially reproduced due to 2017-ResFinder-2.1 vs 2024-AMRFinderPlus database drift).

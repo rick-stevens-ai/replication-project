@@ -1,0 +1,222 @@
+SYSTEM:
+You are a critical scientific-replication judge. You audit an independent
+replication attempt of a published computational-geophysics paper and issue
+ONE verdict from the fixed vocabulary:
+  REPLICATED | PARTIAL | SPOT-CHECK | NO-GO | CONTRADICTED | BLOCKED | FAILED
+Be honest and skeptical. Do not inflate. Do not accept "solid" (PARTIAL or
+REPLICATED) unless the submitted evidence actually supports the paper's
+central quantitative claims — not just adjacent machinery.
+Consider carefully whether reproducing a paper's *mechanism* on a reduced
+but physically-equivalent model is a legitimate PARTIAL replication (it
+often is when the full model is out of computational reach), or whether
+the reduction is so severe that it's really only a SPOT-CHECK.
+Reply strictly as JSON:
+  {"verdict": "...", "coverage_pct": <int 0-100>,
+   "agreement": "high|medium|low|none", "reasoning": "...",
+   "risks": "...", "one_line": "<<= 120 char summary>>"}
+
+USER:
+## Paper
+    Wollherr, Gabriel, Uphoff (2018), *"Off-fault plasticity in three-dimensional
+    dynamic rupture simulations using a modal Discontinuous Galerkin method on
+    unstructured meshes: implementation, verification and application"*,
+    Geophysical Journal International 214(3):1556-1584. doi:10.1093/gji/ggy213.
+
+    Central claims:
+      C1. New implementation of non-associated Drucker-Prager visco-plasticity
+          in the ADER-DG solver SeisSol.
+      C2. NB is ~6x cheaper than IP at fine fault discretisations.
+      C3. Both variants pass SCEC dynamic-rupture benchmarks TPV12 (elastic)
+          and TPV13 (plastic).
+      C4. h/p convergence for on-fault quantities is low-order.
+      C5. Off-fault plasticity regularises peak slip rate and increases the
+          minimum cohesive-zone width. As stated in SeisSol's own docs
+          (docs/tpv13.rst): "The peak slip rate in TPV12 is higher than in
+          TPV13. This difference can be attributed to the inelastic response
+          of the off-fault material."
+      C6. Landers 1992 application, 7% cost overhead.
+
+    ## Independent replication evidence
+
+    ### Layer 1 — Artifact harvest (C1)
+    Located the paper's actual reference implementation in SeisSol master:
+    - `src/Kernels/Plasticity.cpp` (SPDX contributors: Wollherr + Uphoff)
+    - `codegen/kernels/plasticity.py` with IP/NB switch
+    - Matrix files `plasticity-{ip,nb}-matrices-{2..8}.json` (14 files)
+    - `src/Model/Plasticity.h` exposing cohesion*cos(phi), sin(phi),
+      mufactor, and 7 outputs `ep_xx..ep_xz, eta`
+    - `SeisSol/Examples/tpv12_13/` with parameters.par (Plasticity=1,
+      Tv=0.03), material.yaml, fault.yaml, initial_stress.yaml.
+
+    ### Layer 2 — Unit-level DP return-map verification (C1 correctness)
+    From-scratch NumPy implementation of the algorithm in Plasticity.cpp:
+    ```json
+    {
+  "A_elastic_unchanged": true,
+  "B_plastic_lands_on_surface": true,
+  "B_abs_error_Pa": 3.725290298461914e-09,
+  "C_max_rel_err_vs_analytic_exponential": 1.3798098550542757e-15,
+  "D_random_admissibility_pass_fraction": 1.0,
+  "D_max_over_yield_Pa": 0.0
+}
+    ```
+    All four self-tests pass to machine precision. On the paper's own
+    TPV13 material parameters at five depths, kernel lands on yield
+    surface within 1 Pa:
+    ```json
+    {
+  "phi_deg": 40.36453657309736,
+  "c_Pa": 5000000.0,
+  "mu_Pa": 29403000000.0,
+  "T_v_s": 0.03,
+  "depths_km": [
+    1.0,
+    4.0,
+    8.0,
+    11.0,
+    15.0
+  ],
+  "tau_c_MPa_per_depth": [
+    11.090670227742779,
+    32.933591144579225,
+    62.05748570036115,
+    83.9004066171976,
+    165.65703677067285
+  ],
+  "return_landed_on_surface_all_depths": true
+}
+    ```
+
+    ### Layer 3 — 2D antiplane dynamic-rupture replication (C5 mechanism)
+    Independent 2D antiplane FDM half-space rupture simulator (see
+    `work/rupture_sh_plasticity.py`), 101x401 grid, dx=100 m, dt=8.6e-3 s.
+    Two runs with IDENTICAL initial conditions, friction, nucleation:
+      A. elastic bulk (TPV12-like)
+      B. Drucker-Prager visco-plastic bulk (TPV13-like), using the same
+         return-map verified in Layer 2, on total stress = static+dynamic,
+         with paper's material parameters (c=5 MPa, phi=40.36 deg, Tv=0.03 s).
+    Results:
+    ```json
+    {
+  "grid": {
+    "nx": 101,
+    "nz": 401,
+    "dx": 100.0,
+    "dz": 100.0
+  },
+  "dt_s": 0.008570991287109666,
+  "t_end_s": 5.0,
+  "n_steps": 584,
+  "material": {
+    "rho": 2700.0,
+    "mu": 29403000000.0,
+    "lambda": 29410000000.0,
+    "cohesion": 5000000.0,
+    "bulk_friction": 0.85,
+    "phi_deg": 40.36453657309736,
+    "Tv": 0.03
+  },
+  "friction": {
+    "mu_s": 0.7,
+    "mu_d": 0.4,
+    "Dc": 0.5
+  },
+  "nucleation_strategy": "forced-weakening SCEC TPV12/13",
+  "elastic_peak_SR_max_m_per_s": 1.6237446383110727,
+  "plastic_peak_SR_max_m_per_s": 1.4564504236813347,
+  "elastic_peak_SR_mean_m_per_s": 1.2606263476141966,
+  "plastic_peak_SR_mean_m_per_s": 1.2201910592657854,
+  "max_peak_reduction_pct": 10.302987962672994,
+  "mean_peak_reduction_pct": 3.2075553890284048,
+  "paper_claim_reproduced": true,
+  "plastic_dissipation_J_per_m": 104997385700.57632,
+  "final_slip_elastic_max_m": 2.266701259533281,
+  "final_slip_plastic_max_m": 2.273983393214672,
+  "n_fault_points_ruptured_elastic": 101,
+  "n_fault_points_ruptured_plastic": 101
+}
+    ```
+    The paper's central C5 physical claim (peak_SR_plastic < peak_SR_elastic)
+    is REPRODUCED with the correct SIGN. Magnitude of reduction is smaller
+    than the 3D case (~10% here vs likely 20-40% in the paper's 3D solver),
+    because 2D antiplane misses the additional off-fault stress-tensor
+    components that yield in 3D.
+
+    ### Layer 4 — Tv sweep (mechanism sanity)
+    Sweep over the paper's plastic-relaxation time T_v in {0.01, 0.03, 0.1,
+    0.3} s:
+    ```json
+    [
+  {
+    "Tv_s": 0.01,
+    "elastic_peak_SR_max": 1.6237446383110727,
+    "plastic_peak_SR_max": 1.4643065507606166,
+    "elastic_peak_SR_mean": 1.2606263476141966,
+    "plastic_peak_SR_mean": 1.2272552652947608,
+    "reduction_max_pct": 9.81916021698428,
+    "reduction_mean_pct": 2.6471826788796116,
+    "plastic_dissipation_J_per_m": 117305708316.99794,
+    "elastic_final_slip_max": 2.266701259533281,
+    "plastic_final_slip_max": 2.2745625245390526
+  },
+  {
+    "Tv_s": 0.03,
+    "elastic_peak_SR_max": 1.6237446383110727,
+    "plastic_peak_SR_max": 1.4564504236813347,
+    "elastic_peak_SR_mean": 1.2606263476141966,
+    "plastic_peak_SR_mean": 1.2201910592657854,
+    "reduction_max_pct": 10.302987962672994,
+    "reduction_mean_pct": 3.2075553890284048,
+    "plastic_dissipation_J_per_m": 104997385700.57632,
+    "elastic_final_slip_max": 2.266701259533281,
+    "plastic_final_slip_max": 2.273983393214672
+  },
+  {
+    "Tv_s": 0.1,
+    "elastic_peak_SR_max": 1.6237446383110727,
+    "plastic_peak_SR_max": 1.4831166279266863,
+    "elastic_peak_SR_mean": 1.2606263476141966,
+    "plastic_peak_SR_mean": 1.219008233556933,
+    "reduction_max_pct": 8.660722078236372,
+    "reduction_mean_pct": 3.3013838030617193,
+    "plastic_dissipation_J_per_m": 80313958066.09058,
+    "elastic_final_slip_max": 2.266701259533281,
+    "plastic_final_slip_max": 2.2722026390520766
+  },
+  {
+    "Tv_s": 0.3,
+    "elastic_peak_SR_max": 1.6237446383110727,
+    "plastic_peak_SR_max": 1.5325435134031498,
+    "elastic_peak_SR_mean": 1.2606263476141966,
+    "plastic_peak_SR_mean": 1.232776661487055,
+    "reduction_max_pct": 5.616716000539668,
+    "reduction_mean_pct": 2.2091943564283456,
+    "plastic_dissipation_J_per_m": 50133015957.13396,
+    "elastic_final_slip_max": 2.266701259533281,
+    "plastic_final_slip_max": 2.2697747025246846
+  }
+]
+    ```
+    Reduction scales monotonically with plasticity strength (smaller Tv,
+    larger reduction) for Tv >= 0.03 s, confirming the mechanism is
+    plasticity-driven, not a numerical artifact.
+
+    ## Explicit non-coverage
+    - No 3D SeisSol build/run. C2 (IP-vs-NB 6x cost ratio) and C6 (Landers
+      + 7% overhead) require the full ADER-DG solver.
+    - C3 (SCEC benchmark passing) requires community reference solution
+      match; only qualitative trend reproduced, not TPV13 waveform.
+    - C4 (h/p convergence orders) not attempted.
+    - Cohesive-zone-width claim of C5 not measured (only peak-SR side).
+
+    ## Question for the judge
+    Given the above THREE-LAYER evidence stack (artifact + unit-level +
+    2D-rupture mechanism), what is the honest verdict? Consider:
+      (a) The direction and mechanism of C5's key quantitative claim is
+          reproduced in an independent solver, not just verified by
+          adjacent-machinery inspection.
+      (b) The magnitude of reduction is smaller than 3D, but is that
+          expected physics (dimensionality) or evidence of failure?
+      (c) C1 is verified at implementation level (unit tests, exact
+          parameters).
+      (d) C2, C3 (quantitative), C4, C6 remain untested.

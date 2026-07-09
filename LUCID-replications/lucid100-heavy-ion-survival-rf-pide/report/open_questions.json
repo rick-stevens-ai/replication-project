@@ -1,0 +1,47 @@
+[
+  {
+    "q": "Which PIDE version (2.x with only \u03b1,\u03b2 vs 3.2+ with raw dose/SF pairs) was used, and does the 318-point NB1RGB count come from raw dose/SF or from re-simulating S = exp(-(\u03b1D+\u03b2D\u00b2)) off the tabulated (\u03b1,\u03b2)?",
+    "basis": "The 'random forest RMSE = 0.0196' claim is only interpretable given the underlying variance in the target. If the 318 SF values are re-simulated from smooth (\u03b1,\u03b2) with no residual scatter, the RF can trivially interpolate and RMSE\u21920. If they are raw experimental SF with real Poisson-plating scatter, 0.0196 is genuinely striking (and would still be leakage-suspect on a 70/30 point split). Paper \u00a72.1 is ambiguous.",
+    "next_steps": [
+      "Register with GSI PIDE (email form) and download both PIDE 2.2 (\u03b1,\u03b2 only) and PIDE 3.2 (raw dose/SF). Confirm which one gives N=318 for NB1RGB.",
+      "Report per-experiment \u03b1,\u03b2 and per-point (dose, SF, LET, experiment_id) so the community can distinguish raw-experimental from re-simulated targets.",
+      "Repeat the RF training on both variants and report RMSE separately \u2014 if the 'raw' RMSE \u226b 'simulated' RMSE, that quantifies the target-variance issue directly."
+    ]
+  },
+  {
+    "q": "How does the RF perform under leave-experiment-out (LEO) or leave-cell-line-out (LOCLO) CV, rather than random-point Monte-Carlo CV?",
+    "basis": "This is the central methodological question. Random-point CV lets the RF see other points from the same experiment (same ion, same LET, same cell state) at training time \u2014 it is essentially within-curve interpolation and does not measure what the paper implicitly claims (LET-based prediction of a NEW experiment). A drop from R\u00b2\u22480.97 \u2192 e.g. R\u00b2\u22480.6 under LEO would completely change the narrative.",
+    "next_steps": [
+      "Reimplement the paper's RF with an sklearn GroupKFold keyed on experiment_id (the paper's own 51-experiment structure supports this natively).",
+      "Also run LeaveOneGroupOut over cell lines (using the multi-cell-line PIDE subset the paper mentions in \u00a73.4) \u2014 this directly tests transfer to a new biological system.",
+      "Report R\u00b2, RMSE, and per-fold learning curves for both LEO and LOCLO; the delta from random-point MC-CV is the leakage magnitude."
+    ]
+  },
+  {
+    "q": "How does the RF(dose, LET) compare against a fair physical baseline LQM(\u03b1(LET), \u03b2(LET)) \u2014 i.e., LQ with LET-dependent parameters \u2014 rather than dose-only LQ?",
+    "basis": "The paper's dose-only LQ baseline is a straw man for heavy-ion physics. Everyone in the field knows \u03b1 and \u03b2 vary with LET; the Furusawa 2000 NB1RGB curves are decades-old and analytically parameterisable. The RF's 'gain' is largely re-learning those curves empirically. If a physically-informed LQ(\u03b1(LET), \u03b2(LET)) closes 80% of the gap, the RF's ML value-add collapses to a modest smoothing/interaction term.",
+    "next_steps": [
+      "Fit \u03b1(LET) and \u03b2(LET) as smooth splines from the training experiments (or use published Furusawa/Weyrather parameterisations), then evaluate LQ(\u03b1(LET), \u03b2(LET)) on the held-out points.",
+      "Also compare against the Microdosimetric Kinetic Model (MKM) with default Kase 2006 parameters and against Repair-Misrepair-Fixation (RMF, Carlson 2008) \u2014 these are the standard mechanistic baselines that a claim of 'ML beats classical' should beat.",
+      "Report R\u00b2, RMSE, and residual pattern (RF vs LQ(LET) vs MKM) side-by-side; genuine ML advantage would show up as systematic residual structure that only the RF captures."
+    ]
+  },
+  {
+    "q": "How does the RF quantify prediction uncertainty, and is that uncertainty calibrated against experimental replicate variance?",
+    "basis": "The paper reports point predictions and a single RMSE. For clinical / treatment-planning use \u2014 which is the paper's motivation \u2014 you need per-prediction confidence intervals that are calibrated (e.g., quantile-regression forests, RF infinitesimal jackknife, or conformal prediction). Uncalibrated RF predictions at, say, novel ion species or clinical energies could be catastrophically overconfident precisely where the training data is sparsest.",
+    "next_steps": [
+      "Retrain as a Quantile Regression Forest (or use forestci for RF-IJ variance) to produce 80/95% prediction intervals per point.",
+      "Evaluate coverage: fraction of held-out points inside the nominal interval, stratified by LET bin and ion species.",
+      "Compare interval width to the experimental replicate scatter in PIDE (where multiple experiments exist for the same (ion, LET, dose)); intervals narrower than replicate scatter are miscalibrated."
+    ]
+  },
+  {
+    "q": "Does the RF transfer to novel ion species (e.g., helium ions, proton beams at high LET-end-of-range, oxygen) and to clinical energies (100\u2013400 MeV/u for carbon therapy) not densely represented in the training subset?",
+    "basis": "The training mix is heavily 12C-weighted (24 of 51 experiments) with very few 28Si (7) and 56Fe (5). Clinical hadrontherapy uses primarily protons (LET 0.3\u2013100 keV/\u00b5m at end of range) and 12C (LET 10\u2013200 keV/\u00b5m). Extrapolation to (a) proton end-of-range LET peaks and (b) space-radiation ion species (Fe at 200+ MeV/u, GCR mix) is where the model would actually be used, and there is no evidence in the paper that it works there.",
+    "next_steps": [
+      "Hold out entire ion species (leave-one-ion-out CV over {C, Ne, Si, Fe}) and report R\u00b2/RMSE per held-out ion.",
+      "Fetch the proton subset of PIDE (or the PARTNER / NASA GCR datasets) and evaluate the trained RF on those without retraining \u2014 the R\u00b2 drop quantifies out-of-distribution failure.",
+      "For clinical energies specifically, compare RF predictions against measured NB1RGB or CHO-K1 survival at HIMAC / GSI / HIT at 200\u2013400 MeV/u, which are outside the training LET density peak; a fair report would include both extrapolation R\u00b2 and calibration."
+    ]
+  }
+]

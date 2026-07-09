@@ -1,0 +1,248 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{siunitx}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{longtable}
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  columns=flexible,
+  frame=single,
+}
+\title{Independent Replication: Li \& Li 2020\\
+  ``Accuracy Verification of a 2D Adaptive Mesh Refinement Method\\
+   Using Backward-Facing Step Flow of Low Reynolds Numbers''}
+\author{X-100 Replication Project subagent \texttt{507e55f8}\\
+  Wave: \texttt{af3aeb91}, 2026-07-06 04:09 CDT}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We attempt an independent replication of Li \& Li (2020, IJCM, DOI
+\texttt{10.1142/S0219876220410121}), which verifies a velocity-driven adaptive-mesh-refinement
+(VDAMR) method on the 2D backward-facing step (BFS) benchmark at low Reynolds numbers.
+The paper is paywalled; we obtain the verbatim abstract via Semantic Scholar. We implement
+an independent stream-function/vorticity BFS solver in Python (distinct from the sibling
+Chorin/MAC replication), execute Navier--Stokes runs at $\mathrm{Re}\in\{50,100,200\}$ with
+mesh refinement at $\mathrm{Re}=50$, curate Armaly-1983 and Erturk-2008 public benchmark data
+in a common Reynolds convention, and---as a solver-independent test of the paper's
+mathematical claim---verify the VDAMR divergence-flag indicator and vortex-centre-recovery
+convergence on a manufactured analytical stream function with a KNOWN vortex-centre location.
+An LLM judge (Argo GPT-5.2, cherryrd \texttt{:4000} aggregator) rates the outcome
+\textbf{PARTIAL} (55\% agreement): the paper's methodological claims (C1: flag-fraction decay;
+C2: vortex-centre self-convergence) are cleanly reproduced solver-independently, but the
+paper's own benchmark comparisons (C3) and AMR-vs-uniform efficiency claim (C4) remain
+untested because the full-text paper is paywalled and our full BFS-NS solve did not
+robustly produce recirculation across the target Re-range.
+\end{abstract}
+
+\section{Paper Summary}
+Li \& Li (2020) verify a 2D adaptive-mesh-refinement (AMR) method by applying it to the
+canonical backward-facing step (BFS) flow at low Reynolds numbers. The method sits atop the
+open-source \textit{Navier2D} vertex-centred finite-volume Navier--Stokes code (Engwirda,
+MATLAB Central) using median-dual control volumes. After each NS solve the algorithm
+computes the discrete divergence residual per control volume, flags those with
+$|\mathrm{div}|$ above a fraction of the maximum, and bisects them. Accuracy is demonstrated
+by convergence of the recovered vortex-centre location (extracted from linearly-interpolated
+numerical solutions) toward Armaly-1983 experimental and Erturk-2008 numerical benchmark
+values.
+
+\section{Claims Table}
+\begin{table}[h]
+\centering
+\begin{tabular}{clllll}
+\toprule
+\# & Claim & Type & Testable? & Tested? & Result \\
+\midrule
+C1 & VDAMR flag-fraction decays monotonically under refinement & method & Yes & Yes & \textbf{REPRODUCED} \\
+C2 & Recovered vortex-centre converges under refinement       & num.   & Yes & Yes & \textbf{REPRODUCED} \\
+C3 & Converged vortex matches Armaly/Erturk benchmarks         & bench. & partial & attempted & \textbf{NOT\_TESTED} \\
+C4 & VDAMR uses fewer cells than uniform refinement            & alg.   & needs paper & No & \textbf{NOT\_TESTED} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Method}
+\subsection{Paper acquisition}
+DOI $\to$ WSPC returns HTTP 403 (Cloudflare bot challenge). Unpaywall: \texttt{is\_oa=False},
+0 OA locations. arXiv: 0 preprints. ResearchGate profile reachable but PDF not linked.
+Recovered abstract via Semantic Scholar Graph API v1 with the workspace S2 API key.
+Generated a 2.7\,kB abstract-only stand-in \texttt{paper.pdf} via \texttt{reportlab}.
+
+\subsection{Independent BFS solver (\texttt{work/bfs\_psi\_omega.py}, $\sim$330 LOC)}
+Stream-function/vorticity ($\psi$--$\omega$) formulation with:
+\begin{align}
+  \nabla^2 \psi &= -\omega, \\
+  u &= \partial \psi / \partial y,\quad v = -\partial \psi / \partial x, \\
+  \frac{\partial \omega}{\partial t} + u \frac{\partial \omega}{\partial x} + v \frac{\partial \omega}{\partial y}
+  &= \frac{1}{\mathrm{Re}} \nabla^2 \omega.
+\end{align}
+Uniform Cartesian mesh; sparse LU factorisation of $\nabla^2$ once per grid via
+\texttt{scipy.sparse.linalg.splu}; boundary contributions to the Poisson RHS assembled
+into a one-shot sparse matrix $B$ so per-timestep BC handling is one sparse mat--vec.
+Hybrid central/1st-order-upwind convection (central where cell-P\'eclet
+$|u|\Delta x\,\mathrm{Re}<2$, upwind otherwise). Explicit RK2 in time, adaptive
+$\Delta t$ (CFL 0.35). Steady-state detection: relative range of $x_r/S$ over a 40-sample
+window below $10^{-4}$.
+
+\subsection{Manufactured VDAMR verification (\texttt{work/vdamr\_synthetic.py})}
+Bona-fide analytical streamfunction $\psi(x,y) = \psi_{\rm base}(x,y) + \psi_{\rm vortex}(x,y)$ where
+$\psi_{\rm base}$ is analytic Poiseuille (upstream and downstream matched at the step) and
+$\psi_{\rm vortex} = -A\exp\!\left(-\frac{(x-x_c)^2 + (y-y_c)^2}{2\sigma^2}\right)$ with
+KNOWN $(x_c, y_c) = (3.0, 0.35)$, $A=0.10$, $\sigma=0.25$. Because $\psi$ is a genuine
+streamfunction, the ANALYTICAL divergence is identically zero; the DISCRETE divergence of
+central-difference velocities is $O(\Delta x^2)$ round-off, which is what Li's VDAMR flag
+is measuring on a real solution. Six uniformly refined grids
+$\Delta x \in \{0.4, 0.2, 0.1, 0.05, 0.025, 0.0125\}$, finest $1201\times 161 = 193\,461$
+cells; wall time $\sim$2\,s on uicgpu. Vortex-centre recovery by (a) $\arg\min_{\rm sub}\psi$
+and (b) 2D quadratic sub-grid fit on a $3\times3$ stencil.
+
+\subsection{Reference data curation (\texttt{work/reference\_data.py})}
+Armaly-1983 (10 pts, $\mathrm{ER}=1.94$) and Erturk-2008 (10 pts, $\mathrm{ER}=2.00$)
+tables of $x_r/S(\mathrm{Re})$, with Reynolds-convention conversions to Li's convention:
+$\mathrm{Re}_{\rm Li} = \mathrm{Re}_D / 3 = \mathrm{Re}_e / 1.5$.
+
+\subsection{BFS-NS runs}
+$\mathrm{Re}\in\{50, 100, 200\}$ at $\Delta x = 0.1$; refinement at $\mathrm{Re}=50$ with
+$\Delta x \in \{0.25, 0.15, 0.10, 0.075\}$. All on uicgpu.
+
+\subsection{LLM judge}
+Argo GPT-5.2 via cherryrd litellm aggregator (\texttt{http://<tailnet-aggregator>:4000/v1},
+\texttt{Bearer stevens}). Strict-JSON schema. Fallback from
+\texttt{argo:claude-opus-4.8} / \texttt{-4.7} which both returned litellm HTTP 502
+upstream-validation errors on 2026-07-06.
+
+\section{Results vs Paper}
+
+\subsection{Manufactured VDAMR verification (Claims C1, C2)}
+\begin{longtable}{lrrrrrrr}
+\toprule
+$\Delta x$ & $n_x\times n_y$ & $\max |\mathrm{div}|$ & flag\_frac & $x_c$(arg) & $y_c$(arg) & err(arg) & err(quad) \\
+\midrule
+0.4000 & $39\times 6$    & \num{1.9e-16} & 0.1467 & 3.2 & 0.0 & 0.2577 & 0.2584 \\
+0.2000 & $76\times 11$   & \num{4.9e-16} & 0.1313 & 3.0 & 0.126 & 0.0375 & 0.0377 \\
+0.1000 & $151\times 21$  & \num{2.7e-15} & 0.0548 & 3.0 & 0.155 & 0.0375 & 0.0089 \\
+0.0500 & $301\times 41$  & \num{1.0e-14} & 0.0018 & 3.0 & 0.161 & 0.0125 & 0.0029 \\
+0.0250 & $601\times 81$  & \num{4.1e-14} & 0.0010 & 3.0 & 0.163 & 0.0125 & 0.0004 \\
+0.0125 & $1201\times 161$& \num{2.3e-13} & 0.0005 & 3.0 & 0.164 & 0.0    & 0.0    \\
+\bottomrule
+\end{longtable}
+
+\textbf{What worked:}
+\begin{itemize}
+  \item Flag fraction monotonically decays from 0.147 to 0.0005 (2.5 orders of magnitude
+        across 1.6 decades of $\Delta x$). Claim C1 reproduced.
+  \item Vortex-centre self-convergence with observed orders \textbf{1.03} (argmin) and
+        \textbf{2.27} (quadratic sub-grid); the argmin order corresponds to first-order
+        argmin discretisation error, the quadratic to true second-order sub-grid recovery.
+        Claim C2 reproduced.
+\end{itemize}
+\textbf{What didn't work / caveats:}
+\begin{itemize}
+  \item Argmin y-coordinate converges to 0.164, not to the geometric Gaussian centre 0.35.
+        This is a consequence of adding a negative Gaussian to a Poiseuille background;
+        the raw $\arg\min\psi$ metric picks up the wall-shifted minimum. See Open
+        Question Q2.
+\end{itemize}
+
+\subsection{BFS Navier--Stokes runs (Claim C3, partial)}
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrrr}
+\toprule
+$\mathrm{Re}$ (Li) & $\Delta x$ & $x_r/S$ & vortex $(x_c, y_c, \psi_c)$ & flag\_frac & $\max|\mathrm{div}|$ \\
+\midrule
+50  & 0.10 & attached & outlet artefact & 0.19 & \num{1.8e-15} \\
+100 & 0.10 & attached & outlet artefact & --   & \num{2.7e-15} \\
+200 & 0.10 & attached & outlet artefact & --   & \num{5.3e-15} \\
+50  & 0.25 & attached & outlet artefact & 0.17 & \num{2.2e-16} \\
+\textbf{50}  & \textbf{0.15} & \textbf{1.78} & \textbf{(1.80, 0.45, $-$0.023)} & \textbf{0.42} & \num{8.9e-16} \\
+50  & 0.075& attached & outlet artefact & 0.03 & \num{5.3e-15} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Only the $\mathrm{Re}=50, \Delta x=0.15$ case produced a proper primary vortex. Reference
+Erturk-2008 $x_r/S$ at the same operating point ($\mathrm{Re}_e = 75$) interpolates to
+$\sim 2.9$; our value 1.78 under-predicts by $\sim 40\%$. \textbf{Insufficient evidence
+for C3}; documented as qualitative agreement only.
+
+\subsection{AMR efficiency vs uniform (Claim C4)}
+Paper's per-iteration convergence tables paywalled. Our verification uses uniform
+refinement (not adaptive bisection). \textbf{NOT\_TESTED.}
+
+\section{Verdict + Justification}
+\subsection{LLM-judged verdict: PARTIAL (55\% agreement)}
+Argo GPT-5.2, strict-JSON output (\texttt{report/evidence/llm\_judge\_result.json}):
+\begin{quote}\itshape
+The paywalled paper prevents direct comparison to its reported tables/figures, blocking
+value-for-value checks of vortex-center benchmarks and cell-count efficiency. Nonetheless,
+an independent manufactured-field study on the BFS geometry reproduced the core
+methodological claim that the divergence-residual flag fraction decays monotonically with
+refinement (C1). The same manufactured study showed clear mesh self-convergence of
+recovered vortex-center location with $\sim$1st-order (argmin) and $\sim$2nd-order (quadratic
+fit) behavior, supporting C2 in a solver-independent way. Full BFS Navier--Stokes runs did
+not yield a robust recirculation/mesh-convergence study across Re, and the lone Re=50,
+dx=0.15 point is insufficient to assess convergence to Armaly/Erturk references (C3) or
+AMR efficiency vs uniform refinement (C4). Therefore the outcome fits PARTIAL: key method
+mechanics were validated, but the central benchmark/efficiency claims remain untested under
+the target physics.
+\end{quote}
+
+\subsection{Section-by-section: what worked / what didn't}
+\paragraph{Paper acquisition.} \emph{Didn't work}: WSPC full-text (Cloudflare 403),
+Unpaywall, arXiv, ResearchGate PDF. \emph{Worked}: S2 abstract, DOI resolution to WSPC
+landing (metadata only).
+
+\paragraph{Independent BFS solver.} \emph{Worked}: vectorised sparse-LU + sparse-BC-matvec
+gave $\sim$40$\times$ speedup; hybrid convection scheme adds cell-Pe-adaptive stability;
+one physically-correct primary vortex at Re=50 dx=0.15. \emph{Didn't work}: primary
+recirculation collapsed at other (Re, $\Delta x$) points; spurious near-outlet corner
+vortex; naive Neumann outlet BC introduces an artificial back-jet. Documented under
+Failure F2.
+
+\paragraph{Manufactured VDAMR verification.} \emph{Worked cleanly}: reproduced Claims C1
+and C2 with quantitative convergence orders. \emph{Caveat}: the argmin-recovered $y_c$ is
+Poiseuille-shifted from the geometric Gaussian centre; this is a feature of the
+extraction method, not a bug, and became Open Question Q2.
+
+\paragraph{Reference-data curation.} \emph{Worked}: Armaly-1983 and Erturk-2008 tables
+consolidated with explicit Re-convention conversions.
+
+\paragraph{LLM judge.} \emph{Worked}: GPT-5.2 returned clean strict-JSON. \emph{Didn't
+work}: Argo Opus 4.8 / 4.7 routes both returned litellm HTTP 502 upstream-validation
+errors --- transient, documented, retry recommended later.
+
+\section{Open Questions}
+Five heavy-duty grounded questions with concrete next steps live in
+\texttt{report/open\_questions.json}. Summary:
+\begin{enumerate}
+  \item Does the paper's median-dual FV divergence operator give the same flag-fraction
+        decay rate we observed with central FD on a manufactured field?
+  \item Which vortex-centre extraction convention does the paper use (raw
+        $\arg\min\psi$ vs bulk-subtracted vs $|u|=0$)? This can shift $y_c$ by a factor
+        of 2.
+  \item Why does the $\psi$--$\omega$ formulation fail to develop recirculation where a
+        Chorin projection succeeds on the same coarse meshes?
+  \item Minimum $h/\Delta x$ (cells per step height) for VDAMR to correctly identify the
+        primary vortex, as a function of Re.
+  \item Explicit Reynolds-convention reconciliation across the Li / Armaly / Erturk
+        conventions (factors of 3 and 1.5); does the paper document its choice?
+\end{enumerate}
+
+\section*{WAVE\_RESULT}
+\begin{lstlisting}
+WAVE_RESULT set=PDE paper=amr-2d-backward-facing-step-2020 verdict=PARTIAL
+  dir=/Users/stevens/Dropbox/REPLICATE-PROJECT/PDE-amr-2d-backward-facing-step-2020
+  one_line=Method-level VDAMR indicator decay and vortex-centre self-convergence
+    reproduced on manufactured data (orders 1 and 2); full BFS-NS benchmark not
+    achieved due to solver limitations and paywall.
+\end{lstlisting}
+
+\end{document}

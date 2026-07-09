@@ -1,0 +1,2 @@
+# Brief
+Independent replication of Chu et al. 2021 (Antibiotics, PMC8698436): HsdM DNA methyltransferase and M. tuberculosis drug resistance. Reproduced the computationally-checkable core (HsdM recognition-motif count GTAYN4ATC=363 in H37Rv NC_000962.3, matching paper's ~355-368; all 6 claimed HsdM-target drug genes/transporters confirmed real M.tb loci). Functional/wet-lab claims (4x INH MIC on hsdM knockout, mutation-rate rise, methylome invariance) require non-public strains/SMRT data — documented as testable-but-not-tested. Verdict: SPOT-CHECK.

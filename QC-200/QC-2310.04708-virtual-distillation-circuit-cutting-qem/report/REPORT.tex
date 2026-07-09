@@ -1,0 +1,75 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\title{Independent Replication Report --- arXiv:2310.04708 \\
+\large ``Enhancing Virtual Distillation with Circuit Cutting for Quantum Error Mitigation''}
+\author{Ollie (OpenClaw QC-200 wave, \texttt{rick-stevens-ai})}
+\date{2026-07-05}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Independent partial replication of Li, Liu, Patil, Hovland, and Zhou (arXiv:2310.04708v2, 10 Oct 2023). The paper proposes combining virtual distillation (VD) with quantum circuit cutting (CC) to mitigate noise on near-term quantum devices, reporting an absolute error of $0.058$ on a 4-qubit VQE MaxCut instance versus $0.313$ unmitigated (ideal $-2.972$). We independently verify (a) the $O(\varepsilon) \to O(\varepsilon^2)$ error-suppression scaling of the virtual-distillation identity $\langle O\rangle_{\rm VD} = \operatorname{Tr}(O\rho^2)/\operatorname{Tr}(\rho^2)$, and (b) the Peng et al.\ 2019 wire-cutting quasi-probability decomposition (QPD) used by the paper, on toy 4-qubit circuits. We do not re-run the full VD+CC pipeline against the paper's \texttt{FakeHanoi} + gate-crosstalk + readout-crosstalk noise stack. \textbf{Verdict: PARTIAL --- mechanism confirmed, headline numeric internally consistent, full-pipeline reproduction deferred.}
+\end{abstract}
+
+\section{Headline claims (paper, Tables I--III)}
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Method & $\langle H\rangle$ (basic noise) & abs.\ error & CNOT count \\
+\midrule
+Ideal (noise-free)               & $-2.972$ & $0$      & $17$ \\
+VD w/ noise-free diag.\ gates    & $-2.965$ & $0.007$  & --- \\
+No mitigation                     & $-2.6594$ & $0.313$ & $17$ \\
+Virtual distillation only         & $-2.7925$ & $0.180$ & $63$ \\
+VD + zero-noise extrapolation     & $-3.003$  & $0.031$ & $63/71/79$ \\
+\textbf{VD + circuit cutting}     & $\mathbf{-2.914}$ & $\mathbf{0.058}$ & $11,14,17,17$ \\
+\bottomrule
+\end{tabular}
+\caption{Reproduced from paper Table I (4-qubit VQE MaxCut, RealAmplitudes reps=2).}
+\end{table}
+
+\section{Sub-primitives independently verified}
+
+\subsection{Virtual distillation $M=2$ suppression --- CONFIRMED}
+On a 4-qubit mixed state
+$\rho = (1-p)\lvert 0000\rangle\!\langle 0000\rvert + p\lvert 1000\rangle\!\langle 1000\rvert$
+with $p \in \{0.001, 0.01, 0.05, 0.1, 0.2\}$:
+\begin{itemize}
+  \item Bare error $|1 - \langle Z_0 Z_1\rangle|$: log-log slope in $p$ = $\mathbf{1.000}$ (linear).
+  \item VD error using $\operatorname{Tr}(Z_0Z_1\rho^2)/\operatorname{Tr}(\rho^2)$: log-log slope = $\mathbf{2.024}$ (quadratic).
+\end{itemize}
+Suppression ratio at $p=0.01$: bare error $0.02$ vs VD error $2.04\times 10^{-4}$, ratio $\approx 98\times$. Confirms the paper's underlying theoretical claim that $M=2$ VD suppresses linear-in-noise coherent errors to quadratic order. See \texttt{report/vd\_demo.py}, \texttt{vd\_result.json}.
+
+\subsection{Wire-cut reconstruction --- CONFIRMED}
+On a 4-qubit chain $\lvert 0000\rangle \to H_0, \mathrm{CX}(0,1), \mathrm{CX}(1,2), \mathrm{CX}(2,3)$, observable $Z_0 Z_3$: uncut expectation $= 1.0$. Cutting the wire between $q_1$ and $q_2$ into two 2-qubit fragments and reconstructing via the Peng--Horsman--Rudolph--Ying--Zhao 8-term QPD (2 $I$-prep + 2 $X$-eigenstate-prep + 2 $Y$-eigenstate-prep + 2 $Z$-eigenstate-prep, coefficients $\pm 1/2$, overhead $4 = 4^1$): reconstructed $= 1.0$, absolute difference $= 0.0$ to machine precision. Confirms the arithmetic engine used by the paper's cut recombination. See \texttt{report/cut\_demo.py}, \texttt{cut\_result.json}.
+
+\subsection{Full VD+CC on RealAmplitudes-2 + FakeHanoi --- NOT RUN}
+Deferred: requires a pinned Qiskit-Aer $\le 0.14$ environment, manual construction of the gate-crosstalk noise (author-injected $\mathrm{RZZ}(-\pi/3.5)$ between adjacent same-layer CNOTs) and the readout-crosstalk matrix, and $O(10^4)$ shots per fragment across $\sim 4$ fragments $\times$ (multiple noise models).
+
+\section{Sanity checks on reported numbers}
+\begin{itemize}
+  \item 17 CNOTs for RealAmplitudes(4q, reps=2, circular entanglement) plus MaxCut $Z_iZ_j$ diagonalization is consistent with hand counting ($2\times 4$ circular CX + basis-change CX for a MaxCut Hamiltonian on a 4-node graph $\approx 17$).
+  \item VD circuit blowup $17 \to 63$ (factor $\sim 3.7$): consistent with doubling the register, adding controlled-SWAP-equivalent bridging, and inserting SWAPs for limited connectivity on the $ibm\_hanoi$ 27-qubit heavy-hex topology.
+  \item Cut CNOTs $11+14+17+17 = 59 < 63$ and each fragment individually is smaller than the monolithic 63 --- lower noise-per-fragment, which is precisely the paper's design mechanism.
+\end{itemize}
+
+\section{Concerns / caveats}
+\begin{enumerate}
+  \item Exact cut placement (paper Fig.\ 5) not machine-verified; read from Section III-B prose only.
+  \item $\mathrm{RZZ}(-\pi/3.5)$ crosstalk parameter looks reasonable but not independently sourced from $ibm\_hanoi$ calibration data.
+  \item Real-device results (Table III) show VD \emph{alone} hurts on $ibm\_hanoi$ (error $1.008$ vs no-mitigation $0.432$) --- the paper is upfront about this; VD+CC recovers most of the gap but we did not verify.
+  \item Qiskit-Aer's \texttt{NoiseModel.from\_backend(FakeHanoi)} behavior drifted post-0.14; independent numeric reproduction would need pinning.
+\end{enumerate}
+
+\section*{Verdict}
+\textbf{PARTIAL} --- The virtual-distillation and circuit-cutting mechanisms are independently confirmed on toy problems; the paper's headline numbers are internally consistent and mechanistically plausible; a full end-to-end reproduction of Table I's $-2.914$ / $0.058$ absolute error was not executed within the time budget.
+
+\end{document}

@@ -1,0 +1,117 @@
+"""
+LLM-judge scoring of the WaveTrain replication.
+Free endpoint only: Argo (localhost:44497) with model argo:claude-opus-4.8.
+Emits report/evidence/llm_judge.json.
+"""
+import json, os, sys, urllib.request, urllib.error
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+DIR  = os.path.dirname(HERE)
+EV   = os.path.join(DIR, "report", "evidence")
+
+def load_bench():
+    with open(os.path.join(EV, "bench.json")) as f:
+        return json.load(f)
+
+PROMPT = """You are an expert numerical-methods reviewer scoring an independent replication of the
+paper:
+
+  Riedel, Gelss, Klein, Schmidt, "WaveTrain: A Python package for numerical quantum
+  mechanics of chain-like systems based on tensor trains," J. Chem. Phys. 158, 164801 (2023).
+  DOI 10.1063/5.0147314 (arXiv 2302.03725).
+
+The paper's central testable claims:
+  C1. WaveTrain's TT-ALS eigensolver recovers the single-exciton band of a
+      homogeneous NN Hamiltonian on a periodic ring with high accuracy.
+      Reference: E_k = alpha + 2*beta*cos(2*pi*k/N) for the single-exciton band,
+      plus a vacuum ground state at E=eta.
+  C2. For chain-like NN Hamiltonians the TT bond ranks of the eigenstates grow
+      only marginally with chain length N, so wall-clock cost grows much slower
+      than the 2^N Hilbert-space dimension - "near-linear" scaling.
+  C3. The published software (wave_train + scikit_tt) is installable and runs
+      the paper's own bundled test scripts.
+
+The replicator (a separate independent run from the sibling Riedel-named dir):
+  - Downloaded arXiv 2302.03725v2 (paper.pdf).
+  - Cloned https://github.com/PGelss/wave_train and installed both packages in a
+    Python 3.12 venv with NumPy 1.26 (pinned <2).
+  - Ran the bundled Exciton/tise_1.py; it failed at scikit_tt/solvers/evp.py
+    with a complex->float dtype cast error (numpy safe-casting rule).
+  - Applied a minimal, independent 4-line patch: cast micro_op to complex128
+    only when the RHS is complex, avoiding NumPy's cast error but preserving
+    real-arithmetic behavior when possible.
+  - Instrumented TISE.update_solve() to capture the per-state energy and
+    psi.ranks for every ALS eigenstate (WaveTrain does not store the full
+    spectrum on the TISE object in ALS mode).
+  - Ran a sweep N in {4,6,8,10,12} (N=14 dropped: single-state ALS wall-clock at
+    N=12 already reached ~150 s late in the deflation cascade, and N=14 wall-clock
+    projected past this run's budget).
+  - Also ran a bonus N=6 OPEN-chain test that changes the analytic reference
+    to E_k = alpha + 2*beta*cos(pi*k/(N+1)) (open-boundary tight-binding).
+
+Below is the raw JSON of the numerical outcomes.
+=== BENCH RESULTS ===
+%(bench)s
+=== END BENCH RESULTS ===
+
+Score this replication. Output STRICT JSON with these fields:
+  {
+    "verdict":  one of "REPLICATED","PARTIAL","SPOT-CHECK","NO-GO","CONTRADICTED","BLOCKED","FAILED",
+    "coverage_pct": integer 0-100  -- what fraction of the paper's testable claims did this replication touch,
+    "agreement_pct": integer 0-100 -- of what was touched, how well does it agree with the paper,
+    "claim_scores": {"C1": {"tested": bool, "supported": one of "yes","partial","no","untested", "note": str},
+                     "C2": {...},
+                     "C3": {...}},
+    "one_line": 1-sentence summary suitable for a status ticker,
+    "reviewer_notes": free-form paragraph with sharp critical assessment,
+    "confidence": one of "low","medium","high"
+  }
+
+Be honest and calibrated. If C2 rank-scaling is bounded by the ALS ranks=15 cap
+(so max_bond_rank saturates at 15 for the larger N, and thus doesn't PROVE the
+paper's near-linear-in-N rank growth - it only demonstrates that r=15 is
+SUFFICIENT to capture the single-exciton band across the sweep), say so and
+downgrade to PARTIAL accordingly.
+"""
+
+def argo_call(system, user, model="argo:gpt-5.4"):
+    url = "http://127.0.0.1:44497/v1/chat/completions"
+    body = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user",   "content": user},
+        ],
+        "temperature": 0.0,
+    }).encode()
+    req = urllib.request.Request(url, data=body,
+        headers={"Content-Type":"application/json",
+                 "Authorization":"Bearer stevens"})
+    with urllib.request.urlopen(req, timeout=180) as r:
+        return json.loads(r.read().decode())
+
+def main():
+    bench = load_bench()
+    user  = PROMPT % {"bench": json.dumps(bench, indent=2, default=str)}
+    system = "You are a rigorous numerical-methods reviewer. Return STRICT JSON, no code fences."
+    resp = argo_call(system, user)
+    content = resp["choices"][0]["message"]["content"]
+    # strip code fences if present
+    content = content.strip()
+    if content.startswith("```"):
+        content = content.strip("`").split("\n",1)[1] if content.startswith("```json") else content.strip("`")
+        content = content.split("```")[0]
+    try:
+        parsed = json.loads(content)
+    except Exception as e:
+        parsed = {"parse_error": str(e), "raw": content}
+    out = {"prompt_len": len(user), "model": resp.get("model", "argo:gpt-5.4"),
+           "raw_response": content, "parsed": parsed}
+    outpath = os.path.join(EV, "llm_judge.json")
+    with open(outpath, "w") as f:
+        json.dump(out, f, indent=2)
+    print("Wrote", outpath)
+    print(json.dumps(parsed, indent=2))
+
+if __name__ == "__main__":
+    main()

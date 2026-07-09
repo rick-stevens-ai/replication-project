@@ -1,0 +1,9 @@
+# Brief — Structure preserving numerical methods for the Vlasov equation (Einkemmer 2016, OWR)
+
+**What:** Independent replication of the 4-page Oberwolfach Report by L. Einkemmer (Vol. 13(1), pp. 899–902, DOI 10.4171/OWR/2016/18) that surveys structure-preserving Strang-splitting semi-Lagrangian schemes — cubic-spline (Cheng-Knorr) vs. semi-Lagrangian discontinuous Galerkin (sLdG) — for the Vlasov-Poisson system, illustrated on the two-stream instability.
+
+**Why:** The workshop report makes falsifiable quantitative claims about numerical structure preservation (mass, entropy, energy, L2 dissipation) for different SL interpolations. This is a small self-contained numerical benchmark ideally suited for independent reimplementation.
+
+**How:** (1) Cloned and verified Einkemmer's public production code at `bitbucket.org/leinkemmer/sldg` (SLDG framework). (2) Implemented from-scratch Python solvers for the two schemes discussed in the report: cubic-spline SL (Strang splitting, periodic x / natural-BC v) and first-order upwind SL (as positivity-preserving dissipative reference). Also drafted a from-scratch modal Legendre sLdG that proved numerically unstable in the nonlinear regime and is documented but not used for the final numbers. (3) Ran both stable schemes on Nx=Nv=128, T=30 for Landau damping (α=0.01) and two-stream instability (α=0.05) on `uicgpu` (A100 host, CPU-only NumPy). (4) LLM-judged the outcome against paper claims (Argo Sonnet 4.6, FREE endpoint).
+
+**Verdict:** PARTIAL — spline mass/L1 conservation replicated to 1e-6 / 1e-4 as claimed; the specific claim that spline entropy DECREASES was not observed in this reimplementation (contradicted for nonlinear regime); sLdG claims not testable due to instability of the from-scratch sLdG in the nonlinear regime and time budget insufficient to build the author's production code end-to-end.

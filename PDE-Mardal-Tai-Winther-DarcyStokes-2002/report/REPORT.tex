@@ -1,0 +1,225 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\title{Independent Replication: Mardal, Tai, Winther \\
+       \emph{A Robust Finite Element Method for Darcy--Stokes Flow} \\
+       (SIAM J.\ Numer.\ Anal.\ 40(5), 1605--1631, 2002)}
+\author{X-100 Replication Project sub-agent}
+\date{2026-07-04}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently re-implement the 9-DOF nonconforming H(div) triangular
+finite element introduced by Mardal, Tai, and Winther (2002) for the
+Darcy--Stokes / Brinkman problem
+$(I-\varepsilon^2\Delta)u-\nabla p = f$, $\operatorname{div} u = g$,
+and reproduce the paper's Table~5.1 convergence rates to within
+$\pm 0.07$ (mean absolute deviation $0.024$) across
+$\varepsilon\in\{1,2^{-2},2^{-4},2^{-8},0\}$ and
+$h\in\{2^{-2},2^{-3},2^{-4},2^{-5}\}$.  The motivating
+negative results for P2--P0, Crouzeix--Raviart, and Mini elements
+(Tables~3.1, 3.3, 3.5, 3.6) are likewise reproduced.  \textbf{Verdict:
+REPLICATED.}
+\end{abstract}
+
+\section{Paper summary}
+The Darcy--Stokes problem on $\Omega\subset\mathbb{R}^2$ reads
+\begin{equation}
+    (I-\varepsilon^2\Delta)u-\nabla p = f,\quad
+    \operatorname{div} u = g,\quad u|_{\partial\Omega}=0,
+\end{equation}
+with $\varepsilon\in[0,1]$.  For $\varepsilon=1$ this is Stokes plus a
+mass term; for $\varepsilon=0$ it degenerates to mixed Poisson with
+Neumann pressure BCs.  Robust well-posedness requires
+$u\in H_0(\operatorname{div})\cap\varepsilon\cdot H^1_0$ under the
+energy norm
+$|||v|||^2_\varepsilon = \|v\|_0^2+\varepsilon^2\|Dv\|_0^2+\|\operatorname{div} v\|_0^2$.
+
+The paper introduces the local space
+\[
+V(T)=\{v\in P_3(T)^2 : \operatorname{div} v\in P_0,\;
+(v\cdot n)|_e\in P_1\;\forall e\subset\partial T\},\qquad
+\dim V(T)=9,
+\]
+with DOFs $\int_e (v\cdot n)\tau^k\,d\tau$ ($k=0,1$) on each edge and
+$\int_e v\cdot t\,d\tau$.  Global $V_h\subset H_0(\operatorname{div})$
+but $V_h\not\subset H^1_0$ (only the tangential mean is continuous).
+Pressure space $Q_h$ is piecewise constants.
+
+\section{Claims and coverage}
+\begin{center}\small
+\begin{tabular}{clll}
+\toprule
+ID & Claim & Type & Tested\\
+\midrule
+C1 & $\dim V(T){=}9$, DOFs unisolvent (Lemma 4.1) & analytical & \textbf{yes} \\
+C2 & P2-P0, CR, Mini lose $\varepsilon$-uniformity (Tab.\ 3.1--3.9) & numerical & \textbf{yes}\\
+C3 & MTW: $O(h^2)$ vel, $O(h)$ press \& energy uniformly (Tab.\ 5.1) & numerical & \textbf{yes}\\
+C4 & $\operatorname{div}V_h\subset Q_h$; weakly-div-free$\Rightarrow$strongly-div-free & analytical + numerical & \textbf{yes}\\
+C5 & $\|u{-}u_h\|_a\le c(h^2{+}\varepsilon h)\|u\|_2$ (Thm 5.1) & analytical & indirect (rate transition)\\
+C6 & Boundary-layer $O(h\varepsilon^{-1/2})$ (Example 6.1) & numerical & no (deferred)\\
+C7 & Elliptic system \S7 extension (Tab.\ 7.1--7.4) & numerical & no (corollary)\\
+\bottomrule
+\end{tabular}
+\end{center}
+Coverage: 4/7 claims tested; both \emph{central novel-contribution}
+claims (C1 element well-definedness, C3 uniform convergence) fully
+verified.
+
+\section{Method}
+\subsection{Software stack}
+Python 3.14.6, NumPy 2.4.3, SciPy 1.18.0, SymPy 1.14.0, scikit-fem
+12.0.1 (only for the standard-elements sweep).  Poppler
+\texttt{pdftotext} for PDF text extraction.  No FEniCS, no Firedrake,
+no compiled C code.  Single MacBook host (CherryRd).
+
+\subsection{Paper acquisition}
+SIAM publisher URL returned 403; OSTI timed out; Semantic Scholar
+(API key from macOS Keychain, service
+\texttt{semantic-scholar-api-key}, account
+\texttt{rick-stevens-ai}) pointed to a Green OA copy on
+\texttt{dr.ntu.edu.sg} (AWS WAF blocked live); Internet Archive
+Wayback snapshot 2024-05-03 succeeded (HTTP 200, 270\,KB, PDF v1.4,
+28 pages, SHA1 \texttt{c9eee75\ldots}).
+
+\subsection{MTW element implementation from scratch}
+\emph{Local $V(T)$.}  Parameterize $P_3^2$ by 20 monomial coefficients.
+Build an 11-row constraint matrix $C\in\mathbb{R}^{11\times 20}$: 5
+rows for $\operatorname{div} v\in P_0$ (compare $\operatorname{div}
+v(x_i)$ against $\operatorname{div} v(x_0)$ at 6 $P_2$-unisolvent
+sample points) and 6 rows for $(v\cdot n)|_e\in P_1$ (Vandermonde-set
+$s^2$ and $s^3$ coefficients to zero on each edge).  Numerical
+verification: $\operatorname{rank}(C){=}11$, $\dim\ker C=9$.  The
+$9\times 20$ DOF matrix $M$ uses 5-point Gauss--Legendre for edge
+integrals.  Basis $\Phi$ obtained via $M\Phi = I_9$ with $\Phi$
+constrained to $\ker C$.  Self-test: DOF-of-basis identity to
+$2.9\times 10^{-14}$; $\operatorname{div}\varphi_i$ constant to
+$<10^{-12}$ per basis function.
+
+\emph{Global assembly.}  3 DOFs per edge (mean-$n$, first-moment-$n$,
+mean-$t$).  Global edge orientation fixed once as
+$v_{\text{low}}{\to}v_{\text{high}}$ with
+$n_{\text{glob}}{=}[t_1,-t_0]$.  Per-triangle sign transform
+$R_T[e]\in\mathbb{R}^{3\times 3}$ maps global$\to$local DOFs; if
+tangent agrees ($s_t{=}{+}1$) only $\pm$ on $n$-moments; if
+$s_t{=}{-}1$ the $k{=}1$ first-moment mixes, giving
+$\text{local}_{n_1}=2s_n\,\text{global}_{n_0}-s_n\,\text{global}_{n_1}$
+(derived analytically from $s_{\text{local}}=1-s_{\text{global}}$).
+12-point Dunavant degree-6 quadrature per triangle.  Boundary
+condition: all 3 DOFs on each boundary edge set to zero.  One pressure
+DOF pinned; final $p_h$ mean-corrected.
+
+\subsection{Standard-elements sweep (P2-P0, CR, Mini)}
+Assembled in scikit-fem, mesh built to match the paper's
+negative-slope-diagonal convention.  SymPy manufactured solution and
+right-hand side.  6-point quadrature for errors.  Rates by
+least-squares slope of $\log(\text{rel-err})$ vs $\log h$.
+
+\section{Results}
+\subsection{MTW element (Table 5.1) --- primary target}
+\begin{center}\small
+\begin{tabular}{r|cc|cc|cc}
+\toprule
+$\varepsilon$ &
+ \multicolumn{2}{c|}{rate $u$ in $L^2$} &
+ \multicolumn{2}{c|}{rate $u$ in $|||\cdot|||_\varepsilon$} &
+ \multicolumn{2}{c}{rate $p$ in $L^2$}\\
+ & paper & ours & paper & ours & paper & ours\\
+\midrule
+$1$      & 1.93 & 1.90 & 0.98 & 0.97 & 0.98 & 0.99\\
+$2^{-2}$ & 1.94 & 1.91 & 0.99 & 0.98 & 1.00 & 1.00\\
+$2^{-4}$ & 1.94 & 1.91 & 1.05 & 1.07 & 1.00 & 1.00\\
+$2^{-8}$ & 1.90 & 1.89 & 1.72 & 1.79 & 1.00 & 1.00\\
+$0$      & 1.92 & 1.89 & 1.92 & 1.89 & 1.00 & 1.00\\
+\bottomrule
+\end{tabular}
+\end{center}
+All 15 tabulated rates agree within $\pm 0.07$ (mean $|\Delta|=0.024$).
+Absolute divergence error across all 20 solves: $\max\|\operatorname{div}
+u_h\|_0=6.4\times 10^{-11}$ (machine zero), confirming C4.
+
+\subsection{Standard-elements sweep (Tables 3.1, 3.3, 3.5, 3.6)}
+P2-P0, CR, and Mini rates reproduce the paper's negative results:
+velocity rates collapse to $\sim 0$ (or negative) at small
+$\varepsilon$; only Mini pressure retains an $O(h^{\geq 1})$ rate
+uniformly, exactly as the paper observes.  Full tables in
+\texttt{REPORT.md} \S4.2 and \texttt{report/evidence/}.
+
+\section{Verdict: REPLICATED}
+\begin{enumerate}
+\item The paper's central novel contribution (a new nonconforming
+H(div) element yielding $\varepsilon$-uniform Darcy--Stokes
+convergence) is quantitatively reproduced (C1, C3, C4).
+\item The paper's motivating negative results for P2-P0, CR, and Mini
+elements are independently reproduced (C2).
+\item The theoretical bound
+$|||u-u_h|||_\varepsilon\le c(h^2+\varepsilon h)\|u\|_2$ is
+empirically consistent with the observed $\sim 1\to\sim 2$ energy-rate
+transition (proxy for C5).
+\item The replication is \emph{independent} in the strong sense: no
+MTW code was inherited from the authors, and the k=1
+orientation-dependent DOF transform was rederived from scratch.
+\end{enumerate}
+
+\section{Genuine critique}
+\subsection*{Strengths}
+\begin{itemize}
+\item The paper's contribution is unusually crisp: a specific
+$\dim{=}9$ local space whose two-moment normal DOFs and single mean
+tangential DOF encode exactly the continuity needed for
+$H(\operatorname{div})$-conformity without over-constraining
+$H^1$-conformity.  This ``just enough continuity'' design is why
+$\operatorname{div} V_h\subset Q_h$ holds and why the discrete
+divergence-free subspace coincides with the analytic one.
+\item Numerical tables are tight and reproducible.  Every rate we
+computed agrees with the paper to within noise expected from a
+different linear-solver stack, quadrature choice, and coefficient
+basis.
+\end{itemize}
+\subsection*{Limitations and residual doubts}
+\begin{itemize}
+\item \textbf{No boundary-layer replication.}  Example 6.1 predicts
+$O(h\varepsilon^{-1/2})$ energy convergence for solutions with a
+boundary layer of width $\varepsilon$.  This is the more delicate
+regime because it directly probes the $\varepsilon h$ term of the
+error estimate; we did not test it.  A smooth manufactured solution
+is a comparatively soft target.
+\item \textbf{No condition-number / preconditioning study.}  The
+paper is a stability-and-convergence paper, not a solver paper;
+however, without a preconditioner analysis the practical utility of
+the element at very small $\varepsilon$ (where the block operator
+degenerates from elliptic in $H^1$ to elliptic in $H(\operatorname{div})$)
+is not established here.
+\item \textbf{Only one geometry.}  All experiments are on the unit
+square meshed by uniform diagonally-split squares.  Robustness on
+unstructured, anisotropic, or curved-boundary meshes is unverified.
+\item \textbf{No 3D analogue.}  MTW 2002 is strictly a 2D construction.
+A tetrahedral element with analogous properties is a separate,
+harder problem (see Tai--Winther 2006 and successors).
+\item \textbf{C7 (\S7 elliptic system extension) not tested.}
+Reproducibility across the corollary problem class is claimed but not
+independently verified here.
+\end{itemize}
+\subsection*{What a stronger replication would add}
+A boundary-layer test (Example 6.1), an unstructured-mesh sweep, and a
+block-diagonal preconditioner benchmark of the type advocated in later
+Mardal--Winther work would upgrade this from ``central-claim
+replication'' to ``robustness replication.''
+
+\section*{Reproducibility}
+Inputs (paper PDF, SHA1 stamped), all Python code
+(\texttt{darcy\_stokes\_standard.py}, \texttt{mtw\_element.py},
+\texttt{mtw\_solver.py}), logs, and evidence JSONs live under this
+directory.  Rerun:
+\begin{verbatim}
+cd work/
+python3 darcy_stokes_standard.py all   # ~2 min
+python3 mtw_solver.py                  # ~90 s
+\end{verbatim}
+\end{document}

@@ -1,0 +1,2589 @@
+# Extraction (SURROGATE for Marker) — tool: PyMuPDF (fitz) 1.27.2.3
+# Paper: arXiv:quant-ph/0511148 — Sean Hallgren, Martin Rötteler, Pranab Sen
+# 'Limitations of Quantum Coset States for Graph Isomorphism' (2005)
+# Extraction performed 2026-07-05 (Marker not installed on host; see extraction/README.md).
+
+
+---- page 1 ----
+
+arXiv:quant-ph/0511148v1  15 Nov 2005
+Limitations of Quantum Coset States for Graph Isomorphism
+Sean Hallgren, Martin R¨otteler, and Pranab Sen
+NEC Laboratories America, Inc.
+4 Independence Way, Suite 200
+Princeton, NJ 08540, U.S.A.
+{hallgren,mroetteler,pranab}@nec-labs.com
+Abstract
+It has been known for some time that graph isomorphism reduces to the hidden subgroup problem
+(HSP). What is more, most exponential speedups in quantum computation are obtained by solving in-
+stances of the HSP. A common feature of the resulting algorithms is the use of quantum coset states,
+which encode the hidden subgroup. An open question has been how hard it is to use these states to solve
+graph isomorphism. It was recently shown by Moore, Russell, and Schulman [MRS05] that only an
+exponentially small amount of information is available from one, or a pair of coset states. A potential
+source of power to exploit are entangled quantum measurements that act jointly on many states at once.
+We show that entangled quantum measurements on at least Ω(n log n) coset states are necessary to get
+useful information for the case of graph isomorphism, matching an information theoretic upper bound.
+This may be viewed as a negative result because highly entangled measurements seem hard to imple-
+ment in general. Our main theorem is very general and also rules out using joint measurements on few
+coset states for some other groups, such as GL(n, Fpm) and Gn where G is ﬁnite and satisﬁes a suitable
+property.
+1
+Introduction
+Almost all exponential speedups that have been achieved in quantum computing are obtained by solving
+some instances of the Hidden Subgroup Problem (HSP). In particular, the problems underlying Shor’s al-
+gorithms for factoring and discrete logarithm [Sho97], as well as Simon’s problem [Sim94], can be nat-
+urally generalized to the HSP: given a function f : G →S from a group G to a set S that is constant
+on left cosets of some subgroup H ≤G and distinct on different cosets, ﬁnd a set of generators for
+H. Ideally, we would like to ﬁnd H in time polynomial in the input size, i. e. log |G|. The abelian
+HSP [Kit95, BH97, ME98], i. e., when G is an abelian group, lies at the heart of efﬁcient quantum al-
+gorithms for important number-theoretic problems like factoring, discrete logarithm, Pell’s equation, unit
+group of a number ﬁeld etc. [Sho97, Hal02, Hal05, SV05].
+It has been known for some time that graph isomorphism reduces to the HSP over the symmetric
+group [Bea97, EHK99a], a non-abelian group. While the non-abelian HSP has received much attention as a
+result, efﬁcient algorithms are known only for some special classes of groups [IMS03, FIM+03, MRRS04,
+BCD05]. On the other hand, the HSP presents a systematic way to try and approach the graph isomorphism
+problem, and this approach is rooted in developing a deeper understanding of how far techniques and tools
+that have worked in the abelian case can be applied. To the best of our knowledge, the only other approach
+to solve graph isomorphism on a quantum computer is by creating a uniform superposition of all graphs
+1
+
+---- page 2 ----
+
+isomorphic to a given graph. It has been proposed to create this superposition via quantum sampling of
+Markov chains [AT03], however, very little is known about this.
+One of the key features of a quantum computer is that it can compute functions in superposition. This
+fact alone does not lend itself to exponential speedups, for instance for unstructured search problems it
+merely leads to a polynomial speedup [Gro96, BBBV97]. On the other hand, the quantum states resulting
+from HSP instances have far more structure since they capture some periodicity aspects of the function
+f. Evaluating the function f in superposition and ignoring the function value results in a random coset
+state. Coset states are quantum states of the form |gH⟩=
+1
+√
+|H|
+P
+h∈H |gh⟩, in other words, a coset state
+is a uniform superposition over the elements of the left coset gH. The challenge in using coset states lies
+in the fact that g is a random element of the group, beyond our control, that is, we only have the mixed
+state σG
+H =
+1
+|G|
+P
+g∈G |gH⟩⟨gH| and we have to determine H from it. Though it is conceivable that some
+advantage can be had by making use of the function values, currently there are no proposals for using
+function values in any meaningful way.
+How much information can be extracted from coset states? The most general way to extract classical
+information from quantum states are POVMs [NC00]. A ﬁxed POVM operates on a ﬁxed number k of coset
+states at once. This induces a probability distribution over the set of classical outcomes associated with the
+POVM. A potential source of power with no classical analog is that the distribution induced by a POVM
+on k coset states may have signiﬁcantly more information than a POVM that acts on just one coset state
+at a time. In other words, the resulting distribution when the POVM is applied to k coset states can be far
+from a product distribution. In this case we say that the POVM is an entangled measurement. The goal of
+this paper is to determine how small k can be made such that a polynomial amount of information about
+H can be obtained from a POVM on k coset states. More precisely, we want to know how small k can be
+so that there exists a POVM on k coset states that gives polynomially large total variation distance between
+every pair of candidate hidden subgroups. Note that this POVM can have many classical outcomes, and it
+may have to be repeated several times if we want to identify the actual hidden subgroup H with constant
+probability.
+In this paper, we show that for many groups G this number k has to be quite large, sometimes as large as
+Ω(log |G|). This matches the information theoretic upper bound of O(log |G|) for general groups [EHK99b].
+Our result can be viewed as a negative result because highly entangled measurements seem hard to imple-
+ment in general. Note that the time required to perform a generic measurement entangled across k states
+increases exponentially with k.
+For abelian groups the picture simpliﬁes dramatically. Indeed, in this case a POVM operating on one
+coset state (i. e., k = 1) exists that gives a polynomial amount of information about the hidden subgroup.
+Moreover, this measurement is efﬁciently implementable using the quantum Fourier transform over the
+group. The Fourier based approach extends to some non-abelian groups as well, e. g., dihedral, afﬁne and
+Heisenberg groups, and shows that for these groups there are measurements on single coset states that give
+polynomially large information about the hidden subgroup [EH00, MRRS04, RRS05].
+Other than the general information-theoretic upper bound, only a few examples of measurements oper-
+ating on more than one coset state (i. e., k > 1) are known that give a polynomial amount of information
+about the hidden subgroup. Kuperberg [Kup03] gave a measurement for the dihedral group operating on
+2O(√
+log |G|) coset states that also takes 2O(√
+log |G|) time to implement. Bacon et al. [BCD05] gave an ef-
+ﬁciently implementable measurement for the Heisenberg group operating on two coset states, and similar
+efﬁcient measurements for some other groups operating on a constant number of coset states.
+The case of the symmetric group Sn has been much harder to understand. First it was shown that some
+restricted measurements related to the abelian case cannot solve the problem [HRT03]. Next the non-abelian
+2
+
+---- page 3 ----
+
+aspects of the group were attacked by Grigni et al. [GSVV04] who showed that for hidden subgroups in Sn,
+measuring the Fourier transform of a single coset state using random choices of bases for the representations
+of Sn gives exponentially little information. They left open the question whether a clever choice of basis
+for each representation space can indeed give enough information about the hidden subgroup. Recently, a
+breakthrough has been made by Moore, Russell and Schulman [MRS05] who answered this question in the
+negative for k = 1 by showing that any measurement on a single coset state of Sn gives exponentially little
+information, i. e., any algorithm for the HSP in Sn that measures one coset state at a time requires at least
+exp(Ω(n)) coset states. Subsequently, Moore and Russell [MR05] extended this result by showing that any
+algorithm that jointly measures two coset states at a time requires at least exp(Ω(√n/log n)) coset states.
+However, their techniques fail for algorithms that jointly measure three or more coset states at a time, and
+they left the k ≥3 case open.
+In this paper, we show that no quantum measurement on k = o(n log n) coset states can extract poly-
+nomial amount of information about the hidden subgroup in Sn. Thus, any algorithm operating on coset
+states that solves the hidden subgroup problem in Sn in polynomial time has to make joint measurements
+on k = Ω(n log n) coset states, matching the information theoretic upper bound. Our results apply to the
+hidden subgroups arising out of the reduction from isomorphism of rigid graphs, and rules out any efﬁcient
+quantum algorithm that tries to solve graph isomorphism via the standard reduction to the HSP in Sn using
+measurements that act jointly on less than n log n coset states at a time.
+Our lower bound holds for a more general setting: Given a group G, suppose we want to decide if the
+hidden subgroup is a conjugate of an a priori known order two subgroup H, or the identity subgroup. We
+show a lower bound on the total number of coset states required by any algorithm that jointly measures at
+most k states at a time and that distinguishes between the above two cases. Our main theorem uses only
+properties of G that can be read off from the values of the characters at the two elements of H. We also
+prove a transfer lemma that allows us to transfer lower bounds proved for subgroups and quotient groups
+to larger groups. Using our main theorem and the transfer lemma, we show lower bounds on the order of
+entangled measurements required to efﬁciently solve the HSP using coset states in groups PSL(2, Fpm),
+GL(n, Fpm), and groups of the form Gn, where G a constant-sized group satisfying a suitable property,
+including all groups (Sm)n where m ≥4 is a constant. The case of (S4)n is interesting, because there is an
+efﬁcient algorithm for the HSP making joint measurements on nO(1) states using the orbit coset techniques
+of [FIM+03]. However, the orbit coset approach creates coset states not just for the hidden subgroup H,
+but also for various subgroups of the form HN, where N ⊴(S4)n. This example suggests that one way to
+design efﬁcient algorithms for the HSP making highly entangled measurements may be to use coset states
+for subgroups of G other than just the hidden subgroup H.
+Recently, Childs and Wocjan [CW05] proposed a hidden shift approach to graph isomorphism. They
+established a lower bound for the total number of hidden shift states required and also showed that a single
+hidden shift state contains exponentially little information about the isomorphism. Our results generalize
+both their bounds and imply that o(n log n) hidden shift states contain exponentially little information about
+the isomorphism.
+The chief technical innovation required to prove our main theorem is an improved upper bound for the
+second moment of the probability of observing a particular measurement outcome as we vary over different
+candidate hidden subgroups. In particular, we give a new and improved analysis of the projection lengths
+of vectors of the form b ⊗b onto homogeneous spaces of irreducible representations of a group. The
+earlier works [MRS05, MR05] tried to bound these projection lengths using simple geometric methods. As
+a result, their methods failed beyond k = 2 for the symmetric group. Instead, we make crucial use of the
+representation-theoretic structure of the projection operators as well as the structure of the vectors, in order
+3
+
+---- page 4 ----
+
+to prove upper bounds on the projection lengths better than those obtainable by mere geometry. This allows
+us to prove a general theorem that applies with large k for many groups.
+Finally, we also prove a simple lower bound on the total number of coset states required by any algorithm
+to solve the HSP in a group G. This lower bound gives a simple proof of the fact that distinguishing a hidden
+reﬂection from the identity subgroup in the dihedral group Dn requires Ω(log n) coset states.
+2
+Preliminaries
+2.1
+Graph isomorphism and HSP
+The usual reduction of deciding isomorphism of two n-vertex graphs to HSP in S2n actually embeds the
+problem into a proper subgroup of S2n, namely, Sn ≀S2 [EHK99a]. The elements of Sn ≀S2 are tuples
+of the form (π, σ, b) where π, σ ∈Sn and b ∈Z2 with the multiplication rule (π1, σ1, 0) · (π2, σ2, b) :=
+(π1π2, σ1σ2, b) and (π1, σ1, 1) · (π2, σ2, b) := (π1σ2, σ1π2, 1 ⊕b). The embedding of Sn ≀S2 in S2n
+treats {1, . . . , 2n} as a union of {1, . . . , n} ∪{n + 1, . . . , 2n} with π, σ permuting the ﬁrst and second sets
+respectively when b = 0, and π permuting the ﬁrst set onto the second and and σ permuting the second set
+onto the ﬁrst when b = 1. There is an element of the form (π, π−1, 1), called an involutive swap, in the
+hidden subgroup iff the two graphs are isomorphic.
+Additionally, if the two graphs are rigid, i. e., have no non-trivial automorphisms, then the hidden sub-
+group is trivial if they are non-isomorphic, and is generated by (π, π−1, 1) if they are isomorphic where π is
+the unique isomorphism from the ﬁrst graph onto the second. This element (π, π−1, 1) is of order two, and
+is a conjugate in Sn ≀S2 of h := (e, e, 1) where e ∈Sn is the identity permutation. Viewed as an element
+of S2n, h = (1, n + 1)(2, n + 2) · · · (n, 2n). The set of conjugates of h in Sn ≀S2 is the set of all involu-
+tive swaps (π, π−1, 1), π ∈Sn, and corresponds exactly to all the isomorphisms possible between the two
+graphs. Also Sn ≀S2 is the smallest group containing all involutive swaps as a single conjugacy class. This
+algebraic property makes Sn ≀S2 ideal for the study of isomorphism of rigid graphs as a hidden subgroup
+problem. Note that graph automorphism, i. e., deciding if a given graph has a non-trivial automorphism, is
+Turing equivalent classically to isomorphism of rigid graphs [KST93].
+In this paper, we consider the following problem: Given that the hidden subgroup in Sn ≀S2 is either
+generated by an involutive swap or is trivial, decide which case is true. Graph automorphism as well as
+rigid-graph isomorphism reduces to this problem. We show that any efﬁcient algorithm using coset states
+that solves this problem needs to make measurements entangled across Ω(n log n) states (Corollary 14).
+Note that any lower bound for this problem for a coset state based algorithm holds true even when the
+involutive swaps are considered as elements of S2n rather than Sn ≀S2. This is because of the following
+general transfer lemma.
+Lemma 1 (Transfer lemma). Let G be a ﬁnite group and suppose that either G ≤˜G or G ∼= ˜G/N, N ⊴˜G
+holds. Then lower bounds for coset state based algorithms for the HSP in G transfer to the same bounds for
+the HSP in ˜G and vice versa, as long as the hidden subgroups involved are contained in G.
+Proof. Let H ≤G. The case G ≤˜G follows from the observation that C[ ˜G] = L
+˜g∈˜G/G L˜g · C[G],
+where ˜G/G denotes a system of left coset representatives of G in ˜G and L˜g stands for left multiplication
+by ˜g. Then, σ ˜G
+H = L
+˜g∈˜G/G L˜g · σG
+H · L†
+˜g, and so any coset state based algorithm without loss of generality
+performs the same operations on each block of the orthogonal direct sum. The case G ∼= ˜G/N follows from
+the observation that C[G] is isometric to the subspace of C[ ˜G] spanned by coset states of N namely states of
+4
+
+---- page 5 ----
+
+the form |˜gN⟩, ˜g ∈˜G. There is a subgroup ˜H ≤˜G, N ⊴˜H such that ˜H/N ∼= H. Hence, σG
+H ∼= σ ˜G
+˜H. Thus,
+any coset state based algorithm without loss of generality performs the same operations on σG
+H and σ ˜G
+˜
+H.
+Childs and Wocjan [CW05] showed an Ω(n) lower bound for the total number of hidden shift states
+required to solve graph isomorphism, and also proved that a single hidden shift state contains exponentially
+little information about the isomorphism. However, their results do not rule out an algorithm that makes joint
+measurements on, say, two states at a time and uses a total of O(n) hidden shift states. Since the hidden shift
+state corresponding to the shift (π, π−1), where π ∈Sn/2 is exactly the coset state for the hidden subgroup
+generated by the involutive swap (π, π−1, 1) in Sn/2 ≀S2, Lemma 1 and Corollary 14 of our paper show
+that any efﬁcient algorithm using hidden shift states to solve the graph isomorphism problem needs to make
+measurements entangled across Ω(n log n) states, generalizing their results.
+2.2
+Quantum Fourier transform and POVMs
+We collect some standard facts from representation theory of ﬁnite groups; see e.g. the book by Serre [Ser77]
+for more details. We use the term irrep to denote an irreducible unitary representation of a ﬁnite group G
+and denote by bG a complete set of inequivalent irreps. For any unitary representation ρ of G, let ρ∗denote
+the representation obtained by entry-wise conjugating the unitary matrices ρ(g), where g ∈G. Note that the
+deﬁnition of ρ∗depends upon the choice of the basis used to concretely describe the matrices ρ(g). If ρ is
+an irrep of G so is ρ∗, but in general ρ∗may be inequivalent to ρ. Let Vρ denote the vector space of ρ, deﬁne
+dρ := dim Vρ, and notice that Vρ = Vρ∗. The group elements |g⟩, where g ∈G form an orthonormal basis
+of C|G|. Since P
+ρ∈bG d2
+ρ = |G|, we can consider another orthonormal basis called the Fourier basis of C|G|
+indexed by |ρ, i, j⟩, where ρ ∈bG and i, j run over the row and column indices of ρ. The quantum Fourier
+transform over G, QFTG is the following linear transformation:
+|g⟩7→
+X
+ρ∈bG
+s
+dρ
+|G|
+dρ
+X
+i,j=1
+ρij(g)|ρ, i, j⟩.
+It follows from Schur’s orthogonality relations (see e.g. [Ser77, Chapter 2, Proposition 4, Corollary 3]) that
+QFTG is a unitary transformation in C|G|.
+For a subgroup H ≤G and ρ ∈bG, deﬁne ρ(H) :=
+1
+|H|
+P
+h∈H ρ(h). It follows from Schur’s lemma (see
+e.g. [Ser77, Chapter 2, Proposition 4]) that ρ(H) is an orthogonal projection to the subspace of Vρ consisting
+of vectors that are point-wise ﬁxed by every ρ(h), h ∈H. Deﬁne rρ(H) := rank(ρ(H)); then rρ(H) =
+1
+|H|
+P
+h∈H χρ(h), where χρ denotes the character of ρ. Notice that rρ(H) = rρ∗(H). For any subset S ≤G
+we deﬁne |S⟩:=
+1
+√
+|S|
+P
+s∈S |s⟩to be the uniform superposition over the elements of S. The standard
+method of attacking the HSP in G using coset states [GSVV04] starts by forming the uniform superposition
+1
+√
+|G|
+P
+g∈G |g⟩|0⟩. It then queries f to get the superposition
+1
+√
+|G|
+P
+g∈G |g⟩|f(g)⟩. Ignoring the second
+register the reduced state on the ﬁrst register becomes the density matrix σG
+H =
+1
+|G|
+P
+g∈G |gH⟩⟨gH|, that is
+the reduced state is a uniform mixture over all left coset states of H in G. It can be easily seen that applying
+QFTG to σG
+H gives us the density matrix |H|
+|G|
+L
+ρ∈bG
+Ldρ
+i=1 |ρ, i⟩⟨ρ, i|⊗ρ∗(H), where ρ∗(H) operates on the
+space of column indices of ρ. When measuring this state, we obtain an irrep ρ with probability
+dρ|H|rρ(H)
+|G|
+.
+Conditioned on measuring ρ we obtain a uniform distribution 1/dρ on the row indices. The reduced state
+on the space of column indices after having observed an irrep ρ and a row index i is then given by the state
+5
+
+---- page 6 ----
+
+ρ∗(H)/rρ(H), and a basic task for a hidden subgroup ﬁnding algorithm is how to extract information about
+H from it.
+If the the hidden subgroup is the trivial subgroup {1}, the probability of measuring ρ is given by the
+so-called Plancherel distribution P(ρ) :=
+d2
+ρ
+|G|. This distribution will be useful to us later on in the proof of
+the main theorem.
+POVMs are the most general way to obtain classical information from quantum states [NC00]. The ele-
+ments of a POVM M in Cn are positive operators Ei ≥0 which have to satisfy the completeness condition
+P
+i Ei = 11n. If the state of the quantum system is given by the density matrix σ, then the probability pi to
+observe outcome labeled i is given by the Born rule pi = Tr(σEi). The following observation is crucial for
+the HSP case: since the states σG
+H are simultaneously block diagonal in the Fourier basis for any H ≤G,
+the elements of any POVM M operating on these states can without loss of generality be assumed to have
+the same block structure. From this it is clear that any measurement to identify H without loss of generality
+ﬁrst applies the quantum Fourier transform QFTG to σG
+H, measures the name ρ of an irrep, the index i of a
+row, and then measures the reduced state on the column space of ρ using a POVM Mρ in Cdρ. This POVM
+Mρ may depend on ρ but is independent of i.
+Furthermore, Mρ can be assumed to be a frame, i. e., a collection Bρ := {(ab, b)}, where b ∈Cdρ with
+∥b∥= 1 and 0 ≤ab ≤1 such that P
+b∈B ab|b⟩⟨b| = 11dρ i.e. a frame is a POVM with rank one elements.
+Orthonormal bases are special cases of frames in which ab = 1 for all b ∈Bρ. We can assume that the
+POVM on the column space is a frame because any POVM can be reﬁned to a frame such that for any
+quantum state, the probabilities according to the original POVM are certain sums, independent of the state
+measured, of probabilities according to the frame.
+If the the hidden subgroup is the trivial subgroup {1}, after observing an irrep ρ and a row index i, the
+reduced state on the space of column indices of ρ is the totally mixed state 11dρ
+dρ . The probability of observing
+a vector b in frame Bρ is given by the so-called natural distribution on Bρ deﬁned by N(b | ρ) :=
+d2
+ρ
+|G|. This
+distribution will be useful to us later on in the proof of the main theorem.
+The above description was for single register quantum Fourier sampling. Fourier sampling on k registers
+can be deﬁned analogously. Here one starts off with k independent copies of the coset state σG
+H, i. e., with
+the state (σG
+H)⊗k ∼= σGk
+Hk and applies QFT⊗k
+G to it. Here Gk, Hk denote the k-fold direct product of G, H
+respectively. Note that since c
+Gk ∼= bG⊗k, we have that QFTGk = QFT⊗k
+G . We can express an irrep ρ of Gk
+as ρ = ⊗k
+i=1ρi, ρi ∈bG; observe that Vρ = ⊗k
+i=1Vρi. We adopt the convention that multiregister vectors and
+representations are denoted in boldface type. After applying QFT⊗k
+G , we measure the name ρ of an irrep
+of Gk, i. e, irreps ρ1, . . . , ρk of G. After that, we measure a row index of ρ i. e., row indices of ρ1, . . . , ρk,
+and then measure the resulting reduced state in the column space of ρ using a frame B of Vρ. The frame B
+used depends on the observed ρ but not on the observed row indices. Notice that only the application of the
+frame B may be an entangled measurement, the application of QFTGk and measurement of ρ together with
+a row index of ρ are single register operations.
+3
+The main theorem
+Let G be a group and h ∈G be an involution, that is, H := {1, h} is an order two subgroup of G. We
+let Hg := gHg−1 denote the conjugate of H by g ∈G. Let k be a positive integer. Fix a POVM M on
+C[G]⊗k ∼= C[Gk]. Let MHg, M{1} denote the classical probability distributions obtained by measuring
+the states σ⊗k
+Hg, σ⊗k
+{1} respectively according to M. We will show that the average total variation distance
+6
+
+---- page 7 ----
+
+between MHg and M{1} over conjugates Hg, g ∈G is at most 2k times a quantity that depends purely on
+the pair (G, H). In the next section, we will show that this quantity is exponentially small for many pairs
+(G, H) of interest, including when G = Sn ≀S2 and H is generated by an involutive swap, i. e., the case
+relevant to isomorphism of rigid graphs.
+Theorem 2 (Main theorem). Let G be a ﬁnite group and H := {1, h} be an order two subgroup of G.
+Let k ≥1 be an integer. Fix a POVM M on C[G]⊗k and let MHg, M{1} denote the classical probability
+distributions obtained by measuring the states σ⊗k
+Hg, σ⊗k
+{1} respectively according to M. For ε > 0, deﬁne
+the set
+Sε :=
+
+τ ∈bG : |χτ(h)|
+dτ
+≥ε
+
+.
+Suppose that 2kε < 1 holds. Deﬁne
+δ1 := ε + 1
+|G| ·
+ X
+τ∈Sε
+dτ|χτ(h)|
+!
+·
+
+X
+ν∈bG
+dν
+
+≤ε +
+ X
+τ∈Sε
+dτ|χτ(h)|
+!
+·
+ 
+| bG|
+|G|
+!1/2
+,
+and
+δ2 := 2k(1 + 2kε)δ1/2
+1
++ 3kε + 3k
+|G| ·
+X
+τ∈Sε
+d2
+τ.
+Then
+Eg[
+MHg −M{1}
+
+1] ≤δ2,
+where the expectation is taken over the uniform distribution on g ∈G.
+By a k-entangled POVM F on t coset states, we mean that F consists of a sequence of POVM’s
+(Mi)i∈[t′], where each Mi operates on a fresh set of at most k-coset states and t′ ≤t. The number of
+coset states operated upon by F is at most t. The outcome of F is a sequence of length t′ corresponding
+to the outcomes of Mi. The choice of Mi may depend on the observed outcomes of M1, . . . , Mi−1. If
+required, further classical postprocessing may be done on the outcome of F. We now prove the following
+corollary of Theorem 2.
+Corollary 3. Suppose F is a k-entangled POVM on t coset states. Then for at least a fraction of 1 −√tδ2
+conjugate subgroups Hg, g ∈G,
+FHg −F{1}
+
+1 ≤
+p
+tδ2.
+Proof. Using Theorem 2 and triangle inequality, it is easy to see that Eg[
+FHg −F{1}
+
+1] ≤tδ2. Applying
+Markov’s inequality to the expectation over g ∈G ﬁnishes the proof.
+The remainder of the section is devoted to proving Theorem 2. We ﬁrst give some notation that will be
+useful for the proofs of various lemmas. Our notation and setup is inspired to a large extent by the notation
+in [MR05].
+As argued in the previous section, we can assume without loss of generality that M ﬁrst applies QFT⊗k
+G
+to σ⊗k
+Hg, measures the name of an irrep of Gk, ρ∗together with a row index of ρ∗, and then measures the
+resulting reduced state in the column space of ρ∗using a frame B of Vρ∗= Vρ. If ρ = ⊗k
+i=1ρi, ρi ∈bG,
+then ρ∗= ⊗k
+i=1ρ∗
+i . The frame B used depends on the observed ρ∗but not on the observed row indices.
+7
+
+---- page 8 ----
+
+Suppose the hidden subgroup is Hg for some g ∈G. It is easy to see that the probability that M
+measures ρ∗is given by
+MHg(ρ∗) = dρ∗|Hg|k · rρ∗((Hg)k)
+|G|k
+= 2kdρrρ(Hk)
+|G|k
+.
+Notice that MHg(ρ∗) = MH(ρ). Let B = {ab, b}, where 0 ≤ab ≤1 and P
+b ab|b⟩⟨b| = 11Vρ. Then
+the reduced state in the column space of ρ∗is ρ((Hg)k)
+rρ(Hk) , if rρ ̸= 0. Hence, the probability of observing a
+particular b conditioned on having observed ρ∗is
+MHg(b | ρ∗) = ab
+
+b
+ρ((Hg)k)
+ b
+
+rρ(Hk)
+,
+if rρ(Hk) ̸= 0, and 0 otherwise. Similarly, if the hidden subgroup is the identity subgroup then
+M{1}(ρ∗) = d2
+ρ
+|G|k = P(ρ),
+where P(·) is the Plancherel distribution on irreps of Gk. Also
+M{1}(b | ρ∗) = ab
+dρ
+= N(b | ρ∗),
+where N(· | ρ∗) is the natural distribution corresponding to the frame B.
+For a non-empty subset I ⊆[k], deﬁne ρI := (⊗i∈Iρi) ⊗(⊗i′∈[k]\I11dρi′ ), where 11dρi′ denotes the
+identity representation of G of degree equal to that of ρi′. For non-empty subsets I1, I2 ⊆[k], deﬁne
+ρI1,I2 := ρI1 ⊗ρI2. For a representation θ = ⊗n
+i=1θi of Gn, θi representation of G, we use θ(g) as a
+shorthand for ⊗n
+i=1θi(g). For an irrep τ ∈bG, we use aθ
+τ to denote the multiplicity of τ in the Clebsch-
+Gordan decomposition of θ, i. e. the number of times τ occurs in θ when θ is viewed as a representation of
+G embedded as the diagonal subgroup of Gn. We let Πθ
+τ denote the orthogonal projection from Vθ onto the
+homogeneous component of τ in the above decomposition. We use the following shorthand for expectations:
+Eρ[·], Eb[·] and Eg[·] denote expectations over the Plancherel distribution on irreps, natural distribution on
+frame vectors and uniform distribution on elements of G respectively.
+We deﬁne a function X : bG⊗k × B × G →[−1, 1] as
+X(ρ, b, g) :=
+D
+b
+ρ((Hg)k)
+ b
+E
+−1
+2k ,
+where B is a frame for Vρ. The importance of X will become clear in Lemma 11 below, which shows that
+Eρ,b,g[|X(ρ, b, g)|] is closely related to the total variation distance between MHg and M{1}.
+We start by proving the following lemma, which is similar to [MR05, Lemma 11]. The lemma gives
+us a way to express the second moment of X in terms of projections of ‘coupled’ frame vectors b ⊗b
+onto homogeneous components corresponding to irreps τ ∈bG. The advantage of doing this is that we
+can now distinguish between ‘good’ irreps, namely those with |χτ (h)|
+dτ
+small, and ‘bad’ irreps, namely those
+where |χτ(h)|
+dτ
+is large. The contribution of ‘good’ irreps to the second moment of X is small. This idea of
+distinguishing between ‘good’ and ‘bad’ irreps goes back to [MRS05].
+Lemma 4.
+Eg[X(ρ, b, g)2] = 1
+4k
+X
+I1,I2̸={}
+X
+τ∈bG
+χτ(h)
+dτ
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+.
+8
+
+---- page 9 ----
+
+Proof. Since
+X(ρ, b, g)
+=
+1
+2k
+
+
+b
+11dρ
+ b
+
++
+X
+I̸={}
+
+b
+ρI(ghg−1)
+ b
+
+
+−1
+2k
+=
+1
+2k
+X
+I̸={}
+
+b
+ρI(ghg−1)
+ b
+
+,
+we get
+Eg[X(ρ, b, g)2] = Eg
+
+1
+4k
+X
+I1,I2̸={}
+
+b
+ρI1(ghg−1)
+ b
+
+·
+
+b
+ρI2(ghg−1)
+ b
+
+
+
+=
+1
+4k
+X
+I1,I2̸={}
+Eg[
+
+b ⊗b
+ρI1,I2(ghg−1)
+ b ⊗b
+
+]
+=
+1
+4k
+X
+I1,I2̸={}
+Eg
+
+
+*
+b ⊗b
+
+M
+τ∈bG
+aρI1,I2
+τ
+τ(ghg−1)
+
+b ⊗b
++
+
+=
+1
+4k
+X
+I1,I2̸={}
+*
+b ⊗b
+
+M
+τ∈bG
+aρI1,I2
+τ
+Eg[τ(ghg−1)]
+
+b ⊗b
++
+=
+1
+4k
+X
+I1,I2̸={}
+*
+b ⊗b
+
+M
+τ∈bG
+aρI1,I2
+τ
+χτ(h)
+dτ
+11Vτ
+
+b ⊗b
++
+=
+1
+4k
+X
+I1,I2̸={}
+X
+τ∈bG
+χτ(h)
+dτ
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+.
+The ﬁfth equality above follows from Schur’s lemma.
+Lemma 4 takes care of the ‘good’ irreps. However for ‘bad’ irreps τ, we have to do something to bound
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+. The papers [MRS05, MR05] tried to bound it using the following simple geometric
+argument: If B is an orthonormal basis for Vρ, then {b⊗b}b∈B is an orthonormal set in Vρ⊗Vρ. Hence the
+expectation, over the uniform distribution on B, of the above quantity is upper bounded by rank(ΠρI1,I2
+τ
+)
+dρ
+. If B
+is a POVM rather than an orthonormal basis, a similar argument can be made. This simple method works for
+k = 1, 2 for the symmetric group, but fails for k ≥3. This is because rank(ΠρI1,I2
+τ
+) becomes larger than dρ.
+The problem with the simple method is that rank(ΠρI1,I2
+τ
+) can be potentially as large as d2
+ρ. This is where
+we need new ideas as compared to those in [MRS05, MR05]. We use the fact that the projection ΠρI1,I2
+τ
+is
+not arbitrary, but is rather the projection onto the homogeneous component corresponding to an irrep of G.
+There is an explicit representation-theoretic formula for such a projection operator (see e.g. [Ser77, Chapter
+2, Theorem 8]). Using this formula allows us to ‘decouple’ ΠρI1,I2
+τ
+(b⊗b) into an expression involving only
+ρI1 and b, and ρI2 and b, that is, it allows us to remove the tensor product. This ‘decoupling’ gets around
+the problem that the rank of the projector can be larger than dρ whereas the size of the basis B is only dρ.
+It allows us to apply a standard corollary of Schur’s orthogonality relations and ﬁnally bound the length of
+the projection of b ⊗b by a small quantity.
+9
+
+---- page 10 ----
+
+We now state a few facts that will be used in our ‘decoupling’ arguments. The next fact is easy to show
+and was used in the simple geometric approach of [MRS05, MR05] to bound
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+.
+Fact 5. Let W be a subspace of V . Let B := {ab, b} be a frame for V . Let ΠV
+W denote the orthogonal
+projection from V onto W. Then
+Eb[
+ΠV
+W (b)
+2] = dim W
+dim V ,
+where the expectation is taken over the natural distribution on B.
+The following fact is a special case of [MR05, Lemma 12], and can be easily proved by considering the
+regular representation of Gn.
+Fact 6. Let θ := (Nn
+i=1 θi) ⊗
+Nn′
+i′=1 11di′
+
+be a representation of Gn+n′, where θi ∈bG and 11di′ is the
+identity representation of G of dimension di′. Suppose each θi is chosen independently from the Plancherel
+distribution on bG. Fix τ ∈bG. Let aθ
+τ denote the multiplicity of τ in the Clebsch-Gordan decomposition of θ
+i. e. viewing θ as a representation of G embedded as the diagonal subgroup of Gn+n′. Then
+Eθ
+aθ
+τ
+dθ
+
+= dτ
+|G|.
+The following fact is a standard result in representation theory (see e.g. [Ser77, Chapter 2, Proposition
+4, Corollary 3]), and follows from Schur’s orthogonality relations.
+Fact 7. Suppose τ ∈bG and b ∈Vτ, ∥b∥= 1. Then,
+Eg[| ⟨b |τ(g)| b⟩|2] = 1
+dτ
+.
+We start off the ‘decoupling’ process by the following lemma.
+Lemma 8. Fix I1, I2 ⊆[k], I1, I2 ̸= {}, ρ ∈bG⊗k, τ ∈bG and b ∈Vρ. Then,
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+≤d2
+τ
+2 (Eg[|
+
+b
+ρI1(g)
+ b
+
+|2] + Eg[|
+
+b
+ρI2(g)
+ b
+
+|2].
+Proof.
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+=
+|
+D
+b ⊗b
+ΠρI1,I2
+τ
+ b ⊗b
+E
+|
+=
+|
+
+b ⊗b
+dτEg[χτ(g)∗ρI1(g) ⊗ρI2(g)]
+ b ⊗b
+
+|
+=
+dτ|Eg[χτ(g)∗
+b
+ρI1(g)
+ b
+
+·
+
+b
+ρI2(g)
+ b
+
+]|
+≤
+d2
+τEg[|
+
+b
+ρI1(g)
+ b
+
+| · |
+
+b
+ρI2(g)
+ b
+
+|]
+≤
+d2
+τ
+2
+ Eg[|
+
+b
+ρI1(g)
+ b
+
+|2] + Eg[|
+
+b
+ρI2(g)
+ b
+
+|2]
+
+.
+The second equality follows from a standard result in representation theory describing the projection oper-
+ator onto a homogeneous component corresponding to an irrep of G (see e.g. [Ser77, Chapter 2, Theorem
+8]), the ﬁrst inequality follows by bounding a character value by the dimension of the representation, and
+the second inequality follows from the fact that |xy| ≤|x|2+|y|2
+2
+for any pair of complex numbers x, y.
+10
+
+---- page 11 ----
+
+We now prove a crucial lemma that allows us to prove good upper bounds on
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+.
+Lemma 9. Fix I ⊆[k], I ̸= {}. Then, Eρ,b,g[|
+
+b
+ρI(g)
+ b
+
+|2] ≤
+X
+τ∈bG
+dτ
+|G|.
+Proof. We use the notation τ ≺ρI to denote a single copy of τ ∈bG occurring in the Clebsch-Gordan
+decomposition of ρI i.e. treating ρI as a representation of G embedded in the diagonal of Gk. A given τ ∈bG
+can occur more than once in the decomposition, or not at all. We let bτ denote the orthogonal projection of
+b onto this copy of τ. Note that if τ occurs more than once, then there will be several orthogonal vectors
+bτ. If ∥bτ∥> 0, deﬁne bbτ to be bτ normalized; otherwise, let bbτ be an arbitrary unit vector in the copy of
+τ under consideration. We now have
+|
+
+b
+ρI(g)
+ b
+
+|2 =
+
+*
+b
+
+M
+τ≺ρI
+τ(g)
+
+b
++
+2
+=
+
+X
+τ≺ρI
+⟨bτ |τ(g)| bτ⟩
+
+2
+=
+
+X
+τ≺ρI
+∥bτ∥· ∥bτ∥
+D
+bbτ |τ(g)| bbτ
+E
+
+2
+≤
+
+X
+τ≺ρI
+∥bτ∥2
+
+·
+
+X
+τ≺ρI
+∥bτ∥2 |
+D
+bbτ |τ(g)| bbτ
+E
+|2
+
+
+=
+X
+τ≺ρI
+∥bτ∥2 
+D
+bbτ |τ(g)| bbτ
+E
+2
+.
+The inequality above follows from Cauchy-Schwartz, and the last equality is because P
+τ≺ρI ∥bτ∥2 =
+∥b∥2 = 1. Now,
+Eρ,b,g[|
+
+b
+ρI(g)
+ b
+
+|2]
+≤
+Eρ,b,g
+
+X
+τ≺ρI
+∥bτ∥2 
+D
+bbτ |τ(g)| bbτ
+E
+2
+
+
+=
+Eρ,b
+
+X
+τ≺ρI
+∥bτ∥2 Eg
+
+D
+bbτ |τ(g)| bbτ
+E
+2
+
+=
+Eρ,b
+
+X
+τ≺ρI
+∥bτ∥2
+dτ
+
+= Eρ
+
+X
+τ≺ρI
+Eb[∥bτ∥2]
+dτ
+
+
+=
+Eρ
+
+X
+τ≺ρI
+dτ
+dτdρ
+
+= Eρ
+
+X
+τ∈bG
+aρI
+τ
+dρ
+
+=
+X
+τ∈bG
+Eρ
+"
+aρI
+τ
+dρ
+#
+=
+X
+τ∈bG
+dτ
+|G|.
+The second equality follows from Fact 7, the fourth equality follows from Fact 5 and the last equality follows
+from Fact 6.
+11
+
+---- page 12 ----
+
+The next lemma ties up the above threads to prove an upper bound on the second moment of the function
+X independent of k.
+Lemma 10. Eρ,b,g[X(ρ, b, g)2] < ε + 1
+|G| ·
+
+X
+ν∈bG
+dν
+
+·
+ X
+τ∈Sε
+dτ|χτ(h)|
+!
+.
+Proof. First, note that
+Eg[X(ρ, b, g)2]
+=
+
+1
+4k
+X
+I1,I2̸={}
+X
+τ∈bG
+χτ(h)
+dτ
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+
+≤
+1
+4k
+X
+I1,I2̸={}
+X
+τ∈bG
+|χτ(h)|
+dτ
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+<
+1
+4k
+X
+I1,I2̸={}
+
+ε ·
+X
+τ∈bG\Sε
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
++
+X
+τ∈Sε
+|χτ(h)|
+dτ
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+
+
+<
+ε + 1
+4k
+X
+I1,I2̸={}
+X
+τ∈Sε
+|χτ(h)|
+dτ
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+.
+The equality follows from Lemma 4 and the fact that the quantity in the absolute value sign is non-negative,
+and the last inequality follows from the fact that P
+τ∈bG\Sε
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+≤∥b ⊗b∥2 = 1.
+Fix I1, I2 ⊆[k], I1, I2 ̸= {}. Then,
+Eρ,b
+" X
+τ∈Sε
+|χτ(h)|
+dτ
+ΠρI1,I2
+τ
+(b ⊗b)
+
+2
+#
+≤
+Eρ,b
+" X
+τ∈Sε
+|χτ(h)|
+dτ
+· d2
+τ
+2
+ Eg[|
+
+b
+ρI1(g)
+ b
+
+|2] + Eg[|
+
+b
+ρI2(g)
+ b
+
+|2]
+
+#
+=
+ X
+τ∈Sε
+dτ|χτ(h)|
+2
+!
+ Eρ,b,g[|
+
+b
+ρI1(g)
+ b
+
+|2] + Eρ,b,g[|
+
+b
+ρI2(g)
+ b
+
+|2]
+
+≤
+1
+|G| ·
+ X
+τ∈Sε
+dτ|χτ(h)|
+!
+·
+
+X
+ν∈bG
+dν
+
+.
+The ﬁrst inequality is due to Lemma 8 and the second inequality is due to Lemma 9. Combining the above
+two upper bounds proves the present lemma.
+We now connect the function X to the total variation distance between MHg and M{1}.
+Lemma 11. Deﬁne µg := Eρ,b[|X(ρ, b, g)|]. Suppose 2kε < 1. Then,
+MHg −M{1}
+
+1 < 2k(1 + 2kε)µg + 3kε + 3k
+|G| ·
+X
+τ∈Sε
+d2
+τ.
+12
+
+---- page 13 ----
+
+Proof. If the hidden subgroup is Hg for some g ∈G, the probability of observing an irrep ρ∗∈bG⊗k, row
+index i ∈[dρ] and frame vector b ∈B is given by
+MHg(ρ, i, b) = MH(ρ) · 1
+dρ
+· MHg(b | ρ∗).
+If the hidden subgroup is {1}, the probability of observing an irrep ρ∗∈bG⊗k, row index i ∈[dρ] and frame
+vector b ∈B is given by
+M{1}(ρ, i, b) = P(ρ) · 1
+dρ
+· N(b | ρ).
+Deﬁne a new probability vector M′
+Hg as
+M′
+Hg(ρ, i, b) := P(ρ) · 1
+dρ
+· MHg(b | ρ∗).
+Deﬁne a set Sε := {ρ ∈bG⊗k : ∃i ∈[k], ρi ∈Sε}. Deﬁne another new vector M′′
+{1} with non-negative
+entries as
+M′′
+{1}(ρ, i, b) :=
+(
+P(ρ) · 1
+dρ ·
+ab
+2krρ(Hk),
+if ρ ̸∈Sε,
+0
+otherwise
+.
+Note that M′′
+{1} may not be a probability vector.
+Deﬁne Dε := P
+τ∈Sε d2
+τ. Let P(Sε), P(Sε) denote the probabilities of Sε, Sε under the Plancherel
+distributions on bG, bG⊗k respectively. Then, P(Sε) ≤kP(Sε) = kDε
+|G| . Also since
+dρ
+2krρ(Hk) =
+k
+Y
+i=1
+dρi
+2rρi
+=
+k
+Y
+i=1
+dρi
+dρi + χρi(h) =
+k
+Y
+i=1
+
+1 + χρi(h)
+dρi
+−1
+,
+we have
+(1 + ε)−k ≤
+dρ
+2krρ(Hk) ≤(1 −ε)−k,
+for ρ ∈bG⊗k \ Sε.
+By the convexity of the function y = x−k, we have that |(1 −ε)−k −1| ≥|(1 + ε)−k −1|. Since 2kε < 1,
+it can be shown by induction that (1 −ε)−k ≤1 + 2kε. Hence,
+1 −
+dρ
+2krρ(Hk)
+ ≤2kε,
+for ρ ∈bG⊗k \ Sε.
+Now,M′′
+{1} −M{1}
+
+1
+=
+X
+ρ∈bG⊗k\Sε
+dρ
+X
+i=1
+X
+b∈B
+P(ρ) · 1
+dρ
+·
+ab
+2krρ(Hk) −P(ρ) · 1
+dρ
+· ab
+dρ
+ +
+X
+ρ∈Sε
+dρ
+X
+i=1
+X
+b∈B
+P(ρ) · 1
+dρ
+· ab
+dρ
+=
+X
+ρ∈bG⊗k\Sε
+X
+b∈B
+P(ρ) · ab
+dρ
+
+dρ
+2krρ(Hk) −1
+ +
+X
+ρ∈Sε
+P(ρ)
+≤
+X
+ρ∈bG⊗k\Sε
+P(ρ) · 2kε + kDε
+|G|
+≤
+2kε + kDε
+|G| .
+13
+
+---- page 14 ----
+
+Next,
+M′
+Hg −M′′
+{1}
+
+1
+=
+X
+ρ∈bG⊗k\Sε
+dρ
+X
+i=1
+X
+b∈B
+P(ρ) · 1
+dρ
+· MHg(b | ρ∗) −P(ρ) · 1
+dρ
+·
+ab
+2krρ(Hk)
+
++
+X
+ρ∈Sε
+dρ
+X
+i=1
+X
+b∈B
+P(ρ) · 1
+dρ
+· MHg(b | ρ∗)
+=
+X
+ρ∈bG⊗k\Sε
+P(ρ)
+X
+b∈B
+
+ab
+
+b
+ρ((Hg)k)
+ b
+
+rρ(Hk)
+−
+ab
+2krρ(Hk)
+ +
+X
+ρ∈Sε
+P(ρ)
+≤
+X
+ρ∈bG⊗k\Sε
+P(ρ) ·
+dρ
+rρ(Hk)
+X
+b∈B
+ab
+dρ
+
+D
+b
+ρ((Hg)k)
+ b
+E
+−1
+2k
+ + kDε
+|G|
+≤
+2k(1 + 2kε)
+X
+ρ∈bG⊗k\Sε
+P(ρ) · Eb[|X(ρ, b, g)|] + kDε
+|G|
+≤
+2k(1 + 2kε)Eρ,b[|X(ρ, b, g)|] + kDε
+|G| = 2k(1 + 2kε)µg + kDε
+|G| .
+Furthermore,
+M′
+Hg −MHg
+
+1 =
+X
+ρ∈bG⊗k
+dρ
+X
+i=1
+X
+b∈B
+P(ρ) · 1
+dρ
+· MHg(b | ρ∗) −MH(ρ) · 1
+dρ
+· MHg(b | ρ∗)
+
+=
+X
+ρ∈bG⊗k
+|P(ρ) −MH(ρ)| ≤k ·
+X
+τ∈bG
+
+d2
+τ
+|G| −dτ|H|rτ(H)
+|G|
+ = k ·
+X
+τ∈bG
+
+d2
+τ
+|G| −dτ(dτ + χτ(h))
+|G|
+
+=
+k ·
+X
+τ∈bG
+dτ|χτ(h)|
+|G|
+≤k ·
+
+X
+τ∈bG\Sε
+d2
+τ
+|G| · |χτ(h)|
+dτ
++
+X
+τ∈Sε
+d2
+τ
+|G|
+
+< k ·
+
+ε
+X
+τ∈bG\Sε
+d2
+τ
+|G| + Dε
+|G|
+
+
+≤
+kε + kDε
+|G| .
+The ﬁrst inequality follows from k applications of the triangle inequality. Finally,
+MHg −M{1}
+
+1
+≤
+MHg −M′
+Hg
+
+1 +
+M′
+Hg −M′′
+{1}
+
+1 +
+M′′
+{1} −M{1}
+
+1
+≤
+2k(1 + 2kε)µg + 3kε + 3k
+|G| ·
+X
+τ∈Sε
+d2
+τ.
+We are now ready to prove the main theorem of the paper.
+Proof of Theorem 2. The theorem follows from Lemmas 10 and 11, using the convexity of the square func-
+tion. The upper bound on δ1 follows from the observation that Cauchy-Schwartz implies that P
+ν∈bG dν ≤
+| bG|1/2  P
+ν∈bG d2
+ν
+1/2 = | bG|1/2|G|1/2.
+14
+
+---- page 15 ----
+
+Finally, we prove a simple lower bound, irrespective of the order of entanglement, on the total number
+of coset states t required to distinguish a hidden subgroup Hg from the identity hidden subgroup. For that,
+we need the following theorem.
+Theorem 12. Let G be a ﬁnite group and H := {1, h} be an order two subgroup of G. Let t ≥1 be an
+integer. Then,
+Eg
+
+σ⊗t
+Hg
+
+−σ⊗t
+{1}
+
+tr < 2t
+|G|
+X
+τ∈bG
+dτ|χτ(h)|.
+Proof. Let ρ ∈bG⊗t, I ⊆[t], I ̸= {}. Using arguments similar to those above, it is easy to see that
+Eg[2tρ((Hg)t)] −ρ({1}t)
+
+tr =
+
+Eg
+
+11dρ +
+X
+I̸={}
+ρI(ghg−1)
+
+−11dρ
+
+tr
+=
+
+X
+I̸={}
+Eg
+
+ρI(ghg−1)
+
+
+tr
+≤
+X
+I̸={}
+Eg[ρI(ghg−1)]
+
+tr =
+X
+I̸={}
+
+M
+τ∈bG
+χτ(h)
+dτ
+aρI
+τ
+M
+j=1
+11dτ
+
+tr
+=
+X
+I̸={}
+X
+τ∈bG
+aρI
+τ |χτ(h)|.
+Writing the density matrices in the Fourier basis and using Fact 6 we get,
+Eg
+
+σ⊗t
+Hg
+
+−σ⊗t
+{1}
+
+tr
+=
+
+Eg
+
+2t
+|G|t
+M
+ρ
+dρ
+M
+i=1
+|ρ∗, i⟩⟨ρ∗, i| ⊗ρ((Hg)t)
+
+−
+1
+|G|t
+M
+ρ
+dρ
+M
+i=1
+|ρ∗, i⟩⟨ρ∗, i| ⊗ρ({1}t)
+
+tr
+=
+
+1
+|G|t
+M
+ρ
+dρ
+M
+i=1
+|ρ∗, i⟩⟨ρ∗, i| ⊗(Eg[2tρ((Hg)t)] −ρ({1}t))
+
+tr
+=
+1
+|G|t
+X
+ρ
+dρ
+Eg[2tρ((Hg)t)] −ρ({1}t)
+
+tr ≤
+1
+|G|t
+X
+ρ
+dρ
+X
+I̸={}
+X
+τ∈bG
+aρI
+τ |χτ(h)|
+=
+X
+I̸={}
+X
+τ∈bG
+|χτ(h)|
+ X
+ρ
+d2
+ρ
+|G|t
+aρI
+τ
+dρ
+!
+=
+X
+I̸={}
+X
+τ∈bG
+dτ|χτ(h)|
+|G|
+<
+2t
+|G|
+X
+τ∈bG
+dτ|χτ(h)|.
+Corollary 13. Any algorithm using a total of t coset states that distinguishes with constant probability
+between the case when the hidden subgroup is trivial and the case when the hidden subgroup is Hg for some
+g ∈G must satisfy t = Ω(log(1/η)).
+Proof. The algorithm can be viewed as a two-outcome POVM that outputs 1 with probability at least 2/3 if
+the hidden subgroup is non-trivial, and 0 with probability at least 2/3 if the hidden subgroup is trivial. Thus,
+the POVM distinguishes between the states Eg
+
+σ⊗t
+Hg
+
+and σ⊗t
+{1} with constant total variation distance. Since
+the trace distance is always an upper bound on the total variation distance, invoking Theorem 12 completes
+the proof.
+15
+
+---- page 16 ----
+
+The above corollary shows, for example, that any coset state based algorithm solving the HSP in Sn ≀S2
+needs a total number of Ω(n log n) coset states. In the next section, we apply Theorem 2 to show a stronger
+result, namely, any algorithm solving the HSP in Sn≀S2 using polynomially many coset states needs to make
+measurements entangled across Ω(n log n) coset states. However, Corollary 13 can sometimes prove non-
+trivial lower bounds on the total number of coset states for solving the HSP in groups G where Theorem 2
+can only prove a constant lower bound on the order of entanglement. For example, the HSP in groups
+G := A⋊Z2, where A is an abelian group and Z2 acts on A by inversion can be solved by an algorithm using
+a total number of O(log |G|) coset states that measures one coset state at a time [EH00]. Using Corollary 13,
+one can show a matching Ω(log |G|) lower bound on the total number of coset states when A is the cyclic
+group Zn, i. e., G is the dihedral group Dn. Using a different technique, Childs and Wocjan [CW05] in fact
+show an Ω(log |G|) lower bound on the total number of coset states for the above groups for all abelian A.
+4
+Limitations of quantum coset states for HSP: Examples
+4.1
+The wreath product Sn ≀S2 and graph isomorphism
+The representation theory of the wreath product G = Sn ≀S2 is well-known. The following is a summary
+of the necessary results, for more details we refer to Appendix A: the wreath product has irreps κλ,λ′ of
+dimension 2dλdλ′, where λ, λ′ ∈c
+Sn, λ ̸= λ′. Deﬁne h := (e, e, 1) ∈G, where e is the identity permutation
+in Sn. The character value of h on these irreps is zero. Furthermore, there are irreps ϑλ and ϑ′
+λ of dimension
+d2
+λ, where λ ∈c
+Sn. The character values of ϑλ and ϑ′
+λ on h are given by dλ and −dλ, respectively. The total
+number of irreps of G is | bG| =
+ p(n)
+2
+
++ 2p(n) ≤p(n)2, where p(n) denotes the number of partitions of n.
+In order to apply Theorem 2 we choose ε = n−αn for some constant α > 0 to be determined later. Then
+Sε =
+n
+σ ∈bG : |χσ(h)|
+dσ
+≥ε} = {ϑλ, ϑ′
+λ : dλ ≤nαno
+. Hence we obtain that
+X
+σ∈Sε
+dσ · |χσ(h)| ≤2
+X
+λ∈c
+Sn,dλ≤nαn
+d2
+λ · dλ ≤p(n)n2αn · nαn ≤n3αneν√n.
+Here we have estimated the partition number as p(n) = O(eν√n), where ν = π
+q
+2
+3. We also compute that
+X
+σ∈Sε
+d2
+σ ≤2
+X
+λ∈c
+Sn,dλ≤nαn
+d4
+λ ≤p(n)n4αn ≤n4αneν√n.
+In order to apply Theorem 2, we now deﬁne α := 1/4 and obtain that
+δ1
+≤
+ε +
+ X
+σ∈Sε
+dσ|χσ(h)|
+!  
+| bG|
+|G|
+!1/2
+≤n−αn + n3αneν√n
+ p(n)2
+2(n!)2
+1/2
+≤
+n−1/4n + n3/4ne2ν√n
+√
+2n!
+= n−Ω(n),
+where we have used the fact that n! ≥(n/e)n for large n. For the parameter δ2 in Theorem 2 we obtain
+δ2 = 2k(1 + 2kε)δ1/2
+1
++ 3kε + 3k P
+σ∈Sε d2
+σ
+|G|
+≤2k 
+1 + 2kn−1/4n
+n−Ω(n) + 3kn−1/4n + 3knneν√n
+2(n!)2 = 2kn−Ω(n).
+16
+
+---- page 17 ----
+
+Hence, we have proved the following corollary to Theorem 2:
+Corollary 14. Any algorithm operating on coset states that solves the hidden subgroup problem in G =
+Sn ≀S2 in polynomial time has to make joint measurements on k = Ω(n log n) coset states. The same is
+true for any algorithm that solves the hidden subgroup problem in Sn using coset states. Also, any efﬁcient
+algorithm for isomorphism of two n-vertex graphs that uses the standard reduction to HSP in S2n and then
+uses coset states to solve the HSP needs to make measurements entangled across k = Ω(n log n) coset
+states.
+Finally, we remark that if we apply Theorem 2 to all the full-support involutions in S2n, we only get
+a lower bound of k = Ω(n). This is because we use Roichman’s [Roi96] upper bound on the normalized
+characters of S2n in order to deﬁne Sǫ, as in [MRS05], and Roichman’s bound is always at least e−O(n).
+Since the involutive swaps form an exponentially small fraction of all the full-support involutions, it is
+possible that an average hidden full-support involution may be distinguishable from the hidden identity
+subgroup by an O(n)-entangled POVM acting on nO(1)-coset states. However, no such POVM is known
+and the best upper bound for this problem continues to be the k = O(n log n) information-theoretic one.
+4.2
+The projective linear groups PSL(2, Fq)
+The representation theory of the projective linear groups G = PSL(2, Fq) over any ﬁnite ﬁeld Fq is well-
+known. The following is a summary of the necessary results, for more details we refer to Appendix B. We
+treat the cases q even and q odd separately. In case q odd we have that |PSL(2, Fq)| = q(q2−1)
+2
+. There is
+one conjugacy class of q(q±1)
+2
+involutions (depending on whether q ≡1 or 3 modulo 4); let h denote a ﬁxed
+member of this conjugacy class. The degrees of the irreps are given by 1, q, q ± 1, and q±1
+2 . The character
+values |χ(h)| can be upper bounded by 1, 1, 2, and 1, respectively. There is a total number of | bG| = q+5
+2
+irreps.
+In order to apply Theorem 2, we choose ε =
+2
+q−1. Then
+Sε = {σ ∈bG : |χσ(h)|
+dσ
+≥ε} = {11}
+contains only the trivial irrep. With this choice of the parameter ε we have that
+X
+σ∈Sε
+dσ · |χσ(h)| = 1,
+X
+σ∈Sε
+d2
+σ = 1,
+and
+ 
+| bG|
+|G|
+!1/2
+=
+ (q + 5)/2
+q(q2 −1)/2
+1/2
+= O(q−1).
+Hence, we can bound the parameter δ1 used in Theorem 2 as follows:
+δ1 ≤ε +
+ X
+σ∈Sε
+dσ|χσ(h)|
+!  
+| bG|
+|G|
+!1/2
+≤
+2
+q −1 + 1 · O(q−1) = O(q−1).
+For the parameter δ2 we obtain
+δ2 = 2k(1 + 2kε)δ1/2
+1
++ 3kε + 3k P
+σ∈Sε d2
+σ
+|G|
+≤2k
+
+1 + 2k
+2
+q −1
+
+O(q−1/2) + 3k
+2
+q −1 + 3k
+1
+q(q2 −1)/2 ≤2kO(q−1/2).
+17
+
+---- page 18 ----
+
+The case q = 2n, where |PSL(2, F2n)| = |SL(2, F2n)| = q(q2 −1), can be treated similarly. There we
+use ε =
+1
+q−1 which implies that δ2 ≤2kO(q−1/2). Hence, using Theorem 2 we have shown the following
+result:
+Corollary 15. Let q be a prime power. Then any algorithm operating on coset states that solves the
+hidden subgroup problem in G = PSL(2, Fq) in polynomial time has to make joint measurements on
+k = Ω(log |G|) = Ω(q) coset states.
+4.3
+Special and general linear groups
+Corollary 16. Any algorithm solving the HSP in SL(2, Fq) or GL(2, Fq) efﬁciently using coset states needs
+to make measurements entangled across k = Ω(log q) registers.
+Proof. By Corollary 15 any algorithm solving the HSP in PSL(2, Fq) efﬁciently using coset states needs to
+make measurements entangled across k = Ω(log q) registers. The statement now follows from Lemma 1 by
+using the facts that PSL(2, Fq) ∼= SL(2, Fq)/ζ(SL(2, Fq)) and that SL(2, Fq) ≤GL(2, Fq).
+Corollary 17. Any algorithm solving the HSP in GL(n, Fpm) efﬁciently using coset states needs to make
+measurements entangled across k = Ω(n(m log p + log n)) registers.
+Proof. Since GL(n, Fpm) contains all n × n permutation matrices, a lower bound of k = Ω(n log n) fol-
+lows from Corollary 14 and Lemma 1. Also, we can use the embedding of GL(2, Fpnm) ≤GL(2n, Fpm)
+via
+ a
+b
+c
+d
+
+7→
+ Ma
+Mb
+Mc
+Md
+
+, where for each x ∈Fpnm the matrix Mx ∈GL(n, Fpm) realizes mul-
+tiplication by x with respect to a ﬁxed basis of Fpnm over Fpm. Hence by Lemma 1 we obtain that for the
+HSP in GL(2n, Fpm) at least as much entanglement is necessary as in case of GL(2, Fpnm). The latter has
+been bounded by Ω(nm log p) in Corollary 16.
+4.4
+Direct products of the form Gn
+In this section we show that for a large class of ﬁnite groups G, efﬁcient algorithms for HSP for direct
+products of the form Gn, where n ≥1, require entangled measurements on at least k = Ω(n) coset states.
+Let G be a ﬁnite group and let bG = {σ1, . . . , σm} denote the irreducible representations of G. Recall that
+the centralizer C(g) of an element g ∈G is the subgroup C(g) := {c ∈G : cg = gc}. Let h be an
+involution in G, and let σ ∈bG. Then either |χσ(h)| = dσ or |χσ(h)|
+dσ
+< 1 −2|C(h)|
+|G|
+holds [Gal94]. We deﬁne
+ε := (1 −2|C(h)|
+|G|
+)t, where t = t(n) is a function of n to be determined later.
+The irreps of Gn, where n ≥1, are given by σ := σ1 ⊗. . . ⊗σn, where σi ∈bG. We let Λ := {σ ∈bG :
+|χσ(h)| = dσ}, λ := P
+σ∈Λ d2
+σ, and µ := P
+σ∈bG\Λ d2
+σ = |G| −λ. The following property of the set
+Sε :=
+
+σ ∈bGn : |χσ(h, . . . , h)|
+dσ
+≥ε
+
+holds for our choice of the parameter ε: if σ ∈Sε then necessarily at least n−t positions σi have to be from
+Λ, i. e., have to satisfy |χσi(h)| = dσi. Indeed, otherwise we would have more than t positions σj in each
+of which
+|χσj (h)|
+dσj
+≤1 −2|C(h)|
+|G|
+, making the product less than ε. We next give an estimate for the quantity
+P
+σ∈Sε d2
+σ appearing in Theorem 2. For that we require the following lemma for estimating the tail of the
+binomial distribution.
+18
+
+---- page 19 ----
+
+Lemma 18. Let α, β > 0, let n ≥1, and let t = n/c, where c > α+β
+β . Then
+n
+X
+ℓ=n−t
+n
+ℓ
+
+αℓβn−ℓ≤
+ 
+α
+ce(α + β)
+α
+1/c!n
+.
+Proof. We have that
+n
+X
+ℓ=n−t
+n
+ℓ
+
+αℓβn−ℓ= (α + β)n
+n
+X
+ℓ=n−t
+n
+ℓ
+ 
+α
+α + β
+ℓ
+β
+α + β
+n−ℓ
+≤
+(α + β)n
+ n
+n −t
+ 
+α
+α + β
+n−t
+=
+αn
+n
+t
+ α + β
+α
+t
+≤αn
+ne(α + β)
+tα
+t
+=
+ 
+α
+ce(α + β)
+α
+1/c!n
+,
+where the ﬁrst inequality follows from the union bound on probabilities and the second one from
+ n
+t
+
+≤
+  ne
+t
+t.
+Suppose we ﬁx ℓ≥n−t locations for putting in irreps from Λ. The contribution of this conﬁguration to
+P
+σ∈Sε d2
+σ is the sum of products of squares of dimensions of ℓirreps from Λ and n −ℓirreps from bG \ Λ,
+which simpliﬁes to λℓµn−ℓ. Letting α := λ, β := µ, and t = n/c, with some constant c to be determined
+later, we obtain the following bound from Lemma 18:
+X
+σ∈Sε
+d2
+σ ≤
+n
+X
+ℓ=n−t
+n
+ℓ
+
+λℓµn−ℓ≤λn
+ ce|G|
+λ
+1/c!n
+.
+Hence, for any given κ > 0 we can ﬁnd a constant c > 0 such that P
+σ∈Sε d2
+σ ≤λn (1 + κ)n holds
+for all n ≥c. Note that the same upper bound applies to P
+σ∈Sε dσ|χσ(h, . . . , h)|. Also, observe that
+P
+ρ∈bGn dρ =
+P
+ρ∈bG dρ
+n
+. Now, we can bound the parameter δ1 used in Theorem 2:
+δ1
+≤
+ε +
+1
+|G|n
+ X
+σ∈Sε
+dσ|χσ(h, . . . , h)|
+! 
+X
+ρ∈bGn
+dρ
+
+
+≤
+ 
+1 −2|C(h)|
+|G|
+1/c!n
++ λn(1 + κ)n
+|G|n
+
+X
+ρ∈bG
+dρ
+
+
+n
+.
+For the following we make the assumption that |G| > λ(1 + κ)
+P
+ρ∈bG dρ
+
+holds. This implies that there
+exists a constant γ1 > 0 such that δ1 ≤γn
+1 . For the parameter δ2 in Theorem 2 we obtain
+δ2 = 2k(1 + 2kε)δ1/2
+1
++ 3kε + 3k
+|G|n
+X
+σ∈Sε
+d2
+σ
+≤2k
+ 
+1 + 2k
+
+1 −2|C(h)|
+|G|
+n/c!
+γn/2
+1
++ 3k
+
+1 −2|C(h)|
+|G|
+n/c
++ 3k
+λ(1 + κ)
+|G|
+n
+.
+Now, since our assumption implies that |G| > λ(1 + κ), we obtain that there exists a constant γ2 > 0 such
+that δ2 ≤γn
+2 . Hence, we have proved the following corollary to Theorem 2.
+19
+
+---- page 20 ----
+
+Corollary 19. Let G be a ﬁnite group and let h ∈G be an involution. Let bG denote the set of irreps of
+G and let Λ := {σ ∈bG : |χσ(h)| = dσ}. Suppose that |G| >
+ P
+σ∈Λ d2
+σ
+ P
+ρ∈bG dρ
+
+holds. Then any
+efﬁcient algorithm operating on coset states that distinguishes between the case when the hidden subgroup
+is a conjugate of the subgroup ⟨(h, . . . , h)⟩≤Gn, and the case when the hidden subgroup is the identity
+subgroup in Gn, needs to make measurements entangled across Ω(n) registers.
+Recently, Alagic, Moore and Russell [AMR05] showed that any measurement on a single coset state
+gives exponentially little information about a hidden subgroup in the group Gn, where G is ﬁxed and satisﬁes
+a suitable condition. Their condition on G is weaker than our condition in Corollary 19, but they only prove
+lower bounds for algorithms measuring one coset state at a time. They also give several examples of families
+of groups satisfying their condition, including all non-abelian ﬁnite simple groups. In fact, the condition of
+Corollary 19 holds for all families of groups G considered in their paper, showing that efﬁcient coset state
+based algorithms solving the HSP for their families of groups Gn need to make measurements entangled
+across Ω(n) registers.
+From Corollary 19, it is easy to prove Corollary 20 via the Cauchy-Schwartz inequality.
+Corollary 20. Let G be a ﬁnite group and let h ∈G be an involution. Let bG denote the set of irreps of
+G and let Λ := {σ ∈bG : |χσ(h)| = dσ}. Suppose that |G|1/2 > | bG|1/2  P
+σ∈Λ d2
+σ
+
+holds. Then any
+efﬁcient algorithm operating on coset states that distinguishes between the case when the hidden subgroup
+is a conjugate of the subgroup ⟨(h, . . . , h)⟩≤Gn, and the case when the hidden subgroup is the identity
+subgroup in Gn, needs to make measurements entangled across Ω(n) registers.
+Using Corollary 20, we prove the following result.
+Corollary 21. Any efﬁcient algorithm operating on coset states that distinguishes between the case when
+the hidden subgroup is a conjugate of the subgroup ⟨(h, . . . , h)⟩≤(Sm)n where h ∈Sm is any involution
+and m ≥5 is ﬁxed, and the case when the hidden subgroup is the identity subgroup in (Sm)n, needs to make
+measurements entangled across Ω(n) registers. The same holds also when m = 4 and h = (1, 2) ∈S4.
+Proof. Let G = Sm, where m ≥5, and let h be any involution in G. Recall that for m ≥5 all irreps of Sm
+of degree greater than 1 are faithful [JK81, Theorem 2.1.13], and that the center of Sm is trivial. Since for
+faithful σ ∈c
+Sm we have that |χσ(h)| = dσ implies that h is in the center, we obtain that |χσ(h)| < dσ for
+all σ ∈c
+Sm with dσ > 1. Hence Λ = {11, alt} consists of the trivial and the alternating character only and
+we obtain that P
+σ∈Λ d2
+σ = 2. Since for m ≥5 we have that |G|1/2 =
+√
+m! > 2
+p
+p(m) = | bG|1/2 P
+σ∈Λ d2
+σ,
+where p(m) denotes the partition number of m, the statement for m ≥5 follows from Corollary 20.
+For m = 4 and h = (1, 2) we observe that the set Λ is again given by Λ = {11, alt}. We verify that the
+condition |S4|1/2 =
+√
+24 > 2
+√
+5 = |c
+S4|1/2 P
+σ∈Λ d2
+σ holds. Hence the statement for this case also follows
+from Corollary 20.
+Acknowledgments
+We thank Andrew Childs, Fr´ed´eric Magniez and Umesh Vazirani for helpful discussions and comments.
+References
+[AMR05]
+G. Alagic, C. Moore, and A. Russell. Strong Fourier sampling fails over Gn. ArXiv preprint
+quant-ph/0511054, 2005.
+20
+
+---- page 21 ----
+
+[AT03]
+D. Aharonov and A. Ta-Shma. Adiabatic quantum state generation and statistical zero knowl-
+edge. In Proceedings of the 35th Annual ACM Symposium on Theory of computing, pages
+20–29, 2003. Also: ArXiv preprint quant–ph/0301023.
+[BBBV97] C. Bennett, E. Bernstein, G. Brassard, and U. Vazirani. Strengths and weaknesses of quantum
+computing. SIAM J. Comput., 26(5):1510–1523, 1997.
+[BCD05]
+D. Bacon, A. Childs, and W. van Dam. From optimal measurement to efﬁcient quantum al-
+gorithms for the hidden subgroup problem over semidirect product groups. In Proceedings of
+the 46th Annual IEEE Symposium on Foundations of Computer Science, 2005. Also: ArXiv
+preprint quant–ph/0504083.
+[Bea97]
+R. Beals. Quantum computation of Fourier transforms over the symmetric groups. In Pro-
+ceedings of the Symposium on Theory of Computing (STOC’97), pages 48–53, El Paso, Texas,
+1997.
+[BH97]
+G. Brassard and P. Høyer. An exact polynomial–time algorithm for Simon’s problem. In Pro-
+ceedings of Fifth Israeli Symposium on Theory of Computing and Systems, pages 12–33. ISTCS,
+IEEE Computer Society Press, 1997. Also: ArXiv preprint quant–ph/9704027.
+[BZ99]
+Y. G. Berkovich and E. M. Zhmud. Characters of ﬁnite groups, part 2, volume 181 of Transla-
+tions of Mathematical Monographs. American Mathematical Society, 1999.
+[CW05]
+A. Childs and P. Wocjan. On the quantum hardness of solving isomorphism problems as non-
+abelian hidden shift problems. ArXiv preprint quant–ph/0510185, 2005.
+[EH00]
+M. Ettinger and P. Høyer.
+On quantum algorithms for noncommutative hidden subgroups.
+Advances in Applied Mathematics, 25(3):239–251, 2000.
+[EHK99a] M. Ettinger, P. Høyer, and E. Knill. A quantum observable for the graph isomorphism problem.
+ArXiv preprint quant–ph/9901029, 1999.
+[EHK99b] M. Ettinger, P. Høyer, and E. Knill. Hidden subgroup states are almost orthogonal. ArXiv
+preprint quant–ph/9901034, 1999.
+[FH91]
+W. Fulton and J. Harris. Representation theory: A ﬁrst course, volume 129 of Graduate Texts
+in Mathematics. Springer, 1991.
+[FIM+03]
+K. Friedl, G. Ivanyos, F. Magniez, M. Santha, and P. Sen. Hidden translation and orbit coset
+in quantum computing.
+In Proceedings of the 35th Annual ACM Symposium on Theory of
+Computing, pages 1–9, 2003. Also: ArXiv preprint quant–ph/0211091.
+[Gal94]
+P. X. Gallagher. Character values at involutions. Proceeedings of the American Mathematical
+Society, 120(3):657–659, 1994.
+[Gro96]
+L. Grover. A fast quantum mechanical algorithm for database search. In Proceedings of the
+28th Annual ACM Symposium on Theory of Computing, pages 212–219, 1996. Also: ArXiv
+preprint quant–ph/9605043.
+[GSVV04] M. Grigni, L. Schulman, M. Vazirani, and U. Vazirani. Quantum mechanical algorithms for the
+nonabelian hidden subgroup problem. Combinatorica, pages 137–154, 2004.
+21
+
+---- page 22 ----
+
+[Hal02]
+S. Hallgren. Polynomial-time quantum algorithms for Pell’s equation and the principal ideal
+problem. In Proceedings of the 34th Annual ACM Symposium on Theory of computing, pages
+653–658, 2002.
+[Hal05]
+S. Hallgren. Fast quantum algorithms for computing the unit group and class group of a number
+ﬁeld. In Proceedings of the 37th Annual ACM Symposium on Theory of Computing, pages 468–
+474, 2005.
+[HRT03]
+S. Hallgren, A. Russell, and A. Ta-Shma. The hidden subgroup problem and quantum compu-
+tation using group representations. SIAM Journal on Computing, 32(4):916–934, 2003.
+[IMS03]
+G. Ivanyos, F. Magniez, and M. Santha. Efﬁcient quantum algorithms for some instances of
+the non-abelian hidden subgroup problem. International Journal of Foundations of Computer
+Science, pages 723–740, 2003. Also: ArXiv preprint quant–ph/0102014.
+[Isa76]
+I. M. Isaacs. Character theory of ﬁnite groups. Academic Press, 1976.
+[JK81]
+G. James and A. Kerber. The representation theory of the symmetric group. Addison-Wesley,
+Reading, 1981.
+[Kit95]
+A. Yu. Kitaev. Quantum measurements and the abelian stabilizer problem. ArXiv preprint
+quant–ph/9511026, 1995.
+[KST93]
+J. K¨obler, U. Sch¨oning, and J. Tor´an. The graph isomorphism problem. Birkh¨auser, 1993.
+[Kup03]
+G. Kuperberg. A subexponential-time quantum algorithm for the dihedral hidden subgroup
+problem. ArXiv preprint quant–ph/0302112, 2003.
+[LR92]
+John D. Lafferty and Daniel Rockmore. Fast Fourier analysis for SL2 over a ﬁnite ﬁeld and
+related numerical experiments. Experimental Mathematics, 1(2):115–139, 1992.
+[ME98]
+M. Mosca and A. Ekert. The hidden subgroup problem and eigenvalue estimation on a quantum
+computer. In Quantum Computing and Quantum Communications, volume 1509 of Lecture
+Notes in Computer Science, pages 174–188. Springer-Verlag, 1998.
+[MR05]
+C. Moore and A. Russell. The symmetric group deﬁes strong Fourier sampling: Part II. ArXiv
+preprint quant–ph/0501066, 2005.
+[MRRS04] C. Moore, D. Rockmore, A. Russell, and L. Schulman. The power of basis selection in fourier
+sampling: Hidden subgroup problems in afﬁne groups. In Proceedings of the Fifteenth Annual
+ACM-SIAM Symposium on Discrete Algorithms, pages 1113–1122, 2004. Journal version in
+preparation. Also: ArXiv preprint quant–ph/0503095.
+[MRS05]
+C. Moore, A. Russell, and L. Schulman. The symmetric group deﬁes strong Fourier sampling.
+In Proceedings of the 46th Annual IEEE Symposium on the Foundations of Computer Science,
+pages 479–488, 2005. Also: ArXiv preprint quant–ph/0501056.
+[NC00]
+M. Nielsen and I. Chuang. Quantum computation and quantum information. Cambridge Uni-
+versity Press, 2000.
+22
+
+---- page 23 ----
+
+[Roi96]
+Y. Roichman. Upper bound on the characters of the symmetric groups. Inventiones Mathemat-
+icae, 125:451–485, 1996.
+[RRS05]
+J. Radhakrishnan, M. R¨otteler, and P. Sen. On the power of random bases in Fourier sampling:
+Hidden subgroup problem in the Heisenberg group. In Proceedings of the 32nd International
+Colloquium on Automata, Languages and Programming, Lecture Notes in Computer Science,
+vol. 3580, pages 1399–1411. Springer-Verlag, 2005. Also: ArXiv preprint quant–ph/0503114.
+[Ser77]
+J. P. Serre. Linear representations of ﬁnite groups. Springer, 1977.
+[Sho97]
+P. Shor. Polynomial-time algorithms for prime factorization and discrete logarithms on a quan-
+tum computer. SIAM Journal on Computing, 26(5):1484–1509, 1997.
+[Sim94]
+D. R. Simon.
+On the power of quantum computation.
+In Proceedings of the 35th Annual
+Symposium on Foundations of Computer Science, pages 116–123, Los Alamitos, CA, 1994.
+Institute of Electrical and Electronic Engineers Computer Society Press.
+[SV05]
+A. Schmidt and U. Vollmer. Polynomial time quantum algorithm for the computation of the
+unit group of a number ﬁeld. In Proceedings of the 37th Annual ACM Symposium on Theory of
+Computing, pages 475–480, 2005.
+A
+Representations of the wreath product Sn ≀S2
+We describe the irreducible representations of the wreath product Sn≀S2, i. e., the group (Sn×Sn)⋊Z2. We
+will also get formulas for the character values under these representations in terms of the character values
+of irreducible representations of Sn.
+Let c
+Sn = {σi : i = 1, . . . , p(n)} denote the irreducible representations of Sn, where p(n) denotes
+the number of partitions of n. Denote the degree of σi ∈c
+Sn by di. Letting N := (Sn × Sn) and G :=
+(Sn × Sn) ⋊Z2 we have that N ⊳G is a normal subgroup of index 2. The irreducible representations
+of N are given by b
+N = {σi ⊗σj : i, j = 1, . . . , p(n)} and we deﬁne the shorthand φi,j := σi ⊗σj.
+Deﬁne t := (e, e, 1) ∈G, where e is the identity permutation in Sn. A transversal of N in G is given by
+T = {(e, e, 0), t}. Then t acts on b
+N as (σi ⊗σj)t = (σj ⊗σi). Hence we have that φt
+i,j = φj,i. Since all
+φi,j are pair-wise inequivalent, we obtain the following two cases from Clifford’s Theorem [Isa76].
+(i) i = j. Then φi,j ∼= φt
+i,j. Hence φi,j has precisely 2 pairwise inequivalent extensions to G. One of
+these extensions is ϑi = φi,i in which the image of t permutes the tensor factors of Cdi ⊗Cdi, where
+di = deg(σi). Hence if {ek : k = 1, . . . , di} denotes the standard basis of Cdi then ϑi(t) is given
+by the matrix SWAPdi which maps ek ⊗eℓ7→eℓ⊗ek. The other extension ϑ′
+i of φi,i to G is given
+by deﬁning the image of t to be ϑ′(t) := −ϑi(t). Note that both extensions have degree d2
+i . The
+character value tr(ϑi(t)) is given by the number of invariant tensors under the swap operation, i. e.,
+tr(ϑi(t)) = di and tr(ϑ′
+i(t)) = −di.
+(ii) i ̸= j. Then φi,j ̸∼= φt
+i,j = φj,i. Hence κi,j := φi,j ↑T G is irreducible. Moreover, we have that
+(φi,j ↑T G) ↓N = φi,j ⊕φj,i and
+(φi,j ↑T G)(t) =
+ 0didj
+11didj
+11didj
+0didj
+
+.
+23
+
+---- page 24 ----
+
+We summarize the facts relevant for this paper in the following table by showing the images of elements
+of the form (π, µ, e) and t = (e, e, 1) under the irreducible representations of G = (Sn × Sn) ⋊Z2:
+Irrep
+Irrep on (π, µ, e)
+Char. on (π, µ, e)
+Irrep on t
+Char. on t
+ϑi
+σi(π) ⊗σi(µ)
+χi(π)χi(µ)
+SWAPdi
+di
+ϑ′
+i
+σi(π) ⊗σi(µ)
+χi(π)χi(µ)
+−SWAPdi
+−di
+κi,j
+ σi(π) ⊗σj(µ)
+0didj
+0didj
+σj(π) ⊗σi(µ)
+
+χi(π)χj(µ) + χj(π)χi(µ)
+ 0didj
+11didj
+11didj
+0didj
+
+0
+Overall, there are
+ p(n)
+2
+
+pairwise inequivalent irreducible representations κi,j ∈bG, one for each pair
+i, j such that i ̸= j. We have that the degree of κi,j is given by 2didj. The character χi,j of κi,j satisﬁes
+κi,j(t) = 0 for all i ̸= j. Furthermore, there are 2p(n) pairwise inequivalent irreducible representations ϑi
+and ϑ′
+i.
+B
+Representations of the projective linear groups PSL(2, Fq)
+We brieﬂy recall some facts from the representation theory of the projective linear groups PSL(2, Fq), where
+q is a prime power. Good references on the complex representation theory of these groups are available, see
+e .g, [BZ99, FH91, LR92]. We treat the cases q odd and q = 2n separately and begin by describing the
+conjugacy classes of involutions and the irreducible representations of PSL(2, Fq) for q odd. Recall that for
+q odd, the center of SL(2, Fq) consists only of the identity matrix and the matrix
+c :=
+ −1
+0
+0
+−1
+
+.
+Once the characters of SL(2, Fq) are known, we therefore have to ﬁlter out only those characters χ for which
+χ(c) = χ(1) holds in order to obtain the irreducible representations of PSL(2, Fq).
+B.1
+The case PSL(2, Fq) where q ≡1 mod 4
+The involutions are given by conjugates of the residue class of
+h =
+
+0
+1
+−1
+0
+
+∈PSL(2, Fq),
+where the bar denotes the fact that we are using coset representatives with respect to the center ⟨c⟩of
+SL(2, Fq). There is a total of q(q−1)
+2
+many involutions that are conjugates of h. The characters and their
+values on h are summarized in the following table.
+Irrep name
+Parameters
+Number of irreps
+Degree
+Character value at h
+11
+—
+1
+1
+1
+ψ
+—
+1
+q
+1
+θk
+k = 2, 4, . . . , q−1
+2
+q−1
+4
+q −1
+0
+χj
+j = 2, 4, . . . , q−5
+2
+q−5
+4
+q + 1
+2(−1)k/2
+ζℓ
+ℓ= 1, 2
+2
+q+1
+2
+(−1)(q−1)/4
+24
+
+---- page 25 ----
+
+B.2
+The case PSL(2, Fq) where q ≡3 mod 4
+Similar to the previous case all involutions are conjugate to the element h deﬁned as above. However, now
+there are q(q+1)
+2
+involutions conjugate to h. The characters and their values on h are summarized in the
+following table.
+Irrep name
+Parameters
+Number of irreps
+Degree
+Character value at h
+11
+—
+1
+1
+1
+ψ
+—
+1
+q
+−1
+θk
+k = 2, 4, . . . , q−3
+2
+q−3
+4
+q −1
+2(−1)k/2+1
+χj
+j = 2, 4, . . . , q−3
+2
+q−3
+4
+q + 1
+0
+ηℓ
+ℓ= 1, 2
+2
+q−1
+2
+(−1)
+q+1
+4 +1
+B.3
+The case PSL(2, Fq) where q = 2n
+This case behaves quite differently from the case q odd. First, observe that in this case the center is trivial,
+i. e., PSL(2, F2n) = SL(2, F2n). All involutions in SL(2, F2n) are conjugate to the element
+h =
+ 1
+1
+0
+1
+
+∈SL(2, Fq),
+and there is a total number of q2−1 of such involutions. The characters and their values on h are summarized
+in the following table.
+Irrep name
+Parameters
+Number of irreps
+Degree
+Character value on h
+11
+—
+1
+1
+1
+ψ
+—
+1
+q
+0
+θk
+k = 1, 2, . . . , q
+2
+q
+2
+q −1
+−1
+χj
+j = 1, 2, . . . , q−2
+2
+q−2
+2
+q + 1
+1
+25

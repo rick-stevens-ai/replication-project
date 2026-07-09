@@ -1,0 +1,5 @@
+# Brief — Savović, Ivanović & Min (Axioms 2023)
+
+**Paper.** *A Comparative Study of the Explicit Finite Difference Method and Physics-Informed Neural Networks for Solving the Burgers' Equation.* DOI: [10.3390/axioms12100982](https://doi.org/10.3390/axioms12100982). Note: the paper solves the 1D **Burgers' equation** (not the pure heat equation), for three test problems with distinct initial conditions and identical Dirichlet BCs.
+
+**What & why.** We independently reproduced the paper's core comparison: explicit FDM with (Δx=0.01, Δt=0.0001) vs a PyTorch PINN with the paper's stated architecture (3 hidden × 20 tanh, ~5560 collocation points, 15 000-epoch Adam + L-BFGS), on all three test problems at all reported (ν, T) combinations. Error metric is RMSE vs Cole–Hopf analytical series. Result: the paper's qualitative claim — **EFDM is more accurate than PINN across a wide range of (ν, T)** — reproduces (EFDM wins 15/18 cases in our run vs 18/18 in the paper). Absolute EFDM errors in our reproduction are somewhat larger than the paper's tabulated values (a plausible artifact of the specific evaluation grid / series truncation), so overall verdict is **PARTIAL**.

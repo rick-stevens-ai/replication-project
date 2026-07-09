@@ -1,0 +1,152 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,backgroundcolor=\color{gray!5}}
+
+\title{Independent Replication: Kou (2002) Double-Exponential Jump-Diffusion Option Pricing}
+\author{Replication Project (Ollie)}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently replicate the closed-form European call price benchmark from Kou (2002), \emph{A Jump-Diffusion Model for Option Pricing}, \emph{Management Science} 48(8), 1086--1101 (DOI: 10.1287/mnsc.48.8.1086.166). The paper's single explicit numerical benchmark (footnote 9, $C = 9.14732$) is reproduced to $\sim 2.7 \times 10^{-6}$ via an independent characteristic-function + Fourier-cosine (COS) inversion, corroborated by Monte Carlo simulation (2M paths, $z = +0.13$), by an explicit PIDE finite-difference solver (agreement at grid-discretisation level $\sim 2 \times 10^{-2}$), by put-call parity, by the Black--Scholes zero-jump limit ($|{\rm diff}| = 7 \times 10^{-12}$), and by a five-strike sensitivity sweep (all $|z| < 1.5$). \textbf{Verdict: REPLICATED.}
+\end{abstract}
+
+\section{Paper summary}
+
+Kou (2002) proposes an asset-price process that adds an asymmetric double-exponential (Laplace-type) log-jump component to a Black--Scholes-type diffusion:
+\begin{align}
+\frac{dS_t}{S_{t-}} &= \mu\, dt + \sigma\, dW_t + d\!\left[\sum_{i=1}^{N_t}(V_i - 1)\right], \\
+Y &:= \log V \sim p\, \eta_1 e^{-\eta_1 y}\mathbf{1}_{y \ge 0} + q\, \eta_2 e^{\eta_2 y}\mathbf{1}_{y < 0}, \quad p+q=1,\ \eta_1 > 1,\ \eta_2 > 0.
+\end{align}
+The memoryless property of the exponential collapses sums of i.i.d.\ double-exponential jumps to mixed-gamma variables, which convolve with the Gaussian diffusion in closed form via the paper's Hh special function.
+
+The core analytic result is Theorem 2 (eq.\ 20), a closed-form European call price:
+\[
+C(0) = S_0\, \Upsilon(r+\tfrac{\sigma^2}{2}-\lambda \zeta;\ \sigma, \tilde\lambda, \tilde p, \tilde\eta_1, \tilde\eta_2;\ \log(K/S_0), T)
+     - K e^{-rT}\, \Upsilon(r-\tfrac{\sigma^2}{2}-\lambda \zeta;\ \sigma, \lambda, p, \eta_1, \eta_2;\ \log(K/S_0), T),
+\]
+with $\zeta = E[V] - 1 = p\eta_1/(\eta_1-1) + q\eta_2/(\eta_2+1) - 1$ and $\Upsilon(\cdot) = P(Z(T)\ge a)$ evaluated by a double series over Poisson counts, involving the Hh function (Theorem B.1).
+
+\paragraph{Numerical benchmark (footnote 9).} With $\eta_1=10$, $\eta_2=5$, $\lambda=1$, $p=0.4$, $\sigma=0.16$, $r=0.05$, $S_0=100$, $K=98$, $T=0.5$, formula (20) yields $C = \mathbf{9.14732}$. This is the ground-truth number this replication reproduces.
+
+\section{Claims tested}
+
+\begin{center}
+\begin{tabular}{clcc}
+\toprule
+\# & Claim & Tested? & Result \\
+\midrule
+C1 & Theorem 2 gives $C=9.14732$ at the footnote-9 parameters & yes & \checkmark \ COS match to $2.7\times 10^{-6}$ \\
+C2 & Closed form $=$ MC mean of discounted payoff under Kou SDE & yes & \checkmark \ MC $9.14844\pm 0.017$, $z=+0.13$ \\
+C3 & Closed form solves the associated PIDE & yes & \checkmark \ FD $9.168$, err $2\times 10^{-2}$ \\
+   & Put-call parity $C - P = S_0 - Ke^{-rT}$ & yes & \checkmark \ MC put agrees $z=0.26$ \\
+   & Recovers Black--Scholes as $\lambda\to 0$ & yes & \checkmark \ $|{\rm diff}|=7\times 10^{-12}$ \\
+C1$'$ & Monotone in $K$ and all three routes agree on strike sweep & yes & \checkmark \ all $|z_{\rm MC vs COS}|<1.5$ \\
+C1$''$ & Literal Hh-recursion Theorem 2 pricer reproduces $9.14732$ & attempted & \textbf{failed} (see \S\ref{sec:critique}) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Method}
+
+All work in a local Python 3.13 venv (\texttt{numpy 2.5.1}, \texttt{scipy 1.18.0}). Reproduce:
+\begin{lstlisting}
+cd ~/Dropbox/REPLICATE-PROJECT/PDE-Kou-jump-diffusion-option-2004/work
+python3 -m venv venv && . venv/bin/activate && pip install numpy scipy
+python run_replication.py
+\end{lstlisting}
+
+\subsection{C1 --- Closed form via characteristic function + COS}
+The risk-neutral characteristic function of $X_T = \log(S_T/S_0)$ is
+\[
+\varphi_X(u;T) = \exp\!\Big(T\big[iu(r-\tfrac{\sigma^2}{2}-\lambda\zeta) - \tfrac{\sigma^2 u^2}{2} + \lambda\big(p\tfrac{\eta_1}{\eta_1 - iu} + q\tfrac{\eta_2}{\eta_2 + iu} - 1\big)\big]\Big),
+\]
+which encodes exactly the same risk-neutral density as Kou's Hh Theorem 2. The Fang--Oosterlee COS method (SIAM J.\ Sci.\ Comp., 2008) with $N=512$ cosine terms and truncation multiplier $L=12$ delivers machine-precision convergence for this parameter set.
+
+\subsection{C2 --- Monte Carlo}
+Exact simulation of $\log S_T$ using $Z \sim \mathcal{N}(0,1)$, $N_T \sim {\rm Poisson}(\lambda T)$, and per-jump $Y_i = +{\rm Exp}(\eta_1)$ w.p.\ $p$ else $-{\rm Exp}(\eta_2)$. $2\times 10^6$ paths, seed $42$, vectorised per-path via \texttt{np.split}.
+
+\subsection{C3 --- PIDE finite-difference}
+With $V(t,x)$, $x=\log(S/S_0)$, the value function satisfies
+\[
+V_t + (r-\tfrac{\sigma^2}{2}-\lambda\zeta) V_x + \tfrac{1}{2}\sigma^2 V_{xx} - (r+\lambda) V + \lambda \int V(x+y) f_Y(y)\, dy = 0,
+\quad V(T,x) = (S_0 e^x - K)^+.
+\]
+Explicit Euler backward in time on $x\in[-2.5, 2.5]$, $N_x=601$, $N_t=20{,}000$; central differences; jump integral as a discrete convolution against the double-exponential kernel. Value interpolated at $x=0$.
+
+\subsection{LLM judge}
+Bundled numerical results scored by Argo model \texttt{argo:claude-opus-4.7}. Verdict: REPLICATED, agreement A, coverage B.
+
+\section{Results}
+
+\subsection{Paper benchmark (footnote 9)}
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Route & Price & $|{\rm error}|$ vs paper (9.14732) \\
+\midrule
+C1 closed form (COS, $N=512$, $L=12$) & $\mathbf{9.147317}$ & $\mathbf{2.7\times 10^{-6}}$ \\
+C2 Monte Carlo ($2\times 10^6$ paths, seed 42) & $9.14844 \pm 0.01673$ (95\% CI) & $0.001$ (within MC error, $z=+0.13$) \\
+C3 PIDE FD ($601 \times 20{,}000$) & $9.16756$ & $2.0\times 10^{-2}$ (FD discretisation) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Strike sensitivity sweep}
+\begin{center}
+\begin{tabular}{rrrrrr}
+\toprule
+$K$ & $C_{\rm COS}$ & $C_{\rm MC}$ & MC SE & MC$-$COS & $z$ \\
+\midrule
+90  & 14.81189 & 14.80093 & 0.01797 & $-0.01096$ & $-0.61$ \\
+95  & 11.11331 & 11.12721 & 0.01660 & $+0.01390$ & $+0.84$ \\
+100 &  7.95943 &  7.94670 & 0.01484 & $-0.01273$ & $-0.86$ \\
+105 &  5.45181 &  5.46717 & 0.01299 & $+0.01537$ & $+1.18$ \\
+110 &  3.59965 &  3.61299 & 0.01116 & $+0.01334$ & $+1.20$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+All differences within $\pm 1.5$ MC SE across a full 20\% strike range.
+
+\subsection{Put-call parity}
+$C_{\rm COS}=9.14732$; $P$ from parity $=4.72769$; $P$ from MC $=4.72403\pm 0.01385$; diff $=0.0037$ ($z=0.26$).
+
+\subsection{Black--Scholes limit ($\lambda = 10^{-10}$)}
+$C_{\rm Kou\ COS}=10.4505835721650$ vs $C_{\rm BS\ analytic}=10.4505835722381$; $|{\rm diff}|=7.3\times 10^{-12}$.
+
+\section{Verdict}
+\textbf{REPLICATED.} The paper's explicit numerical benchmark is reproduced to six significant figures via an independent semi-analytic route (COS), corroborated at MC error tolerance by a direct SDE simulation, corroborated again at grid-discretisation tolerance by a PIDE finite-difference solve, cross-checked by put-call parity and by the Black--Scholes limit, and consistent across a five-strike sensitivity sweep. All independent routes agree with each other and with the paper on real numbers. Neither the paper's data source nor its code was used; the pricer was built from the paper's model definition alone.
+
+\section{Genuine critique}\label{sec:critique}
+
+This section flags what the replication does \emph{not} settle. These are honest weaknesses of \emph{this replication effort}, not of Kou (2002) itself.
+
+\subsection{The Hh series was NOT independently reproduced}
+The single most-cited technical contribution of Kou (2002) is not just the price, but the closed-form Theorem B.1 evaluation via the Hh special function --- specifically, the backward recursion $\mathrm{Hh}_n(x)$ and the $I_n(c;\alpha,\beta,\delta)$ integral assembly. A literal from-the-paper implementation of this pipeline (and a public StackOverflow reference implementation) both diverged from the paper's $9.14732$ at the 20\%+ level. The reported $2.7\times 10^{-6}$ match is via characteristic-function + Fourier-cosine inversion, which is mathematically equivalent (both invert the same $\varphi_X$) but is \emph{not} what the paper explicitly implements. A stricter replication would debug the Hh recursion (likely the well-known instability of $\mathrm{Hh}_n$ backward recursion for large negative arguments, plus sign conventions in $I_n$ that are easy to mis-transcribe from OCR'd text) and reproduce $9.14732$ via that literal route. Absent that, the paper's specific \emph{implementation recipe} is not independently vetted here.
+
+\subsection{Only one parameter set is exercised for the paper benchmark}
+Kou (2002) contains further numerical tables and comparisons (e.g.\ against Merton normal jumps, sensitivity to $\eta_1/\eta_2$ asymmetry) that were not re-run. The 5-strike sensitivity sweep varies $K$ only, holding $(\sigma, \lambda, p, \eta_1, \eta_2, r, T)$ fixed at the footnote-9 values. No sweep over $\lambda$, jump asymmetry, or tail parameters was performed.
+
+\subsection{No empirical / volatility-smile claims tested}
+The paper motivates the double-exponential model by its ability to fit observed leptokurtic returns and implied-volatility smiles. This replication tests \emph{only} the mathematical/pricing claims. No historical returns were downloaded, no smile was calibrated, no comparison against Merton or Heston fits on real option data was made. The paper's \emph{practical} appeal --- goodness-of-fit vs alternative models on market data --- is entirely untested here.
+
+\subsection{PIDE agreement is only at $O(10^{-2})$}
+The PIDE finite-difference route matches to $\sim 0.02$ in absolute price on $9.15$, i.e.\ roughly 0.2\%. That is consistent with the coarse-ish grid ($N_x=601$, $\Delta x \approx 8.3\times 10^{-3}$) and explicit-Euler time-stepping, but it is not tight enough to independently distinguish e.g.\ a sign error in the drift correction $-\lambda\zeta$ from a $\sim 1\%$ discretisation artefact. A Richardson-extrapolation study, or a Crank--Nicolson + implicit-jump-kernel solver, would tighten this to the $10^{-4}$ level and make the PIDE route a truly independent third witness rather than a plausibility check.
+
+\subsection{No formal correctness proof of the COS coefficients}
+The $U_k$ payoff coefficients for the European call under COS are analytic, but were implemented from the Fang--Oosterlee 2008 formula rather than re-derived. A sign or normalisation bug in $U_k$ that happened to cancel at the footnote-9 parameters would be invisible to the tests here. The BS-limit check ($10^{-12}$ agreement) does independently constrain $U_k$ correctness under $\lambda\to 0$, but degenerate-model checks are weaker than a full symbolic re-derivation.
+
+\subsection{Single LLM judge}
+The verdict rubric was scored by exactly one LLM (\texttt{argo:claude-opus-4.7}) with the numerical inputs pre-summarised. This is a plausibility check, not an independent audit. The load-bearing evidence is the numerical agreement itself, not the LLM's grade.
+
+\section{Reproducibility}
+Everything runs on a laptop CPU in $\le 30$ s. Numerical artifacts in \path{report/evidence/results.json}. Full stdout in \path{report/evidence/run.log}. LLM judge output in \path{report/evidence/llm_judge.txt}.
+
+\end{document}

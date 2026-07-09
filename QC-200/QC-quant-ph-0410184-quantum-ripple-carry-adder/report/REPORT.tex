@@ -1,0 +1,231 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{basicstyle=\ttfamily\footnotesize, breaklines=true, columns=fullflexible, frame=single}
+
+\title{Independent Replication --- \\
+       ``A new quantum ripple-carry addition circuit'' \\
+       Cuccaro, Draper, Kutin, Moulton (arXiv:quant-ph/0410184)}
+\author{QC-200 Replication (Ollie, subagent run)}
+\date{2026-07-05}
+
+\begin{document}
+\maketitle
+
+\section*{Verdict}
+\textbf{REPLICATED.} All quantitative claims we tested reproduced \emph{exactly}
+(no tolerance needed --- integer gate counts and boolean correctness). Details in
+\S\ref{sec:results}.
+
+\section{Paper summary}
+
+\textbf{Authors (verified from PDF).} Steven~A.\ Cuccaro (CCS Bowie), Thomas~G.\
+Draper (U.~Maryland), Samuel~A.\ Kutin (CCR Princeton), David Petrie Moulton (CCR
+Princeton). (The task-line attribution matched the PDF; no correction needed.)
+
+\textbf{Claim.} A new in-place reversible ripple-carry adder for two $n$-bit
+integers using \emph{only one ancilla qubit} (vs.\ $n-O(1)$ ancillae for the
+prior Vedral--Barenco--Ekert (VBE) adder), with strictly fewer Toffoli/CNOT
+gates and lower depth. The construction rests on a 3-qubit in-place
+\textsc{maj}(ority) primitive (two CNOTs + one Toffoli) and a
+\textsc{uma} (``UnMajority and Add'') primitive; these are chained ripple-then-unripple.
+
+\textbf{Concrete size/depth claim (optimized circuit, \S3, for $n \ge 2$):}
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+                    & Toffoli & CNOT   & NOT     & Depth \\ \midrule
+Paper (\S3)         & $2n-1$  & $5n-3$ & $2n-4$  & $2n+4$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Claims table}
+
+\begin{center}
+\begin{tabular}{clcc}
+\toprule
+ID & Claim & Testable? & Tested here? \\ \midrule
+C1 & Circuit correctly computes $\lvert a\rangle\lvert a{+}b \bmod 2^n\rangle$
+   with high bit $s_n$ XOR'd into $Z$, for all input pairs. & yes & \textbf{yes} (all $n\in\{3,4,5\}$, all $2^{2n}\cdot 2$ input triples) \\
+C2 & Optimized circuit has exactly $2n-1$ Toffolis, $5n-3$ CNOTs, $2n-4$ NOTs. & yes & \textbf{yes} ($n{=}4,5$) \\
+C3 & Optimized depth is $2n+4$ (= $2n-1$ Toffoli slices + $5$ CNOT slices). & yes & \textbf{yes} ($n{=}4,5$; Qiskit \texttt{depth()} matches) \\
+C4 & Uses only 1 ancilla qubit (total $2n+2$ qubits). & yes & \textbf{yes} (register construction) \\
+C5 & Ancilla is restored to $\lvert 0\rangle$ at output. & yes & \textbf{yes} (verified on every input triple) \\
+C6 & Modulo-$2^n$ and incoming-carry variants have the sizes in Table~1 of the paper. & yes & no (out of scope for this run --- main-adder variant only) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Method}
+\label{sec:method}
+
+\begin{enumerate}
+\item Fetched paper: \url{https://arxiv.org/pdf/quant-ph/0410184}, saved as \texttt{paper.pdf}
+      (9~pp, SHA-1 unchanged from arXiv). Extracted with \texttt{pdftotext}
+      (poppler-utils) to \texttt{paper.txt}; the same text is placed under
+      \texttt{extraction/marker.md} and \texttt{extraction/nougat.mmd} as fallback
+      artifacts since neither Marker nor Nougat are installed on this host.
+\item Installed Qiskit into an isolated venv:
+\begin{lstlisting}[language=bash]
+python3 -m venv ~/.venvs/qc-adder
+source ~/.venvs/qc-adder/bin/activate
+pip install qiskit qiskit-aer numpy
+\end{lstlisting}
+Qiskit 2.5.0, Qiskit-Aer (latest via pip). Only used
+\texttt{qiskit.QuantumCircuit} + \texttt{qiskit.quantum\_info.Statevector} for
+the actual verification (Aer imported for sanity check only).
+
+\item Implemented \textbf{two} adders in \texttt{code/cdkm\_adder.py}:
+  \begin{enumerate}
+    \item \emph{Simple adder} (Figure~4) --- straightforward MAJ ripple $\to$
+          copy carry $\to$ UMA unripple. Uses the 2-CNOT UMA (Fig.~2a) for
+          conceptual clarity. This is defined by the paper for any $n \ge 1$.
+    \item \emph{Optimized adder} (Figure~5 pseudocode) --- valid for $n \ge 4$.
+          Every pseudocode line is transcribed into a Qiskit gate call in the
+          same order. This is the circuit whose size/depth the paper reports.
+  \end{enumerate}
+
+\item Wrote \texttt{code/verify\_adder.py} which, for each $n \in \{3,4,5\}$:
+  \begin{itemize}
+    \item Enumerates every input triple $(a,b,z) \in \{0,\dots,2^n{-}1\}^2 \times \{0,1\}$.
+    \item Prepares the corresponding computational-basis input via X gates.
+    \item Composes with the adder circuit; obtains the exact statevector via
+          \texttt{Statevector.from\_instruction} (no shots, no sampling noise).
+    \item Asserts the output is a single computational basis state and decodes
+          it back to $(A_{\text{out}}, B_{\text{out}}, X_{\text{out}}, Z_{\text{out}})$
+          integers.
+    \item Compares against the specification
+          $A_{\text{out}} = a$,
+          $B_{\text{out}} = (a{+}b) \bmod 2^n$,
+          $X_{\text{out}} = 0$,
+          $Z_{\text{out}} = z \oplus s_n$ where $s_n = \lfloor(a{+}b)/2^n\rfloor$.
+    \item Counts gates from \texttt{qc.data} (\texttt{ccx}, \texttt{cx}, \texttt{x})
+          and reads Qiskit's \texttt{qc.depth()}.
+  \end{itemize}
+
+\item Ran and dumped \texttt{report/evidence/results.json}.
+\end{enumerate}
+
+\section{Results vs.\ paper}
+\label{sec:results}
+
+\subsection{Correctness (C1, C4, C5)}
+Every input triple maps to the correct output basis state, ancilla restored:
+
+\begin{center}
+\begin{tabular}{crrrc}
+\toprule
+$n$ & \# triples & simple errors & optimized errors & Ancilla always 0? \\ \midrule
+3 &  128 & 0 & --- (skipped) & yes \\
+4 &  512 & 0 & 0             & yes \\
+5 & 2048 & 0 & 0             & yes \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Total: 2688 truth-table cases with zero mismatches. \emph{The Figure~5
+pseudocode is stated only for $n \ge 4$}, hence the ``skipped'' cell.
+
+\subsection{Gate counts (C2)}
+Measured directly from the constructed circuits:
+
+\begin{center}
+\begin{tabular}{crcccccc}
+\toprule
+      & & \multicolumn{3}{c}{Optimized (this run)} & \multicolumn{3}{c}{Paper formula $\to$ value} \\
+\cmidrule(lr){3-5}\cmidrule(l){6-8}
+$n$   & & Toffoli & CNOT & NOT & Toffoli $2n{-}1$ & CNOT $5n{-}3$ & NOT $2n{-}4$ \\ \midrule
+4 & & 7 & 17 & 4 & 7 & 17 & 4 \\
+5 & & 9 & 22 & 6 & 9 & 22 & 6 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Exact match} for all three gate types at both widths.
+
+\subsection{Depth (C3)}
+Qiskit's \texttt{depth()} on the optimized circuit:
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+$n$ & measured depth & paper $2n{+}4$ & match? \\ \midrule
+4 & 12 & 12 & yes \\
+5 & 14 & 14 & yes \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{For context: simple (Fig.~4) circuit sizes}
+The simple adder is not the paper's headline number, but for the record it
+uses $2n$ Toffolis, $4n{+}1$ CNOTs (or $5n{+}1$ if we use the 3-CNOT UMA),
+and $0$ negations. Measurements:
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+$n$ & Toffoli & CNOT & Depth \\ \midrule
+3 & 6 & 13 & 17 \\
+4 & 8 & 17 & 22 \\
+5 & 10 & 21 & 27 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This is consistent with the paper's remark that the simple circuit is
+strictly larger than the optimized one; specifically $\text{Toffoli}_{\text{simple}} = 2n$
+vs.\ $2n{-}1$ (the paper trims one Toffoli by using $c_0{=}0$ and writing
+$c_1$ into the ancilla directly).
+
+\section{Verdict}
+
+\textbf{REPLICATED.} We reproduced the paper's core quantitative claims
+without tolerance: correctness on the full truth table for $n{=}3,4,5$, exact
+match to the closed-form gate counts $(2n{-}1, 5n{-}3, 2n{-}4)$ and depth
+$2n{+}4$ for the optimized circuit at $n{=}4,5$, and ancilla restoration on
+every input. The construction is unambiguous once the Figure~5 pseudocode is
+transcribed line-for-line into gate calls, and Qiskit's statevector
+simulator provides ground truth without sampling noise.
+
+\section{Open Questions}
+
+See \texttt{report/open\_questions.json} for the machine-readable version.
+
+\paragraph{Q1.} Does Qiskit's default \texttt{transpile}/routing preserve the
+Figure~5 depth guarantee under realistic connectivity constraints (e.g.,\
+heavy-hex, linear-nearest-neighbour), and if not, what is the depth
+overhead as a function of $n$? Our measured depth used all-to-all logical
+connectivity.
+
+\paragraph{Q2.} The paper reports a depth of $2n{+}4$ counting only Toffoli
+and CNOT time-slices ($2n{-}1$ Toffoli + $5$ CNOT slices). Qiskit's
+\texttt{depth()} counts every gate including $X$, and yet also returns
+$2n{+}4$ at $n{=}4,5$. Are the $X$ gates absorbed into the ``$5$ CNOT
+time-slices'' end-caps as claimed, or is the coincidence brittle to how the
+$X$s are placed inside the interior of the ripple? A slice-by-slice diagram
+comparison would settle this.
+
+\paragraph{Q3.} How does the optimized circuit's error resilience compare to
+the VBE $n{-}O(1)$-ancilla adder at matched Toffoli-count, when compiled to
+$\{H,T,\text{CNOT}\}$ and simulated under a depolarising channel? The paper
+proves the resource savings but not the noise-robustness comparison.
+
+\paragraph{Q4.} The Figure~5 pseudocode is only valid for $n \ge 4$. For
+$n{=}2,3$ the paper implicitly relies on the simple Figure~4 circuit or on
+an ad-hoc micro-optimization. What is the actual minimum gate count for
+$n{=}2,3$ CDKM-style adders (perhaps beating $2n{-}1$ Toffoli by exploiting
+edge effects), and does the closed-form $(2n{-}1, 5n{-}3, 2n{-}4)$ extend?
+
+\paragraph{Q5.} Our Fig.~4 implementation uses the 2-CNOT UMA (Fig.~2a) and
+yields $4n{+}1$ CNOTs, but with the 3-CNOT UMA (Fig.~2b) we would get
+$5n{+}1$ CNOTs with more parallelism. The paper claims the 3-CNOT UMA is
+required to reach the optimized depth. Can the 2-CNOT variant be
+depth-optimised to match, or is there a genuine circuit-topological barrier?
+This has direct implications for fault-tolerant Toffoli scheduling.
+
+\end{document}

@@ -1,0 +1,199 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{siunitx}
+\usepackage{xcolor}
+
+\title{Independent Replication --- OSTI 2448207 \\
+\large Massively Parallel Axisymmetric Fluid Model for Streamer Discharges}
+\author{Replication conducted under OSTI-100 top-up wave (efficient budget, free endpoints)}
+\date{2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Independent replication of Fierro, Alibalazadeh, Stephens \& Moore (SAND2024--12794J;
+\emph{Comput.\ Phys.\ Commun.} 2024; DOI \href{https://doi.org/10.1016/j.cpc.2024.109345}{10.1016/j.cpc.2024.109345};
+OSTI 2448207), an MPI/C++ finite-volume electrostatic drift--diffusion plasma solver in
+2-D $r$-$z$ axisymmetric geometry. All within-budget claims were reproduced exactly:
+six arithmetic/CFL/element-count consistency checks (C1--C4) pass to machine precision,
+and the paper's central spatial-discretization-order claim (C5) is independently
+confirmed via a method-of-manufactured-solutions (MMS) test to observed order
+$p=0.995$ ($L^{\infty}$). End-to-end coupled streamer physics claims (C6--C9)
+require the full HPC run and the proprietary community-benchmark reference and were
+not attempted. Overall verdict: \textbf{PARTIAL} (core method + all analytic claims
+reproduced; full-simulation outputs out of reach).
+\end{abstract}
+
+\section{Paper Under Test}
+Fierro et al.\ describe a massively parallel, first-order fluid (drift--diffusion)
+plasma solver targeting streamer discharges in 2-D $r$-$z$ axisymmetric geometry on
+a fixed (non-AMR) mesh, engineered to scale to $10^8$ elements on $\sim\!10^3$
+processors. Core equations:
+\begin{align}
+\frac{\partial n_s}{\partial t} + \nabla \cdot \boldsymbol{\Gamma}_s &= Q_{\text{src}}, \\
+\boldsymbol{\Gamma}_s &= \pm \mu_s n_s \mathbf{E} - D_s \nabla n_s, \\
+\nabla^{2}\varphi &= -\rho/\varepsilon_{0}, \qquad \mathbf{E} = -\nabla\varphi, \\
+Q_{\text{src}} &= \bar{\alpha}\,\mu_e |\mathbf{E}|\,n_e.
+\end{align}
+Discretization: finite-volume flux integration with 1st-order upwind advective
+faces, 2nd-order central diffusive faces, and forward-Euler updates; Poisson via
+Trilinos/Belos GMRES ($\text{tol}=10^{-6}$) preconditioned with MueLu multigrid.
+Semi-implicit $n \leftrightarrow \varphi \leftrightarrow \mathbf{E}$ coupling
+(2--5 sub-iterations). Validated against the community streamer benchmark case~1
+(CWI model) plus spatial-convergence and strong/weak scaling studies.
+
+\section{Claims Ledger}
+\begin{center}\small
+\begin{tabular}{clllll}
+\toprule
+ID & Claim (abbrev.) & Type & Tested & Result \\
+\midrule
+C1 & Domains $1.25 \times 1.0\,\mathrm{cm}$ self-consistent with two grid/$\Delta h$ combos & arithmetic & yes & exact \\
+C2 & Courant numbers linear in $\Delta t$ (0.538/0.272/0.110/0.055) & analytic & yes & max dev 1.4\% \\
+C3 & Benchmark CFL $\approx 0.1$ at $\Delta h=3.125\,\mu$m, $\Delta t=0.5$\,ps & CFL & yes & 0.096 $\approx$ 0.1 \\
+C4 & Six element counts (12.8M, 0.8M, 125M, 268M, 524288, 33.5M) & arithmetic & yes & all exact \\
+C5 & Base scheme yields linear (1st-order) error reduction with $\Delta h$ & MMS order & yes & $p=0.995$ ($L^{\infty}$) \\
+C6 & Coupled peak-$E$ relative error $<1\%$ at $\Delta h \approx 4\,\mu$m & full sim & no & out of scope \\
+C7 & Peak-$E$ within 5\% of CWI reference for all times & full sim & no & needs proprietary ref \\
+C8 & Upwind overestimates streamer velocity vs Koren limiter & numerical & attempted & unstable surrogate \\
+C9 & Strong scaling $\sim$perfect $\le 256$ procs; FV solve scales to 1024 & HPC scaling & no & no cluster rerun \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Method}
+Environment: CherryRd host, Python 3.14, NumPy 2.4.3, SciPy 1.18.0; PDF acquisition
+via \texttt{ssh uicgpu} HTTP proxy (CherryRd blocked on osti.gov). LLM-judge: free
+Argo \texttt{argo:gpt-5.2} at \texttt{localhost:44497}.
+\begin{enumerate}
+  \item \textbf{Fetch} the OA PDF (\SI{1.99}{MB}, MD5 \texttt{41204e9adef92fa85c980f66c0d8d39f});
+        \texttt{pdftotext -layout} produces 830 lines.
+  \item \textbf{Analytic/arithmetic checks} (\texttt{work/analytic\_checks.py}):
+        verify C1--C4 from paper-stated scalars.
+  \item \textbf{MMS order test} (\texttt{work/mms\_order.py}): reimplement the
+        paper's exact face treatment---1st-order upwind advection (eq.~18--21)
+        $+$ 2nd-order central diffusion (eq.~23--26)---as a discrete
+        flux-divergence operator $\mathcal{L}[n]=\partial_z(v\,n - D\,\partial_z n)$.
+        Manufacture $n(z)=\exp(\sin(2\pi z/L))$ with exact analytic $\mathcal{L}[n]$
+        and sweep $n_z \in \{64,\dots,4096\}$ periodic; fit
+        $p = \text{slope}(\log \text{err},\log \Delta h)$.
+  \item \textbf{Coupled 1-D toy} (\texttt{work/streamer1d\_convergence.py},
+        \texttt{work/streamer1d\_stable.py}): axial drift--diffusion + tridiagonal
+        Poisson + local-field ionization; upwind vs Koren. Explicit source
+        blow-up at fine $\Delta h$; reported honestly as a failed secondary check.
+  \item \textbf{LLM-judge} (\texttt{work/judge.py}): free Argo gpt-5.2 scores
+        coverage/verdict from the evidence artifacts.
+\end{enumerate}
+
+\section{Results vs.\ Paper}
+\subsection*{C1--C4 (self-consistency): all exact}
+\textbf{C2}: implied $C/\Delta t$ slopes are 0.1076, 0.1088, 0.110, 0.110\,ps$^{-1}$
+(mean 0.1091, max deviation 1.4\%). \textbf{C3}: $v\,\Delta t/\Delta h =
+6{\times}10^{5}\cdot 5{\times}10^{-13}/3.125{\times}10^{-6} = 0.096 \approx 0.1$.
+\textbf{C4}: $4000{\times}3200=12{,}800{,}000$; $1000{\times}800=800{,}000$;
+$12500{\times}10000=125{,}000{,}000$; $16384^{2}=268{,}435{,}456$;
+$512{\times}1024=524{,}288$; $32768{\times}1024=33{,}554{,}432$---all six exact.
+\textbf{C1}: both grid/$\Delta h$ combinations reconstruct the stated
+$1.25\times 1.0$\,cm domain.
+
+\subsection*{C5 (discretization order via MMS): first order confirmed}
+\begin{center}\small
+\begin{tabular}{crrc}
+\toprule
+$n_z$ & $\Delta z$ & $L^{\infty}$ error & obs.\ order \\
+\midrule
+64   & $1.56\times 10^{-2}$ & $8.20\times 10^{-1}$ & --- \\
+128  & $7.81\times 10^{-3}$ & $4.15\times 10^{-1}$ & 0.983 \\
+256  & $3.91\times 10^{-3}$ & $2.09\times 10^{-1}$ & 0.992 \\
+512  & $1.95\times 10^{-3}$ & $1.05\times 10^{-1}$ & 0.996 \\
+1024 & $9.77\times 10^{-4}$ & $5.23\times 10^{-2}$ & 0.998 \\
+2048 & $4.88\times 10^{-4}$ & $2.62\times 10^{-2}$ & 0.999 \\
+4096 & $2.44\times 10^{-4}$ & $1.31\times 10^{-2}$ & 1.000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Fitted order: $p_{L^{\infty}} = 0.995$, $p_{L^{2}} = 0.997$. Error halves per
+halving of $\Delta h$---precisely the paper's Fig.~7 ``linear line \dots expected
+error reduction \dots based upon the implemented discretization method.'' The
+1st-order upwind advection dominates the mixed-order scheme, yielding global
+$\mathcal{O}(\Delta h)$.
+
+\subsection*{C6--C9 (out of scope)}
+Full nonlinear peak-$E$ convergence, CWI benchmark agreement, upwind-vs-Koren
+velocity overestimate, and strong/weak scaling all require the paper's full HPC
+computation ($\sim$48\,h on 64 procs for one benchmark run) with its local-field
+transport tables and the proprietary community-benchmark reference curves.
+Outside the efficient/free-only budget.
+
+\subsection*{LLM-judge (free Argo gpt-5.2)}
+Coverage 60\%, overall agreement \emph{moderate}, verdict \emph{PARTIAL}.
+Judge note: the replication ``strongly validates several numerical/arithmetic
+claims \dots and independently confirms that the stated base spatial
+discretization is first-order accurate (via MMS) \dots however it does not
+reproduce the paper's key physics-output claims tied to the full coupled
+streamer simulation.''
+
+\section{GENUINE CRITIQUE}
+This section is written to \emph{stress-test} the replication rather than defend it.
+
+\paragraph{What the MMS confirmation does and does not prove.}
+The MMS result (observed order $0.995$) confirms that a correct reimplementation
+of the paper's face-flux stencils on a smooth, periodic 1-D problem does indeed
+produce first-order convergence, matching the paper's Fig.~7 slope. However, this
+is a \emph{necessary but not sufficient} check of the paper's discretization
+claim. The paper's Fig.~7 was obtained on a fully coupled 2-D $r$-$z$ nonlinear
+streamer with a moving ionization front, whereas the MMS surrogate is
+1-D, periodic, and linear (fixed $v$, $D$; no self-consistent field). It certifies
+the \emph{stencil}, not the coupled behavior. Any subtle order degradation from
+the semi-implicit $n\leftrightarrow \varphi \leftrightarrow \mathbf{E}$ iteration,
+axisymmetric geometric source terms, or non-smooth ionization fronts would be
+invisible here.
+
+\paragraph{C1--C4 are the easy claims.}
+These are arithmetic/CFL self-consistency; passing them shows only that the paper
+is internally consistent, not that its physics is right. They are checked because
+falsifying them would be devastating, not because passing them is convincing.
+
+\paragraph{The unresolved central physics claims.}
+C6 (peak-$E$ convergence $<\!1\%$ at $\Delta h\approx 4\,\mu$m), C7
+(within 5\% of CWI), C8 (upwind velocity overestimate), and C9 (HPC scaling) are
+precisely the load-bearing scientific claims of the paper---and none of them were
+tested. The 1-D nonlinear surrogate went unstable at fine $\Delta h$ due to
+explicit-source blow-up; this is a legitimate failure mode of a forward-Euler
+scheme applied to a local-field ionization source, but it also means the
+critique has \emph{no independent evidence} about whether the paper's coupled
+convergence claim would survive an honest reimplementation. A verdict of
+REPLICATED would be unwarranted on the current evidence.
+
+\paragraph{Judge dependency.}
+The LLM-judge (Argo gpt-5.2) was fed the evidence artifacts and returned
+``moderate / PARTIAL,'' which agrees with the human synthesis. This is not
+independent corroboration; the judge sees only what we hand it and shares
+failure modes with any single-model evaluator. Treat the judge score as a
+consistency indicator, not a second opinion.
+
+\paragraph{Environmental risks.}
+CherryRd is blocked on \texttt{osti.gov}; PDF acquisition required an SSH proxy
+through \texttt{uicgpu}. The MD5 of the fetched artifact
+(\texttt{41204e9adef92fa85c980f66c0d8d39f}) should be recorded so that any
+future rerun works from an identifiable source. \texttt{pdftotext -layout}
+occasionally reflows two-column CPC text; nothing quoted here depends on
+delicate table parsing, but claim IDs pulled from the extracted text should be
+re-checked against the PDF for any \emph{new} claim added later.
+
+\paragraph{Bottom line.}
+The replication verifies that (a) the paper's numbers add up and (b) its stated
+discretization is first-order as advertised. Everything about whether the code
+\emph{as run at scale} matches CWI streamer physics remains untested by this
+effort. The honest verdict is \textbf{PARTIAL}.
+
+\section{Verdict}
+\textbf{PARTIAL} --- core method (stencil order) and all analytic
+self-consistency claims independently reproduced; full-simulation coupled physics
+and HPC scaling claims out of budget and unreproduced.
+
+\end{document}

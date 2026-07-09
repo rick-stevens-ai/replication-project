@@ -1,0 +1,7 @@
+# Brief — WaveTrain (Riedel et al., 2023)
+
+**Paper.** J. Riedel, P. Gelß, R. Klein, B. Schmidt, "WaveTrain: A Python package for numerical quantum mechanics of chain-like systems based on tensor trains," *J. Chem. Phys.* **158**, 164801 (2023). DOI: [10.1063/5.0147314](https://doi.org/10.1063/5.0147314). Code: <https://github.com/PGelss/wave_train>, <https://github.com/PGelss/scikit_tt>.
+
+**What we did.** We installed WaveTrain + the underlying scikit_tt from source, ran the paper's own bundled Exciton TISE example (`test_scripts/Exciton/tise_1.py`), and compared the resulting single-exciton band eigenvalues on a homogeneous periodic 6-site ring to the exact analytic tight-binding spectrum `E_k = α + 2β·cos(2πk/N)`. We then swept N ∈ {4, 6, 8, 10, 12} at n_levels = N+1 to test the paper's core computational-scaling claim (TT ranks stay small; cost grows sub-exponentially in chain length) and reported per-N wall-clock and eigenvalue accuracy.
+
+**Bottom line.** REPLICATED on core physics (max eigenvalue error 1.0e-4 Ha vs analytic at N=6, sub-1e-3 across the sweep), but the software artifact required a one-line patch to `scikit_tt/solvers/evp.py` to run on modern NumPy (real upstream compat bug), and the rank-scaling claim is only weakly borne out by our sweep because the ALS `ranks=15` initial cap saturates by N=8. Final LLM-judge verdict: **PARTIAL** (coverage 100%, agreement 78%).

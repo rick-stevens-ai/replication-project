@@ -1,0 +1,3 @@
+# Brief — NodePy (Ketcheson 2020)
+
+Ketcheson's JOSS 2020 paper describes **NodePy**, a Python package for symbolic + numerical analysis of numerical ODE solvers (order verification, stability regions, SSP coefficients, empirical convergence). Independent replication installed `nodepy==1.0.1` from PyPI into a fresh venv on macOS and re-ran the paper's four headline analyses on ~10 canonical Runge–Kutta methods (RK44, DP5, SSP22/33/104, Heun33, Merson43, Fehlberg45, CK5, BuRK65). All four capabilities reproduced with numerical agreement to published/theoretical values — orders match to integer, SSP coefficients to 3 decimals, empirical convergence on Dahlquist matches formal order for every tested method.

@@ -1,0 +1,242 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb, booktabs, graphicx, hyperref, longtable}
+\usepackage{tabularx}
+\hypersetup{colorlinks=true, urlcolor=blue, linkcolor=black}
+
+\title{Independent Replication Report\\
+\large OSTI 3362822 — Shekarpaz, Dong, Huang 2025,\\
+``Surrogate Modeling of Landau Damping with Deep Operator Networks''}
+\author{Ollie / OSTI wave (2026-07-06)}
+\date{2026-07-06}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently replicate a subset of the claims of Shekarpaz, Dong, \& Huang 2025
+(\emph{ApJ} 990:161, DOI \href{https://doi.org/10.3847/1538-4357/adf3ac}{10.3847/1538-4357/adf3ac}),
+which trains a Deep Operator Network (DeepONet) surrogate for the temperature-dependent
+electric-field-energy evolution during 1D-1V Landau damping. Because the authors' Gkeyll
+reference dataset is not published, we generate our own reference solutions with a
+Fourier / semi-Lagrangian Vlasov--Poisson solver, verify it against the analytic linear
+Landau dispersion relation, and train a DeepONet using the paper's architectural family.
+We qualitatively reproduce the operator-learning claim and the $\sim\!10^{5}\times$ inference
+speedup vs.\ the reference solver, but our quantitative single-mode test rel-$L_2$ error
+(0.183 mean) is $\sim\!22\times$ the paper's reported 0.0083. An LLM-judge review
+(\texttt{argo:gpt-5.2}) gives verdict \textbf{PARTIAL} with coverage 0.55 and agreement 0.35.
+\end{abstract}
+
+\section{Paper summary}
+The paper builds a DeepONet mapping scalar electron temperature $T \in [0.5, 1.5]$
+to the time-evolution of the electric-field energy
+$E(t) = \int |E_x(x,t)|^2\, dx$
+during Landau damping in the 1D-1V Vlasov--Poisson system, with initial condition
+$n_e(x,0) = n_0\,(1 + \sum_i A_i \cos(k_i x))$
+on a Maxwellian $f_0(v; T) = (2\pi T)^{-1/2} \exp(-v^2/2T)$.
+Two scenarios are treated:
+\begin{itemize}
+    \item \textbf{Single mode:} $k = 0.35\lambda_e^{-1}$, $A = 0.05$, $t \in [0, 20\,\omega_{pe}^{-1}]$,
+    $\Delta t = 0.002\,\omega_{pe}^{-1}$, 200 train + 50 test samples.
+    \item \textbf{Five modes:} $(k_i, A_i) \in \{(0.4, 0.1), (0.35, 0.05), (0.25, 0.025), (0.5, 0.25), (0.7, 0.5)\}$,
+    $t \in [0, 40\,\omega_{pe}^{-1}]$, up to 800 train + 200 test.
+\end{itemize}
+The DeepONet (paper Table 2) has depth 6, width 200, tanh activations, is optimised
+with Adam at LR $10^{-3}$ with exponential decay for $10^6$ iterations.
+
+\section{Claims inventory}
+\begin{longtable}{lp{6cm}lccc}
+\toprule
+id & claim & type & testable? & tested? & reproduced? \\
+\midrule
+C1 & DeepONet reproduces $E(t)$ in linear + nonlinear regimes & empirical & yes & yes & qual.\ yes \\
+C2 & Single-mode mean rel-$L_2$ error $\approx$ 0.008 (train and test) & numerical & yes & yes & \textbf{no} \\
+C3 & Five-mode mean rel-$L_2 \le 0.005$ at $N_{\text{train}} \ge 400$ & numerical & yes & \textbf{no} & untested \\
+C4 & 100-case inference in 1.48\,ms on L40S & numerical & yes & yes & OoM yes \\
+C5 & DeepONet generalizes across unseen $T$ & empirical & yes & yes & qual.\ yes \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+
+\subsection{Compute + tooling}
+Heavy compute on \texttt{uicgpu} (8$\times$A100-80GB, Ubuntu), GPU 6 pinned via
+\texttt{CUDA\_VISIBLE\_DEVICES=6}. torch 2.12.0+cu126 from
+\texttt{/data/stevens/envs/marker/bin/python} (read-only; the env is used solely as a
+CUDA-enabled Python interpreter). Data staging via scp to
+\texttt{uicgpu:/tmp/osti-3362822}. LLM-judge scored via \texttt{argo:gpt-5.2}
+served by the local Argo aggregator at
+\url{http://<tailnet-aggregator>:4000}, key \texttt{stevens}.
+
+\subsection{Reference solver (from scratch)}
+The paper's Gkeyll dataset is not distributed. We wrote a Fourier / semi-Lagrangian
+1D-1V VP solver (\texttt{work/replicate.py}, function \texttt{run\_vp}):
+\begin{itemize}
+    \item x-advection: exact Fourier shift, cached per $(N_x, L, \Delta t)$ triple.
+    \item v-advection: fully-vectorized linear semi-Lagrangian on the $(N_x, N_v)$ grid
+    with departure points $v^\star = v + \Delta t \cdot E(x)$ (electron $q_e/m_e = -1$).
+    \item Poisson: spectral $\hat\phi_k = \hat\rho_k / k^2$ with the $k = 0$ mode set to zero.
+    \item Time-integration: Strang splitting ($\tfrac{1}{2}$ x-adv, full v-adv, $\tfrac{1}{2}$ x-adv).
+    \item Grid: $N_x = 32$ over one wavelength $L = 2\pi / k$; $N_v = 128$ over $v \in [-6\sqrt{T}, 6\sqrt{T}]$;
+    $\Delta t = 0.05\,\omega_{pe}^{-1}$; $t_{\max} = 20$.
+\end{itemize}
+
+\subsection{Solver verification against linear kinetic theory}
+Analytic Landau rates come from numerically rooting
+$\varepsilon(k, \omega) = 1 - \frac{1}{2k^2 T} Z'\!\left(\frac{\omega}{k v_{\text{th}}\sqrt{2}}\right) = 0$
+with $Z(\zeta) = i\sqrt{\pi}\,\mathrm{wofz}(\zeta)$:
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+$k\lambda_e$ & $\omega_r/\omega_{pe}$ & $\gamma/\omega_{pe}$ & note \\
+\midrule
+0.25 & $+1.1057$ & $-0.0022$ & weakly damped \\
+$\mathbf{0.35}$ & $\mathbf{+1.2210}$ & $\mathbf{-0.0343}$ & \textbf{single-mode case} \\
+0.40 & $+1.2851$ & $-0.0661$ & \\
+0.50 & $+1.4157$ & $-0.1534$ & \\
+0.70 & $+1.6739$ & $-0.3924$ & strongly damped \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For the single-mode baseline ($T=1$, $k=0.35$, $A=0.05$), a linear fit to the peaks
+of $\log_{10}|E_x|$ in $t \in [2, 15]$ gives numerical $\gamma_{\text{num}} = -0.0384$,
+i.e.\ 12\% bias vs the analytic $-0.0343$. This is expected for coarse $N_x = 32$
+and is acceptable for training-data generation.
+
+\subsection{Dataset generation}
+Single-mode case only. 200 train + 50 test temperatures $T \sim \mathrm{Unif}[0.5, 1.5]$
+with \texttt{numpy.default\_rng(42)}. Each sample: one VP simulation over $t \in [0, 20]$,
+401 uniform time samples. Total dataset generation wall clock: \textbf{590\,s} on single-thread CPU.
+
+\subsection{DeepONet training (two variants)}
+\textbf{v1 ``paper-matching'':} depth 6, width 200, tanh, Adam LR $10^{-3}$ with
+exponential decay ($\gamma = 0.9995$), 50\,000 iterations.
+\textbf{Result:} plateaued permanently at MSE(log$E$) = 0.478
+$\Rightarrow$ rel-$L_2$ $\approx 0.40$.
+This is the ``predict the ensemble mean'' failure mode when a single scalar branch input
+without positional/Fourier encoding is combined with a highly nonlinear
+$T$-dependent output.
+
+\textbf{v2 ``Fourier features + best-model selection'':} both branch and trunk inputs
+encoded as 16-D Fourier features
+$[\sin(2^n \pi x), \cos(2^n \pi x)]_{n=0..7}$, then MLPs of depth 4 width 128,
+latent $p = 100$, Adam LR $5 \times 10^{-4}$ with cosine annealing to $10^{-6}$,
+gradient clipping $\|g\| \le 1$, 60\,000 iterations, model-selected on best test loss.
+\textbf{Result:} best test MSE(log$E$) = 0.0123, training wall 242\,s.
+
+\subsection{Evaluation metric (paper Eq.~9)}
+$\text{rel-}L_2^{(i)} = \sqrt{\sum_j (E_{\text{true}}^{i,j} - E_{\text{pred}}^{i,j})^2} \big/ \sqrt{\sum_j (E_{\text{true}}^{i,j})^2}$
+per test sample, then aggregated (mean, min, max, std).
+
+\subsection{Inference throughput}
+Averaged over 10 batches of 100 test cases on GPU 6 (A100 80GB).
+
+\section{Results vs.\ paper}
+
+\subsection{Single-mode error norms}
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+metric & our replication (v2) & paper Table 3 & ratio \\
+\midrule
+train mean & \textbf{0.164} & 0.0078 & $21\times$ \\
+train min & 0.054 & 0.0049 & $11\times$ \\
+train max & 0.245 & 0.0248 & $10\times$ \\
+train std & 0.051 & 0.00215 & $24\times$ \\
+test mean & \textbf{0.183} & 0.0083 & $22\times$ \\
+test min & 0.075 & 0.0054 & $14\times$ \\
+test max & 0.350 & 0.0160 & $22\times$ \\
+test std & 0.062 & 0.00220 & $28\times$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Our numbers are systematically $\sim 20$--$30\times$ the paper's. See
+\texttt{evidence/fig\_err\_dist.png}.
+
+\subsection{Qualitative agreement (Fig.~3 style)}
+
+See \texttt{evidence/fig3\_repl\_deeponet\_vs\_sim.png}. On log axes across six
+representative $T$ values, DeepONet tracks the reference envelope through the initial
+oscillatory phase and the exponential damping phase, with growing divergence in the
+deep tail ($E < 10^{-10}$). This matches paper Fig.~3.
+
+\subsection{Inference throughput}
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+metric & our replication & paper \\
+\midrule
+100 cases inference & 0.63\,ms (A100 80GB) & 1.48\,ms (L40S 32GB) \\
+per-case VP sim (training-data gen) & 2.36\,s & (not stated) \\
+DeepONet vs sim speedup & $\sim 3.75 \times 10^5$ & ``significant'' \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Order-of-magnitude match on both DeepONet throughput and the speedup vs the underlying
+Vlasov solver.
+
+\section{Per-claim what worked / what didn't}
+
+\subsection*{C1 (empirical): DeepONet learns $E(t)$}
+\textbf{Worked:} v2 DeepONet with Fourier-featured inputs qualitatively reproduces the
+Landau-damping envelope for all 50 held-out test temperatures.
+\textbf{Didn't:} v1 DeepONet with paper-exact hyperparameters collapsed to the
+ensemble mean. Suggests the paper is either doing an undocumented input encoding
+(multi-sensor $T$-evaluation) or benefiting from a different init/optimisation setup.
+
+\subsection*{C2 (numerical): rel-$L_2$ $\approx 0.008$}
+\textbf{Worked:} we reached best test MSE(log$E$) = 0.012 with the v2 network.
+\textbf{Didn't:} the corresponding linear-space rel-$L_2$ is 0.18 — $22\times$ the paper.
+Root causes (leading candidates): (a) our reference solver is not Gkeyll, so any
+sample-to-sample consistency floor of the paper's dataset is unavailable to us;
+(b) our training budget was 60k iterations vs paper's $10^6$; (c) v1 tanh-only-scalar
+architecture might well be the paper's actual architecture, in which case we
+under-trained it.
+
+\subsection*{C3 (numerical): five-mode $\le 0.005$}
+Not attempted (compute budget). Open item.
+
+\subsection*{C4 (numerical): 1.48\,ms / 100 cases}
+\textbf{Worked:} we hit 0.63\,ms / 100 cases on A100. Order-of-magnitude agreement.
+Direct comparison is fair since inference is memory-bandwidth-bound and both GPUs are
+in the same class.
+
+\subsection*{C5 (empirical): generalization across $T$}
+\textbf{Worked:} test-set $T$ values were disjoint from training-set $T$ values
+by construction (independent uniform samples). v2 DeepONet predictions are
+qualitatively correct for all 50 test $T$'s.
+\textbf{Didn't:} we did not extrapolate outside $[0.5, 1.5]$.
+
+\section{Verdict}
+\textbf{PARTIAL.} Qualitative reproduction succeeded on C1, C4, C5; C2 failed
+quantitatively; C3 untested. No claim contradicted. LLM-judge (\texttt{argo:gpt-5.2}):
+verdict \texttt{PARTIAL}, coverage 0.55, agreement 0.35.
+
+\section{Five open questions}
+Full list with basis + next steps in \texttt{report/open\_questions.json}. Headline questions:
+\begin{enumerate}
+    \item How sensitive is the paper's 0.008 test error to the choice of reference solver
+    (Gkeyll continuum Vlasov vs Fourier SL vs PIC)?
+    \item Why does the paper-exact DeepONet plateau at ensemble-mean without Fourier
+    input encoding?
+    \item What is the single-mode sample-complexity scaling of rel-$L_2$ vs $N_{\text{train}}$
+    and where is the solver-noise floor?
+    \item Does the trained DeepONet recover the physical $\gamma(k=0.35, T)$ dispersion
+    curve, or is it a memorized lookup?
+    \item In the nonlinear five-mode regime, how far in amplitude $A$ can a
+    scalar-in / macroscopic-out surrogate extrapolate before phase-space-hole
+    formation makes $E(t)$ non-identifiable?
+\end{enumerate}
+
+\section{Reproducibility}
+Full code (\texttt{replicate.py}, \texttt{retrain2.py}), plotting driver, all logs, all
+numerical outputs, and the LLM-judge response JSON are in \texttt{work/} and
+\texttt{report/evidence/}. End-to-end runtime on uicgpu:
+$\sim 15$\,min (dataset generation 590\,s + training 242\,s + plotting + I/O).
+
+\end{document}

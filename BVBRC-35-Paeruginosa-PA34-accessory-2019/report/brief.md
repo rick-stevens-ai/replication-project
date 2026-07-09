@@ -1,0 +1,7 @@
+# Brief — BVBRC-35
+
+**Paper:** Subedi D, Kohli GS, Vijay AK, Willcox M, Rice SA. "Accessory genome of the multi-drug resistant ocular isolate of *Pseudomonas aeruginosa* PA34." *PLoS ONE* 14(4):e0215038 (2019). DOI 10.1371/journal.pone.0215038 · PMC6464166.
+
+**What/why:** The authors closed the complete genome of PA34 — a multi-drug-resistant *P. aeruginosa* corneal (microbial keratitis) isolate from India — into a 6.8 Mbp chromosome plus two plasmids (pMKPA34-1 95.4 kbp, pMKPA34-2 26.8 kbp), then dissected its **accessory genome** by comparative genomics against three reference strains (PAO1, PA14, VRFPA04). Their central quantitative claims come from a **Roary pangenome** of the four genomes: a 7,643-ortholog pangenome, a 5,078-gene core, and a large PA34 accessory genome (1,213 genes; 543 unique) enriched in metal/antibiotic resistance, phage integrases, and transposons, plus ≥24 genomic islands and an AMR-gene inventory (e.g. AAC(3)-IId on a prophage, six resistance genes on the two plasmids).
+
+**Replication approach:** Fetch the actual public genomes (NCBI Datasets/nuccore), re-annotate uniformly with Prokka, re-run the **Roary** pangenome with the same tool version family and default identity, and compare our core/accessory/unique-gene counts against the paper's. Independently re-screen PA34 for AMR genes (abricate/ResFinder+CARD), virulence (VFDB), and MLST sequence type. Heavy annotation/pangenome on uicgpu (bvbrc28 env: prokka+roary; bvbrc14: abricate+mlst).

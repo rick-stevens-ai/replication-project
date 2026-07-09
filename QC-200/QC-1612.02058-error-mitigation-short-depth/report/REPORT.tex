@@ -1,0 +1,145 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,graphicx,hyperref,longtable,xcolor}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\small,breaklines=true,columns=fullflexible}
+\title{Independent Replication Report:\\
+Error mitigation for short-depth quantum circuits\\
+\normalsize (Temme, Bravyi, Gambetta --- arXiv:1612.02058, PRL 2017)}
+\author{QC-200 replication wave --- Ollie/OpenClaw autonomous run}
+\date{2026-07-05}
+
+\begin{document}
+\maketitle
+
+\section*{One-line verdict}
+\textbf{REPLICATED.} The paper's core qualitative claim --- that Richardson-extrapolation-based
+Zero-Noise Extrapolation (ZNE) produces expectation-value estimates whose error is dominated by
+the leading unmitigated order of the noise, and that increasing the order $n$ suppresses the
+residual error super-linearly --- is reproduced exactly on Qiskit-Aer density-matrix simulations
+with a depolarizing noise model. At $\epsilon = 10^{-3}$ our mean absolute error drops from
+$2.5\!\times\!10^{-3}$ (raw noisy) to $3.5\!\times\!10^{-5}$ (ZNE $n{=}1$) to
+$5.0\!\times\!10^{-7}$ (ZNE $n{=}2$) across 8 random 4-qubit depth-6 circuits, i.e.\ improvement
+factors of $\sim\!70\times$ and $\sim\!5000\times$ respectively --- consistent with the
+$O(\epsilon^{n+1})$ residual predicted by Eq.~(3)--(4) of the paper.
+
+\section{Paper summary}
+The paper introduces two techniques to mitigate noise-induced bias in expectation values
+computed on short-depth NISQ quantum circuits:
+\begin{enumerate}
+  \item \textbf{Extrapolation to the zero-noise limit (Sec.~I of the paper).} Run the same
+    circuit $n{+}1$ times at rescaled noise rates $c_j \lambda$ ($c_0{=}1$, $c_j>1$), then form
+    the linear combination
+    \[
+      \hat{E}^n_K(\lambda) \;=\; \sum_{j=0}^{n} \gamma_j \, \hat{E}_K(c_j\lambda),
+      \qquad
+      \sum_j \gamma_j = 1,\ \sum_j \gamma_j c_j^k = 0\ \text{for } k = 1,\dots,n.
+    \]
+    This is Richardson's deferred approach to the limit; the leading $n$ orders of
+    $\lambda$ cancel and the residual bias is $O(\lambda^{n+1})$.
+  \item \textbf{Probabilistic error cancellation via quasi-probability sampling (Sec.~II).}
+    Given a full characterization of the noise map, one expresses each ideal gate as a
+    quasi-probability distribution over noisy operations and Monte-Carlo samples it, with a
+    sampling-cost overhead $C^2 = \prod_\alpha \gamma_\alpha^2$.
+\end{enumerate}
+This replication targets \textbf{Scheme 1 (ZNE)}, which is the more universally reproducible of
+the two (no detailed noise-model characterization required).
+
+\section{Claims table}
+\begin{longtable}{p{0.55\linewidth} p{0.10\linewidth} p{0.30\linewidth}}
+\toprule
+\textbf{Claim} & \textbf{Type} & \textbf{Tested?}\\
+\midrule
+C1. Richardson coefficients $\gamma_j$ for rescalings $c=(1,2)$ are $(2,-1)$ and for $c=(1,2,3)$ are $(3,-3,1)$ (Eq.~4). & analytic & \textbf{YES} --- our linear solver returns exactly these values (unit test in code).\\
+C2. $\hat{E}^n_K(\lambda) - E^* = O(\lambda^{n+1})$: increasing $n$ reduces bias by an additional order of $\lambda$. & quantitative & \textbf{YES} --- log-log slopes of our mean-error curves in Fig.~1 are $\approx 1$ (raw), $\approx 2$ (ZNE1), $\approx 3$ (ZNE2), matching the theory.\\
+C3. Under a weak depolarizing noise model, ZNE beats the raw noisy estimate on essentially every random-control-style circuit. & qualitative headline (Fig.~1a) & \textbf{YES} --- ZNE1 beats raw on 8/8 circuits at $\epsilon \le 3\!\times\!10^{-3}$ and 7/8 at $\epsilon = 10^{-2}$; ZNE2 beats ZNE1 on 8/8 at every $\epsilon$.\\
+C4. The improvement holds also for amplitude-damping/dephasing (Fig.~1b) and non-Markovian bath noise (Fig.~1c). & qualitative & \textbf{NOT TESTED} in this replication --- depolarizing only. See failure analysis.\\
+C5. Scheme 2 (probabilistic error cancellation) achieves further mitigation at a bounded sampling-cost overhead $C^2$. & method & \textbf{NOT TESTED} --- out of scope for this wave.\\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+\subsection{Environment}
+\begin{itemize}
+  \item Python 3.14 in a local venv at \verb|work/.venv/|.
+  \item \texttt{qiskit==2.5.0}, \texttt{qiskit-aer==0.17.2}, \texttt{numpy==2.5.1}, \texttt{matplotlib}.
+  \item Simulator: \texttt{AerSimulator(method="density\_matrix")} --- exact expectation values,
+    no shot noise.
+  \item Host: CherryRd (macOS), CPU only, wall-clock $\approx 7\,\text{s}$ for the full sweep.
+\end{itemize}
+
+\subsection{Circuits}
+Following the paper's Fig.~1 ``random control problem'' description we generate $N{=}4$-qubit,
+depth-6 alternating layers of Haar-random single-qubit U3 rotations and brick-wall CX
+entanglers. Eight independent random-seed circuits (\texttt{seed} $= 42, 43, \dots, 49$).
+
+\subsection{Noise model and noise scaling}
+We use a uniform depolarizing channel: rate $\epsilon$ per single-qubit gate and rate $\epsilon$
+per CX. To scale the noise by $c \in \{1,2,3\}$ (paper Eq.~5's rescaling protocol) we simply
+build a fresh noise model with rate $c\epsilon$. This is the digital equivalent of the paper's
+time-rescaling trick: because the noise generator $L$ is time-scale-invariant and the ideal
+circuit is fixed, running with rate $c\epsilon$ yields the same $\rho_{c\lambda}(T)$ as
+rescaling the Hamiltonian and evolving for time $cT$.
+
+\subsection{Observable}
+$\langle Z_0 Z_1\rangle$ computed exactly from the density matrix
+$\rho$ as $\text{Tr}\!\left[(Z\otimes Z\otimes I \otimes I)\,\rho\right]$.
+
+\subsection{Richardson coefficients (sanity-checked in code)}
+For $c = (1, 2)$: solve $\gamma_0 + \gamma_1 = 1,\ \gamma_0 + 2\gamma_1 = 0 \Rightarrow (2, -1)$.\\
+For $c = (1, 2, 3)$: adds $\gamma_0 + 4\gamma_1 + 9\gamma_2 = 0 \Rightarrow (3, -3, 1)$.\\
+Our code (\verb|report/evidence/zne_replication.py|) solves the Vandermonde system numerically
+and asserts these values --- both assertions pass.
+
+\subsection{Commands}
+\begin{lstlisting}
+python3 -m venv work/.venv
+source work/.venv/bin/activate
+pip install qiskit qiskit-aer numpy matplotlib
+python3 report/evidence/zne_replication.py report/evidence
+python3 report/evidence/make_plot.py       report/evidence
+\end{lstlisting}
+
+\section{Results vs paper}
+\subsection{Aggregate error (mean of $|E - E_{\text{ideal}}|$ across 8 circuits)}
+\begin{center}
+\begin{tabular}{r r r r r r r}
+\toprule
+$\epsilon$ & raw & ZNE $n{=}1$ & ZNE $n{=}2$ & \#ZNE1$<$raw & \#ZNE2$<$raw & \#ZNE2$<$ZNE1\\
+\midrule
+$1\!\times\!10^{-4}$ & $2.6\!\times\!10^{-4}$ & $3.5\!\times\!10^{-7}$ & $5.1\!\times\!10^{-10}$ & 8/8 & 8/8 & 8/8\\
+$3\!\times\!10^{-4}$ & $7.7\!\times\!10^{-4}$ & $3.1\!\times\!10^{-6}$ & $1.4\!\times\!10^{-8}$  & 8/8 & 8/8 & 8/8\\
+$1\!\times\!10^{-3}$ & $2.5\!\times\!10^{-3}$ & $3.5\!\times\!10^{-5}$ & $5.0\!\times\!10^{-7}$  & 8/8 & 8/8 & 8/8\\
+$3\!\times\!10^{-3}$ & $7.5\!\times\!10^{-3}$ & $3.0\!\times\!10^{-4}$ & $1.3\!\times\!10^{-5}$  & 8/8 & 8/8 & 8/8\\
+$1\!\times\!10^{-2}$ & $2.4\!\times\!10^{-2}$ & $3.1\!\times\!10^{-3}$ & $4.0\!\times\!10^{-4}$  & 7/8 & 7/8 & 8/8\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Scaling with $\epsilon$}
+Fitting the aggregate columns above on log-log axes for $\epsilon \in [10^{-4}, 10^{-3}]$:
+\begin{itemize}
+  \item raw noisy: slope $\approx 1.00$ ($O(\epsilon)$) --- as expected.
+  \item ZNE1: slope $\approx 2.00$ ($O(\epsilon^2)$) --- matches the $O(\lambda^{n+1})$ bound with $n{=}1$.
+  \item ZNE2: slope $\approx 3.00$ ($O(\epsilon^3)$) --- matches the $O(\lambda^{n+1})$ bound with $n{=}2$.
+\end{itemize}
+This is exactly the qualitative shape of Fig.~1(a) in the paper.
+
+\subsection{Figure}
+\begin{center}
+\includegraphics[width=0.85\linewidth]{evidence/zne_error_vs_eps.png}
+\end{center}
+
+\section{Verdict}
+\textbf{REPLICATED} (within the scope defined for this reproduction, i.e.\ depolarizing noise,
+Scheme 1 only). All three quantitative claims we could test (C1, C2, C3) reproduce cleanly
+and quantitatively; claims C4 and C5 are outside the wave's scope but the code is trivially
+extensible to them.
+
+\input{open_questions.tex}
+
+\vfill
+\noindent\small
+Full sim log: \texttt{report/evidence/zne\_results.json} (all 8 circuits $\times$ 5 noise rates).\\
+Code: \texttt{report/evidence/zne\_replication.py}, \texttt{report/evidence/make\_plot.py}.
+\end{document}

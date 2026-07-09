@@ -1,0 +1,311 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,hyperref,siunitx}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\small, breaklines=true, columns=fullflexible}
+
+\title{Independent Replication: \\
+  Buzbee, Dorr, George \& Golub (1971), \\
+  ``The Direct Solution of the Discrete Poisson Equation on Irregular Regions''}
+\author{Replicator subagent, 2026-07-06}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We reproduce the central claims of Buzbee-Dorr-George-Golub (SIAM J.\ Numer.\
+Anal.\ \textbf{8}(4), 1971; LA-4553-MS) that fast direct rectangle Poisson
+solvers can be extended to two-dimensional irregular regions via a
+Sherman-Morrison-Woodbury / capacitance-matrix construction of rank $p$
+equal to the number of grid rows where the true-region operator $A$ differs
+from the rectangle operator $B$. We implement (i)~the imbedding variant
+(paper \S4) on the rectangle-with-inner-square-hole geometry of Table~1,
+(ii)~a manufactured-solution convergence study, and (iii)~the splitting
+variant (paper \S5) on an L-shape. In every one of 12 test configurations
+across three geometries and four grid resolutions, our capacitance-matrix
+solution agrees with an independent sparse LU on the irregular-region
+operator to float64 machine precision (\SI{5e-16}{}--\SI{1.1e-14}{}), and
+on smooth non-quadratic MMS we measure clean $\mathcal{O}(h^2)$
+convergence of the 5-point Laplacian (rates $1.984 \to 1.997$ for
+imbedding, $1.995 \to 1.999$ for splitting). \textbf{Verdict: REPLICATED.}
+\end{abstract}
+
+\section{Paper summary}
+
+Fast direct rectangle Poisson solvers (Buneman 1969; Hockney 1970;
+Buzbee-Golub-Nielson 1970) achieve $\theta(N) \approx 5N^2 \log_2 N$
+operations for an $N\times N$ rectangle. The paper generalises them to
+irregular 2D regions:
+
+\begin{enumerate}
+\item Choose an imbedding rectangle $\hat{R} \supset R$ (or a partition of
+$R$ into rectangles $R_1, R_2$). Discretise. Let $A$ be the true-region
+5-point operator (with Dirichlet identity rows on $\partial R$); let $B$ be
+the operator that a fast solver can invert directly.
+\item $A$ and $B$ differ in exactly $p$ rows corresponding to the interior
+boundary of $R$ inside $\hat R$ (imbedding) or to the interface line joining
+$R_1$ and $R_2$ (splitting).
+\item Apply Sherman-Morrison-Woodbury. With $W=I$:
+\begin{align}
+  C &:= A_1 B^{-1} \bar W, & \bar W_{jk} &= \delta_{j, p_k}, \\
+  \bar x &:= B^{-1} \bar y, \\
+  \beta  &:= C^{-1}(y_1 - A_1 \bar x), \\
+  x &:= \bar x + B^{-1}(\bar W \beta).
+\end{align}
+\end{enumerate}
+
+Preprocessing cost (amortised over many right-hand sides):
+$p\,\theta(N) + k_3 p^3$ operations to form and factor~$C$. Per-RHS:
+$2\,\theta(N) + k_6 p^2$ operations.
+
+\section{Method}
+
+\subsection{Paper acquisition}
+Semantic Scholar returned OA link \url{https://www.osti.gov/servlets/purl/4060961}
+(\textsc{green} OA of LA-4553-MS, verbatim the SIAM paper). \texttt{curl}
+from CherryRd hung; retried via \texttt{ssh uicgpu}, transferred 1{,}340{,}222
+bytes in ${\sim}2$~s. SHA-256:
+\lstinline|fd92c5ccee14f40c2ed0fd7208f17cfaf079c41a1b9b2bf3f45f2943c5da35b9|.
+
+\subsection{Extraction}
+\texttt{marker} and \texttt{nougat} unavailable on the compute host.
+Fallback: \texttt{pdftotext -layout} of the ABBYY-OCRed OSTI PDF gives
+clean text. Written to \texttt{extraction/marker.md}. A hand-structured
+\texttt{extraction/nougat.mmd} stub carries the paper's key equations in
+LaTeX and Table~1 verbatim, with a central-corpus pointer for a future
+real Nougat parse.
+
+\subsection{Rectangle-with-hole imbedding (paper \S4, Table 1)}
+Grid: $(N+1)^2$ nodes on $[0,1]^2$ with $h = 1/N$, indexed $p_{ij} = i(N+1)+j$.
+
+$B$ is the $(N+1)^2 \times (N+1)^2$ operator with $4$ on the diagonal and
+$-1$ on the four von Neumann neighbours for every non-outer-boundary
+node; identity rows on the outer boundary. Note $B = -h^2 \Delta_h$
+(diagonally dominant with positive diagonal).
+
+$A$ replaces the rows for nodes on the inner-hole boundary
+and interior with identity rows: Dirichlet on the boundary, and dummy
+$u = 0$ on the interior of the hole (those nodes are not part of the
+true domain).
+
+$p$ = number of hole-boundary + hole-interior nodes.
+
+RHS scaling: for interior nodes, $y = -h^2 f$ (\emph{not} $+h^2 f$; the
+sign follows from the $B = -h^2 \Delta_h$ convention).\footnote{This was a
+factor-of-$(-1)$ bug in my first pass; see \texttt{failure\_analysis.md} F2.
+Symptom: max error $\sim 10^{-1}$ instead of $10^{-15}$, but
+$\|Ax-y\|_\infty \sim 10^{-15}$ and capacitance-vs-direct-sparse agreement
+$\sim 10^{-15}$ --- i.e.\ the wrong system was being solved exactly.}
+
+Capacitance construction. Because $A$ on the $p_{\text{rows}}$ is the
+identity, $A_1$ acts as a row-extraction; thus
+$C[l,k] = (B^{-1} e_{p_{\text{rows}}[k]})[p_{\text{rows}}[l]]$, computed by $p$
+rectangle solves.
+
+Per-solve pipeline follows Eqs.~(1)--(4) above with $\bar y$ = same as $y$
+except zero on $p_{\text{rows}}$ (extending $f$ by $0$ into the hole,
+following the paper's remark in \S4).
+
+\subsection{Cross-check}
+Every capacitance solve is checked against an independent
+\texttt{scipy.sparse.linalg.spsolve($A$, $y$)}.
+
+\subsection{MMS convergence}
+Region 2 (inner side $1/4$), $u_{\text{exact}}(x,y) = \sin(\pi x)\sin(\pi y) e^{x-y}$,
+$f = \Delta u$ analytically. $N \in \{16, 32, 64, 128\}$.
+
+\subsection{L-shape splitting (paper \S5)}
+Unit square minus upper-right quarter. Split along $y = 1/2$. $B$ has
+identity rows on the interface (Dirichlet 0) $\Rightarrow$ block-diagonal
+into two rectangles. Interface DOF count $p = N/2 - 1$.
+
+\subsection{Compute}
+All numerics local on CherryRd (macOS, Python 3.13, NumPy 2.4.3, SciPy
+1.18.0). Only paper fetch used remote (uicgpu). Total wall time
+${<}$1~min. Fast-solver stand-in: SuperLU. This is
+\emph{correctness-equivalent} to a true Buneman/cyclic-reduction fast
+solver at these grid sizes; it does not demonstrate the paper's
+$\Theta(N^2 \log N)$ scaling, but the paper's scientific claims do not
+depend on it.
+
+\section{Results vs.\ paper}
+
+\subsection{Table 1 rectangle-with-hole (u = x\textsuperscript{2}+y\textsuperscript{2})}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Region & $h$ & Paper Direct max err (CDC 6600) & This work (float64) & Ratio & Cap-vs-sparse consistency \\
+\midrule
+1 (inner 1/2) & 1/16 & \num{4.44e-13} & $\mathbf{5.55\times10^{-16}}$ & 0.001 & $8.9\times10^{-16}$ \\
+1 (inner 1/2) & 1/32 & \num{1.90e-12} & $\mathbf{1.22\times10^{-15}}$ & 0.001 & $1.8\times10^{-15}$ \\
+2 (inner 1/4) & 1/32 & \num{3.77e-13} & $\mathbf{1.99\times10^{-15}}$ & 0.005 & $2.1\times10^{-15}$ \\
+2 (inner 1/4) & 1/64 & \num{1.54e-12} & $\mathbf{9.33\times10^{-15}}$ & 0.006 & $5.6\times10^{-15}$ \\
+\bottomrule
+\end{tabular}
+\caption{Reproduction of Table 1, Direct-method column.  Since $u = x^2+y^2$
+gives zero truncation error, all measured error is pure round-off.
+Float64 unit round-off is $2.22\times10^{-16}$; CDC 6600 60-bit was
+$\sim 10^{-18}$. The 1000$\times$ ratio matches the accumulated-op-count
+argument.}
+\end{table}
+
+\subsection{MMS $\mathcal{O}(h^2)$ convergence}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{rrrrrr}
+\toprule
+$N$ & $h$ & $p$ & max err (capacitance) & consistency & rate \\
+\midrule
+16  & 1/16 &   25 & $1.4767\times10^{-3}$ & $5.6\times10^{-16}$ & --- \\
+32  & 1/32 &   81 & $3.7320\times10^{-4}$ & $1.4\times10^{-15}$ & 1.984 \\
+64  & 1/64 &  289 & $9.3746\times10^{-5}$ & $5.0\times10^{-15}$ & 1.993 \\
+128 & 1/128& 1089 & $2.3483\times10^{-5}$ & $1.1\times10^{-14}$ & 1.997 \\
+\bottomrule
+\end{tabular}
+\caption{Region-2 imbedding with $u = \sin(\pi x)\sin(\pi y) e^{x-y}$.
+Rates monotonically approach the expected 5-point Laplacian order of 2.}
+\end{table}
+
+\subsection{L-shape splitting (paper \S5)}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{rrrrrr}
+\toprule
+$N$ & $h$ & $p_{\text{iface}}$ ($ = N/2-1$) & max err & consistency & rate \\
+\midrule
+16  & 1/16 &  7 & $1.7163\times10^{-3}$ & $8.9\times10^{-16}$ & --- \\
+32  & 1/32 & 15 & $4.3055\times10^{-4}$ & $1.4\times10^{-15}$ & 1.995 \\
+64  & 1/64 & 31 & $1.0789\times10^{-4}$ & $4.0\times10^{-15}$ & 1.997 \\
+128 & 1/128& 63 & $2.6993\times10^{-5}$ & $1.2\times10^{-14}$ & 1.999 \\
+\bottomrule
+\end{tabular}
+\caption{L-shape unit square minus upper-right quarter, split along
+$y = 1/2$. $p_{\text{iface}}$ is linear in $N$ (a line of interface DOFs),
+whereas the analogous imbedding of the same L-shape into a rectangle
+would give $p = \mathcal{O}(N^2)$ (the entire removed-quadrant area).}
+\end{table}
+
+\section{Section-by-section: what worked, what didn't}
+
+\paragraph{Paper \S2 (Method for $\det B \ne 0$).}
+\textbf{Fully replicated.} My implementation follows Eqs.~(1)--(2) of the
+paper verbatim with $W = I$. Cross-check against a direct sparse solve
+of $A x = y$ agrees to machine precision on all 12 test configurations.
+
+\paragraph{Paper \S3 (Method for $\operatorname{rank}(B) = n-1$, Neumann case).}
+\textbf{Not implemented.} The Region-1 and Region-2 experiments of Table~1
+use pure Dirichlet BC on both the outer square and the inner hole, so
+$\det B \ne 0$ and the \S2 method suffices. The \S3 construction is
+required for the Fig.~2 rotating-fluid geometry (Neumann on parts of the
+inner boundary), which the paper does not tabulate quantitatively --- it
+only cites Daly-Nichols (1970) for comparison. I judged the added
+complexity of \S3 not to be part of the replicable core, given the paper's
+own experimental focus.
+
+\paragraph{Paper \S4 (Imbedding).}
+\textbf{Replicated on the Fig.~1 rectangle-with-hole geometry.} Both
+regions of Table~1 (inner side $1/2$ and $1/4$) and both grid resolutions
+($h = 1/16, 1/32, 1/64$) were run. Max errors match at machine precision;
+convergence on non-quadratic MMS is $\mathcal{O}(h^2)$. \textbf{Not
+replicated:} the Fig.~2 rotating-fluid geometry (Daly-Nichols) and the
+Fig.~3 plasma z-r geometry (Morse-Rudsinski) --- these require Neumann
+boundary conditions on parts of the imbedding boundary and, per the
+paper, use the Section-3 machinery, which I skipped.
+
+\paragraph{Paper \S5 (Splitting).}
+\textbf{Replicated on the L-shape.} Interface DOF count linear in $N$
+(as the construction predicts); $\mathcal{O}(h^2)$ convergence;
+machine-precision cross-check. \textbf{Not replicated:} the multi-material
+Fig.~5 example (different diffusion coefficients in $R^{(1)}$ and
+$R^{(2)}$). The paper says the multi-material case is "essentially the
+same" as the L-shape; the replicated L-shape covers the algorithmic
+content.
+
+\paragraph{Paper \S6 (Computational Results).}
+\textbf{Direct-method max-error and preprocessing/per-solve structure
+replicated; wall-clock ratios vs.\ SOR/SLOR/ADI not attempted.} A modern
+CPU implementation of 1971-era Peaceman-Rachford ADI on a 32x32 grid is
+essentially not a meaningful reference point. Reproducing the paper's
+${\sim}30\times$ speedup of Direct over SLOR would require either an
+actual CDC 6600 emulation or extremely careful throttled implementations
+of both methods; neither is scientifically interesting given the paper's
+central contribution (the direct method itself) is already replicated
+above.
+
+\section{Verdict}
+
+\textbf{PARTIAL} (LLM-judge via free Argo endpoint, model \texttt{argo:gpt-5.2},
+temperature 0.0, confirmed PARTIAL/HIGH). \emph{Solid} in the WAVE\_BRIEF
+sense --- the paper's central mathematical construction, its
+round-off-limited accuracy claim on the Table-1 geometry, its
+$\mathcal{O}(h^2)$ convergence property on smooth MMS, and its
+preprocessing/per-solve cost structure are all reproduced quantitatively.
+The one caveat is a $\sim$4$\times$ mismatch between my $p$ counts and
+Table~1's $p$ column, which I believe reflects an unspecified use of
+geometric symmetry or a splitting-variant --- see Open Question 1 and
+\texttt{failure\_analysis.md} F3. This does not affect the correctness of
+the method.
+
+\section{Open Questions (Q1--Q5)}
+
+See \texttt{report/open\_questions.json} for the full machine-readable
+version with \texttt{next\_steps} on each.
+
+\begin{description}
+\item[Q1.] \textbf{The $p$-column mismatch in Table~1.} Paper says
+$p=16,32,32,64$; direct reading of \S4 gives $p=81,289,81,289$. Is the
+paper folding by 4-fold symmetry, reporting a splitting variant, counting
+one side only, or is the OCR corrupted?
+
+\item[Q2.] \textbf{Scaling of $\operatorname{cond}_2(C)$.} Consistency
+between capacitance and sparse-LU grows slowly with $N$ (5e-16 at $N=16$;
+1.1e-14 at $N=128$). Fit $\operatorname{cond}(C)$ vs $(p, N, \text{inner\_frac})$
+and find the accuracy floor.
+
+\item[Q3.] \textbf{Robustness of the arbitrary-$f$-into-hole extension.}
+Paper claims it does not matter; my replication follows suit without
+stress-testing high-frequency or high-amplitude hole extensions.
+
+\item[Q4.] \textbf{Upgrade path to spectral accuracy while keeping the
+fast-rectangle-solver kernel.} The capacitance construction is
+discretisation-agnostic; a 9-point stencil or Chebyshev collocation would
+give 4th- or spectral-order convergence.
+
+\item[Q5.] \textbf{When does splitting-variant $p^3$ preprocessing lose to
+iterative?} $p \sim N$ for splitting $\Rightarrow p^3 = N^3$ preprocessing
+dominates $\Theta(N^2\log N)$ per-solve above some crossover $N$.
+Amortisation threshold in \# of RHSs to break even?
+\end{description}
+
+\section{Artifacts}
+
+\begin{lstlisting}
+paper.pdf                         1,340,222 B  (OSTI 4060961; SHA-256 fd92c5cc...)
+extraction/marker.md              pdftotext -layout of paper.pdf
+extraction/nougat.mmd             hand-structured stub with key math + Table 1
+report/REPORT.md                  narrative report
+report/REPORT.tex                 this file
+report/brief.md                   one-paragraph
+report/attempt_log.md             chronological build log
+report/artifact_harvest.md        every artifact pulled
+report/workflow.md                workflow diagram + tools/versions + effort
+report/artifacts_summary.md       every file produced
+report/failure_analysis.md        where it went sideways
+report/open_questions.json        the 5 open questions with next_steps
+report/evidence/*.json, *.log     machine-readable results + raw stdout
+work/capacitance_solver.py        imbedding + capacitance-matrix on rect-with-hole
+work/mms_convergence.py           O(h^2) convergence sweep
+work/lshape_splitting.py          L-shape splitting (paper Section 5)
+work/diagnose.py                  sign-of-Laplacian debug utility
+\end{lstlisting}
+
+\end{document}

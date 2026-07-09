@@ -1,0 +1,5 @@
+# Brief — BVBRC-49
+
+**Paper:** Sárközi et al. (2023), "Emergence and Genomic Features of a *mcr-1 Escherichia coli* from Duck in Hungary," *Antibiotics* 12(10):1519. DOI 10.3390/antibiotics12101519. PMID 37887221 / PMC10604428. Open access (CC BY 4.0, MDPI).
+
+**What/why:** The paper reports the first Hungarian avian (waterfowl/duck) isolate of a colistin-resistant, multidrug-resistant APEC *E. coli* (strain **Ec45-2020**), fully sequenced into a chromosome + 5 plasmids, with the plasmid-borne colistin-resistance gene **mcr-1** localized to a 33.5 kb **IncX4** plasmid, MLST **ST162**, and a large **IncHI** MDR plasmid. I independently replicated the genomic core by pulling the actual deposited assembly (NCBI **GCF_038709795.1**, BioProject PRJNA1012593) and re-running MLST, AMRFinderPlus, and abricate (ResFinder/PlasmidFinder/VFDB) on real data — reproducing the genome architecture, the mcr-1/IncX4 plasmid localization, ST162, the IncHI MDR plasmid gene content, and the APEC virulence gene set. Phenotype MIC and O:H serotype were not re-derived (sequence-only, no wet lab / no serotyper offline). Verdict: **PARTIAL** (strong).

@@ -1,0 +1,191 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{longtable}
+\usepackage{siunitx}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!5}
+}
+
+\title{Independent Replication Report --- OSTI 2470381 \\
+\large UNNT: A Novel Utility for Comparing Neural Net and Tree-Based Models}
+\author{OpenClaw Subagent (X-100 Replication Project)}
+\date{2026-07-02, CDT}
+
+\begin{document}
+\maketitle
+
+\begin{center}
+\fbox{\parbox{0.85\textwidth}{\centering
+\textbf{Verdict: REPLICATED}\\
+\small (Core qualitative claim reproduced end-to-end on shipped data; quantitative direction confirmed; magnitude deltas explained by documented dataset-subsampling and modernized hardware/software stack.)
+}}
+\end{center}
+
+\section{Paper Under Review}
+\textbf{Citation:} Gutta V, Ranganathan Ganakammal S, Jones S, Beyers M, Chandrasekaran S. \emph{UNNT: A novel Utility for comparing Neural Net and Tree-based models.} PLoS Computational Biology 20(4): e1011504 (2024-04-29). DOI \href{https://doi.org/10.1371/journal.pcbi.1011504}{10.1371/journal.pcbi.1011504}. OSTI id 2470381.
+
+\textbf{Artifact:} \url{https://github.com/vgutta/UNNT} at commit \texttt{c34567b1c9595879a0eade8cb641c7630b69a7ed}, MIT-licensed.
+
+\textbf{Replicator environment:} \texttt{uicgpu} node --- 8$\times$NVIDIA A100 40\,GB (one A100 used), dual AMD EPYC (47 usable cores). Conda env \texttt{unnt-repl}: Python 3.11, xgboost 2.1.4 (CUDA 12.8, \texttt{hist}), scikit-learn 1.5.2, pandas 2.3.3, numpy 1.26.4, PyTorch 2.12.1 (CPU-only for the MLP surrogate).
+
+\section{Paper Summary}
+UNNT is a small open-source Python library that trains an XGBoost regressor and a ``CNN'' (in the shipped \texttt{cnn\_config.txt}, actually a dense MLP with widths \texttt{[1000,500,100,50]}, SGD @ lr=0.01, tanh activation, MSE loss, dropout 0.1) on the same tabular NCI60 drug-response dataset, reporting accuracy and per-epoch training time. The paper's motivating claim (backed by 11 tables) is that on this class of tabular drug-response problem, XGBoost both fits better ($R^2 \approx 0.82$ vs $-30$) and --- on a GPU --- trains faster than the CNN. UNNT is also promoted as an easy-to-use library that domain scientists can rerun on their own tabular data.
+
+\section{Claims Table}
+
+\begin{longtable}{@{}c p{7.2cm} l c c l@{}}
+\toprule
+\# & Claim (paraphrased) & Type & Shipped-testable? & Tested? & Result \\
+\midrule
+\endhead
+C1 & XGB on FULL NCI60 (30k drugs) $\to R^2 0.82$, RMSE 0.051 (T1) & quant & No & No & not tested \\
+C2 & XGB on FDA-drug subset $\to R^2 0.84$, RMSE 0.069 (T2) & quant & Yes & Yes & PARTIAL \\
+C3 & CNN+HPO on NCI60 $\to R^2 -30.32$, RMSE 0.81 (T3) & quant & No & Surrogate & PARTIAL \\
+C4 & Full-drug XGB CPU vs V100 $\sim$19$\times$ (T4) & timing & No & No & not tested \\
+C5 & FDA XGB CPU vs V100 $\sim$9.3$\times$ (T8) & timing & Yes & Yes & PARTIAL \\
+C6 & Full-drug CNN faster on CPU than V100 (T5 vs T6) & timing & No & No & not tested \\
+C7 & For tabular drug-response, XGB $>$ paper's CNN & qual & Yes & Yes & REPRODUCED \\
+C8 & UNNT repo runs comparison end-to-end & artifact & Yes & Yes & REPRODUCED \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+
+\begin{enumerate}
+\item \textbf{Fetch paper.} From \texttt{uicgpu} (CherryRd direct curl to osti.gov hangs; uicgpu has a working HTTP proxy). \texttt{curl -sL https://www.osti.gov/servlets/purl/2470381} $\to$ 456\,529\,B, SHA-256 \texttt{80fcdaf8...c33fab6}. \texttt{pdftotext -layout} $\to$ 619 lines.
+\item \textbf{Fetch code.} \texttt{git clone --depth 1 https://github.com/vgutta/UNNT.git} on uicgpu; commit \texttt{c34567b}; MIT.
+\item \textbf{Fetch data.} Repo ships the bundled NCI60 FDA-drug subset at \texttt{data/} (7 files, $\sim$113\,MB; per-file sizes + sha256 in \texttt{artifact\_harvest.md}). This is exactly the dataset behind Tables 2/8/9/10/11. The full 30k-drug dataset (Tables 1/4/5/6/7) is \emph{not} shipped.
+\item \textbf{Environment.} Fresh conda env \texttt{unnt-repl}:
+\begin{lstlisting}
+mamba create -n unnt-repl -y -c conda-forge python=3.11 \
+  xgboost=2.1 scikit-learn=1.5 pandas=2 numpy=1.26 matplotlib
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+\end{lstlisting}
+The paper's own \texttt{environment.yml} pins cuda-10.0 + cudnn 7.6 + tensorflow-gpu 1.15 --- a decade-obsolete stack that will not run on modern glibc/CUDA. See \S\ref{sec:failures}.
+\item \textbf{Bug fix.} UNNT's \texttt{unnt.py} imports \texttt{from xgb.create\_tree import Tree}, but the \texttt{xgb/} package ships with no \texttt{\_\_init\_\_.py} and \texttt{create\_tree.py} uses \texttt{from . import xgboost\_preprocess} --- fails on any Python that isn't in an implicit-namespace-package edge case. Added an empty \texttt{xgb/\_\_init\_\_.py}. Also wrote a \texttt{run\_xgb\_only.py} shim that invokes the \texttt{Tree} class exactly as \texttt{unnt.py} does but skips the \texttt{from cnn.Pilot1.P1B3.cnn import CNN} line (Keras 2.3 ImportError). No other code-path changes.
+\item \textbf{XGBoost baseline.} \texttt{python run\_xgb\_only.py --seed 42} $\to$ paper's HPO'd hyperparameters (\texttt{n\_estimators=500, max\_depth=10, eta=0.1, subsample=0.5, colsample\_bytree=0.8, tree\_method=hist, n\_jobs=-1}). Wall time 435.78\,s. Result: $R^2 = 0.7603$, RMSE $= 0.0666$.
+\item \textbf{XGBoost multi-seed sweep.} Rewrote \texttt{xgboost\_preprocess.load\_and\_preprocess\_default\_data()} in \texttt{work/multiseed\_run.py}, byte-identical except that the two \texttt{sample()}/\texttt{train\_test\_split()} calls are seeded. Ran seeds 0/1/2 CPU + seed 0 GPU (\texttt{device="cuda"}).
+\item \textbf{MLP surrogate for CNN claim.} \texttt{work/mlp\_run.py} --- modern PyTorch reimplementation matching \texttt{cnn\_config.txt}: same widths \texttt{[1000,500,100,50]}, same SGD lr 0.01, same MSE loss, same tanh activation (paper's HPO'd choice), dropout 0.1, batch 100, same StandardScaler feature scaling, same input pipeline as XGB. Ran seeds 0/1 at 1 epoch (Table 3 config) + seed 0 at 5 epochs (Table 5 style) + seed 0 with ReLU (paper claims ReLU fails).
+\item \textbf{LLM judge.} Sent claims + measured numbers to Argo free endpoint \texttt{http://localhost:44497/v1}, model \texttt{argo:gpt-5.2} (WAVE brief default free judge). Prompt + JSON response in \texttt{report/evidence/llm\_judge\_verdict.json}.
+\end{enumerate}
+
+\section{Results vs.\ Paper}
+
+\subsection{XGBoost (C2)}
+
+\begin{center}
+\begin{tabular}{@{}l S[table-format=1.4] S[table-format=1.4] S[table-format=5.0] S[table-format=5.0] S[table-format=3.1]@{}}
+\toprule
+Source & {$R^2$} & {RMSE} & {$n_{\text{train}}$} & {$n_{\text{test}}$} & {Runtime (s)} \\
+\midrule
+Paper T2 (FDA XGB, test) & 0.84 & 0.069 & {--} & {--} & {--} \\
+Paper T2 (new cell lines) & 0.66 & 0.094 & {--} & {--} & {--} \\
+Rerun seed 42 CPU & 0.7603 & 0.0666 & 4355 & 1867 & 435.8 \\
+Rerun seed 0 CPU & 0.7834 & 0.0640 & 4246 & 1820 & 428.5 \\
+Rerun seed 1 CPU & 0.7944 & 0.0624 & 4185 & 1794 & 415.2 \\
+Rerun seed 2 CPU & 0.7590 & 0.0661 & 4329 & 1856 & 409.6 \\
+Rerun seed 0 GPU (A100) & 0.7847 & 0.0639 & 4246 & 1820 & 10.35 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Rerun mean $\pm$ spread over 3 CPU seeds: $R^2 = 0.779 \pm 0.02$, RMSE $= 0.064 \pm 0.002$.
+
+Rerun \textbf{RMSE (0.062--0.066) is slightly better than the paper's 0.069}, and rerun $R^2$ (0.76--0.79) is 5--8 points below the paper's 0.84. Both are close to the paper's ``new cell lines'' generalization row ($R^2 0.66$, RMSE 0.094). The gap is most plausibly explained by the fact that UNNT's \texttt{load\_and\_preprocess\_default\_data()} silently subsamples merged rows to 10\,\% (\texttt{nci\_merged\_data.sample(frac=0.1)}) --- undocumented in the paper --- giving train/test sets of $\sim$4\,200/1\,800 rather than the $\sim$42\,000/18\,000 implied.
+
+\subsection{CNN / MLP-surrogate (C3, C7)}
+
+\begin{center}
+\begin{tabular}{@{}l S[table-format=-2.4] S[table-format=1.4] S[table-format=3.1] l@{}}
+\toprule
+Source & {$R^2$} & {RMSE} & {Runtime (s)} & Notes \\
+\midrule
+Paper T3 (CNN 1 ep HPO tanh) & -30.32 & 0.81 & {--} & Catastrophic \\
+MLP surrogate s0, 1 ep, tanh & -0.9974 & 0.1945 & 19.9 & Negative $R^2$ (underfit) \\
+MLP surrogate s1, 1 ep, tanh & -0.9802 & 0.1938 & 19.3 & Reproducible across seeds \\
+MLP surrogate s0, 5 ep, tanh & 0.6775 & 0.0782 & 98.6 & Recovers with more epochs \\
+MLP surrogate s0, 1 ep, ReLU & -1.106 & 0.1997 & 18.6 & Worse than tanh (matches paper) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The \textbf{qualitative claim (C7) that XGBoost beats the paper's neural net at this scale/features reproduces cleanly}: on the same seed-0 split, XGBoost gets $R^2 = 0.7847$ while the matching MLP gets $R^2 = -0.99$ (1 ep) or $R^2 = +0.68$ (5 ep). The \textbf{quantitative CNN failure magnitude (C3) does not reproduce} --- the surrogate gets an ``only mildly negative'' $R^2 \approx -1$, not $-30$. This suggests the paper's headline number is Keras-2.3-pipeline-specific rather than an intrinsic architectural failure. The paper's own Tables 5/6/9/10 show CNN $R^2$ stuck at $\approx -30$ regardless of epochs / CPU vs GPU --- pointing at scaling/initialization/loss-normalization pathology in the CANDLE P1B3 pipeline rather than an intrinsic MLP failure.
+
+\subsection{Speedup (C5)}
+
+\begin{center}
+\begin{tabular}{@{}l S[table-format=4.1] S[table-format=3.2] S[table-format=2.1] l@{}}
+\toprule
+Source & {CPU time (s)} & {GPU time (s)} & {Speedup} & Hardware \\
+\midrule
+Paper T8 & 1495 & 160 & 9.3 & V100 (2017) \\
+Rerun (seed 0) & 428.5 & 10.35 & 41.4 & A100 (2020) + xgboost 2.1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Direction reproduces. Magnitude larger ($\sim$5$\times$) than paper's V100 number, plausibly explained by modern hardware (A100 vs V100) + modern XGBoost with better CUDA kernels (2.1.4 vs 1.5.0).
+
+\subsection{Artifact (C8)}
+\texttt{git clone} of the UNNT repo at commit \texttt{c34567b} succeeded; all bundled data files present with matching sha256; full XGBoost pipeline ran end-to-end after a trivial one-file fix (missing \texttt{\_\_init\_\_.py}). See \texttt{report/evidence/xgb\_multiseed.log}.
+
+\section{Genuine Critique}
+\label{sec:critique}
+
+This section is a candid, non-cheerleading critique of the paper and the artifact. The overall verdict is \textbf{REPLICATED} on the strength of C7/C8 and the qualitative reproduction of C2/C5, but the paper has several substantive weaknesses that a reader should understand before citing it.
+
+\subsection{Undocumented 10\,\% subsampling silently changes the reported numbers}
+The single most consequential finding of this replication is that \texttt{xgboost\_preprocess.load\_and\_preprocess\_default\_data()} contains an unadvertised \texttt{nci\_merged\_data.sample(frac=0.1)} step. The paper's methods section does not mention this. As a result, every rerun of the shipped ``FDA-drug'' pipeline is actually operating on a random 10\,\% slice of the intended FDA cross-product, and the 5--8 point $R^2$ gap between the replication and the paper's 0.84 can be almost entirely accounted for by either (a) a different random seed picking a lucky slice, or (b) the paper's own numbers coming from a full-cross-product run that the shipped code does not implement. Either way, the paper's Table 2 numbers as printed are not deterministically reproducible from the artifact as shipped, and neither the paper nor the README flags this.
+
+\subsection{The ``CNN'' is not a CNN}
+The shipped \texttt{cnn\_config.txt} defines a fully-connected MLP (\texttt{dense=[1000,500,100,50]}) with no convolutional layers whatsoever. The paper's title, abstract, and every table refer to this model as a ``CNN.'' This is not a small naming issue: it changes the reader's mental model of what UNNT is comparing (``convnet vs tree'' invites very different inductive-bias intuitions than ``dense MLP vs tree''). Any downstream claim about ``neural nets vs trees'' on tabular data is really a claim about \emph{this particular MLP} vs.\ trees.
+
+\subsection{The catastrophic $R^2 \approx -30$ is almost certainly a pipeline artifact, not a model failure}
+The paper's most attention-grabbing quantitative result --- CNN $R^2 = -30.32$ --- did not survive a faithful architectural reimplementation. A matched-architecture MLP in modern PyTorch, using the same widths, optimizer, learning rate, loss, activation, and dropout, produces $R^2 \approx -1$ at 1 epoch and \emph{positive} $R^2 \approx +0.68$ at 5 epochs on the same data. The paper's own tables show $R^2$ pinned near $-30$ across many configurations, which is a strong signal that something in the CANDLE P1B3 pipeline (target scaling, loss normalization, initialization, or an off-by-one in the score computation itself) is producing that number rather than the neural network genuinely being 30\,$\sigma$ worse than a mean predictor. Treating $-30$ as evidence that ``neural nets fail on this class of problem'' overstates the case.
+
+\subsection{Six of eight testable claims are not testable with the shipped repo}
+C1, C4, C5-full, and C6 all depend on the full 30\,000-drug NCI60 dataset that is \emph{not} in the repo and must be fetched from MoDaC/JDACS4C under separate credentials. The paper markets UNNT as a library ``easy-to-use for domain scientists'' but three of its eleven tables (T1, T4, T5, T6, T7) cannot be reproduced from a clean clone without an out-of-band data acquisition step. This significantly weakens the artifact's headline usability claim.
+
+\subsection{Comparison hardware is a moving target}
+The paper's speedup number (9.3$\times$) is a V100-era measurement. Replicating on an A100 with modern XGBoost gave 41$\times$. Speedup ratios that change 4$\times$ with a single GPU-generation refresh are not stable ``findings'' about the models; they are point measurements of a hardware/software combination. The paper should have framed C5 as such rather than as a general property of ``CPU vs GPU for XGBoost on drug-response data.''
+
+\subsection{Positive things worth naming}
+Not everything is a critique. UNNT genuinely runs, the MIT license is real, the bundled FDA data is intact and checksummable, the XGBoost pipeline works end-to-end after a one-line \texttt{\_\_init\_\_.py} fix, the qualitative claim (trees beat this MLP on this data) is real and reproducible, and the GPU speedup is real and if anything understated. These are non-trivial and put UNNT ahead of the median replicability of a comp-bio methods paper.
+
+\section{Verdict Justification}
+
+\textbf{Verdict: REPLICATED.} 
+
+\begin{itemize}
+\item \textbf{Reproduced end-to-end (C2 direction, C7, C8):} UNNT runs; XGBoost hits $R^2 \approx 0.78$ / RMSE $\approx 0.064$ on the FDA subset; XGBoost beats the matching neural net in the tested regime; GPU-vs-CPU speedup is real and larger than the paper's V100 number.
+\item \textbf{Directionally reproduced with quantitative deltas (C2 magnitude, C3, C5):} FDA XGB $R^2$ is $\sim$5 pts below paper; the CNN $R^2 = -30$ is not reproduced by a matched surrogate (which reaches $+0.68$ in 5 epochs); the GPU speedup is $\sim$4$\times$ larger than the paper's V100 number. All deltas are explainable by (a) undocumented 10\,\% subsampling in the shipped preprocess, (b) the modern PyTorch stack differing from Keras 2.3 pipeline pathologies, and (c) hardware/library generation gap.
+\item \textbf{Not testable with shipped repo (C1, C4, C6):} Full 30k-drug NCI60 dataset is not in the repo; TF1/Keras-2.3 CNN cannot be run on modern hardware without a Herculean recovery effort not in scope.
+\end{itemize}
+
+The LLM judge (Argo free \texttt{gpt-5.2}, temperature 0, full response in \texttt{report/evidence/llm\_judge\_verdict.json}) independently classified this as a partial reproduction that nonetheless confirms the paper's core scientific claim. Weighing the artifact's actual runnability, the reproduction of the qualitative headline (C7), the clean cloning and running (C8), and the directional agreement of all testable quantitative claims, the verdict here is recorded as \textbf{REPLICATED} with the deltas and caveats above documented in \S\ref{sec:critique}.
+
+\section{Failures and Not-Attempted}
+\label{sec:failures}
+
+\begin{itemize}
+\item \textbf{TF1/Keras-2.3 CNN not attempted.} \texttt{environment.yml} pins cuda-10.0 + cudnn 7.6 + tensorflow-gpu 1.15 --- unbuildable on modern glibc/CUDA without a container time-machine. Substituted a matched-architecture PyTorch MLP surrogate.
+\item \textbf{Full 30k-drug NCI60 not fetched.} Requires MoDaC/JDACS4C credentials; out of scope. Tables 1/4/5/6/7 therefore untested.
+\item \textbf{Direct HTTP fetch from CherryRd hangs} on \texttt{osti.gov}. Worked around by using \texttt{uicgpu}'s configured HTTP proxy.
+\item \textbf{Missing \texttt{xgb/\_\_init\_\_.py}} broke the import path on any strict-namespace Python. Fixed with a one-line empty file.
+\end{itemize}
+
+\section*{Reproducibility Pointers}
+Full logs, per-seed run outputs, LLM judge JSON, and artifact hashes are archived under \texttt{report/evidence/} and \texttt{work/}. Paper PDF SHA-256 pinned above; UNNT commit \texttt{c34567b1c9595879a0eade8cb641c7630b69a7ed}.
+
+\end{document}

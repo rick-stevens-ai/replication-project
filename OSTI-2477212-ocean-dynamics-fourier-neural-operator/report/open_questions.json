@@ -1,0 +1,57 @@
+[
+  {
+    "q": "Does the Sun et al. FNO ocean-surrogate architecture (2D FNO wrapping MPAS-Ocean SOMA at 100x100 grid) scale to genuine mesoscale-eddy-resolving global-ocean 3D dynamics on production grids (~1/10 degree, ~1/25 degree, or LLC4320-style ~2 km) --- or is there a hard memory/compute-cost ceiling on 3D spectral-conv layers (rFFT + learnable complex multiply + irFFT over lat x lon x depth) that forces regional-basin proof-of-concept status only?",
+    "basis": "Our replication and the paper itself operate on the SOMA 100x100 idealized wind-driven basin surface fields (30-day trajectories on a 100x100 grid, four state variables). Neither Sun/Sowunmi/Egele/Narayanan/Van Roekel/Balaprakash nor this replication tested global-ocean geometry, full-depth 3D state (only surface fields), or eddy-resolving resolution. The scaling from 100^2 2D single-layer to (1000-10000)^2 x O(75) vertical levels is O(10^4)-O(10^6) in state size; spectral-conv memory (mode-truncated FFT weights) grows as modes^d and inference-time FFTs become the dominant cost. The paper's DeepHyper budget was already 80xA100 x 6 h for a 100x100 problem.",
+    "next_steps": [
+      "Prototype 3D FNO (SpectralConv3d) at increasing resolution: 100^2 x 1 (paper), 100^2 x 30 depth levels, 400^2 x 30, 1000^2 x 30, and measure GPU memory + wall-time per epoch on 1xA100 80GB then 8xA100.",
+      "Benchmark on E3SM-MPAS-O 1/10 degree regional output (Southern Ocean state estimate or equivalent) --- start with a single ocean basin (North Atlantic, ~40M surface points) before global.",
+      "Compare to spectral-truncation baselines (paper uses N_modes as hyperparam) --- at 1/10 degree grid the number of resolved wavenumbers matters more than at 100^2; may need to inject a physics-informed low-pass or hierarchical FNO (multi-scale, e.g. F-FNO, Geo-FNO) rather than flat spectral truncation.",
+      "Publish a memory/compute-cost curve (params, GPU-mem, seconds-per-forward-pass) as a function of (H,W,D) and modes --- this is the single missing artifact that would let readers estimate feasibility for global ocean before committing HPC time.",
+      "Contact Van Roekel/Narayanan (co-authors, MPAS-Ocean core team at LANL/ANL) for an MPAS-Ocean mid-resolution (1/4 degree or 1/8 degree) ensemble to serve as a stepping-stone test bed between SOMA and LLC4320-scale."
+    ]
+  },
+  {
+    "q": "Under long-horizon autoregressive rollout (>= 30 days, and especially >= 1-10 year decadal integrations), does the Sun et al. FNO ocean surrogate remain numerically stable, or does it develop the spectral-bias / drift pathologies documented for FNO-family emulators in weather (Pathak et al. FourCastNet, GraphCast) --- and if so, what drift-correction or spectral-bias-mitigation strategy (spectral penalty on high-wavenumber residuals, hybrid FNO-plus-GCM correction step, integrated ACC / energy-conservation regularizer during training, noise-injection during rollout) preserves fidelity closest to E3SM-MPAS-O / MOM6 / POP2 process-based ocean-GCM ground truth?",
+    "basis": "This replication verified 29-day rollout stability on a synthetic ocean-tracer proxy (baseline ACC collapses to 0.088 by day 29; optimized retains ACC 0.9299 at day 29 --- Figure 6 analog in REPORT.md section 4.3). The paper itself reports the same 30-day horizon (Figure 6). Nothing >30 days is tested by paper or replication. Autoregressive rollout drift is the single most-reported failure mode in the neural-operator-for-fluids literature and neither this paper nor our replication addresses it beyond a 30-day surface-tracer window.",
+    "next_steps": [
+      "Extend the paper's rollout beyond 30 days (90, 365, 1825 days) on the synthetic ocean-tracer proxy and log per-day ACC + spectral energy in each wavenumber band vs the ground-truth solver.",
+      "Test candidate drift-correction schemes: (a) periodic GCM-anchored reset every N steps, (b) spectral penalty at training time on high-|k| residuals, (c) noise-injection during rollout (Brandstetter et al. pushforward trick), (d) energy/salt/momentum-conservation soft constraints.",
+      "Compare rollout stability against E3SM-MPAS-O reference integration at matching initial state; report ACC(t) and spectral drift curves.",
+      "Reproduce the analysis on MOM6 or POP2 ensemble (different discretization) to check whether the drift signature is FNO-family-specific or dataset-specific.",
+      "Publish rollout curves alongside compute cost per year-of-simulated-time so end users (climate scientists) can compare FNO vs a real ocean-GCM at matched fidelity."
+    ]
+  },
+  {
+    "q": "On identical ocean benchmark tasks (SSH forecasting, Meridional Overturning Circulation estimation, water-mass tracking on temperature-salinity diagrams), how does the Sun et al. FNO compare against (a) Transformer-based ocean surrogates (e.g. AtmoRep-ocean, spherical-attention variants), (b) Graph Neural Operator variants suited to unstructured MPAS meshes, and (c) Neural-ODE / continuous-time operator baselines --- when all four are trained under fair compute-parity (equal GPU-hours, equal parameter budget, equal training ensemble) with uncertainty quantification (ensemble spread, dropout MC, deep-ensembles)?",
+    "basis": "The paper compares only Modulus-default FNO baseline vs HPO-optimized FNO. No cross-architecture comparison is done, and no uncertainty quantification. Our replication has the same limitation --- we only vary FNO hyperparameters, not architecture family. The MPAS-Ocean mesh is unstructured Voronoi, which is a natural fit for Graph Neural Operators (that require no rectangular grid) --- yet all FNO evaluations rectangularize the field to 100x100, throwing away the mesh's native geometry.",
+    "next_steps": [
+      "Define an open ocean-surrogate benchmark suite: single-step SSH prediction on public satellite altimetry ensemble; MOC estimation on ECCO / ECCOv4-r5; water-mass diagnostic on Argo T-S climatology.",
+      "Train FNO, Transformer (Perceiver-IO-style or ViT-3D), GraphNeuralOperator (on native MPAS Voronoi mesh, no rasterization), and Neural-ODE surrogates at matched budgets: e.g. 500 GPU-hours, ~10M parameters, same train/test ensemble split.",
+      "Report per-model: single-step metrics, 30-day rollout stability, uncertainty (ensemble spread + calibration), inference latency, GPU memory footprint.",
+      "Include deep-ensemble uncertainty: train 5+ seeds per architecture, report ensemble mean + std.",
+      "Publish the benchmark + all pre-trained checkpoints (Zenodo) so subsequent papers can plug in new architectures --- addresses the current field-wide gap where every neural-ocean paper defines its own idiosyncratic test."
+    ]
+  },
+  {
+    "q": "Can the Sun et al. FNO ocean-surrogate be integrated as the ocean component of a hybrid coupled Earth-system model (paired with a process-based atmosphere and sea-ice component, e.g. CAM/CICE or IFS/SI3) for climate-projection production runs --- and does the FNO respect the coupled-system conservation constraints (top-of-atmosphere energy imbalance, air-sea momentum flux consistency, freshwater / salt budget closure) required for multi-century integrations to stay physically plausible?",
+    "basis": "The paper trains a standalone ocean surrogate on offline MPAS-Ocean SOMA output --- no atmospheric coupling, no ice, no realistic surface forcing. Our replication uses the same offline setup. Any real climate-projection use requires the ocean component to communicate with atmosphere/ice at each coupling step; a data-driven ocean that violates energy or salt conservation will drift the coupled system, and current FNO implementations have no built-in conservation guarantees.",
+    "next_steps": [
+      "Instrument the trained FNO with per-forward-pass diagnostics: net surface heat flux, net freshwater flux, net momentum input, integrated kinetic + potential energy --- log drift against MPAS-Ocean process-based reference over 30/90/365 days.",
+      "Prototype a hybrid coupling: FNO ocean + process-based atmosphere (CAM or ICON-A) with the OASIS3-MCT coupler; monitor coupled-system top-of-atmosphere balance over a 5-year integration.",
+      "Test soft-conservation training losses (add a per-batch penalty term for globally-integrated heat + freshwater residuals) and measure whether drift decreases.",
+      "Compare against hybrid architectures with hard conservation (e.g., neural-network-parameterization inside MPAS-Ocean rather than replacing it) --- FNO-as-surrogate vs FNO-as-parameterization is the correct design question for coupled-model use.",
+      "Coordinate with the DOE E3SM team (co-author Van Roekel is E3SM-MPAS-O ocean lead) to design a coupled-model test protocol that would be acceptable to climate-modeling reviewers."
+    ]
+  },
+  {
+    "q": "Given that the Sun et al. FNO was trained only on the idealized SOMA basin (150 km x 100 m circular wind-driven idealization), how transferable is the learned operator across geometrically distinct real ocean basins (North Atlantic, Pacific gyre, Arctic sea-ice-coupled, Antarctic Circumpolar / Southern Ocean) --- and what is the trade-off between fine-tuning cost (few-shot on a target basin) versus training from scratch, and how well does the fine-tuned FNO generalize out-of-distribution under future CO2-forcing scenarios (SSP2-4.5, SSP5-8.5) where ocean stratification, ACC transport, and mixed-layer depth shift materially outside the training climate?",
+    "basis": "The paper trains on a single idealized basin (SOMA circular geometry, single climatological forcing). Our replication uses a similarly idealized synthetic proxy. Neither tests cross-basin transfer, nor OOD generalization to shifted-climate boundary conditions. This is the single biggest concern for real climate use: FNO in-distribution accuracy tells you nothing about performance under 2100-era warmed ocean states, which is exactly the regime a climate-projection surrogate must handle.",
+    "next_steps": [
+      "Build a cross-basin transfer benchmark: pre-train on SOMA, then fine-tune on North Atlantic / Pacific / Arctic / Southern Ocean regional MPAS-Ocean output, measure (a) zero-shot performance, (b) 10%/50%/100% fine-tuning-data cost curves, (c) catastrophic-forgetting when fine-tuned on a new basin.",
+      "Test OOD generalization by holding out warmer-climate training samples: train on pre-industrial + historical MPAS-Ocean ensemble, evaluate on SSP2-4.5 and SSP5-8.5 late-century state; report accuracy degradation and its dependence on stratification / mixed-layer-depth distributional shift.",
+      "Probe feature-space geometry: visualize learned latent features across basins (PCA / UMAP on FNO hidden activations) to diagnose whether the FNO encodes truly-general fluid-dynamics or basin-specific spurious features.",
+      "Compare fine-tuning cost against from-scratch training on the same target basin --- is the SOMA pre-training actually saving compute? --- and report parameter-efficient fine-tuning (LoRA-style low-rank adapters for spectral-conv layers).",
+      "Build a shifted-forcing stress test: perturb wind, freshwater, and heat forcing by prescribed amounts and measure the FNO's ability to track a re-run of the process-based ocean-GCM under the same perturbations --- this is the closest lab analog of an SSP-scenario evaluation."
+    ]
+  }
+]

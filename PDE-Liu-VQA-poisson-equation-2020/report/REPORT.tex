@@ -1,0 +1,292 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{longtable}
+
+\title{Independent Replication Report\\
+\large Liu et al.\ (2020) --- Variational Quantum Algorithm for the Poisson Equation}
+\author{OpenClaw Replication Project}
+\date{2026-07-05}
+
+\begin{document}
+\maketitle
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Field} & \textbf{Value} \\
+\midrule
+Paper & Liu, Wu, Wan, Pan, Qin, Gao, Wen \\
+Title & Variational quantum algorithm for the Poisson equation \\
+Preprint & arXiv:2012.07014v1 [quant-ph], 13 Dec 2020 \\
+Published & Phys.\ Rev.\ A \textbf{104}, 022418 (Aug 2021) \\
+DOI & 10.1103/PhysRevA.104.022418 \\
+Citations & 108 (per replication brief) \\
+\textbf{Verdict (this replication)} & \textbf{PARTIAL} (see \S\ref{sec:verdict}) \\
+LLM-judge (Argo/gpt-5.2) & \textbf{PARTIAL}, confidence 90 \\
+Compute & CherryRd (macOS, arm64, py 3.14, numpy 2.5.0) + uicgpu (8$\times$A100, py 3.10) \\
+Endpoint (LLM-judge) & Argo proxy \verb|http://127.0.0.1:44497/v1|, \verb|argo:gpt-5.2| (FREE) \\
+Wall time & $\sim$60 minutes end-to-end \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Paper Summary}
+Liu et al.\ propose a \emph{variational quantum algorithm} (VQA) for solving the
+finite-difference-discretized 1-D (and $d$-D) Poisson equation on NISQ hardware.
+They cast the problem as ground-state search for a Hamiltonian
+$H = A(I - |b\rangle\langle b|)A$, where $A$ is the standard $2^m \times 2^m$
+tridiagonal $(-1, 2, -1)$ finite-difference matrix and $|b\rangle \propto f(x)$
+sampled on the interior grid.
+
+Their central technical contribution is an explicit \emph{recursive
+tensor-product decomposition} of $A$ and $A^2$ in the simple-operator basis
+$\{I, \sigma_+, \sigma_-\}$ (rather than the usual Pauli basis), producing only
+$2m+1$ and $4m+1$ terms respectively (logarithmic in matrix dimension). Combined
+with Bell-basis measurements this yields an $O(\log n)$-measurement cost
+function
+\[
+E(\theta) = \langle \psi(\theta)|A^2|\psi(\theta)\rangle
+- |\langle b|A|\psi(\theta)\rangle|^2.
+\]
+They validate the algorithm with a numerical simulation in ProjectQ for
+$m=2,\ldots,6$ qubits, $f(x)=x$, showing that fidelity
+$|\langle x|\psi(\theta_{\mathrm{opt}})\rangle| \to 0.99$ with a small number
+of variational-circuit layers $p$ (Fig.~4).
+
+\section{Claims Tested}
+\begin{center}
+\begin{tabular}{clllll}
+\toprule
+ID & Claim & Type & Testable & Tested here \\
+\midrule
+C1 & $A_m$ decomposes into $2m+1$ items over $\{I,\sigma_+,\sigma_-\}$ & Analytic & Yes & Yes ($m=1..6$) \\
+C2 & $A_m^2$ decomposes into $4m+1$ items over $\{I,\sigma_\pm,\sigma_+\sigma_-,\sigma_-\sigma_+\}$ & Analytic & Yes & Yes ($m=1..6$) \\
+C3 & VQA reaches fidelity $\geq 0.99$ for $m=2..6$ with modest $p_{\min}$ & Numerical & Yes & Yes ($m=2..5$); partial $m=6$ \\
+C4 & Decomposition extends to $d$-D Poisson / general Toeplitz & Analytic & Yes & No (out of scope) \\
+C5 & Bell-measurement trick evaluates $\langle X \otimes A\rangle$ efficiently & Circuit & Partial & No (statevector is stronger) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Method}
+
+\subsection{Data Sources / Artifacts}
+The arXiv PDF (720\,KB, 6 pages plus references and Appendix~A) was fetched from
+\url{https://arxiv.org/pdf/2012.07014.pdf}. No external datasets are required
+--- the problem is fully specified by the canonical finite-difference
+tridiagonal matrix and the RHS $b_i = f(x_i)$, $f(x)=x$, $x_i = i/(n+1)$.
+
+\subsection{Implementation}
+\texttt{work/liu\_vqa.py} (14\,KB, MIT-licensed) implements:
+\begin{enumerate}
+\item \texttt{decompose\_A(m)} --- recursive per Eq.~(11):
+$A_m = I \otimes A_{m-1} - \sigma_- \otimes \sigma_+^{\otimes(m-1)}
+- \sigma_+ \otimes \sigma_-^{\otimes(m-1)}$, base
+$A_1 = 2I - \sigma_+ - \sigma_-$.
+\item \texttt{decompose\_B(m)} / \texttt{decompose\_C(m)} --- Eqs.~(13)--(18).
+\item \texttt{decompose\_Asq\_pure(m)} --- fully expands compound leaves into
+pure single-qubit tensor-product terms, giving the paper's $4m+1$ count.
+\item \texttt{verify\_A(m)} / \texttt{verify\_Asq(m)} --- max-abs error vs.\
+ground-truth dense $A$, $A^2$.
+\item \texttt{ansatz(theta, m, p)} --- hardware-efficient ansatz (Fig.~3 style):
+per layer, RX$(\theta)$ on every qubit, RZ$(\theta)$ on every qubit, linear
+CNOT chain. Params: $2mp$. Applied via tensordot/moveaxis for $O(2^m)$ speed.
+\item \texttt{cost\_E(theta, m, p, A, A2, |b\rangle)} --- Eq.~(6) evaluated
+exactly on the statevector.
+\item \texttt{run\_vqa(m, p)} --- 20 random-init restarts (uniform, near-zero,
+near-$\pi$ perturbations), each optimized with SciPy L-BFGS-B and BFGS
+(\texttt{gtol=1e-9}, \texttt{maxiter=500}).
+\item \texttt{run\_vqa\_warmstart(m, p, prev\_theta)} --- adaptive-layer growth.
+\item \texttt{min\_layers\_for\_099(m)} --- increments $p$ until threshold hit.
+\item \texttt{work/llm\_judge.py} --- feeds full \texttt{results.json} plus
+console log to \texttt{argo:gpt-5.2} for a structured JSON verdict per claim.
+\end{enumerate}
+
+\subsection{Commands Run}
+\begin{lstlisting}[basicstyle=\ttfamily\small,frame=single,breaklines=true]
+python3 -m venv work/venv && source work/venv/bin/activate
+pip install numpy scipy
+python3 work/liu_vqa.py                # local: C1, C2, C3 for m=2..4
+rsync work/liu_vqa*.py uicgpu:~/liu_vqa_repl/
+ssh uicgpu 'cd ~/liu_vqa_repl && parallel --colsep " " -j 16 \
+  "OMP_NUM_THREADS=1 python3 liu_vqa_parallel.py {1} {2} {3}" \
+  <<< "$(for m in 5 6; do for p in 1..8; do echo $m $p 20; done; done)" \
+  > vqa_m56_results.jsonl'
+scp uicgpu:~/liu_vqa_repl/vqa_m56_results.jsonl work/
+python3 work/finalize.py               # merge local + uicgpu
+python3 work/llm_judge.py              # Argo gpt-5.2 verdict
+\end{lstlisting}
+
+\section{Results vs.\ Paper}
+
+\subsection{Claim C1 --- $A_m$ decomposition item count}
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+$m$ & Paper $2m+1$ & Ours & Reco err (max abs) & Match \\
+\midrule
+1 & 3 & 3 & 0.00e+00 & \checkmark \\
+2 & 5 & 5 & 0.00e+00 & \checkmark \\
+3 & 7 & 7 & 0.00e+00 & \checkmark \\
+4 & 9 & 9 & 0.00e+00 & \checkmark \\
+5 & 11 & 11 & 0.00e+00 & \checkmark \\
+6 & 13 & 13 & 0.00e+00 & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{center}
+\textbf{Exactly reproduced (6/6).}
+
+\subsection{Claim C2 --- $A_m^2$ decomposition item count (pure form)}
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+$m$ & Paper $4m+1$ & Ours (pure) & Ours (nested) & Reco err & Match \\
+\midrule
+1 & 5 & 5 & 3 & 0.00e+00 & \checkmark \\
+2 & 9 & 9 & 5 & 0.00e+00 & \checkmark \\
+3 & 13 & 13 & 7 & 0.00e+00 & \checkmark \\
+4 & 17 & 17 & 9 & 0.00e+00 & \checkmark \\
+5 & 21 & 21 & 11 & 0.00e+00 & \checkmark \\
+6 & 25 & 25 & 13 & 0.00e+00 & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{center}
+The ``nested/compound'' column is our own recursive form with leaves such as
+$(I - 4\sigma_+)$ and $(6I - 4\sigma_+ - 4\sigma_-)$; when expanded into pure
+single-qubit tensor products via \texttt{\_expand\_compound}, the count matches
+the paper's $4m+1$ exactly. \textbf{Exactly reproduced (6/6).}
+
+\subsection{Claim C3 --- VQA fidelity vs.\ layers $p$}
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+$m$ & Paper Fig.~4 $p_{\min}$ & Our $p_{\min}$ & Our best fidelity & Match \\
+\midrule
+2 & 1--2 & 1 & 0.9955 & \checkmark \\
+3 & 2 & 2 & 0.9958 & \checkmark \\
+4 & 3 & 3 & 0.9955 & \checkmark \\
+5 & 3--4 & 3 & 0.9917 & \checkmark \\
+6 & 4--5 & \emph{not reached in swept range} & 0.9692 (at $p=2$) & partial \\
+\bottomrule
+\end{tabular}
+\end{center}
+For $m=6$ the $p=3..8$ sweep on uicgpu was still running at report cutoff
+($>800$\,s per serial job). Intermediate results ($m=6, p=1: 0.9428$;
+$m=6, p=2: 0.9692$) are on-trajectory to cross $0.99$ near $p \approx 4$--$5$,
+consistent with the paper's inset.
+
+\section{Verdict}\label{sec:verdict}
+\textbf{PARTIAL} --- REPLICATED on both analytic claims (C1, C2), PARTIAL on
+the numerical Fig.~4 sweep (4 of 5 qubit counts fully replicated, $m=6$
+partially demonstrated but not run to threshold).
+
+\begin{itemize}
+\item C1 and C2 --- the paper's most novel technical contribution (the
+$O(\log n)$-item decomposition) --- reproduce \emph{exactly} for every $m$ in
+the paper's stated range with zero reconstruction error.
+\item C3 reproduces fully for $m=2,3,4,5$; $p_{\min}$ values match or are
+one-away-from the paper's inset within the natural noise of ansatz choice and
+random-init BFGS.
+\item $m=6$ was not run to threshold due to compute budget. The gap is a
+budget-limited compute question, not a scientific one.
+\end{itemize}
+
+\section{LLM-Judge Verdict (Independent, Non-Regex)}
+Called against \texttt{argo:gpt-5.2} on the Argo proxy (FREE endpoint) with
+the full \texttt{results.json} and console log as context. Full JSON in
+\texttt{report/evidence/llm\_judge.json}. Summary:
+\begin{itemize}
+\item \textbf{C1}: SUPPORTED (confidence 98).
+\item \textbf{C2}: SUPPORTED (confidence 97).
+\item \textbf{C3}: PARTIAL (confidence 85) --- reaches $\geq 0.99$ for
+$m=2..5$; for $m=6$ best fidelity seen was $0.9692$ with only $p=1..2$ tested.
+\item \textbf{OVERALL}: PARTIAL (confidence 90).
+\end{itemize}
+
+\section{Genuine Critique}\label{sec:critique}
+This section is deliberately adversarial, on top of the mostly-positive result
+above. Nothing here changes the PARTIAL verdict --- it lists limitations
+readers should carry forward.
+
+\paragraph{1. C3 is under-swept at $m=6$.} We stopped at $p=2$ on the largest
+system in the paper's stated range and only \emph{argued} (by trend
+extrapolation from $m=5, p=3$ and the paper's own inset) that
+$p_{\min}(m{=}6) \approx 4$--$5$ would clear the $0.99$ bar. That argument is
+plausible but not measured. Anyone quoting our C3 result at $m=6$ should quote
+$0.9692$ at $p=2$, not the extrapolation.
+
+\paragraph{2. Statevector simulation is strictly stronger than the paper's
+Bell-measurement protocol.} Our cost function evaluates
+$\langle \psi | A^2 | \psi\rangle - |\langle b | A | \psi\rangle|^2$ exactly on
+the statevector. That validates the math but says nothing about the
+shot-noise, sampling-budget, and hardware-noise regime the paper's
+Bell-measurement trick (Eq.~20, claim C5) was designed for. We explicitly did
+\emph{not} test C5. A full NISQ-relevant replication would need to reintroduce
+shot noise and possibly a device-noise model.
+
+\paragraph{3. Ansatz mismatch is uncontrolled.} We used a hardware-efficient
+RX+RZ+linear-CNOT ansatz ``Fig.~3 style, simplified,'' not a bit-exact
+reimplementation of the paper's circuit. Fidelities and $p_{\min}$ values can
+shift by $\pm 1$ layer under ansatz variation. The fact that our
+$p_{\min}$ values matched or came within one layer of the paper's inset is
+encouraging but does not rule out fortuitous cancellation.
+
+\paragraph{4. 20 random restarts is modest for a barren-plateau-suspect
+landscape.} At larger $m$, VQA loss landscapes become exponentially flat
+(McClean et al., 2018). Twenty restarts with L-BFGS-B may be under-sampling
+the basin structure; ``best of 20'' could be a lower bound on what the
+paper's authors found with more compute.
+
+\paragraph{5. C4 (extension to $d$-D and general Toeplitz) is entirely
+untested.} We accepted the authors' claim on inspection because the recursive
+scheme validated by C1/C2 obviously generalizes, but ``obvious'' is not
+``tested.''
+
+\paragraph{6. C5 (Bell-measurement scaling) is entirely untested.} Same as
+above --- statevector supersedes it in this replication but does not
+constitute evidence for the shot-scaling claim itself.
+
+\paragraph{7. Environment drift between local and uicgpu.} Local runs used
+python 3.14 + numpy 2.5.0 + scipy 1.18.0; uicgpu runs used python 3.10 +
+numpy 1.23.5 + scipy 1.10.1. Optimizer behaviour (BFGS line-search
+tolerances) can differ subtly between scipy majors. We did not cross-check a
+single $(m,p)$ point across both environments to bound this.
+
+\paragraph{8. No paper-provided reference code was used.} All decompositions
+and the VQA driver were re-derived from the paper text (Eqs.~11--18). This
+is good for independent-replication credibility but means a subtle mismatch
+between our reading and the authors' intent would be invisible.
+
+\paragraph{9. Confidence scaling.} The LLM-judge assigns confidence 90 to the
+overall verdict; treat that as calibrated to the evidence presented, not to
+absolute ground truth about the paper. It has not audited the code.
+
+\section{Files}
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize,frame=single]
+PDE-Liu-VQA-poisson-equation-2020/
+|-- report/
+|   |-- REPORT.md               (markdown source of truth)
+|   |-- REPORT.tex              (this file)
+|   |-- brief.md                (1-paragraph summary)
+|   |-- attempt_log.md          (chronological log)
+|   |-- artifact_harvest.md     (public artifacts pulled)
+|   `-- evidence/
+|       |-- results.json        (full C1/C2/C3 numeric evidence)
+|       |-- llm_judge.json      (Argo gpt-5.2 verdict)
+|       `-- main_run.log        (local main-sweep console log)
+`-- work/
+    |-- venv/                   (python 3.14 + numpy 2.5.0 + scipy 1.18.0)
+    |-- liu_vqa.py              (main implementation)
+    |-- liu_vqa_parallel.py     (uicgpu one-shot wrapper)
+    |-- finalize.py             (merges local + uicgpu results)
+    |-- llm_judge.py            (Argo LLM-judge caller)
+    |-- liu_vqa_poisson.pdf     (paper arXiv PDF)
+    `-- vqa_m56_results.jsonl   (uicgpu parallel sweep results)
+\end{lstlisting}
+
+\end{document}

@@ -1,0 +1,223 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{enumitem}
+
+\title{Independent Replication --- Huang \& Shen (2021),\\
+High-Order IMEX (SAV) Schemes for Navier--Stokes}
+\author{OpenClaw subagent (Ollie)}
+\date{2026-07-02}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently reimplement the arbitrary-order-in-time, unconditionally
+energy-stable IMEX-BDF$k$/SAV scheme of Huang \& Shen (SINUM 2021,
+\href{https://doi.org/10.1137/21M1404144}{doi:10.1137/21M1404144}) for the
+incompressible Navier--Stokes equations under periodic boundary conditions.
+Our from-scratch Fourier--Galerkin/SAV solver recovers the paper's Example~1
+temporal convergence orders in $H^1$ for $k=1,2,3,4$ (fitted slopes
+$1.00/1.89/3.02/4.14$ for velocity and $0.95/1.95/3.01/4.08$ for pressure),
+and empirically confirms boundedness of the SAV energy at a large step
+$\Delta t=0.05$. Three independent free-Argo LLM judges concur.
+\textbf{Verdict: REPLICATED.}
+\end{abstract}
+
+\section{Paper claims and scope}
+
+Huang \& Shen (2021) build a family of arbitrary-order IMEX schemes that
+combine BDF$k$ time-stepping with Adams--Bashforth-$k$ (AB$k$) extrapolation
+of the convective nonlinearity and a Scalar-Auxiliary-Variable (SAV)
+relaxation that enforces unconditional energy stability. The setting is
+$\Omega=(0,L)^d$ with periodic boundary conditions, so pressure can be
+eliminated via the Leray projection $\mathbb{P}$ and every operator becomes
+diagonal in Fourier frequency space.
+
+The paper's testable claims are:
+\begin{itemize}[leftmargin=1.6em]
+  \item \textbf{C1/C2 (Example~1, Fig.~1):} Order-$k$ temporal convergence in
+        $H^1$ of both velocity and pressure for $k\in\{1,2,3,4\}$.
+  \item \textbf{C3 (Theorem~1):} Unconditional energy stability
+        ($r^{n+1}\le r^n$ in the unforced case), no CFL-type restriction.
+  \item \textbf{C4 (Example~2):} Qualitative fidelity of a double-shear-layer
+        roll-up at coarse $\Delta t$ for high-order variants.
+  \item \textbf{C5:} Global (2D) / local (3D) $\ell^\infty(H^1)\cap\ell^2(H^2)$
+        error estimates (analytical proofs).
+\end{itemize}
+This replication targets the \emph{quantitative} headline: C1+C2 (with C3
+as a numerical spot-check). C4 is qualitative with no reference number and
+was not rerun; C5 is analytical and not subject to numerical replication.
+
+\section{Independent method}
+
+No public code accompanies the paper; the solver was written from scratch
+from the paper's equations. All artefacts live in
+\texttt{work/} alongside this report.
+
+\subsection{Manufactured solution (Example~1)}
+$\Omega=(0,2)^2$, periodic, $\nu=1$, $T=1$,
+\begin{align*}
+u_1 &= \pi e^{\sin\pi x}e^{\sin\pi y}\cos(\pi y)\sin^2 t,\\
+u_2 &= -\pi e^{\sin\pi x}e^{\sin\pi y}\cos(\pi x)\sin^2 t,\\
+p   &= e^{\cos\pi x\sin\pi y}\sin^2 t .
+\end{align*}
+$\nabla\cdot u\equiv 0$ was verified symbolically (SymPy).
+
+\subsection{Forcing and validation}
+$f=u_t-\nu\Delta u+(u\cdot\nabla)u+\nabla p$ is coded by hand from analytic
+derivatives and cross-checked against a SymPy \texttt{lambdify} reference to
+$5.7\times10^{-14}$ (\texttt{derive\_forcing.py}).
+
+\subsection{Discretization}
+\begin{itemize}[leftmargin=1.6em]
+  \item \emph{Space:} Fourier-spectral, $N=40$ modes/direction (spatial error
+        negligible vs.\ temporal), FFT derivatives, Leray projection
+        $\mathbb{P}$ and spectral advection $(u\cdot\nabla)u$
+        (\texttt{hs\_solver.py:~Spectral2D}).
+  \item \emph{Time:} IMEX-BDF$k$ with the paper's coefficients (eqs.\
+        3.8--3.11) for $k=1,2,3,4$, AB$k$ extrapolation of the nonlinearity,
+        SAV relaxation (eqs.\ 3.6b--d) with $E=\tfrac12\|\nabla u\|^2$ and
+        the 2D dissipation law $\propto\|\Delta\bar u\|^2$. For the
+        \emph{forced} Example~1, the $r$-update includes the analytic
+        production term $(f,-\Delta\bar u)=(\nabla f,\nabla\bar u)$
+        consistent with $E=\tfrac12\|\nabla u\|^2$.
+  \item \emph{Pressure recovery:} $\Delta p=\nabla\cdot f -
+        \nabla\cdot(u\cdot\nabla u)$; recovery from the exact velocity
+        reproduces the exact pressure to $2.5\times10^{-13}$.
+  \item \emph{Errors:} $H^1$ velocity/pressure at $T=1$ via Parseval,
+        $\|e\|_{H^1}^2=\sum(1+|k|^2)|\hat e|^2$.
+  \item \emph{Bootstrap:} multistep schemes started from the exact solution
+        on the first $k$ levels.
+  \item \emph{Sweep:} $\Delta t\in\{1/10,1/20,1/40,1/80,1/160\}$; order is
+        the least-squares slope of $\log\|e\|$ vs.\ $\log\Delta t$.
+\end{itemize}
+
+\subsection{Judging}
+Three free Argo endpoints (\texttt{gpt-5.2}, \texttt{gemini-2.5-pro},
+\texttt{gpt-4.1}), temperature 0, are shown the paper claim and our numbers
+and asked to render an independent verdict (\texttt{judge.py}).
+
+\section{Results vs.\ the paper}
+
+\subsection{C1/C2 --- Temporal convergence orders (H$^1$)}
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+Scheme & Velocity order (ours) & Pressure order (ours) & Expected & Match \\
+\midrule
+SAV/BDF1 & \textbf{1.00} & 0.95 & 1 & \checkmark\\
+SAV/BDF2 & \textbf{1.89} & 1.95 & 2 & \checkmark\\
+SAV/BDF3 & \textbf{3.02} & 3.01 & 3 & \checkmark\\
+SAV/BDF4 & \textbf{4.14} & 4.08 & 4 & \checkmark\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Representative velocity $H^1$ errors: BDF1 $3.9\times10^{-2}\to$ BDF4
+$3.2\times10^{-8}$ at $\Delta t=1/160$; clean order-$k$ halving on
+refinement (\texttt{evidence/convergence\_results.json},
+\texttt{evidence/convergence\_plot.png}).
+
+\subsection{C3 --- Unconditional stability (large $\Delta t=0.05$)}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Scheme & max $H^1$-energy (SAV) & exact final $E$ & $\eta$ range \\
+\midrule
+SAV/BDF2 & 707.5 & $\sim$707.8 & $[0.9850,\,1.0000]$\\
+SAV/BDF3 & 707.8 & $\sim$707.8 & $[1.0000,\,1.0008]$\\
+\bottomrule
+\end{tabular}
+\end{center}
+The SAV energy stays bounded and tracks the exact value; the SAV factor
+$\eta$ stays $\approx 1$, i.e.\ the SAV relaxation is a near-identity
+perturbation for a resolved smooth flow --- consistent with Theorem~1.
+
+\subsection{Multi-judge assessment}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Judge & Verdict \\
+\midrule
+argo:gpt-5.2 & \textbf{REPLICATED}\\
+argo:gemini-2.5-pro & \textbf{REPLICATED}\\
+argo:gpt-4.1 & \textbf{REPLICATED}\\
+\bottomrule
+\end{tabular}
+\end{center}
+Full judge text in \texttt{evidence/judges.json}.
+
+\section{Genuine critique}
+
+This section lists the honest limitations of what has actually been
+verified. None of them overturn the verdict; all of them narrow it.
+
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{We compare orders, not error magnitudes.} The paper's
+        Example~1 evidence is a Figure~1 log--log plot (slopes), not a
+        table of specific $H^1$ error magnitudes. Our comparison is
+        therefore against the \emph{invariant} quantity (the fitted order),
+        not the constant in front. This is the correct thing to do for a
+        manufactured-solution study, but it means we cannot report a
+        magnitude-level ``matches to two digits'' claim --- only that the
+        slopes match.
+
+  \item \textbf{The forced-SAV production term is our derivation.} Huang \&
+        Shen state their theory for $f=0$. Example~1 is forced, and the
+        paper does not spell out the $r$-update for that case. Without an
+        energy-consistent production term the SAV factor starves and the
+        solution collapses --- see \texttt{failure\_analysis.md}. We
+        derived and used $(f,-\Delta\bar u)=(\nabla f,\nabla\bar u)$
+        consistent with $E=\tfrac12\|\nabla u\|^2$, and with that term the
+        paper's orders are recovered exactly. This is a defensible but
+        not paper-quoted choice; readers should treat the forced-case
+        $r$-update as our design decision, not a paper-quoted equation.
+
+  \item \textbf{Coverage is 2D periodic only.} The scheme, the SAV
+        variant, and the tested regime here are all 2D periodic. The
+        paper's 3D theory (local-in-time error estimate) and the 3D SAV
+        variant using $E=\tfrac12\|u\|^2$ were not exercised.
+
+  \item \textbf{Example~2 (double shear layer) was not rerun.} It is
+        qualitative --- vorticity-contour comparisons with no reference
+        number --- and does not affect the quantitative headline. We flag
+        this rather than silently omit it.
+
+  \item \textbf{Stability probe is empirical, not a proof reproduction.}
+        Theorem~1 states $r^{n+1}\le r^n$ (unforced) without any CFL
+        restriction. We checked \emph{numerically} at $\Delta t=0.05$ that
+        the SAV energy stays bounded and $\eta\approx 1$; we did not
+        re-derive Theorem~1 or push $\Delta t$ far enough to stress-test
+        its boundary. A stronger stability probe would sweep $\Delta t$
+        into the regime where a naive IMEX would blow up.
+
+  \item \textbf{Judges are LLMs, not domain reviewers.} The three
+        concurring verdicts come from free Argo endpoints prompted at
+        temperature 0 with the paper claim plus our numbers. They agree,
+        which is corroborative, but they are not a substitute for expert
+        review; they cannot, for instance, catch a subtle discretization
+        bug that yields the ``right'' orders for the wrong reason. The
+        strongest positive evidence remains the clean order-$k$ halving
+        under $\Delta t$-refinement, not the judge concurrence.
+
+  \item \textbf{Aliasing was not stress-tested.} $N=40$ Fourier modes
+        resolve the manufactured Example~1 well. We did not sweep $N$ or
+        add dealiasing (2/3 rule) and confirm that the temporal orders
+        remain clean under weaker spatial resolution. For this smooth
+        exact solution the spatial error is negligible; for a rougher
+        problem this would need re-checking.
+\end{enumerate}
+
+\section{Verdict}
+\textbf{REPLICATED} --- the quantitative headline (C1+C2) reproduces the
+paper's expected temporal orders across all four BDF orders, and the
+numerical stability spot-check (C3) is consistent with Theorem~1. The
+qualitative Example~2 and the analytical error estimates (C5) are out of
+scope for this replication.
+
+\end{document}

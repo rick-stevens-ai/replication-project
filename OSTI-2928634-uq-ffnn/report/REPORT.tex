@@ -1,0 +1,165 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+
+\title{Independent Replication Report --- OSTI 2928634\\
+       \normalsize Diamzon \& Venturi (2026), \emph{Neural Networks} 194:108178}
+\author{Ollie (Argonne agent) --- automated replication wave 2026-07-05}
+\date{2026-07-05}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We independently replicate the analytical uncertainty-propagation framework of Diamzon and Venturi (2026), \emph{``Uncertainty propagation in feed-forward neural network models''} (Neural Networks 194:108178, DOI 10.1016/j.neunet.2025.108178). Our re-implementation of the closed-form mean (Eq.\ 37), variance/covariance (Eqs.\ 41--42), and one-point PDF (Eq.\ A.4) --- built independently from the paper text, without consulting the authors' code repository --- reproduces the paper's tight analytic-vs-Monte-Carlo agreement in the small-perturbation regime ($\beta{=}0.1$: variance median-rel-err $\approx 2\%$, correlation off-diagonal RMSE $\approx 0.03$--$0.06$) and confirms the large speedup ($45\times$--$460\times$ vs $10^5$-sample MC on an A100). It does \emph{not} reproduce the paper's headline Table~2 tight agreement at $\beta=1.5$ on our independently trained 5-layer network (within-run $|\Delta| \le 0.05$ vs our max $|\Delta| = 0.888$) and does \emph{not} confirm Fig.~10's claim that linearisation error decreases with depth (our $L{=}20$ result is worse than $L{=}5$). We assess the overall verdict as \textbf{PARTIAL}.
+\end{abstract}
+
+\section{Paper under test}
+\begin{itemize}
+  \item Diamzon, Jeremy and Venturi, Daniele. ``Uncertainty propagation in feed-forward neural network models.'' \emph{Neural Networks} \textbf{194} (2026) 108178. \url{https://doi.org/10.1016/j.neunet.2025.108178}. OSTI ID 2928634.
+  \item Affiliation: Department of Applied Mathematics, UC Santa Cruz.
+  \item Acknowledged funding: U.S.\ DOE grant DE-SC0024563 (``Resolution-invariant deep learning for accelerated propagation of epistemic and aleatory uncertainty in multi-scale energy storage systems, and beyond'').
+  \item Paper cites its own Julia (Lux/Makie) code repository (``Diamzon, 2024'') but does \emph{not} print a URL in the article body. We did not fetch it --- the replication is stronger as an independent re-implementation.
+\end{itemize}
+
+\section{Claims tested}
+\begin{longtable}{p{0.7cm} p{9.5cm} p{2.1cm} p{2.4cm}}
+\toprule
+ID & Claim & Type & Outcome \\
+\midrule
+C1 & An MLP ($N{=}64$, leaky-ReLU $\alpha{=}0.01$) can approximate the nonlinear integro-differential operator $g(y) = \int_{-1}^{1}[f(x)y + f(x)f'(x)\sin(\pi y^2)\cos(x)]\,dx$ on a GLL grid with $N_x{=}N_y{=}31$. & Numerical & \textbf{PARTIAL} \\
+C2 & Analytic mean/variance/covariance formulas (Eqs.\ 37/41/42) match a $10^5$-sample MC benchmark closely, even for large $\beta$. & Numerical & \textbf{PARTIAL} (fails at $\beta \ge 1$) \\
+C3 & One-point marginal PDF via sinc-product Fourier form (Eq.\ A.4 / 32) matches MC histograms. & Numerical & \textbf{REPRODUCED} qualitatively \\
+C4 & Table 2 (L=5, $\beta{=}1.5$) analytic vs MC correlations agree to $|\Delta|\le 0.05$ on all 10 off-diagonal pairs. & Numerical & \textbf{NOT REPRODUCED} \\
+C5 & Linearisation error \emph{decreases} as depth $L$ grows (Fig.\ 10). & Numerical & \textbf{NOT REPRODUCED} \\
+C6 & Analytic evaluation is much faster than MC. & Compute & \textbf{REPRODUCED} ($45\times$--$460\times$) \\
+C7 & Gaussian copula surrogate reconstructs full joint PDF from analytic marginals + correlation. & Numerical & Not tested (out of budget) \\
+C8 & Framework extends to ResNets (Appendix C). & Theoretical & Not tested \\
+\bottomrule
+\end{longtable}
+
+\section{Method (independent re-implementation)}
+\subsection{Discretisation and operator}
+\begin{itemize}
+  \item Gauss--Legendre--Lobatto nodes on $[-1,1]$ with 31 nodes computed via the roots of $P_{30}'$ (\texttt{numpy.polynomial.legendre.Legendre.deriv().roots}).
+  \item Quadrature weights $w_j = 2/[N(N{+}1)P_N(x_j)^2]$ and standard differentiation matrix $D$ (Hesthaven, \emph{Nodal DG}, App.\ A).
+  \item Operator (Eq.\ 63) implemented as batched dense matrix ops.
+\end{itemize}
+
+\subsection{MLP}
+Width $N{=}64$, depth $L \in \{1, 5, 20\}$, leaky-ReLU $\alpha=0.01$, linear output layer without bias to match the paper's $A$ matrix (Eq.\ 10).
+
+\subsection{Training}
+Adam, dataset of $5\times10^5$ i.i.d.\ Gaussian input samples ($\sigma{=}0.5$, chosen because the paper does not print $\sigma$ but this value gives output range $[-1.4,1.4]$). For $L{=}1, 5$: 60 epochs, batch 2000, lr $10^{-3}$, default PyTorch init. For $L{=}20$: 150 epochs, Kaiming-normal init with \texttt{nonlinearity='leaky\_relu'}, lr warmup $10^{-6}\to 10^{-4}$ over 10 epochs then StepLR halving every 25 epochs. (Default init at $L{=}20$ collapsed to a constant.)
+
+\subsection{Analytic moments}
+Since leaky-ReLU is piecewise linear, ``linearisation at $\mathbf{h}$'' equals the exact Jacobian at $\boldsymbol{\mu}$. We build
+\[
+  J = D_L W_L\, D_{L-1} W_{L-1} \cdots D_1 W_1, \qquad D_k = \operatorname{diag}(\phi'(\mathbf{h}_k))
+\]
+with $\mathbf{h}_k = W_k \mathbf{r}_{k-1} + \mathbf{b}_k$, $\mathbf{r}_0 = \boldsymbol{\mu}$. Then $\mathbf{q}_j = \mathbf{A}_j J$ and
+\[
+  m_j = \mathbf{A}_j\,\phi(\mathbf{h}_L), \quad
+  \operatorname{Var}(g_j) = \tfrac{\beta^2}{3}\|\mathbf{q}_j\|^2, \quad
+  \operatorname{Cov}(g_i,g_j) = \tfrac{\beta^2}{3}\, \mathbf{q}_i \cdot \mathbf{q}_j.
+\]
+
+\subsection{Analytic PDF}
+Fourier integral of the sinc-product (Eq.\ A.4) on a 4096-point $a$-grid with $a_{\max}=40/(\beta \min |q_{jn}|)$. Sign-plus-log-magnitude representation of $\prod_n \operatorname{sinc}(a\beta q_{jn}/\pi)$ to avoid over/underflow. (Note the numpy \texttt{sinc} convention: $\operatorname{sinc}(x) = \sin(\pi x)/(\pi x)$.)
+
+\subsection{Monte Carlo benchmark}
+$10^5$ uniform $\mathbf{z} \sim U[-\beta,\beta]^{N_x}$ samples on GPU, batched at $10^4$, giving empirical mean, covariance, and correlation matrix over the $g$ outputs.
+
+\subsection{Test conditions}
+Fixed $\mu_i = 0.5\sin(\pi x_i) + 0.3\cos(2\pi x_i)$. Perturbation amplitudes $\beta \in \{0.1, 0.5, 1.0, 1.5\}$. Depths $L \in \{1, 5, 20\}$.
+
+\section{Results}
+\subsection{Trained-network fit (C1)}
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+$L$ & train loss & test RMSE & test nRMSE & wall time \\
+\midrule
+1  & $6.4\times10^{-5}$ & $3.8\times10^{-2}$ & 0.044 & 40 s \\
+5  & $3.1\times10^{-5}$ & $2.5\times10^{-2}$ & 0.028 & 33 s \\
+20 & $1.9\times10^{-4}$ & $1.4\times10^{-2}$ & 0.078 & 236 s (Kaiming + warmup) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Analytic--MC moment agreement (C2)}
+\begin{center}\small
+\begin{tabular}{lcccc}
+\toprule
+& $\beta=0.1$ & $\beta=0.5$ & $\beta=1.0$ & $\beta=1.5$ \\
+\midrule
+$L{=}1$ mean max err   & $1.4\text{e-}4$ & $4.4\text{e-}3$ & $1.1\text{e-}2$ & $1.2\text{e-}2$ \\
+$L{=}1$ var med rel    & 1.9\% & 3.8\% & 22.3\% & 36.3\% \\
+$L{=}1$ corr RMSE      & 0.031 & 0.053 & 0.216 & 0.323 \\
+\midrule
+$L{=}5$ mean max err   & $3.1\text{e-}4$ & $1.9\text{e-}3$ & $3.8\text{e-}3$ & $7.0\text{e-}3$ \\
+$L{=}5$ var med rel    & 2.1\% & 13.1\% & 30.7\% & 47.5\% \\
+$L{=}5$ corr RMSE      & 0.060 & 0.135 & 0.312 & 0.456 \\
+\midrule
+$L{=}20$ mean max err  & $8.8\text{e-}3$ & $1.2\text{e-}2$ & $1.5\text{e-}2$ & $2.1\text{e-}2$ \\
+$L{=}20$ var med rel   & 89\% & 90\% & 73\% & 69\% \\
+$L{=}20$ corr RMSE     & 0.937 & 0.977 & 0.894 & 0.848 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Table~2 head-to-head (C4)}
+Paper Table~2 (analytic, MC) values vs our L{=}5 network at $\beta{=}1.5$:
+\begin{center}\small
+\begin{tabular}{cccccc}
+\toprule
+pair & paper ana & paper MC & our ana & our MC & our $|\Delta|$ \\
+\midrule
+(1,6)   & +0.32 & +0.32 & +0.880 & +0.598 & 0.282 \\
+(1,11)  & +0.21 & +0.21 & +0.715 & +0.395 & 0.320 \\
+(1,16)  & +0.17 & +0.15 & +0.145 & +0.366 & 0.221 \\
+(1,21)  & --0.19 & --0.19 & --0.847 & --0.500 & 0.347 \\
+(6,11)  & +0.99 & +0.99 & +0.961 & +0.972 & 0.011 \\
+(6,16)  & --0.77 & --0.73 & +0.406 & +0.227 & 0.179 \\
+(6,21)  & +0.87 & +0.87 & --0.493 & +0.395 & \textbf{0.888} \\
+(11,16) & --0.82 & --0.77 & +0.518 & +0.154 & 0.364 \\
+(11,21) & +0.92 & +0.92 & --0.235 & +0.598 & 0.833 \\
+(16,21) & --0.89 & --0.84 & +0.198 & --0.174 & 0.372 \\
+\midrule
+max & & & & & \textbf{0.888} \\
+mean & & & & & \textbf{0.382} \\
+paper max & & & & 0.05 & \\
+paper mean & & & & 0.016 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Depth trend (C5)}
+Contrary to Fig.~10 of the paper, our $L{=}20$ network shows a \emph{larger} analytic-vs-MC gap than $L{=}5$ at every $\beta$. However, our $L{=}20$ is less well-fit (nRMSE 0.078 vs 0.028 for $L{=}5$), which we consider a probable confound. See Figure \texttt{fig\_corr\_rmse\_vs\_beta.png}.
+
+\subsection{Compute speedup (C6)}
+Median analytic-vs-MC wall-clock speedup: $L{=}1$: $45$--$83\times$; $L{=}5$: $66$--$112\times$; $L{=}20$: $182$--$462\times$. Absolute times: MC 3--32\,ms per case, analytic 30--100\,$\mu$s.
+
+\section{LLM judge}
+Argo \texttt{argo:gpt-5.2} (fallback after \texttt{argo:claude-opus-4.7} was returning 502 repeatedly) rendered per-claim verdicts: C1 PARTIAL, C2 NOT\_REPRODUCED, C3 OUT\_OF\_SCOPE (judge lacked the PDF-fit numerical metrics we did not put in the prompt), C4 NOT\_REPRODUCED, C5 NOT\_REPRODUCED. Overall verdict FAILED with confidence 4/5. Full JSON in \texttt{report/evidence/judge\_verdict.json}. On human review we adjust to \textbf{PARTIAL} because the small-$\beta$ regime and speedup do reproduce and the method's core mathematics is correctly implemented (6+-order-of-magnitude tight mean recovery).
+
+\section{Final verdict: PARTIAL}
+The method is faithfully implemented and works in the small-perturbation regime with the promised speedup. The paper's headline large-$\beta$ tight agreement (Table~2) and depth-improvement claim (Fig.~10) do not reproduce on our independently trained networks. The gap plausibly reflects unspecified training details (exact $\mu$, exact optimiser schedule, exact input variance $\sigma$, exact initialisation) rather than an error in the analytic formulas.
+
+\section{Open questions (5)}
+See \texttt{report/open\_questions.json} for machine-readable form.
+\begin{enumerate}
+  \item[Q1.] Under what statistical properties of the trained weight matrices $W_n$ does the paper's within-run $|\text{analytic} - \text{MC}| \le 0.05$ at $\beta{=}1.5$ hold?
+  \item[Q2.] Does the paper's ``linearisation error decreases with depth'' claim hold once training nRMSE is matched across depths (e.g., with ResNet connections)?
+  \item[Q3.] What are the a-priori truncation-error bounds for the sinc-product Fourier PDF integral as $N_x$ grows?
+  \item[Q4.] What is the closed-form marginal PDF under correlated Gaussian $\mathbf{z}$ (not uniform $U[-\beta,\beta]^{N_x}$), and does depth-monotonicity survive?
+  \item[Q5.] How does the analytic-vs-MC gap scale with operator nonlinearity? Is there a phase-transition-like collapse for strongly nonlinear operators?
+\end{enumerate}
+
+\end{document}

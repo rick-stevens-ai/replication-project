@@ -1,0 +1,1233 @@
+# Sato et al. 2021 — VQA for the Poisson Equation (marker.md)
+
+**Source PDF:** `../paper.pdf` (arXiv:2106.09333, PRA 104 052409)
+**Extraction method:** `pdftotext -layout` fallback (marker not locally installed).
+The canonical text extraction follows. Layout preserved.
+
+---
+
+                                              Variational quantum algorithm based on the minimum potential energy for solving
+                                                                           the Poisson equation
+                                                           Yuki Sato,1, ∗ Ruho Kondo,2 Satoshi Koide,1 Hideki Takamatsu,3 and Nobuyuki Imoto4
+                                                                             1
+                                                                             Toyota Central R&D Labs., Inc., Koraku Mori Building 10F,
+                                                                                  1-4-14 Koraku, Bunkyo-ku, Tokyo 112-0004, Japan
+                                                               2
+                                                                 Toyota Central R&D Labs., Inc., 41-1, Yokomichi, Nagakute, Aichi 480-1192, Japan
+                                                                     3
+                                                                       Toyota Motor Corporation, 1 Toyota-Cho, Toyota, Aichi 471-8571, Japan
+                                                                          4
+                                                                            Institute for Photon Science and Technology, School of Science,
+                                                                    The University of Tokyo, 7-3-1, Hongo, Bunkyo-ku, Tokyo 113-0033, Japan
+                                                                                                (Dated: April 26, 2022)
+                                                             Computer-aided engineering techniques are indispensable in modern engineering developments.
+                                                          In particular, partial differential equations are commonly used to simulate the dynamics of physical
+
+
+
+
+arXiv:2106.09333v2 [quant-ph] 25 Apr 2022
+                                                          phenomena, but very large systems are often intractable within a reasonable computation time, even
+                                                          when using supercomputers. To overcome the inherent limit of classical computing, we present a
+                                                          variational quantum algorithm for solving the Poisson equation that can be implemented in noisy
+                                                          intermediate-scale quantum devices. The proposed method defines the total potential energy of
+                                                          the Poisson equation as an expectation of certain observables, which are decomposed into a linear
+                                                          combination of Pauli operators and simple observables. The expectation value of these observables
+                                                          is then minimized with respect to a parameterized quantum state. Because the number of decom-
+                                                          posed terms is independent of the size of the problem, this method requires relatively few quantum
+                                                          measurements. Numerical experiments demonstrate the faster computing speed of this method
+                                                          compared with classical computing methods and a previous variational quantum approach. We
+                                                          believe that our approach brings quantum computer-aided techniques closer to future applications
+                                                          in engineering developments. Code is available at https://github.com/ToyotaCRDL/VQAPoisson.
+
+
+                                                              I.   INTRODUCTION                               [8] developed an algorithm for solving the Poisson equa-
+                                                                                                              tion, which is one of the most important PDEs in var-
+                                               Partial differential equations (PDEs) are frequently           ious areas of engineering, such as electrostatics [9] and
+                                            used to describe the dynamics of physical phenomena               computational fluid dynamics [10, 11]. Although it is
+                                            such as heat conduction, fluid dynamics, and solid me-            widely believed that the abovementioned quantum algo-
+                                            chanics [1]. Solving these problems as quickly as possible        rithms will demonstrate quantum supremacy once fault-
+                                            is a key factor in accelerating engineering developments          tolerant quantum computers with sufficient qubits and
+                                            that combine computer simulations and real-world ex-              error correction techniques are ready, it is expected to
+                                            periments. Although many advances have been made in               be a long time until such a quantum computer can be
+                                            terms of treating very large physical systems using clas-         realized. Thus, recent interest in quantum computing
+                                            sical computers [2, 3], obtaining solutions within a rea-         has focused on the development of quantum algorithms
+                                            sonable computational time is increasingly intractable.           that perform some meaningful computations with a small
+                                            State-of-the-art computational techniques can perform             number of qubits and a shallow circuit. In other words,
+                                            simulations of systems with up to tens of billions of             it is important to construct a quantum algorithm that
+                                            degrees of freedom using Fugaku, which is one of the              can be implemented on so-called noisy intermediate-scale
+                                            most powerful supercomputers; these simulations typi-             quantum (NISQ) devices [12].
+                                            cally take several hours [4, 5].                                     Variational quantum algorithms (VQAs) [13] are pos-
+                                               Another possible and attractive approach that would            sible candidates for use on NISQ devices, as they exhibit
+                                            significantly reduce the computational costs of solving           several advantages over classical algorithms. In VQAs, a
+                                            PDEs is the application of quantum computing. Quan-               certain cost function is written as a function of the ex-
+                                            tum computing has attracted considerable attention over           pectation value of some observables, and this function is
+                                            recent decades as a potential means of providing faster           evaluated on a quantum computer using a trial quantum
+                                            and more powerful computation than classical comput-              state prepared by a parameterized quantum circuit. This
+                                            ing.                                                              cost function evaluation is iteratively performed while
+                                               Quantum algorithms for solving linear systems have             the classical parameters are updated so as to minimize
+                                            been developed [6, 7], and these provide an exponen-              the cost function. Thus, VQAs are effectively hybrid
+                                            tial speedup over classical algorithms when the coeffi-           quantum–classical algorithms. A well-known example of
+                                            cient matrix of the linear system is sparse. Cao et al.           a VQA is a variational quantum eigensolver (VQE) [14]
+                                                                                                              in which the cost function is the expectation of the sys-
+                                                                                                              tem Hamiltonian. The VQE was originally developed to
+                                                                                                              calculate the lowest eigenvalue of a system Hamiltonian
+                                            ∗ yuki-sato@mosk.tytlabs.co.jp
+                                                                                                              via parameterized quantum circuits, also called ansatz
+                                                                                                                           2
+
+[15], and has been widely studied in terms of the quan-                          II.   FORMULATION
+tum circuits suitable for hardware architectures [16, 17]
+and the construction of efficient optimizers [18–20]. An-             A.   Derivation of optimization problem
+other popular VQA is the quantum approximate opti-
+mization algorithm (QAOA) [21], which can be used to              Consider the Poisson equation defined in an open
+solve combinational optimization problems. The QAOA            bounded domain Ω ⊂ Rd , where d is the number of
+was originally based on the concept of adiabatic quantum       spatial dimensions. Let u(x) denote the state field at
+computing [22, 23]; it has since been extended to more         the spatial coordinate x ∈ Rd . Consider a function
+general families of operators, and is thus widely known        f (x) : Ω → C. The Poisson equation is then defined
+as the quantum alternating operator ansatz [24].               as
+
+                                                                                − ∇2 u(x) = f (x)    in    Ω.            (1)
+   VQAs for solving linear systems have also been pro-
+posed. Bravo-Prieto et al. [25] proposed a VQA for             where ∇2 is the Laplace operator. As typical boundary
+a linear system in which the system matrix is written          conditions, the Neumann and Dirichlet boundary condi-
+as a linear combination of unitary operators. This al-         tions are, respectively, defined as
+gorithm prepares a quantum state whose amplitude is
+proportional to the solution of a linear system output                          − n · ∇u(x) = 0 on        ΓN ,           (2)
+by the Harrow–Hassidim–Lloyd algorithm [6]. Liu et al.                          u(x) = 0 on ΓD ,                         (3)
+[26] presented a scheme for efficiently solving the Poisson
+equation by explicitly decomposing a system matrix de-         where ΓN and ΓD denote the boundaries on which the
+rived from the finite difference discretization of the Pois-   Neumann and Dirichlet boundary conditions are, respec-
+son equation. This scheme requires O(logN ) expectation        tively, imposed, n is the normal vector pointing outward
+calculations at every iteration in the optimization pro-       from the boundary of the domain Ω, and ΓN ∪ ΓD = ∂Ω,
+cedure, where N is the size of the problem. However,           which means that any point on ∂Ω is included in either
+these methods provide normalized solutions and do not          ΓN or ΓD . In the following, the spatial coordinate x is
+explicitly provide the norm of the solutions. In the field     omitted for readability.
+of classical physics, the unknown quantities of PDEs di-          Let us consider the total potential energy, defined as
+rectly describe physical quantities whose norms are not                  Z                  Z             Z
+                                                                       1                  1             1
+necessarily equal to 1. For example, the temperature            E :=       ∇v ∗ ·∇v dΩ−       v ∗ f dΩ−      f ∗ v dΩ, (4)
+field in steady-state heat conduction is governed by the               2 Ω                2 Ω           2 Ω
+Poisson equation, and we need to know the scale of the         for v ∈ V with
+temperature when assessing whether the temperature in
+a certain device exceeds the operating temperature limit.                   V := {v ∈ H 1 (Ω) | v = 0 on ΓD }            (5)
+In an engineering sense, therefore, the norms of these
+physical quantities provide important information.             where H 1 (Ω) is a Sobolev space. The stationary condi-
+                                                               tion of the total potential energy with respect to a func-
+                                                               tion v yields
+  This paper describes a method for solving the Poisson
+equation by formulating the cost function based on the          0 =dE(v; δv)
+                                                                      Z                        Z
+concept of the minimum potential energy. This approach              1                        1
+naturally leads to an expression for the norm of the so-          =      ∇δv ∗ · ∇v dΩ +           ∇v ∗ · ∇δv dΩ
+                                                                    2 Ω                      2 Ω
+lutions. The system matrix of the discretized Poisson                  1
+                                                                         Z
+                                                                                         1
+                                                                                            Z
+equation is split into a linear combination of the ten-             −        δv ∗ f dΩ −       f ∗ δv dΩ
+                                                                       2 Ω               2 Ω
+sor product of Pauli operators and simple observables.                Z                        Z
+The number of decomposed terms is independent of the                1         ∗              1
+                                                                                                    δv ∗ ∇2 v + f dΩ
+                                                                                                                 
+                                                                  =        δv n · ∇v dΓ −
+system size, i.e., O(1), which significantly reduces the re-        2 ΓN                     2 Ω
+quired number of expectation calculations on quantum
+                                                                         Z                             Z
+                                                                       1                  ∗         1                 ∗
+computers.                                                          +          δv (n · ∇v) dΓ −           δv ∇2 v + f    dΩ
+                                                                       2 ΓN                         2 Ω
+                                                                                                                          (6)
+
+   The remainder of this paper is organized as follows. In     where dE(v; δv) represents the Gâteaux derivative of E
+Sec. II, the optimization problem for solving the Poisson      with respect to v in the direction δv ∈ V. In Eq. (6),
+equation is formulated based on the concept of VQAs.           Gauss’s theorem was applied from the second line to
+Section III describes the numerical implementation based       the third, and the integration on ΓD vanished because
+on this formulation, and then Sec. IV provides several         the trace of δv = 0 on the boundary where the Dirich-
+results from numerical experiments. Finally, the conclu-       let boundary condition is imposed. Because δv is arbi-
+sions to this study are presented in Sec. V.                   trary, the above stationary condition recovers the Poisson
+                                                                                                                              3
+
+equation from the second and fourth terms of the right-        where ropt (θ) is the optimal value of r for a fixed value
+hand side of Eq. (6), which is known as the principle of       of θ. As the cost function Eh is parabolic with respect to
+minimum potential energy. This means that minimizing           r, the optimal solution of r for a given θ is analytically
+the total potential energy with respect to the function v      derived by the following necessary condition for optimal-
+yields the state field u, governed by the Poisson equation.    ity, which requires that the partial derivative of Eh (r, θ)
+  Now, to derive the cost function, Eq. (4) is discretized     with respect to r is equal to 0:
+using some technique such as the finite difference or fi-
+nite element method. The discretized version of the total           ∂Eh (r, θ)
+                                                                0=
+potential energy, Eh , can be written as                                ∂r
+                   1 ∗         1         1                        = r hψ(θ) | A | ψ(θ)i − f, ψ(θ) X ⊗ I ⊗n f, ψ(θ) .
+          Eh :=      v · Av − v ∗ · f − f ∗ · v,       (7)                                                        (12)
+                   2           2         2
+where v and f denote vectors with component values of v
+                                                               Then, we have
+and f , respectively, at the nodes discretizing the domain
+Ω. A is a positive-definite symmetric matrix obtained                                hf, ψ(θ) | X ⊗ I ⊗n | f, ψ(θ)i
+from the discretization of the first term in Eq. (4) into               ropt (θ) =                                  .     (13)
+the quadratic form. Let |vi and |f i be the state vectors                                  hψ(θ) | A | ψ(θ)i
+encoding v and f , respectively. Without loss of gener-
+                                                               Consequently, r can be deleted from the cost function,
+ality, the squared norm of f can be assumed to be 1
+                                                               and the optimization problem is to minimize the follow-
+from the linearity of the Poisson equation, which means
+                                                               ing Eq. (14) with respect to θ.
+that |f i can be regarded as a quantum state. However,
+it should be noted that |vi is not necessarily a quantum                                                                  2
+state, because the squared norm of the solution vector is                               1 (hf, ψ(θ) | X ⊗ I ⊗n | f, ψ(θ)i)
+                                                                 Eh (ropt (θ), θ) = −                                       .
+not necessarily 1. To represent the solution vector using                               2        hψ(θ) | A | ψ(θ)i
+a parameterized quantum state |ψ(θ)i with parameter                                                                        (14)
+vectors θ, we thus introduce a parameter r ∈ R and then
+represent |vi = r |ψ(θ)i. Substituting |vi = r |ψ(θ)i and      Note that the denominator hψ(θ) | A | ψ(θ)i is positive for
+|f i, respectively, for v and f in Eq. (7), we obtain          arbitrary quantum states |ψ(θ)i owing to the positive-
+                                                               definiteness of the operator A.
+              1
+          Eh = r2 hψ(θ) | A | ψ(θ)i
+              2
+                1                1
+              − r hψ(θ) | f i − r hf | ψ(θ)i .          (8)                B.   Evaluation of cost function
+                2                2
+Introducing the quantum  √          state |f, ψ(θ)i    :=
+                                                                  In this paper, we focus on the one-dimensional Pois-
+(|0i |f i + |1i |ψ(θ)i) / 2, the discretized version of        son equation, discretized by the finite element method
+the total potential energy Eh in Eq. (7) can be described      (FEM) [27], in which the mesh size of all finite elements
+as                                                             is 1. For N nodes in one dimension, the matrix A is
+                    1                                          described using first-order elements, depending on the
+        Eh (r, θ) = r2 hψ(θ) | A | ψ(θ)i
+                    2                                          boundary conditions, as follows: With periodic bound-
+                    − r f, ψ(θ) X ⊗ I ⊗n f, ψ(θ) , (9)         ary conditions,
+where I = |0i h0| + |1i h1|, X = |0i h1| + |1i h0|, and                    
+                                                                              2 −1 0          ...   0 −1
+                                                                                                          
+n = log2 N , where N is the number of nodes. Because                        −1 2 −1 0 . . .           0
+r and θ parameterize |vi, minimizing the total potential                     0 −1 2 −1 . . .
+                                                                            
+                                                                                                       0
+                                                                                                          
+energy with respect to |vi corresponds to the minimiza-                                                       N ×N
+                                                               Aperiodic := 
+                                                                             ..        ..
+                                                                                            .             ∈R
+                                                                                                       ..         .
+tion of Eh (r, θ) in Eq. (9) with respect to r and θ. The                    .                         . 
+optimization problem that solves the Poisson equation
+                                                                            0          . . . 0 −1 2 −1
+can, therefore, be formulated as                                             −1 0       ...       0 −1 2
+                                                                                                              (15)
+                      min    Eh (r, θ).                (10)    With Dirichlet boundary conditions,
+                      r,θ
+
+Letting ropt and θ opt denote the solution of this optimiza-                
+                                                                               2 −1 0       ...      0
+                                                                                                        
+tion problem, the state vector that encodes the solution                     −1 2 −1 0 . . .        0
+of the Poisson equation is |ui = ropt |ψ(θ opt )i. Here,                      0 −1 2 −1 . . .
+                                                                             
+                                                                                                     0
+                                                                                                        
+these two minimizations with respect to r and θ can be                                                      N ×N
+                                                               ADirichlet :=  .      ..                ∈R
+                                                                                                     ..         .
+                                                                             
+performed sequentially, i.e., minimizing Eh with respect                      ..         .           . 
+to r, followed by θ as
+                                                                             0       . . . 0 −1 2 −1
+                                                                               0      ...       0 −1 2
+         min    Eh (r, θ) = min    Eh (ropt (θ), θ),   (11)                                                (16)
+          r,θ                θ
+                                                                                                                                 4
+
+With Neumann boundary conditions,                                the tensor products of the Pauli operators, a shift oper-
+                                                                 ator, and a simple Hermitian I0 = |0i h0|:
+                 1 −1 0             ...         0
+                                                  
+               −1 2 −1 0 . . .                 0                  Aperiodic = I ⊗n−1 ⊗ (I − X)
+                0 −1 2 −1 . . .                0
+                                                  
+                                                                               + P −1 I ⊗n−1 ⊗ (I − X) P
+                                                                                                      
+                                                       N ×N                                                                    (24)
+ANeumann :=  .               ..                   ∈R
+                                                ..         .
+               
+                ..               .              . 
+                                                                                              I0⊗n−1 ⊗ X P
+                                                                                             −1
+                                                                                                                    
+                                                                  ADirichlet = Aperiodic + P                                   (25)
+               0             . . . 0 −1 2 −1
+                                                                  ANeumann = Aperiodic − P −1 I0⊗n−1 ⊗ (I − X) P.
+                                                                                                              
+                 0            ...       0 −1 1                                                                                 (26)
+                                                     (17)
+The matrix ADirichlet is the same as that derived in pre-        The expectation values of observables including a shift
+vious research [26] using the finite difference method           operator can be evaluated as follows by applying the shift
+(FDM). In one dimension, the matrices derived from the           operator, which is unitary, to the quantum state:
+FEM using first-order elements coincide with those from
+the central difference scheme in the FDM.                                       φ P −1 HP φ = hφ0 | H | φ0 i ,                 (27)
+  While previous research [26] has shown that the matrix
+ADirichlet can be decomposed into O(n) terms consisting          where |φi is an arbitrary n-qubit state and |φ0 i = P |φi.
+of Pauli and simple operators, the present study pro-            Now, the denominator of Eq. (14) is described using a
+vides the decomposition of the above matrices Aperiodic ,        linear combination of the Pauli operators and simple Her-
+ADirichlet , and ANeumann into O(1) terms consisting of          mitians I0 , I1 , and the numerator of Eq. (14) is originally
+Pauli operators and simple observables. The matrix               expressed by the Pauli operators. Because the expecta-
+Aperiodic can be split into two matrices as follows:             tion values of the identity operator are 1, i.e.,
+
+                 Aperiodic = ATeven + ATodd ,         (18)                         φ I ⊗n φ = 1                                (28)
+                                                                                  −1 ⊗n            0   ⊗n       0
+where                                                                      φ P     I      P φ = φ I         φ           = 1,   (29)
+
+               1 −1 0 0         ...   0
+                                               
+                                                                 the number of terms to be evaluated by a quantum com-
+             −1 1 0 0          ...   0                         puter is three for the periodic boundary condition, four
+              0 0 1 −1         ...   0
+                                         
+              0 0 −1 1                                          for the Dirichlet boundary condition, and five for the
+   ATeven :=                   ...   0  ,          (19)       Neumann boundary condition; of these, one term is for
+              .      ..              .. 
+              .          .                                      the numerator of Eq. (14) and the others are for the linear
+              .                       . 
+                                          
+                                                                 combination in the denominator of Eq. (14).
+             0       . . . 0 0 1 −1
+               0      . . . 0 0 −1 1                               The above discussion can easily be extended to d-
+                                                                 dimensional problems using the FDM and FEM. When
+               1 0 0        ...     0 −1
+                                           
+                                                                 using the FDM, the cost function is defined by the
+              0 1 −1 0 . . .            0                      d−dimensional system matrix Ad , that is,
+              0 −1 1 0 . . .            0
+                                           
+              .                         .. 
+                      ..                                         Ad := A ⊗ I ⊗(d−1) + I ⊗ A ⊗ I ⊗(d−2) + · · · + I ⊗(d−1) ⊗ A,
+   ATodd :=  ..         .               . .        (20)
+                                            
+                                                                                                                          (30)
+             0              0 1 −1 0 
+                                           
+                                                                 instead of A [8, 26]. This increases the number of terms
+             0       . . . 0 −1 1 0 
+                                                                 to be measured by a factor of d compared with the one-
+              −1 0              ...    0    0   1
+                                                                 dimensional case, i.e., the number of terms to be mea-
+  Because ATeven can be written in simple form using             sured is O(d). When using the FEM, the decomposi-
+Pauli operators as                                               tion of Ad into a linear combination of Pauli operators
+                                                                 is derived by defining a graph corresponding to the finite
+                 ATeven = I ⊗n−1 ⊗ (I − X),           (21)       elements, which is explained in Appendix A.
+and ATeven and ATodd are interchanged by shifting the
+node number towards +1, ATodd can also be written using
+                                                                               III.    IMPLEMENTATION
+Pauli operators as
+          ATodd = P −1 I ⊗n−1 ⊗ (I − X) P,
+                                        
+                                                   (22)                      A.    Overview of the algorithm
+
+where P is a shift operator defined as
+                   X                                               Here, we briefly describe the proposed algorithm.
+          P :=           |(i + 1) mod 2n i hi| .      (23)
+                  i∈[0,2n −1]                                   Step 1 Initialize a set of parameters θ in a classical com-
+                                                                       puter.
+Considering the differences between matrices depending
+on the three types of boundary conditions in Eqs. (15)–         Step 2 Evaluate the cost function Eh in Eq. (14) using a
+(17), these matrices can now be described as follows using             quantum computer.
+                                                                                                                             5
+
+
+
+
+ FIG. 1.        Quantum√ circuit for preparing |f, ψ(θ)i :=
+ (|0i |f i + |1i |ψ(θ)i) / 2. The leftmost qubit is shown in the
+ bottom line of the circuit.
+
+
+
+Step 3 If a certain terminal condition is satisfied, the op-               FIG. 2. Quantum circuit for the shift operator.
+       timization procedure halts; otherwise, proceed to
+       Step 4.
+                                                                           C.   Quantum circuit for the shift operator
+Step 4 Update the set of parameters using some classical
+       optimization scheme, then return to Step 2.                    The shift operator P is represented by a sequence of
+                                                                    multi-controlled Toffoli gates with at most n − 1 con-
+                                                                    trol lines, as shown in Fig. 2. With k ≥ 3 denoting the
+  We use several kinds of terminal conditions in the nu-            number of control lines, a k-controlled Toffoli gate can
+ merical experiments. These will be specified in Sec. IV.           be decomposed into 2k − 4 relative-phase Toffoli gates
+                                                                    and a Toffoli gate using k − 2 auxiliary qubits [31]. Be-
+                                                                    cause a shift operator has k-controlled Toffoli gates for
+                                                                    3 ≤ k ≤ n − 1, a CNOT gate, and an X gate, it can be
+                   B.   State preparation                           expressed by (n − 2)(n − 3) relative-phase Toffoli gates,
+                                                                    n − 3 Toffoli gates, a CNOT gate, and an X gate. Con-
+    In the proposed method, the quantum state |ψ(θ)i is             sequently, a quantum circuit for a shift operator requires
+ prepared by applying a sequence of parameterized quan-             O(n2 ) depth and 2n−3 qubits, including auxiliary qubits.
+                                                      ⊗n
+ tum gates U (θ), the so-called ansatz, to the |0i state.           Note that this implementation of the shift operator P is
+ We use a hardware-efficient ansatz [16], specifically an al-       the major bottleneck for making a quantum circuit shal-
+ ternating layered ansatz consisting of RY gates and con-           low, and so it is challenging to perform the proposed
+ trolled Z gates [25], to constrain the amplitude in the real       method directly on NISQ devices. Thus, an efficient im-
+ space. This is valid in the solution of the Poisson equa-          plementation of the shift operator is a crucial aspect that
+ tion with f (x) ∈ R. In the state-preparation stage, the           we will address in future research. For example, Oomura
+ state vector |f i, which corresponds to the source term of         et al. [32] proposed an efficient implementation of the
+ the Poisson equation, must also be prepared. To encode             Toffoli gate employing the IBM Q Open Pulse Systems,
+ arbitrary state vectors, amplitude encoding techniques             which halves the gate time and improves the fidelity. We
+ are required [28–30]. These encode classical data into             believe that such pulse design approaches are promising.
+ the amplitudes of a quantum state. In the current study,             The decomposition of the matrix A introduced in a
+ for simplicity, we assume that there is a unitary Uf that          previous approach [26] can also be used in our proposed
+                                   ⊗n                      ⊗n       method. Though this decomposition yields O(n) terms
+ efficiently prepares |f i from |0i    (i.e., |f i = Uf |0i ).
+ The quantum state |f, ψ(θ)i for evaluating the numer-              to be measured, the fact that the shift operator is not
+ ator of the cost function in Eq. (14) is prepared using            used means that the quantum circuit remains shallow.
+ an auxiliary qubit and controlled versions of the param-           With the use of this decomposition, the previous method
+ eterized quantum circuit U (θ) and the unitary Uf of the           requires the expectations of X ⊗ A and A2 , which yield
+ quantum circuit shown in Fig. 1, which is more expen-              2n + 1 and 4n + 1 terms to be measured, respectively,
+ sive than circuits preparing |ψ(θ)i and |f i. Note that            while our formulation requires the expectations of X ⊗ I
+ when we constrain the amplitudes of |ψ(θ)i and |f i in             and A, which yield 1 and 2n + 1 terms to be measured,
+ the real space, the numerator of the cost function can             respectively. Therefore, our proposed method has the
+ also be evaluated without the quantum state |f, ψ(θ)i as           advantage that the number of terms to be measured is
+ follows:                                                           roughly one-third of that in the previous method.
+
+                                        2
+         f, ψ(θ) X ⊗ I ⊗n f, ψ(θ)
+                                                                      D.    Number of shots for expectation estimation
+       = hψ(θ) | f i hf | ψ(θ)i   (if Im(hψ(θ) | f i) = 0)
+       = hψ(θ)|Uf |0i h0|Uf† |ψ(θ)i ,                        (31)     To estimate the expectation value of a certain observ-
+                                                                    able using a quantum computer, a quantum circuit with
+ where the first equality holds when the amplitudes of              state preparation and measurement is run many times to
+ |ψ(θ)i and |f i are in the real space.                             sample an observable value and apply the Monte Carlo
+                                                                                                                                 6
+
+approach. Each run of a quantum circuit to obtain a                     we use the same number of shots, denoted by S, for all
+sample is referred to as a “shot.” In this subsection, we               sampling processes, which yields
+estimate the number of shots required to estimate the                                                     m
+                                                                                                                 !
+expectations.                                                                                      1     X         1
+                                                                                   ε2 ≈ ropt
+                                                                                         2
+                                                                                              σ12 + ropt
+                                                                                                      2
+                                                                                                             σi2     .   (37)
+   In the proposed method, the expectations to                                                     4     i=2
+                                                                                                                   S
+be estimated are hf, ψ(θ) | X ⊗ I ⊗n | f, ψ(θ)i and
+hψ(θ) | A | ψ(θ)i, where the latter consists of several                 This equation implies that the mean square error is in-
+terms depending on the boundary conditions, as                          versely proportional to the number of shots.
+                                 (j)
+mentioned in Sec. II B. Let qi denote the j-th sam-
+ple value for estimating the i-th expectation value.
+         (j)                                                                             E.   Time complexity
+Here, q1 denotes the value of the j-th sample of
+                                         (j)
+hf, ψ(θ) | X ⊗ I ⊗n | f, ψ(θ)i, whereas q≥2 denotes the                   Here, we analyze the time complexity of the proposed
+value of the j-th sample of hψ(θ) | A | ψ(θ)i. In the                   method in terms of state preparation, number of quan-
+following discussion, the parameter values θ are assumed                tum circuits, number of shots, and the number of iter-
+to be fixed and are omitted to simplify the notation.                   ations required to optimize the parameter set θ. Note
+Using Si shots, the i-th expectation value q̄i is estimated             that the time complexity of the classical computing parts,
+as follows:                                                             such as parameter initialization and update, depends on
+                              PSi (j)                                   the classical implementation and optimizers; thus, it is
+                               j=1 qi                                   omitted from this analysis.
+                       q̄i :=         .                (32)
+                                Si                                        The time complexity of state preparation represents
+                                                                        the time required for setting up the quantum circuit be-
+              (j)
+Regarding qi as a random variable with a mean value                     fore performing the measurements to estimate a certain
+of µi and a variance of σi2 , the mean and variance of q̄i              expectation value. Therefore, the time complexity of
+are written as                                                          state preparation, denoted by TP , can be estimated by
+                                                                        the depth of the quantum circuit of state preparation:
+       E[q̄i ] = µi                                             (33)
+                 PSi         (j)       PSi     2
+                                                                                    TP := O(Dansatz + Denc + Dshift )         (38)
+                    j=1 Var[qi ]          j=1 σi   σi2                                                           2
+     Var[q̄i ] =                 =               =     .        (34)                    = O(Dansatz + Denc + n )              (39)
+                        Si2                Si2     Si
+                                                                        where Dansatz , Denc , and Dshift denote the circuit depths
+The variance of q̄i corresponds to a squared standard                   of the ansatz, amplitude encoding, and shift operator,
+           (j)                                   √
+error of qi , the standard error of which is σi / Si .                  respectively.
+   Now, the cost function Eh in Eq. (14) is written using                 To estimate the cost function value using a quantum
+µi , and is assumed to be estimated as follows using the                computer, several quantum circuits are required, corre-
+approximated expectation values:                                        sponding to the numerator of Eq. (14) and each term
+                                                                        in Eqs. (24)–(26) in the denominator of Eq. (14). The
+       1 µ2        1 q̄ 2                                               required number of quantum circuits, TC , is
+ Eh = − Pm 1    ≈ − Pm1      =: g(q̄1 , . . . , q̄m ), (35)
+       2 i=2 µi    2 i=2 q̄i
+                                                                                               TC := O(1),                    (40)
+with g(q̄1 , . . . , q̄m ) denoting the approximated cost func-
+                                                                        because TC = 3 for periodic boundary conditions, TC = 4
+tion, where m = 3 for the periodic boundary condi-
+                                                                        for Dirichlet boundary conditions, and TC = 5 for Neu-
+tion, m = 4 for the Dirichlet boundary condition, and
+                                                                        mann boundary conditions, independent of the scale of
+m = 5 for the Neumann boundary condition, which cor-
+                                                                        the problem, n. Furthermore, when we use gradient-
+responds to the number of terms to be evaluated derived
+                                                                        based optimizers, we need several quantum circuits, the
+in Sec. II B.
+                                                                        number of which is proportional to the number of pa-
+   Note that sampling using quantum computers is per-
+                                                                        rameters in the parameter set θ, to evaluate the gradient
+formed independently for each term of the expectation,
+                                                                        of the cost function. As the number of parameters is
+leading to Cov(q̄i , q̄i0 ) = 0 for i 6= i0 where Cov(q̄i , q̄i0 ) is
+                                                                        O(nDansatz ), the number of quantum circuits required,
+the covariance of q̄i and q̄i0 . Using the first-order Taylor
+                                                                        denoted by TG , is
+series expansion of g(q̄1 , . . . , q̄m ) around µi for i ∈ [1, m],
+the mean squared error ε2 between Eh and g(q̄1 , . . . , q̄m )                             TG := O(nDansatz ).                (41)
+in Eq. (35) is then written as follows:
+                                                                          To evaluate the cost function and its gradient, each
+                                                                        quantum circuit must be run many times for the sampling
+                                             m
+                                                  !
+                  2       2    σ12    1 2 X σi2
+                ε = ropt           + ropt            .         (36)     required to estimate the expectation values. Based on the
+                               S1     4        S
+                                            i=2 i                       discussion in Sec. III D, the required number of shots is
+                                                                                                        
+A detailed derivation of the above equation is provided                                                  1
+                                                                                              TS := O        .               (42)
+in Appendix B. In the proposed method, for simplicity,                                                   ε2
+                                                                                                                           7
+
+   In the proposed method, the abovementioned evalua-           states |ψ(θ)i and |f i by definition, which is a global quan-
+tions of the cost function and its gradient through quan-       tity. Consequently, the cost function as a whole will be
+tum circuits are repeated while the parameter set θ is          affected by barren plateaus, even though one term is re-
+updated, as discussed in Sec. III A. The number of itera-       silient to the problem. Therefore, the required order of
+tions is strongly dependent on the classical optimization       shots needed to evaluate the gradients will be exponential
+solver and the terminal condition setting. As the discus-       with respect to a certain error because of the exponen-
+sion of classical optimization solvers is beyond the scope      tially vanishing gradients. We will attempt to alleviate
+of this paper, let Tit denote the number of iterations, for     this problem in future research. A more detailed discus-
+simplicity.                                                     sion is provided in Appendix D 1.
+   Consequently, the total time complexity can be derived
+as
+                                                                        IV.   NUMERICAL EXPERIMENTS
+   T := Tit TP (TC + TG ) TS
+                                             !
+             Tit Dansatz + Denc + n2 nDansatz                      This section describes the results of several numer-
+      =O                                        .       (43)    ical experiments that demonstrate the validity of the
+                            ε2
+                                                                proposed method. The proposed method was imple-
+   The time complexity for solving the Poisson equation         mented in Qiskit ver 0.23 [35], an open-source framework
+by classical computing is O(N log N ) [33], where N is the      for working with quantum computers. The statevector
+size of the matrix A, i.e., N = 2n . Thus, the proposed         simulator backend in Aer, which is a high-performance
+method has reduced time complexity compared with clas-          quantum computing simulator operating with Qiskit, was
+sical algorithms, as long as the number of optimization         used for the calculations, except for those reported in
+iterations Tit , the depth of the ansatz Dansatz , and the      Sec. IV B 3, where the QASM simulator backend was
+depth of the quantum circuit for the amplitude encoding         used. As an optimizer for updating θ, we employed
+Denc are relatively small, i.e., O(poly(n)).                    the Broyden–Fletcher–Goldfarb–Shanno method [36–39],
+   The time complexity of the previous method [26] can          with the gradient of the cost function evaluated by quan-
+also be evaluated through a similar procedure. Here, only       tum computing. An analytic derivation of the expression
+the result is provided:                                         for the gradient is provided in Appendix C.
+                                                                   In the experiments reported below, the unitary Ub for
+                 Tit (Dansatz + Denc )n2 Dansatz                preparing |f i was set as
+                                                
+       T =O                                        .  (44)
+                               ε2
+                                                                                 Ub = H ⊗n X ⊗ I ⊗(n−1) ,               (45)
+Hence, if either the depth of the ansatz or that of the
+amplitude encoding is greater than O(n), the proposed           where H represents a Hadamard gate. This unitary Ub
+method has reduced time complexity compared with the            prepares |f i in the form of a step function from 1/2n/2 to
+previous method. As for amplitude encoding, a depth of          −1/2n/2 . The number of layers of the ansatz was fixed
+O(n2 ) is required to encode arbitrary real-valued inputs       at 5.
+[30], which implies that the proposed method has reduced
+time complexity compared with the previous method.
+                                                                A.   Solutions for three types of boundary conditions
+
+                  F.   Barren plateaus                             First, we provide solutions obtained by the proposed
+                                                                method for the three types of boundary conditions to
+   Note that the proposed cost function will suffer from        show the applicability of the proposed method to these
+the problem of exponentially vanishing gradients, i.e.,         basic types. Here, the statevector simulator backend in
+barren plateaus, because of the definition of the cost func-    Aer was used to evaluate the proposed method in an ideal
+tion and the use of an alternating layered ansatz [34].         environment without any noise or sampling errors.
+Because the operator ATeven = I ⊗n−1 ⊗ (I − X) in                  In this experiment, the optimization procedure was
+the denominator of the cost function acts non-trivially         terminated when the norm of the gradients became less
+on only one qubit, i.e., the operator is local, the ex-         than the predetermined threshold value. The optimiza-
+pectation of the operator is resilient to the problem           tion was performed ten times from randomly set initial
+of barren plateaus. However, the operator ATodd =              parameters θ for each condition. When imposing the pe-
+P −1 I ⊗n−1 ⊗ (I − X) P acts non-trivially on all qubits        riodic or Neumann boundary conditions on both edges,
+because of the shift operator, i.e., it is global, and so the   a regularization term I with  = 10−3 was added to the
+expectation of the operator will be affected by barren          system matrix A to prevent the matrix from becoming
+plateaus. Moreover, although the operator X ⊗ I in the          singular.
+numerator of the cost function is local, the expectation of        Figures 3(a)–(c) show the components of the solution
+the operator will be affected by barren plateaus because        vectors on each node from ten trials when n = 5. As
+the numerator inherently evaluates the inner product of         shown in these figures, the solutions for the periodic and
+                                                                                                                                                             8
+
+
+                                   6                                                              0.010
+                                                                               quantum                                                    Periodic B.C.
+                                   4                                           classical          0.008                                   Dirichlet B.C.
+
+
+
+
+         Components of solution
+                                                                                                                                          Neumann B.C.
+                                   2                           Norm (quantum) = 22.9
+                                                               Norm (classical) = 23.5            0.006
+                                   0                                                         tr
+                                                                                                  0.004
+                                   2
+                                   4                                                              0.002
+
+                                   6                                                              0.000 2
+                                       0     5     10      15      20     25        30                                  3             4              5
+                                                        Node number                                                             n
+                                           (a) Periodic boundary conditions
+                                                                                           FIG. 4. Trace distances εtr vs. the number of qubits n.
+                                                                                           The mean values of ten trials are plotted, with the error bars
+                                                                                           representing the standard deviations. The x-axis is slightly
+                                   6                                           quantum     shifted for different legends for visibility.
+                                   4                                           classical
+
+
+
+
+         Components of solution
+                                   2                           Norm (quantum) = 24.6       lutions obtained by the proposed method and the clas-
+                                                               Norm (classical) = 25.3     sical computation when calculating A−1 f with respect
+                                   0
+                                                                                           to the number of qubits. The trace distance εtr between
+                                   2                                                                    p |ψ(θ)i and the normalized ground-truth
+                                                                                           the trial state
+                                   4                                                       |ūi := |ui / hu | ui is defined as
+
+                                   6
+                                                                                                         q                          q
+                                                                                                     1                            2                2
+                                       0     5     10      15      20     25        30        εtr := Tr      (|ψi hψ| − |ūi hū|) = 1 − |hψ | ūi| .
+                                                                                                     2
+                                                        Node number
+                                                                                                                                                  (46)
+                                           (b) Dirichlet boundary conditions               The plots and error bars represent the mean values and
+                                                                                           the standard deviations of ten experiments. This fig-
+                                                                                           ure shows that the trace distance εtr is less than 0.01
+                                                                                                                                                2
+                                                                                           for all cases, which results in the fidelity hψ | ūi being
+                                  20                                           quantum
+                                                                               classical
+                                                                                           greater than 0.9999. These trace distance and fidelity
+
+
+
+
+  Components of solution
+                                                                                           values compare favorably with those reported in previ-
+                                  10                           Norm (quantum) = 84.8       ous research [25, 26]. Therefore, the errors between the
+                                                               Norm (classical) = 93.6     solution vectors obtained by the proposed algorithm and
+                                   0                                                       a classical approach are mainly caused by errors in the
+                                                                                           norms, and the directions of the solution vectors given
+                                  10                                                       by the proposed method actually agree with those from
+                                                                                           classical computing. Because the errors of the solution
+                                  20                                                       depend on the Hilbert space expressed by the ansatz,
+                                       0     5     10      15      20     25        30     we hope to conduct future research on the ansatz that
+                                                        Node number                        is most suitable for expressing the solutions of certain
+                                           (c) Neumann boundary conditions                 PDEs.
+
+FIG. 3. Distribution of solutions. The components of the
+solution vectors on each node are plotted.                                                  B.      Comparison of the proposed method with the
+                                                                                                              previous method
+
+Dirichlet boundary conditions are similar to each other,                                     We now compare the proposed method with the previ-
+whereas the Neumann boundary condition gives a totally                                     ous approach [26] to evaluate the performance of the pro-
+different solution when the input vector |f i is prepared                                  posed method. In the previous method, the cost function
+using the unitary operator in Eq. (45). Figures 3(a)–(c)                                   to be minimized is formulated as
+also indicate that the proposed algorithm underestimates
+the norms of the solution vectors, although the directions                                                E(θ) = hψ(θ) | A (I − |f i hf |) A | ψ(θ)i ,     (47)
+of the solution vectors given by the proposed method are
+in good agreement with those from classical computing.                                     which corresponds to the maximization of the cosine sim-
+   Figure 4 shows the trace distance εtr between the so-                                   ilarity of A |ψ(θ)i and |f i. Because the cosine similarity
+                                                                                                                                                 9
+
+                                                 Proposed method (Periodic B.C.)      2.    Dependency of the number of iterations on the number
+     30                                          Proposed method (Dirichlet B.C.)
+                                                 Proposed method (Neumann B.C.)                                of qubits
+     25                                          Liu et al., 2020 (Dirichlet B.C.)
+     20
+TC                                                                                      Next, we examined the dependency of the number of
+     15                                                                              optimization iterations on the number of qubits to eval-
+     10                                                                              uate the scalability of the classical computing part of the
+                                                                                     proposed method.
+      5
+                                                                                        In this experiment, the terminal condition was based
+          2       4       6       8      10
+                          n                                                          on the tolerance of the trace distance εtr between the
+                                                                                           state |ψ(θ)i and the normalized ground-truth |ūi :=
+                                                                                     trial p
+FIG. 5. Number of circuit executions per cost function evalu-                        |ui / hu | ui, which is the same criterion used in previ-
+ation TC vs. the number of qubits for both the proposed and                          ous research [25]. Note that this metric only evaluates
+previous methods [26].                                                               the difference in direction between the trial state and
+                                                                                     the true solution; the difference in the norm cannot be
+                                                                                     determined. In spite of this defect, we used the met-
+                                                                                     ric to compare the proposed method with the previous
+does not take into account the norm information, the pre-                            approach according to the same criterion used in the pre-
+vious method does not explicitly provide the norm. Note                              vious method. The tolerance of the trace distance was
+that the norm can be calculated once the normalized so-                              successively set to εtr = 0.1, 0.03, 0.01.
+lution has been obtained. Letting r denote the norm of                                  For each condition, the optimization was run ten times,
+the solution, the equation Ar |ψ(θ)i = |f i, which holds                             using randomly set initial parameters in [0, 4π]. Figure 6
+at the optimal point of θ if the expressibility of the ansatz                        shows the decadic logarithm of the number of optimiza-
+is sufficiently high, yields the following expression:                               tion iterations with respect to the decadic logarithm of
+                                                                                     the number of qubits for both the proposed method and
+                                 1                                                   the previous method [26]. The plots and error bars rep-
+                      r= p                   .                         (48)
+                          hψ(θ) | A2 | ψ(θ)i                                         resent the mean values and the standard deviations of
+                                                                                     ten experiments, respectively. This figure clearly shows
+                                                                                     that the number of iterations is positively correlated with
+We also implemented the previous method using Qiskit                                 the number of qubits. Although it is difficult to assert
+by referring to the original paper.                                                  the time complexity of the number of iterations numer-
+  In the following experiments, except those reported                                ically because of the error bars, these plots were fitted
+in Sec. IV B 1, the proposed method used the Dirichlet                               to the lines that minimize the squared errors of fitting.
+boundary conditions imposed on both edges. The results                               The lines for the proposed method have slopes of 2.6 for
+are compared with those of the previous approach using                               εtr = 0.1, 2.3 for εtr = 0.03, and 2.5 for εtr = 0.01.
+the Dirichlet boundary conditions.                                                   This implies that Tit in Eq. (43) is at most O(n2.6 ) in
+                                                                                     this experiment. For the previous method, the lines have
+                                                                                     slopes of 3.5 for εtr = 0.1, 3.6 for εtr = 0.03, and 4.2
+                                                                                     for εtr = 0.01. Therefore, it seems that the number of
+                                                                                     iterations with respect to the number of qubits is of sim-
+1.        Dependency of the number of circuit executions per cost
+             function evaluation on the number of qubits                             ilar order in both the proposed method and the previous
+                                                                                     method.
+
+   First, we examined the dependency of the number of
+circuit executions on the number of qubits to evaluate                                 3.   Dependency of the sampling errors on the number of
+the scalability of the proposed method. For randomly set                                                        shots
+parameters θ ∈ [0, 4π], the number of circuit executions
+for evaluating a cost function value was recorded for both                              Next, we examined the effect of the number of shots
+the proposed and previous methods.                                                   on the expectation estimations. The QASM simulator
+   Figure 5 illustrates the number of circuit executions                             backend was used to evaluate the sampling errors in the
+per cost function evaluation with respect to the number                              environment without any noise.
+of qubits for both the proposed and previous methods                                    For randomly set parameters θ ∈ [0, 4π], the squared
+[26]. This figure clearly shows that the proposed method                             error between the ground-truth and the estimation value
+only requires O(1) measurements per cost function eval-                              of the cost function was evaluated. The former was cal-
+uation, whereas the previous method requires O(n) mea-                               culated by the statevector simulator and the latter by
+surements. This result confirms the validity of the pro-                             the QASM simulator (i.e., sampling). The cost function
+posed formulation given in Sec. II B, implying that our                              was evaluated ten times by sampling for each number of
+proposed method significantly reduces the required num-                              shots.
+ber of expectation calculations on quantum computers.                                   Figure 7 shows the decadic logarithm of the squared
+                                                                                                                                                                   10
+
+                 3.0                                                                    tr = 0.1 (Proposed)          Fitting line for tr = 0.1 (Proposed)
+                                                                                        tr = 0.03 (Proposed)         Fitting line for tr = 0.03 (Proposed)
+                 2.5                                                                    tr = 0.01 (Proposed)         Fitting line for tr = 0.01 (Proposed)
+                                                                                        tr=0.1 (Liu et al., 2020)    Fitting line for tr=0.1 (Liu et al., 2020)
+                 2.0                                                                    tr=0.03 (Liu et al., 2020)   Fitting line for tr=0.03 (Liu et al., 2020)
+
+     log10 Tit
+                                                                                        tr=0.01 (Liu et al., 2020)   Fitting line for tr=0.01 (Liu et al., 2020)
+                 1.5
+                 1.0
+                 0.5
+
+                        0.3               0.4         0.5          0.6       0.7
+                                                    log10 n
+
+FIG. 6. Decadic logarithm of the number of optimization iterations Tit vs. the number of qubits n for both the proposed and
+previous methods [26]. The points show the mean values of ten experiments and the fitted lines minimize the squared errors of
+fitting. The error bars represent the standard deviation of ten experiments. The x-axis is slightly shifted for different legends
+for visibility.
+
+                                                                                               n = 4 (Proposed)      Fitting line of n = 4 (Proposed)
+                                  4                                                            n = 6 (Proposed)      Fitting line of n = 6 (Proposed)
+                                                                                               n = 8 (Proposed)      Fitting line of n = 8 (Proposed)
+                                                                                               n = 10 (Proposed)     Fitting line of n = 10 (Proposed)
+                                  6
+
+                       log10 2    8
+
+                                 10
+
+                                 12
+                                      1         2       3            4   5         6
+                                                              log10 S
+
+FIG. 7. Decadic logarithms of cost function error ε vs. the number of shots S for the proposed method. The optimization was
+run ten times with fixed parameters for each number of shots. The mean values are plotted, with the error bars representing
+the standard deviations. The mean and standard deviation of the slopes for n = 2, . . . , 10 (which includes cases that are not
+shown in this figure) are −1.11 and 0.12, respectively. The x-axis is slightly shifted for different legends for visibility.
+
+
+error of the cost function with respect to the decadic log-                            evaluated the errors between the gradient evaluated by
+arithm of the number of shots for the proposed method.                                 the sampling obtained using the QASM simulator and
+The points show the mean values of the ten experiments                                 that computed by the statevector simulator with fixed
+and the error bars represent their standard deviations.                                parameters.
+Fitting lines are also provided in the plots. This figure
+clearly indicates that the squared error decreases as the                                 As a metric to evaluate the errors, we used the co-
+number of shots increases. The mean and standard devi-                                 sine similarity, which measures the similarity of direc-
+ation of the slopes are −1.11 and 0.12, respectively, while                            tions, as the directions of the gradients are more im-
+the theoretical slope is −1, as derived in Eq. (37). Note                              portant to optimizers than their norms. Figure 8 shows
+that it does not make sense to compare the magnitude                                   the decadic logarithm of “1 − cosine similarity” with re-
+of errors between different numbers of qubits. Because                                 spect to the number of shots for both the proposed and
+this figure is plotted for a fixed parameter, which is set                             previous methods. This figure clearly shows that the co-
+randomly for each number of qubits, the plots necessarily                              sine similarity increases as the number of shots increases.
+exhibit monotonicity with respect to n. We also exam-                                  When n = 10, the slope of the fitting line increases. This
+ined the effect of the number of shots on the expectation                              is caused by the existence of barren plateaus, whereby
+estimations for the previous method, and the results are                               more shots are required to evaluate small gradients pre-
+illustrated in Appendix D 2.                                                           cisely. The means and standard deviations of the slopes
+                                                                                       of the fitted lines for n = 2, . . . , 10 (which includes cases
+  In addition to the cost function evaluation, it is im-                               that do not appear in Fig. 8) are −0.99 and 0.14 for our
+portant to precisely evaluate the gradients when using a                               proposed method and −0.98 and 0.03 for the previous
+gradient-based optimization method. Therefore, we also                                 method, respectively. Therefore, it seems that the gradi-
+                                                                                                                                                     11
+
+                                                                            Fitting line for n = 4 (Proposed)            n = 4 (Proposed)
+                                  0                                         Fitting line for n = 10 (Proposed)           n = 10 (Proposed)
+
+
+             cosine similarity)
+                                                                            Fitting line for n = 4 (Liu et al., 2020)    n = 4 (Liu et al., 2020)
+                                                                            Fitting line for n = 10 (Liu et al., 2020)   n = 10 (Liu et al., 2020)
+                                  2
+
+
+                                  4
+             log10 (1
+
+                                  6
+                                       1     2   3             4   5   6
+                                                     log10 S
+
+FIG. 8. Decadic logarithms of “1 − cosine similarity” vs. the number of shots S for the proposed and previous methods
+[26] based on our implementation. The optimization was run ten times with fixed parameters for each number of shots. The
+mean values are plotted, with the error bars representing the standard deviations. The means and standard deviations of the
+slopes of the fitted lines for n = 2, . . . , 10 (which includes cases that are not shown in this figure) are −0.99 and 0.14 for our
+proposed method and −0.98 and 0.03 for the previous method, respectively. The x-axis is slightly shifted for different legends
+for visibility.
+
+
+ent estimation for a given number of shots is of similar
+order in both the proposed and previous methods.
+   However, we can clearly observe that the proposed
+method has longer error bars, i.e., a larger standard devi-
+ation of sampling, than the previous method. This comes
+from the difference in the definition of the cost function,
+with the proposed method considering the norm of the
+solution vector as well as its direction in the optimization
+procedure. This implies that more shots are required to
+estimate the norm of the solution in addition to its di-
+rection.
+
+
+                                                                           FIG. 9. Example of tessellations for an 8-node cycle graph.
+                                      V.   CONCLUSIONS
+                                                                           Red and blue ellipses indicate the tessellations Teven and Todd ,
+                                                                           respectively.
+   This paper has presented a VQA for solving the Pois-
+son equation based on the minimum potential energy.
+The main contributions of the present study are as fol-                    rive the theoretical total time complexity, these aspects
+lows: 1) we have provided an explicit decomposition of                     will be discussed in future work.
+the system matrix for the Poisson equation into O(1)                          We believe the present study elevates the application
+terms consisting of simple observables, 2) the proposed                    of quantum computing to the field of computer-aided en-
+method provides information about the norm of the so-                      gineering and, moreover, design optimization.
+lution vectors in addition to the direction of the vectors,
+and 3) the time complexity of the proposed algorithm has
+been derived and verified. The first contribution implies                   Appendix A: Decomposition of stiffness matrix in
+that the proposed method only requires a small number                         finite element methods using graph theory
+of quantum measurements, compared with conventional
+approaches, at every iteration of the optimization pro-                       First, a one-dimensional problem is considered. Let us
+cedure. The second contribution enhances the ability                       consider an N -node cycle graph G = (V, E), where V
+of VQAs to solve PDEs, because the norm information                        and E represent node and edge sets, respectively. This
+is essential when using the calculation results for engi-                  N -node cycle graph corresponds to the one-dimensional
+neering developments. As for the third contribution, we                    finite element with a periodic boundary condition. A
+estimated the time complexity of the proposed method,                      clique is defined as a subset of several nodes that form a
+and demonstrated that it has significant potential for re-                 complete subgraph. A tessellation T is then defined as
+ducing the computation time of classical computing al-                     a set of cliques such that all nodes belong to one clique.
+gorithms. The number of optimization iterations and the                    The tessellation T includes edges whose endpoints be-
+depth of the ansatz depend on the classical optimization                   long to the tessellation. Generally, several tessellations
+and the architecture of the ansatz, respectively. To de-                   can be defined in a graph, and there exists a set of tes-
+                                                                                                                                12
+
+sellations such that all edges of the graph are included             Now, let us describe the total stiffness matrix for the
+in at least one tessellation. Such a set of tessellations is         mesh in Fig. 10(b) using the Pauli operators. Here, for
+called a tessellation cover [40]. Assuming that N = 2n ,             simplicity, we assume that periodic boundary conditions
+two tessellations of the tessellation cover of the N -node           are imposed on all edges of the mesh. Let Nx and Ny
+cycle graph can be defined as                                        denote the numbers of columns and rows of nodes, respec-
+                                                                     tively. That is, the number of nodes is N = Nx × Ny .
+           Teven := {C2i | i ∈ [0, 2n−1 − 1]}           (A1)         For example, in Fig. 10(b), Nx = 4 and Ny = 4.
+                                       n−1
+            Todd := {C2i+1 | i ∈ [0, 2       − 1]},     (A2)
+
+where Ci := {vi , vi+1 } is a clique consisting of the i-th
+node vi and the (i + 1)-th node vi+1 . Note that we define
+vN := v0 to simplify the notation.
+   Figure 9 illustrates an example of these tessellations
+for an 8-node cycle graph, where the red line represents
+a tessellation Teven and the blue dashed-dotted line rep-               We now define a graph corresponding to the mesh, as
+resents the other tessellation Todd .                                shown in Fig. 10(c). Each node vi of the graph corre-
+   The decomposed matrices ATeven and ATodd in Eqs. (19)             sponds to node i of the mesh, and the graph has edges
+and (20) can then be expressed as the sums of the element            between nodes within the same elements. Because of
+stiffness matrices related to elements in each tessellation          the periodic boundary conditions, nodes corresponding
+Teven and Todd , respectively.                                       to the edges of the mesh are also connected, e.g., v0 and
+   The above discussion can easily be extended to two-               v3 , v0 and v12 , and so on. For clear visibility, nodes with
+dimensional problems. Let us consider the finite element             dashed circles are added on the upper and right sides.
+method in the two-dimensional Poisson equation. For a
+first-order quadrilateral element of length 1 in Fig. 10(a),
+the element stiffness matrix is described as
+               4 −1 −1 −2
+                              
+           1 −1 4 −2 −1
+    Ae := 
+           6 −1 −2 4 −1
+                               
+              −2 −1 −1 4                                                Assuming that Nx = 2nx and Ny = 2ny , four tessella-
+          1                                                          tions in the tessellation cover of the N -node graph can
+        = (4I ⊗ I − I ⊗ X − X ⊗ I − 2X ⊗ X) . (A3)
+          6                                                          be defined as
+
+
+
+
+                            T0 := {C2ix +2iy Nx | ix ∈ [0, 2nx −1 − 1], iy ∈ [0, 2ny −1 − 1]}                                (A4)
+                                                                 nx −1                   ny −1
+                            T1 := {C2ix +1+2iy Nx | ix ∈ [0, 2           − 1], iy ∈ [0, 2         − 1]}                      (A5)
+                                                                   nx −1                      ny −1
+                            T2 := {C2ix +(2iy +1)Nx | ix ∈ [0, 2           − 1], iy ∈ [0, 2           − 1]}                  (A6)
+                                                                     nx −1                      ny −1
+                            T3 := {C2ix +1+(2iy +1)Nx | ix ∈ [0, 2           − 1], iy ∈ [0, 2           − 1]},               (A7)
+
+
+
+
+where Ci := {vi , vi+1 , vNx , vNx +1 } is the i-th clique de-       vi of the graph. The quantum state |ii consists of two
+fined on the graph. Note that we define vi≥N := vi mod N             quantum registers, |ix i and |iy i, for each direction, as
+to simplify the notation. In Fig. 10(c), rectangles with             |ii := |iy i |ix i, where |ix i and |iy i consist of nx and ny
+red lines, blue dashed-dotted lines, green dashed lines,             qubits, respectively. The sum of the element stiffness
+and magenta dotted lines represent T0 , T1 , T2 , and T3 ,           matrix for the elements related to the tessellation T0 ,
+respectively.                                                        denoted as AT0 , can then be expressed as
+   Let |ii be the quantum state corresponding to node
+                                                                                                                                                 13
+
+
+
+
+                       (a) An             (b) Two-dimensional mesh             (c) Graph for two-dimensional mesh
+                      element
+
+FIG. 10. Example of two-dimensional finite elements and the corresponding graph: (a) an element with node numbers, (b) a
+3 × 3 two-dimensional square mesh, (c) a graph corresponding to the two-dimensional mesh. Rectangles drawn by red lines,
+blue dashed-dotted lines, green dashed lines, and magenta dotted lines indicate separate tessellations.
+
+
+
+
+         1
+   AT 0 =   4(I ⊗ny −1 ⊗ I) ⊗ (I ⊗nx −1 ⊗ I) − (I ⊗ny −1 ⊗ I) ⊗ (I ⊗nx −1 ⊗ X)
+         6
+         − (I ⊗ny −1 ⊗ X) ⊗ (I ⊗nx −1 ⊗ I) − 2(I ⊗ny −1 ⊗ X) ⊗ (I ⊗nx −1 ⊗ X)
+                                                                               
+
+         1  ⊗(nx +ny )                                                                                      
+       =    4I           − I ⊗ny ⊗ (I ⊗nx −1 ⊗ X) − (I ⊗ny −1 ⊗ X) ⊗ I ⊗nx − 2(I ⊗ny −1 ⊗ X) ⊗ (I ⊗nx −1 ⊗ X) ,                              (A8)
+         6
+
+
+
+where the first ny tensor products are for the y-direction                where Py is a shift operator in the y-direction defined as
+(row direction) and the latter nx tensor products are for
+the x-direction (column direction). As the nodes of the
+                                                                                          X
+                                                                              Py :=                    |(iy + 1) mod 2ny i |ix i hiy | hix | .
+cliques in the tessellation T1 can be expressed by adding                             ix ∈[0,2nx −1]
+1 to the node numbers of the nodes of cliques in the                                  iy ∈[0,2ny −1]
+tessellation T0 , the sum of the element stiffness matrix                                                                   (A12)
+for the elements related to the tessellation T1 , denoted as              Consequently, the total stiffness matrix A can be de-
+AT1 , can be described as follows:                                        scribed as the sum of the stiffness matrices related to
+                                                                          each tessellation:
+                       AT1 = Px−1 AT0 Px ,                         (A9)
+                                                                                          A = AT0 + AT1 + AT2 + AT3 .                      (A13)
+
+where Px is a shift operator in the x-direction defined as                For Dirichlet and Neumann boundary conditions, we just
+                                                                          have to add terms to adjust the stiffness matrices of edge
+                X                                                         elements.
+    Px :=                    |iy i |(ix + 1) mod 2nx i hiy | hix | .
+            ix ∈[0,2nx −1]
+            iy ∈[0,2ny −1]
+                                                    (A10)                 Appendix B: Derivation of the mean squared error
+Similarly, the sum of the element stiffness matrix for the                between the exact cost function and that estimated
+elements related to the tessellations T2 and T3 , denoted                                    by sampling
+as AT2 and AT3 , respectively, can be described as
+                                                                            Here, the mean squared error between the exact cost
+                   AT2 = Py−1 AT0 Py ,                                    function value and that estimated by sampling is derived
+                                                                          using the Taylor series expansion. The first-order Taylor
+                   AT3 = Px−1 Py−1 AT0 Px Py                     (A11)    series expansion of g(q̄1 , . . . , q̄m ) around µi for i ∈ [1, m]
+                                                                                                                                            14
+
+is given as                                                                  where
+                                                                                                                        1 q̄ 2
+                                                                                               g(q̄1 , . . . , q̄m ) = − Pm1 .            (B2)
+                                                                                                                        2 i=2 q̄i
+  g(q̄1 , . . . , q̄m )
+                 X m
+                        ∂g                                                   Assuming that Cov(q̄i , q̄i0 ) = 0 for i 6= i0 , the mean
+                                      (q̄i − µi ) + o (q̄i − µi )2 , (B1)
+                                                                  
+   = Eh +                                                                    squared error between the exact cost function value and
+                        ∂ q̄i q̄i =µi
+                 i=1                                                         that estimated by sampling can be evaluated as follows:
+
+
+
+                                        ε2 = E[(g − Eh )2 ]
+                                               
+                                                   m
+                                                                               !2 
+                                                  X   ∂g
+                                           ≈ E                     (q̄i − µi ) 
+                                                  i=1
+                                                      ∂ q̄i q̄i =µi
+                                                m X
+                                                  m
+                                                X   ∂g               ∂g
+                                            =                                      E [(q̄i − µi )(q̄j − µj )]
+                                              i=1 j=1
+                                                       ∂ q̄i q̄i =µi ∂ q̄j q̄j =µj
+                                               m
+                                                                  !2
+                                              X     ∂g                σi2
+                                            =                                 (∵ Cov(q̄i , q̄j ) = 0)
+                                              i=1
+                                                    ∂ q̄i q̄i =µi     Si
+                                                                         m
+                                                 µ2      σ2 1   µ4      X σ2
+                                            = Pm 1 2 1 + Pm 1 4             i
+                                              ( i=2 µi ) S1 4(
+                                                               i=2 µi )    S
+                                                                        i=2 i
+                                                                                 m
+                                                                                                 !
+                                                     µ21     σ12   1    µ21      X  σi2
+                                            = Pm         2       +   Pm        2
+                                              ( i=2 µi )     S1    4(               Si
+                                                                       i=2 µi ) i=2
+                                                                  m
+                                                                       !
+                                               2   σ12     1 2 X σi2
+                                            = ropt     + ropt            ,                                                                (B3)
+                                                   S1      4         S
+                                                                 i=2 i
+
+
+
+
+where δij is Kronecker’s delta. The assumption that                          following equation:
+Cov(q̄i , q̄i0 ) = 0 for i 6= i0 is based on the assumption
+that, in quantum computers, each shot is mutually inde-                                                hf, ψ | X ⊗ I ⊗n | f, ψi
+                                                                                               ropt =
+pendent. In the last transformation, we have used the                                                         hψ | A | ψi
+                                                                                                          µ1
+                                                                                                     = Pm       .                         (B4)
+                                                                                                         i=2 µi
+
+
+
+                                                                                   Appendix C: Derivative of the cost function
+
+                                                                               The gradient of the cost function in Eq. (14) is now
+                                                                             derived. The partial derivative of the cost function with
+                                                                             respect to the parameters θ yields
+
+
+
+                                                               ⊗n         ∂
+                              ∂Eh    (hf, ψ(θ) | X ⊗ I                       hf, ψ(θ) | X ⊗ I ⊗n | f, ψ(θ)i
+                                                                    | f, ψ(θ)i)
+                                  =−                                     ∂θ
+                               ∂θ                              hψ(θ) | A | ψ(θ)i
+                                                            ⊗n             2 ∂
+                                         1 (hf, ψ(θ) | X ⊗ I | f, ψ(θ)i) ∂θ hψ(θ) | A | ψ(θ)i
+                                       +                                      2                   .                                       (C1)
+                                         2                  hψ(θ) | A | ψ(θ)i
+
+
+                                          ⊗n
+Recalling that |ψ(θ)i = U (θ) |0i , where U (θ) is a se-                     holds for the i-th parameter θi :
+quence of parameterized quantum gates, the following                             ∂              ∂            ⊗n
+                                                                                    |ψ(θ)i =       U (θ) |0i
+                                                                                ∂θi            ∂θi
+                                                                                               1                                     ⊗n
+                                                                                            = U (θ1 , θ2 , . . . , θi + π, . . .) |0i ,   (C2)
+                                                                                               2
+                                                                                                                                      15
+                                                                                                                           √
+under the assumption that the parameterized gates con-                   where |f, ψ(θ),i i := (|0i |f i + |1i |ψ(θ),i i) / 2. The fol-
+sist of either RX , RY , or RZ gates. Note that                          lowing equation also holds:
+                                                         ⊗n
+      |ψ(θ),i i := U (θ1 , θ2 , . . . , θi + π, . . .) |0i     (C3)
+                                                                                     ∂
+is a quantum state because U (θ1 , θ2 , . . . , θi + π, . . .) is a                     hψ(θ) | A | ψ(θ)i
+unitary operator.                                                                   ∂θi
+                                                               √                       1
+   Now, recall that |f, ψ(θ)i := (|0i |f i + |1i |ψ(θ)i) / 2,                       = (hψ(θ),i | A | ψ(θ)i + hψ(θ) | A | ψ(θ),i i)
+which yields                                                                           2
+                                                                                    = hψ(θ),i , ψ(θ) | X ⊗ A | ψ(θ),i , ψ(θ)i ,    (C5)
+             ∂
+                 f, ψ(θ) X ⊗ I ⊗n f, ψ(θ)
+            ∂θi
+               1                                                                                                                √
+            = (hψ(θ),i | f i + hf | ψ(θ),i i)                            where |ψ(θ),i , ψ(θ)i := (|0i |ψ(θ),i i + |1i |ψ(θ)i) / 2.
+               4
+               1                                                           Substituting Eqs. (C4) and (C5) into Eq. (C1), the
+            =     f, ψ(θ),i X ⊗ I ⊗n f, ψ(θ),i ,               (C4)
+               2                                                         gradient of the cost function is derived as
+
+
+
+
+                           ∂Eh    1 (hf, ψ(θ) | X ⊗ I ⊗n | f, ψ(θ)i) hf, ψ(θ),i | X ⊗ I ⊗n | f, ψ(θ),i i
+                               =−
+                           ∂θi    2                         hψ(θ) | A | ψ(θ)i
+                                                                         2
+                                       1 (hf, ψ(θ) | X ⊗ I ⊗n | f, ψ(θ)i) hψ(θ),i , ψ(θ) | X ⊗ A | ψ(θ),i , ψ(θ)i
+                                   +                                                 2                            .               (C6)
+                                       2                            hψ(θ) | A | ψ(θ)i
+
+
+
+Now, as all components of the gradient can be described                      2.     Dependency of the cost function error on the
+as the expectations of observables, the gradient can be                             number of shots for the previous method
+evaluated by quantum computers.
+                                                                            Figure 12 shows the decadic logarithm of the squared
+                                                                         error of the cost function with respect to the decadic loga-
+  Appendix D: Supplementary results of numerical
+                  experiments
+                                                                         rithm of the number of shots for the previous method [26].
+                                                                         In a similar fashion to our proposed method in Fig. 7, the
+                                                                         squared error decreases as the number of shots increases.
+                      1.     Barren plateaus
+                                                                         The mean and standard deviation of the slopes of the
+                                                                         fitted lines are −1.01 and 0.04, respectively. Although a
+  We examined the vanishing gradients of the cost                        comparison of the proposed and previous methods from
+function. Figure 11 illustrates the L2-norm of the                       these figures is difficult because of the different defini-
+gradients of the cost function and those of each term                    tions of the cost function, it can be deduced that the
+composing the cost function, i.e., hψ(θ) | ATeven | ψ(θ)i,               mean squared error in the cost function evaluation has
+hψ(θ) | ATodd | ψ(θ)i,  and hf, ψ(θ) | X ⊗ I | f, ψ(θ)i.                 a similar dependency on the number of shots in both
+These gradients were calculated using the statevector                    methods.
+simulator. The number of layers of the ansatz was set to
+5. The points show the mean values of ten experiments
+with different randomly set parameters and the error
+bars represent the standard deviations. As shown in
+                                                                                            ACKNOWLEDGMENTS
+these figures, the gradient of the expectation of the
+operator ATeven , which is local, does not vanish, while
+the gradients of the other terms, which are global,                        This work is partly supported by UTokyo Quantum
+vanish. As a result, the gradient of the cost function as                Initiative. We thank Stuart Jenkinson, PhD, from
+a whole vanishes. The alleviation of barren plateaus will                Edanz Group (https://www.jp.edanz.com/ac) for editing
+be addressed in future research.                                         a draft of this manuscript.
+
+
+
+
+ [1] M. Renardy and R. C. Rogers, An introduction to partial                      2004).
+     differential equations, Vol. 13 (Springer-Verlag New York,
+                                                                                                                                                                                16
+
+
+                                                                                                        2.0
+                              0.25
+                                                                                                        1.8
+                              0.20
+
+
+              || Eh/ ||2                                                               || Aeven / ||2
+                              0.15                                                                      1.6
+
+                              0.10                                                                      1.4
+                              0.05
+                                                                                                        1.2
+                              0.00
+                                        2         4             6         8       10                          2               4      6                8                10
+                                                               n                                                                     n
+                                                (a) Norm of ∂Eh /∂θ                                                   (b) Norm of ∂ hAeven i /∂θ
+
+
+                                                                                                        1.0
+                              2.0
+                              1.8                                                                       0.8
+
+
+
+              || Aodd / ||2                                                            || X I / ||2
+                              1.6
+                                                                                                        0.6
+                              1.4
+                              1.2                                                                       0.4
+
+                              1.0                                                                       0.2
+                              0.8
+                                        2         4            6          8       10                          2               4      6                8                10
+                                                               n                                                                     n
+                                            (c) Norm of ∂ hAodd i /∂θ                                              (d) Norm of ∂ X ⊗ I ⊗n /∂θ
+
+FIG. 11. Norm of gradients of the cost function and those of each term composing the cost function, i.e., hAeven i :=
+hψ(θ) | ATeven | ψ(θ)i, hAodd i := hψ(θ) | ATodd | ψ(θ)i, and hX ⊗ Ii := hf, ψ(θ) | X ⊗ I | f, ψ(θ)i. The points show the mean
+values of ten experiments from varying initial parameters and the error bars represent the standard deviation.
+
+                                                                                                        n = 4 (Liu et al., 2020)    Fitting line of n = 4 (Liu et al., 2020)
+                              0
+                                                                                                        n = 6 (Liu et al., 2020)    Fitting line of n = 6 (Liu et al., 2020)
+                                                                                                        n = 8 (Liu et al., 2020)    Fitting line of n = 8 (Liu et al., 2020)
+                                                                                                        n = 10 (Liu et al., 2020)   Fitting line of n = 10 (Liu et al., 2020)
+                              2
+            log10 2
+                              4
+
+                              6
+                                    1       2         3          4    5       6
+                                                          log10 S
+
+FIG. 12. Decadic logarithms of cost function error ε vs. the number of shots S for the previous method [26] based on our
+implementation. The optimization was run ten times with fixed parameters for each number of shots. The mean values are
+plotted, with the error bars representing the standard deviations. The mean and standard deviation of the slopes of the fitted
+dashed line for n = 2, . . . , 10 (which includes cases that are not shown in this figure) are −1.0 and 0.05, respectively.
+
+
+ [2] A. Klawonn, M. Lanser, and O. Rheinbach, SIAM Jour-                                                    Storage and Analysis (IEEE, 2020) pp. 1–13.
+     nal on Scientific Computing 37, C667 (2015).                                                       [5] K. Fujita, K. Koyama, K. Minami, H. Inoue,
+ [3] J. Toivanen, P. Avery, and C. Farhat, International Jour-                                              S. Nishizawa, M. Tsuji, T. Nishiki, T. Ichimura, M. Hori,
+     nal for Numerical Methods in Engineering 116, 661                                                      and L. Maddegedara, Journal of Computational Science
+     (2018).                                                                                                49, 101277 (2021).
+ [4] C. Kato, Y. Yamade, K. Nagano, K. Kumahata, K. Mi-                                                 [6] A. W. Harrow, A. Hassidim, and S. Lloyd, Physical Re-
+     nami, and T. Nishikawa, in SC20: International Con-                                                    view Letters 103, 150502 (2009).
+     ference for High Performance Computing, Networking,
+                                                                                                                               17
+
+ [7] A. M. Childs, R. Kothari, and R. D. Somma, SIAM Jour-        [23] A. M. Childs, E. Farhi, and J. Preskill, Physical Review
+     nal on Computing 46, 1920 (2017).                                 A 65, 012322 (2001).
+ [8] Y. Cao, A. Papageorgiou, I. Petras, J. Traub, and S. Kais,   [24] S. Hadfield, Z. Wang, B. O’Gorman, E. G. Rieffel,
+     New Journal of Physics 15, 013021 (2013).                         D. Venturelli, and R. Biswas, Algorithms 12, 34 (2019).
+ [9] D. J. Griffiths, Introduction to electrodynamics (1999).     [25] C. Bravo-Prieto, R. LaRose, M. Cerezo, Y. Subasi,
+[10] T. Chung, Computational fluid dynamics (Cambridge                 L. Cincio, and P. Coles, Bulletin of the American Physi-
+     University Press, 2010).                                          cal Society 65 (2020).
+[11] J. Blazek, Computational fluid dynamics: principles and      [26] H. Liu, Y. Wu, L. Wan, S. Pan, S. Qin, F. Gao, and
+     applications (Butterworth-Heinemann, 2015).                       Q. Wen, arXiv preprint arXiv:2012.07014 (2020).
+[12] J. Preskill, Quantum 2, 79 (2018).                           [27] T. J. Hughes, The finite element method: linear static
+[13] M. Cerezo, A. Arrasmith, R. Babbush, S. C. Benjamin,              and dynamic finite element analysis (Courier Corpora-
+     S. Endo, K. Fujii, J. R. McClean, K. Mitarai, X. Yuan,            tion, 2012).
+     L. Cincio, et al., Nature Reviews Physics , 1 (2021).        [28] M. Mottonen, J. J. Vartiainen, V. Bergholm, and M. M.
+[14] Peruzzo, Alberto and McClean, Jarrod and Shadbolt, Pe-            Salomaa, arXiv preprint quant-ph/0407010 (2004).
+     ter and Yung, Man-Hong and Zhou, Xiao-Qi and Love,           [29] R. Iten, R. Colbeck, I. Kukuljan, J. Home, and M. Chri-
+     Peter J and Aspuru-Guzik, Alán and O’brien, Jeremy L,            standl, Physical Review A 93, 032318 (2016).
+     Nature communications 5, 4213 (2014).                        [30] I. Araujo, K. Park, F. Petruccione, and A. da Silva, Bul-
+[15] D. A. Fedorov, B. Peng, N. Govind, and Y. Alexeev,                letin of the American Physical Society (2021).
+     arXiv preprint arXiv:2103.08505 (2021).                      [31] D. Maslov, Physical Review A 93, 022311 (2016).
+[16] A. Kandala, A. Mezzacapo, K. Temme, M. Takita,               [32] S. Oomura, T. Satoh, M. Sugawara, and N. Yamamoto,
+     M. Brink, J. M. Chow, and J. M. Gambetta, Nature 549,             arXiv preprint arXiv:2102.06117 (2021).
+     242 (2017).                                                  [33] Y. Saad, Iterative methods for sparse linear systems
+[17] M. Ganzhorn, D. J. Egger, P. Barkoutsos, P. Ollitrault,           (SIAM, 2003).
+     G. Salis, N. Moll, M. Roth, A. Fuhrer, P. Mueller, S. Wo-    [34] M. Cerezo, A. Sone, T. Volkoff, L. Cincio, and P. J. Coles,
+     erner, I. Tavernelli, and S. Filipp, Physical Review Ap-          Nature communications 12, 1 (2021).
+     plied 11, 044092 (2019).                                     [35] H. Abraham, AduOffei, R. Agarwal, I. Y. Akhalwaya,
+[18] T. Jones, S. Endo, S. McArdle, X. Yuan, and S. C. Ben-            G. Aleksandrowicz, T. Alexander, M. Amy, E. Arbel,
+     jamin, Physical Review A 99, 062304 (2019).                       Arijit02, and t. Abraham Asfaw, Qiskit: An open-source
+[19] O. Higgott, D. Wang, and S. Brierley, Quantum 3, 156              framework for quantum computing (2019).
+     (2019).                                                      [36] C. G. Broyden, IMA journal of applied mathematics 6,
+[20] Z.-H. Yuan, T. Yin, and D.-B. Zhang, Physical Review              222 (1970).
+     A 103, 012413 (2021).                                        [37] R. Fletcher, The computer journal 13, 317 (1970).
+[21] E. Farhi, J. Goldstone, and S. Gutmann, arXiv preprint       [38] D. Goldfarb, Mathematics of computation 24, 23 (1970).
+     arXiv:1411.4028 (2014).                                      [39] D. F. Shanno, Mathematics of computation 24, 647
+[22] E. Farhi, J. Goldstone, S. Gutmann, and M. Sipser, arXiv          (1970).
+     preprint quant-ph/0001106 (2000).                            [40] A. Abreu, L. Cunha, T. Fernandes, C. de Figueiredo,
+                                                                       L. Kowada, F. Marquezino, D. Posner, and R. Portugal,
+                                                                       in Latin American Symposium on Theoretical Informatics
+                                                                       (Springer, 2018) pp. 1–13.
+

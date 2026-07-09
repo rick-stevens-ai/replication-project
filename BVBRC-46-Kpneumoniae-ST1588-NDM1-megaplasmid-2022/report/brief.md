@@ -1,0 +1,5 @@
+# Brief — BVBRC-46
+
+**What:** Independent replication of Quezada-Aguiluz et al. 2022 (*Antibiotics* 11(9):1207), which used Illumina+Nanopore hybrid sequencing to characterize a carbapenem-resistant *Klebsiella pneumoniae* clinical isolate (UCO-361, Chile) and reported a novel ~315 kb un-typeable megaplasmid (pNDM-1_UCO361) carrying *bla*NDM-1 in a Tn*3000* transposon, in an ST1588 / KL108-O1 background.
+
+**Why it replicates:** The authors deposited the full WGS assembly (GCF_023554495.1). I pulled the actual sequences from NCBI Datasets and independently re-ran the paper's exact bioinformatic pipeline (MLST, Kaptive K/O typing, PlasmidFinder, ResFinder/AMRFinderPlus, comparative BLAST) on uicgpu. Every sequence-testable claim reproduced — often to the exact base pair: megaplasmid = 314,976 bp, IncFIB(K) plasmid = 197,209 bp, the shared *bla*NDM-1 region with pNDM-1-EC12 = 2,488 bp, ST1588, KL108/O1, the full Tn*3000* gene order, and the resistome. Verdict: **REPLICATED** (only wet-lab conjugation-frequency and MIC values were out of reach from sequence alone; one minor textual discrepancy on *oqxB* localization).

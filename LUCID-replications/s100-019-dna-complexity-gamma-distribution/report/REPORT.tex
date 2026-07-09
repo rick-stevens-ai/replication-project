@@ -1,0 +1,218 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{parskip}
+
+\title{LUCID-Second100 Replication --- Slot \#19\\
+\large Bertolet, Chamseddine, Paganetti, Schuemann (2023):\\
+The complexity of DNA damage by radiation follows a Gamma distribution ---\\
+insights from the Microdosimetric Gamma Model}
+\author{Ollie (LUCID-Second100 pipeline)}
+\date{2026-06-22 (backfill 2026-07-06)}
+
+\begin{document}
+\maketitle
+
+\section*{Verdict (four-tier)}
+
+\textbf{Analytical layer: REPRODUCED. Upstream Monte-Carlo layer: NOT REPRODUCED.}
+
+The queue-side single-label ``REPLICATED'' is misleading in isolation and should be
+read as a shorthand for \emph{``REPLICATED (analytical layer only; upstream MC data-generation
+never re-executed --- functionally a SPOT-CHECK/PARTIAL for the full paper claim graph).''}
+See \S\ref{sec:verdict-mismatch} for the honest mismatch flag.
+
+Coverage $= 7/10$. Agreement $= 9/10$.
+
+\section{TL;DR}
+
+The paper claims that the number of DNA damage sites per particle track, in a
+1\,$\mu$m spherical scoring volume, follows a Gamma distribution whose shape
+$\alpha(y_F)$ and rate $\beta(y_F)$ parameters vary quadratically with the
+frequency-mean lineal energy $y_F$. The claim is supported by TOPAS-nBio
+Monte-Carlo simulations of six monoenergetic protons, nine monoenergetic alpha
+particles, and a 250\,keV X-ray reference, producing per-track SDD-format
+damage tables that are then fit with a Gamma.
+
+We reproduced the entire \emph{downstream analytical layer} (MGM parametric forms,
+quadratic $\alpha(y_F)/\beta(y_F)$ fits, closed-form Gamma PDF, end-to-end
+pipeline against the author-bundled X-ray microdosimetric spectrum) using the
+authors' public code (\texttt{github.com/MGHPhysicsResearch/MGM}). All Figure 2 and
+Figure 3 curves were regenerated (\texttt{figures/fig2\_damage\_vs\_yF.png},
+\texttt{figures/fig3\_complexity\_and\_gamma\_params.png}).
+
+We did \textbf{not} re-run the upstream TOPAS-nBio MC (the raw SDD files that the
+Gammas were fit to are not deposited; a full re-run is GBs and outside slot
+budget), and we did \textbf{not} re-fit any of the $(\alpha, \beta)$ pairs from raw
+damage histograms. We evaluated the authors' published parameter constants
+verbatim.
+
+\section{Coverage --- 7/10}
+
+Reproduced (analytical layer):
+\begin{itemize}
+\item Figure 2 (damage counts vs $y_F$, 3 panels) --- all five fitted functions
+  (SBD, SBI, BDD, BDI, $N_{\text{sites}}$, $N_{\text{sites,DSB}}$).
+\item Figure 3 top (complexity PDFs for a 5-MeV proton and a 4-MeV alpha regime).
+\item Figure 3 bottom ($\alpha(y_F)$, $\beta(y_F)$ quadratic fits).
+\item Full end-to-end pipeline against the author-bundled 250\,keV X-ray
+  microdosimetric spectrum (116\,077 events, subsampled to 1\,000 per README).
+\item Gamma-form audit across three candidate parameterizations of the Gamma
+  PDF (paper text formula, author-code call, author-code-with-scale)
+  at $y_F \in \{2, 5, 10, 30, 100, 150, 200\}$ keV/$\mu$m.
+\item Spot-value validation table at the five canonical $y_F$ values referenced
+  in the paper text (2, 10.95, 50, 115.3, 200 keV/$\mu$m).
+\end{itemize}
+
+Not reproduced (the missing $3/10$):
+\begin{itemize}
+\item Upstream TOPAS-nBio Monte-Carlo of the 16 monoenergetic beams + X-ray
+  reference --- the raw data that the Gammas were originally fit to.
+\item The least-squares fits themselves --- we did not re-fit; we adopted the
+  authors' published parameter constants.
+\item Figures 4 and 5 (3-MeV proton/alpha validation vs new MC runs; RBE and
+  cell-survival curves for V79-4 and irs1) --- depend on external experimental
+  datasets (Hill 2004, Jones 1987) and on a sigmoid repair toy model that the
+  paper itself describes as ``qualitative''.
+\end{itemize}
+
+\section{Agreement --- 9/10}
+
+Exact agreement (from authors' repo parameter constants):
+\begin{itemize}
+\item Damage-induction $y_F$-trends (Fig 2) --- all five fitted functions
+  evaluate 1:1 with the paper's functional forms.
+\item $\alpha(y_F) = 8.41 \times 10^{-5} y_F^2 + 7.31 \times 10^{-3} y_F + 1.404$.
+  Monotone $1.42 \to 6.23$ across $y_F \in [2, 200]$ keV/$\mu$m.
+\item $\beta(y_F) = -6.62 \times 10^{-5} y_F^2 + 1.48 \times 10^{-3} y_F + 1.494$.
+\item Mode of complexity distribution $= 2$ (simple DSBs) for low- and mid-$y_F$
+  --- matches paper's qualitative observation that simple DSBs dominate.
+\item X-ray pipeline: $n_{\text{sites,DSB}}/\text{track} \approx 0.091$ for
+  $y_F \approx 0.73$ keV/$\mu$m --- ballpark-consistent with the referenced
+  Ramos-M\'endez 2021 low-LET benchmark (paper ref [43]).
+\end{itemize}
+
+Why 9 not 10 --- two real issues surfaced (\S\ref{sec:critique}).
+
+\section{Genuine critique --- what the paper glosses over}
+\label{sec:critique}
+
+\subsection{Issue \#1: author-code Gamma call does not match paper text formula}
+
+The paper's Methods states the Gamma PDF as
+$f(C; y_F) = \beta^\alpha / \Gamma(\alpha) \cdot C^{\alpha-1} \cdot e^{-\beta C}$
+(standard rate-parameterization). In SciPy this is
+\texttt{scipy.stats.gamma(a, scale=1/b).pdf(C)}.
+
+However, \texttt{src/mgm.py} in the official repo calls
+\texttt{scipy.stats.gamma(a, b).pdf(C)}, which by positional signature passes
+$b$ as the \emph{location} (shift) parameter rather than the rate. This produces
+a location-shifted Gamma, not the paper's rate-parameterized Gamma.
+
+Empirically the shapes are qualitatively similar (both unimodal, low-complexity
+peaked, monotone-decaying tails), and the fits are internally self-consistent
+(whichever convention was actually used at fit time is the one the published
+$\alpha, \beta$ pairs live in), so the published figures are correct
+\emph{internally}. But any downstream user of the public code will silently
+compute a different PDF than the paper's stated formula. Two-character fix:
+\texttt{scipy.stats.gamma(a, scale=1/b).pdf(C)}. See
+\texttt{evidence/gamma\_form\_audit.csv}.
+
+\subsection{Issue \#2: $\beta(y_F)$ goes negative inside the claimed validity window}
+
+The paper claims MGM is applicable for $y_F \in [\sim 2, \sim 200]$ keV/$\mu$m
+(100-MeV protons $\to$ 2-MeV alphas). But the fitted quadratic
+$\beta(y_F) = -6.62 \times 10^{-5} y_F^2 + 1.48 \times 10^{-3} y_F + 1.494$
+has roots near $y_F \approx 175$ keV/$\mu$m; at $y_F = 200$ we measure
+$\beta = -0.859$, which makes the paper's stated rate-Gamma
+$\beta^\alpha/\Gamma(\alpha) \cdot C^{\alpha-1} e^{-\beta C}$ an improper
+(divergent) distribution. The author-code loc-shifted variant does not blow up
+here, but that is coincidence, not physics. The paper does not warn about this
+upper-$y_F$ limit.
+
+\subsection{Issue \#3 (distribution family): Gamma is asserted, alternatives not tabulated}
+
+The paper reports $R^2 > 0.999$ for the Gamma fit across all beams, but does
+\emph{not} tabulate residuals or compare against alternative candidate
+distributions: log-normal (physically motivated by multiplicative processes),
+negative-binomial (natural for count-per-track data), truncated exponential
+(minimal-parameter null hypothesis), or Gamma-mixture models (which would be
+natural if high-LET tracks produce a bimodal population of ``core'' vs
+``penumbra'' damage clusters). The MC-histogram raw data would let this
+comparison be done at essentially zero extra cost, but is not deposited.
+
+Also unreported: whether the same Gamma shape describes the complexity
+distribution equally well at very low LET (X-rays, secondary electrons from
+protons at $y_F \sim 0.7$ keV/$\mu$m) as at very high LET
+($y_F \gtrsim 100$ keV/$\mu$m). Physical intuition suggests the underlying
+generative process differs qualitatively (Poisson-thin sparse damage vs
+dense track-core clustering), so a single unimodal Gamma fitting both
+regimes deserves more skepticism than the paper offers.
+
+\subsection{Issue \#4: LET dependence of $(\alpha, \beta)$ is a fitted phenomenology, not a mechanism}
+
+The quadratic $\alpha(y_F)$ and $\beta(y_F)$ are pure phenomenology --- no
+mechanistic reason is given why the complexity Gamma parameters should be
+quadratic in $y_F$ specifically (rather than, say, linear-plus-saturating like
+their own SBI and BDI functions). The paper does not discuss goodness-of-fit
+alternatives for the meta-fit (i.e., how well would $\alpha, \beta$ be
+described by linear or saturating functions of $y_F$?).
+
+\subsection{Issue \#5: MC re-run was skipped; the claim ``R$^2 > 0.999$'' is unfalsifiable from the deposit}
+
+The core reproducibility problem: with no raw SDD files deposited, the
+central quantitative claim of the paper (Gamma fits to per-track damage
+complexity, $R^2 > 0.999$) can be neither verified nor refuted independently.
+An independent replicator can only confirm that the \emph{analytical downstream}
+--- once you accept the published $(\alpha_j, \beta_j)$ pairs and their quadratic
+summary --- is internally consistent. That is a real result, but it is much
+weaker than ``the paper is reproduced.''
+
+\section{Verdict cross-check with queue label}
+\label{sec:verdict-mismatch}
+
+Queue label: \textbf{REPLICATED}.
+
+Honest assessment: the replication is \textbf{split-verdict} --- REPRODUCED
+(analytical / model-parameter layer) / NOT-REPRODUCED (upstream MC data-generation
+layer). Under the LUCID four-tier rubric (REPLICATED / PARTIAL / SPOT-CHECK /
+NO-GO), the case most naturally maps to \textbf{PARTIAL} or \textbf{SPOT-CHECK},
+not full \textbf{REPLICATED} --- because the upstream Monte-Carlo, which is
+where the central paper claim actually lives, was never independently
+re-executed.
+
+Session-level context: 12/31 verdicts in the current backfill session were
+mismatches ($\sim$39\%); this is the classic MC-code pattern flagged in the
+brief (``if the actual MC was never re-run, only the analytical fit, that's
+likely a REPLICATED $\to$ PARTIAL/SPOT-CHECK mismatch''). Preserved as
+REPLICATED per instruction, mismatch flagged here for downstream re-adjudication.
+
+\section{Open questions}
+
+See \texttt{report/open\_questions.json} and \texttt{report/open\_questions\_section.tex}
+for five concrete follow-up probes derived from re-reading the paper against
+this replication.
+
+\section{Reproducibility blockers}
+
+\begin{enumerate}
+\item \textbf{Raw SDD damage files not deposited} (hard blocker). Per-track
+  damage tables for 6 protons + 9 alphas + 250\,keV X-ray reference + 2 validation
+  runs --- not in Frontiers SM, not in MGM repo, not in any TOPAS-nBio public
+  dataset located.
+\item \textbf{Microdosimetric spectra not deposited} (medium). Only one bundled
+  spectrum (250\,keV X-ray).
+\item \textbf{Per-beam $(\alpha_j, \beta_j)$ pairs not tabulated} (soft). Only
+  the summary quadratics are given; the eight raw pairs (that the quadratics
+  fit) are not in main text or repo.
+\item \textbf{Author-code Gamma call parameterization} (minor code bug). See
+  Issue \#1.
+\end{enumerate}
+
+\section{Files}
+
+See \texttt{report/artifacts\_summary.md} for the full artifact inventory.
+
+\end{document}

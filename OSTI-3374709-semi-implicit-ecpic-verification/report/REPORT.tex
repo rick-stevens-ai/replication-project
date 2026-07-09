@@ -1,0 +1,288 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{siunitx}
+
+\title{Independent Replication Report --- OSTI 3374709\\
+\large Verification of an energy-conserving semi-implicit ES-PIC scheme}
+\author{Independent replication (OSTI-100, rank 4, accelerator\_plasma)}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{Paper}
+R.\,M.~Hedlof, D.\,C.~Barnes, R.\,E.~Groenewald, \emph{et al.},
+``Verification of an energy-conserving semi-implicit electrostatic
+particle-in-cell scheme for modeling high-density plasma at scale,''
+\textbf{Phys.\ Plasmas 33, 053902 (2026)}.
+DOI: \href{https://doi.org/10.1063/5.0315721}{10.1063/5.0315721};
+OSTI: 3374709; LBNL eScholarship item 8xt682g7; CC-BY 4.0.
+
+\section{Paper summary}
+Momentum-conserving explicit electrostatic PIC (ECPIC) must resolve the
+electron plasma period ($\omega_{pe}\Delta t \lesssim 2$) for stability,
+which is prohibitively expensive for high-density plasmas. The authors
+present a \emph{semi-implicit} ES-PIC (SIPIC) in which the particle mass
+is replaced by an SPD operator that suppresses only the Langmuir
+(plasma-wave) response. In the implemented form (their Eqs.~9--10,
+barycentric shape functions) this is exactly equivalent to solving
+Poisson's equation with a density-dependent effective dielectric
+\[
+\varepsilon_{\text{eff}} = \varepsilon_0\!\left(1 + \tfrac{C_{\text{SI}}\,\omega_{pe}^{2}\,\Delta t^{2}}{4}\right),
+\]
+so that the electron plasma mode is down-shifted (their Eq.~16) to
+\[
+\omega_{pe,\text{SI}} = \frac{\omega_{pe}}{\sqrt{1 + C_{\text{SI}}\,\omega_{pe}^{2}\,\Delta t^{2}/4}}.
+\]
+This makes the scheme stable at $\Delta t$ far beyond $1/\omega_{pe}$ while
+remaining second-order accurate for lower-frequency modes and (per
+\S III.B) leaving cyclotron / hybrid physics essentially unaffected.
+\S III demonstrates this against analytic dispersion (\S III.A
+Bohm--Gross), upper/lower hybrid modes (\S III.B), Landau damping
+(\S III.C), and energy conservation, using WarpX and Aleph code-to-code
+comparison.
+
+\section{Claims table}
+\begin{center}\small
+\begin{tabular}{@{}clccc@{}}
+\toprule
+ID & Claim & Type & Testable & Tested here \\
+\midrule
+C1 & SIPIC effective dielectric \& down-shift (Eqs.~12/16) & analytic + numerical & Yes & \textbf{Yes (core)} \\
+C2 & Modified Bohm--Gross $\omega^{2}=(\omega_{pe,\text{SI}})^{2}+1.5\,v_{th}^{2}k^{2}$ (Eq.~18) & analytic + numerical & Yes & Partial (cold limit of C1) \\
+C3 & Stable $\forall\,\Delta t$ if $C_{\text{SI}}\ge 1$ ($\omega\Delta t < 2/\sqrt{C_{\text{SI}}}$, Eq.~14) & stability & Yes & Yes (implicit) \\
+C4 & Upper/lower hybrid frequencies unaffected except via $\omega_{pe,\text{SI}}$ (Eqs.~19--20) & numerical & Yes (2D B-field) & No \\
+C5 & Total energy change $<2.5\%$; SIPIC$\approx$ECPIC & numerical & Yes & No (needs WarpX/Aleph) \\
+C6 & Landau damping rates preserved (\S III.C) & numerical & Yes & No \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent\textbf{Focus: C1} (central verification claim), with C3 as a
+byproduct.
+
+\section{Method}
+Independent re-implementation (no paper code; a $\sim$180-line NumPy PIC
+in \texttt{work/sipic\_dispersion.py}):
+\begin{enumerate}
+  \item 1D electrostatic PIC, periodic box, normalized units
+        ($\omega_{pe}=1$, $\varepsilon_0=1$, $q=-1$, $m=1$).
+        Leapfrog particle push; Cloud-In-Cell (linear) charge deposition
+        and field gather; spectral (FFT) Poisson solve.
+  \item SIPIC modification implemented exactly as the paper's field
+        operator (Eqs.~9--10): the negative-Laplacian is multiplied by
+        $F = (1 + C_{\text{SI}}\,\omega_{pe}^{2}\,\Delta t^{2}/4)$,
+        i.e.\ $\varepsilon_{\text{eff}} = \varepsilon_0\,F$. The paper's
+        Eq.~12 writes $\kappa = 1/F$, $\varepsilon_{\text{SI}} =
+        \varepsilon_0\kappa$, $\omega^{2} = \omega_{p}^{2}/\kappa$; that
+        $\kappa$-bookkeeping is internally inverted relative to the
+        \emph{stated} Eq.~16 down-shift, so we implement the physical
+        operator from Eqs.~9--10 directly. The resulting down-shift
+        $1/\sqrt{F}$ is identical to Eq.~16.
+  \item Test problem: cold Langmuir oscillation --- uniform plasma with
+        a small mode-1 position perturbation (\texttt{amp} = 0.02);
+        $v_{th}=0$ (cold, so the Bohm--Gross thermal term vanishes and
+        C1 is isolated); $N=80{,}000$ particles, 32 cells, long box
+        (small $k$).
+  \item Sweep: numerical factor $a\in\{0.5,1,2,4,8\}$ giving
+        $\omega_{pe}\,\Delta t\in\{1,2,4,8,16\}$ (16$\times$ range
+        spanning both $\Delta t$ conventions in the paper), with
+        $C_{\text{SI}}=4$ (Table~I).
+  \item Diagnostic: record the signed real part of the complex mode-1
+        Fourier coefficient of $E$ each step; FFT the time series (Hann
+        window, parabolic sub-bin interpolation, physical search band)
+        to extract $\omega$.
+  \item Validation control: run classical PIC ($C_{\text{SI}}=0$) at
+        well-resolved $\Delta t$ --- a correct code must recover
+        $\omega\approx\omega_{pe}$.
+  \item Judge: free Argo \texttt{argo:gpt-5.2} (localhost:44497),
+        temperature 0, given the measured-vs-analytic table (no regex
+        scoring).
+\end{enumerate}
+Tools: Python\,3 + NumPy + Matplotlib (local, CherryRd). OA PDF fetch +
+\texttt{pdftotext} via \texttt{ssh uicgpu}. Free endpoints only.
+
+\section{Results vs paper}
+
+\subsection*{Validation (classical PIC, $C_{\text{SI}}=0$) --- sanity check}
+\begin{center}
+\begin{tabular}{@{}ccc@{}}
+\toprule
+$\omega_{pe}\,\Delta t$ & measured $\omega/\omega_{pe}$ & target \\
+\midrule
+0.10 & 1.033 & 1.0 \\
+0.20 & 1.011 & 1.0 \\
+0.50 & 1.017 & 1.0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+The from-scratch PIC recovers the physical plasma frequency to
+$\sim$1--3\%. Diagnostic sound.
+
+\subsection*{C1 --- SIPIC down-shift ($C_{\text{SI}}=4$): measured vs Eq.~16}
+\begin{center}
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+$\omega_{pe}\,\Delta t$ & measured $\omega/\omega_{pe}$ & Eq.~16 prediction & classical (unmodified) & error vs Eq.~16 \\
+\midrule
+1  & 0.731 & 0.707 & 1.000 & 3.3\,\% \\
+2  & 0.451 & 0.447 & 1.000 & 0.9\,\% \\
+4  & 0.252 & 0.243 & 1.000 & 3.9\,\% \\
+8  & 0.126 & 0.124 & 1.000 & 1.9\,\% \\
+16 & 0.069 & 0.062 & 1.000 & 10.2\,\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The measured plasma-oscillation frequency tracks the analytic SIPIC
+down-shift (Eq.~16) across a 16$\times$ range of $\omega_{pe}\,\Delta t$
+--- $\sim$1--4\% for $\omega_{pe}\,\Delta t\le 8$ and $\sim$10\% at the
+most extreme step ($\omega_{pe}\,\Delta t = 16$, only $\sim$6 samples
+per down-shifted oscillation) --- and is decisively inconsistent with
+the classical, unmodified $\omega/\omega_{pe}=1$. This is exactly the
+paper's stated verification result (``As $\Delta t$ is increased, the
+contours follow the modified dispersion relation \ldots the modified
+dispersion curves traverse downward,'' \S III.A). Plot:
+\texttt{evidence/sipic\_downshift.png}. Raw numbers:
+\texttt{evidence/sipic\_dispersion\_results.json}.
+
+\subsection*{Stability (C3)}
+All runs, including $\omega_{pe}\,\Delta t=16$ (16$\times$ beyond the
+explicit-PIC limit), remained bounded with the mode amplitude
+oscillating cleanly --- consistent with the paper's stability bound
+$\omega\Delta t < 2/\sqrt{C_{\text{SI}}}$ for $C_{\text{SI}}\ge 1$
+(Eq.~14).
+
+\subsection*{Discrepancies / caveats}
+\begin{itemize}
+  \item \textbf{Paper-internal inconsistency:} Table~I gives $\Delta t =
+        2a/\omega_{pe}$ ($\omega_{pe}\Delta t = 2a$) while \S III.A
+        prose gives $\Delta t\cdot\omega_{pe} = a/2$. Because Eq.~16
+        depends only on the product $\omega_{pe}\,\Delta t$, the
+        replication sweeps the full range and the conclusion is
+        independent of this ambiguity.
+  \item \textbf{Paper $\kappa$-notation inversion:} Eq.~12/13
+        ($\kappa=1/F$, $\omega^{2}=\omega_{p}^{2}/\kappa$) written
+        literally gives an \emph{up}-shift, contradicting the Eq.~16
+        text (``reduced frequency'') and Fig.~1 (downward contours).
+        The physically correct + self-consistent reading (implemented
+        here) is the down-shift; this is a typographic/bookkeeping
+        subtlety, not a physics error.
+  \item Not tested: hybrid modes (C4), full energy-conservation curves
+        (C5, needs WarpX/Aleph), Landau damping (C6). C2's thermal
+        Bohm--Gross term was intentionally suppressed (cold run) to
+        isolate C1.
+\end{itemize}
+
+\section{LLM-judge verdict (free Argo gpt-5.2, verbatim)}
+\begin{quote}
+``The measured $\omega/\omega_{pe}$ agrees with Eq.~16 within
+$\sim$1--4\% for $\omega_{pe}\,\Delta t\le 8$ and shows the correct
+down-shift trend at 16 (but with $\sim$10\% error) \ldots the core
+claim --- an effective dielectric producing a stable, down-shifted
+plasma frequency scaling like Eq.~16 for large $\omega_{pe}\,\Delta t$
+--- is reproduced. \textbf{VERDICT: REPLICATED.}''
+\end{quote}
+Full text: \texttt{evidence/llm\_judge\_verdict.txt}.
+
+\section{GENUINE CRITIQUE}
+This section deliberately steps outside the celebratory framing to
+enumerate real weaknesses of \emph{this} replication effort. Nothing
+here overturns the verdict, but each point identifies a way the current
+evidence is thinner than the executive summary might suggest.
+
+\paragraph{1.\ Only one of six claims was actually re-executed.}
+C1 is the central verification claim, but the paper's argument spans
+six claims (C1--C6) covering hybrid modes, energy conservation, and
+Landau damping. This replication tested C1 quantitatively and inherited
+C3 (stability) as a byproduct of the same runs. C2 was reduced to its
+cold limit (thermal term suppressed), and C4--C6 were not attempted at
+all. A ``REPLICATED'' verdict at the paper level therefore rests on
+one-and-a-fraction of six claims. The verdict is honestly scoped to C1
+in the body of the report, but any downstream reuse of the verdict
+should carry that scope with it.
+
+\paragraph{2.\ Cold-plasma, 1D, small-mode-1 setup is the friendliest
+possible test.} $v_{th}=0$ zeros the Bohm--Gross thermal term, and a
+mode-1 perturbation with $N=80{,}000$ CIC particles has an unusually
+clean signal-to-noise ratio compared to a warm, multi-mode, or 2D/3D
+run. This is appropriate for isolating C1, but it means the
+replication does not stress the SIPIC operator in the regimes where a
+production plasma code would actually live (kinetic tails, magnetized
+sheaths, multi-species). Agreement in this friendly limit is necessary
+but not sufficient evidence that the paper's scheme behaves as
+advertised in realistic use.
+
+\paragraph{3.\ The 10\,\% error at $\omega_{pe}\Delta t = 16$ is
+under-characterized.} With only $\sim$6 samples per down-shifted
+oscillation at that step, the FFT-plus-parabolic-interpolation
+diagnostic is near its resolution floor. The 10\,\% number is reported
+as an error against Eq.~16, but it could reflect (a) a real
+scheme-vs-theory departure at extreme $\Delta t$, (b) a diagnostic
+artifact (windowing/aliasing/sub-bin interpolation bias), or (c) both.
+The replication does not distinguish these, and does not report
+uncertainty bars from repeated runs with different seeds/particle
+counts. That would be the natural next test.
+
+\paragraph{4.\ The $\kappa$-notation resolution is a judgement call.}
+The paper's Eq.~12/13 literally implies an \emph{up}-shift, which
+contradicts Eq.~16 and Fig.~1. The replication assumes this is a
+typo/bookkeeping inversion and implements the physical operator from
+Eqs.~9--10, which produces the observed down-shift. This is almost
+certainly the intended reading --- the numerical agreement supports it
+--- but a properly rigorous replication would either flag this back to
+the authors for confirmation or explicitly test both readings and
+report which one the paper's own Fig.~1 contours are consistent with.
+
+\paragraph{5.\ No cross-code comparison; original codes not touched.}
+The paper's verification is partly a WarpX-vs-Aleph code-to-code
+exercise. This replication is a from-scratch NumPy PIC that touches
+neither WarpX nor Aleph. That is deliberate (from-scratch avoids
+inheriting bugs from either code), but it also means we cannot
+adjudicate the paper's cross-code agreement claims --- only the
+underlying analytic prediction. If WarpX and Aleph disagreed with each
+other on some detail, this replication would not have seen it.
+
+\paragraph{6.\ Judge is a single LLM at $T=0$, not a panel.}
+Using free Argo \texttt{argo:gpt-5.2} at temperature 0 with the
+measured-vs-analytic table in hand is a reasonable last-mile check, but
+it is one judge, one prompt, one run. The verdict is not blind (the
+judge sees the table already framed as ``measured'' vs ``prediction''),
+and there is no adversarial second judge or human physicist in the
+loop. The judge's role here is closer to a sanity check on the
+arithmetic than an independent verdict.
+
+\paragraph{7.\ ``REPLICATED'' should be read as ``C1 reproduced in the
+cold-limit 1D setting to $\sim$1--4\% for $\omega_{pe}\Delta t\le 8$.''}
+That is what the numbers actually support. Stronger readings
+(``the paper's scheme works,'' ``the paper's verification is
+independently confirmed'') go beyond what was tested and should be
+avoided.
+
+\section{Verdict}
+\textbf{Verdict: REPLICATED (scoped to C1 in the cold 1D limit).}
+
+The paper's central verification claim --- that the SIPIC
+effective-dielectric modification down-shifts the electron plasma
+frequency by $1/\sqrt{1 + C_{\text{SI}}\,\omega_{pe}^{2}\,\Delta t^{2}/4}$
+(Eqs.~12/16), enabling stable operation far beyond the explicit
+$\omega_{pe}\,\Delta t$ limit --- was independently reproduced from the
+paper's equations with a from-scratch 1D ES-PIC. Measured frequencies
+track the analytic prediction to $\sim$1--4\% over
+$\omega_{pe}\,\Delta t\le 8$ (10\,\% at 16) and are decisively distinct
+from the unmodified classical $\omega_{pe}$; a classical-PIC control
+recovers $\omega\approx\omega_{pe}$.
+
+\bigskip
+\noindent\textbf{WAVE\_RESULT} set=OSTI-100 paper=3374709
+verdict=REPLICATED
+dir=\~/Dropbox/REPLICATE-PROJECT/OSTI-3374709-semi-implicit-ecpic-verification
+one\_line=Independent 1D ES-PIC reproduces the SIPIC plasma-frequency
+down-shift $\omega_{pe}/\sqrt{1+C_{\text{SI}}\omega_{pe}^{2}\Delta t^{2}/4}$
+(Eqs.~12/16) to $\sim$1--4\% over $\omega_{pe}\,\Delta t\le 8$
+(10\,\% at 16), decisively unlike classical $\omega_{pe}$.
+
+\end{document}

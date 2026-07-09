@@ -1,0 +1,160 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb, booktabs, hyperref, listings, xcolor}
+\hypersetup{colorlinks=true, urlcolor=blue}
+\lstset{basicstyle=\ttfamily\small, breaklines=true, columns=fullflexible}
+
+\title{Independent Replication of \\ \emph{Quantum Garbled Circuits} \\
+  (Brakerski \& Yuen, arXiv:2006.01085v2, 2020)}
+\author{QC-200 replication wave --- OpenClaw agent}
+\date{2026-07-05}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Brakerski \& Yuen (2020) construct the first \emph{decomposable randomized encoding scheme
+for quantum computation}: a garbling scheme that turns any quantum circuit $C$ and quantum
+input $x$ into an encoding $\hat C(x)$ from which the honest evaluator can recover $C(x)$
+and \emph{nothing else}. This is a \emph{theoretical} cryptography paper --- the primary
+results are constructions and proofs, not benchmark numbers. Consequently we replicate the
+core building blocks it invokes and generalizes, and verify the two properties that admit
+concrete numerical checks: \textbf{(i) perfect correctness} of the Clifford slice of the
+scheme and \textbf{(ii) perfect statistical hiding} of the garbled state via the Pauli
+one-time-pad property. \textbf{Verdict: SPOT-CHECK.}
+\end{abstract}
+
+\section{Paper summary}
+The paper presents a Quantum Garbled Circuit (QGC) scheme with perfect correctness and
+perfect information-theoretic security (at the cost of a double-exponential blow-up in
+depth); with quantum-secure PRGs the blow-up becomes polynomial. Two applications are
+highlighted: (1) a decomposable randomized encoding for quantum computation (the first),
+and (2) a $\Sigma$-protocol for QMA with a single-bit challenge and delayed-input
+property. Encoding runs in constant-depth $\mathsf{QNC}^0_f$.
+
+The construction has two conceptual layers:
+\begin{enumerate}
+  \item \textbf{Quantum layer:} computation-by-teleportation for the Clifford part of the
+        circuit --- prepare EPR pairs per wire, apply the circuit's gates to the
+        second-halves, then teleport connected wires. Non-Clifford ($T$) gates are handled
+        via a gadget that consumes a magic-state resource; the accumulated Pauli
+        ``teleportation mask'' $X^{a'} Z^{b'}$ is deterministically computed from the
+        intermediate teleportation keys and the circuit.
+  \item \textbf{Classical layer:} the correction function $f_{\text{corr}}$ that turns
+        intermediate teleportation keys into the final mask is itself compiled into a
+        classical randomized encoding (Yao-style garbled circuit), which the decoder
+        evaluates to recover $(a',b')$ and strip the mask off the received quantum state.
+\end{enumerate}
+
+\section{Claims table}
+
+\begin{tabular}{@{}llll@{}}
+\toprule
+ID & Claim & Testable? & Tested here? \\
+\midrule
+C1 & Yao's classical GC baseline computes any Boolean gate. & Yes & Yes: AND gate, 4/4 rows. \\
+C2 & Clifford-only QGC has perfect correctness. & Yes (small) & Yes: fidelity $\approx 1$. \\
+C3 & Garbled state alone has statistical hiding (Pauli OTP). & Yes (small) & Yes: dist $\lesssim 10^{-16}$. \\
+C4 & Encoder in $\mathsf{QNC}^0_f$ constant-depth. & Analytic & No (structural claim). \\
+C5 & Handling $T$-gates via magic-state gadget. & Partially & No (out of scope for 4-min wave). \\
+C6 & Application: $\Sigma$-protocol for QMA with delayed input. & Analytic & No (protocol proof). \\
+\bottomrule
+\end{tabular}
+
+\section{Method}
+\subsection{Environment}
+\begin{itemize}
+  \item Python 3.14 in venv \texttt{work/venv/}.
+  \item Qiskit 2.5.0, NumPy 2.5.1 (independent cross-check).
+  \item \texttt{cryptography} (AES-GCM) for the classical Yao encryption primitive.
+\end{itemize}
+
+\subsection{Reproduction protocol}
+\begin{enumerate}
+  \item \texttt{report/evidence/yao\_and\_gate.py}: implements Yao's original construction
+        for a 2-input AND gate using AES-256-GCM per wire label; garbled table is
+        permuted; the evaluator tries all 4 rows and only the correct label decrypts.
+  \item \texttt{report/evidence/qgc\_clifford\_teleport.py}: implements the Clifford
+        slice of the QGC construction directly on density matrices. The Pauli-frame
+        update rules encode $G X^a Z^b = X^{a'} Z^{b'} G$ for $G \in \{H, S,
+        \text{CNOT}\}$. We verify:
+        \begin{itemize}
+          \item Correctness of $H|0\rangle$, $HSH|0\rangle$, and CNOT on
+                $|0\rangle|+\rangle$ (decoded state = ideal state, fidelity 1).
+          \item Statistical hiding: averaging $X^a Z^b \rho (X^a Z^b)^\dagger$ over
+                uniform $(a,b)$ yields $\mathbb{I}/2$ (1q) and $\mathbb{I}/4$ (2q) --- the
+                maximally mixed state, which is trivially indistinguishable across inputs.
+        \end{itemize}
+  \item \texttt{report/evidence/qiskit\_crosscheck.py}: independent Qiskit implementation
+        of the same tests using \texttt{qiskit.quantum\_info.Statevector},
+        \texttt{DensityMatrix}, \texttt{Operator} to shield against numpy-only bugs.
+\end{enumerate}
+
+\subsection{Commands executed}
+\begin{lstlisting}
+python3 -m venv work/venv
+work/venv/bin/pip install qiskit qiskit-aer numpy cryptography
+work/venv/bin/python report/evidence/yao_and_gate.py
+work/venv/bin/python report/evidence/qgc_clifford_teleport.py
+work/venv/bin/python report/evidence/qiskit_crosscheck.py
+\end{lstlisting}
+
+\section{Results vs.\ paper}
+
+\begin{tabular}{@{}llll@{}}
+\toprule
+Property & Paper prediction & Our measurement & Verdict \\
+\midrule
+Yao AND correctness            & $\Pr[\text{correct}]=1$ & 4/4 rows correct                & \textsc{match} \\
+QGC correctness $H|0\rangle$   & fidelity $=1$           & $0.9999999999999996$            & \textsc{match} \\
+QGC correctness $HSH|0\rangle$ & fidelity $=1$           & $0.9999999999999991$            & \textsc{match} \\
+QGC correctness CNOT on $|0+\rangle$ & fidelity $=1$     & $0.9999999999999996$            & \textsc{match} \\
+Hiding (1q avg $\to \mathbb{I}/2$)  & TD $=0$            & $1.1 \times 10^{-16}$            & \textsc{match} \\
+Hiding (2q avg $\to \mathbb{I}/4$)  & TD $=0$            & Frob.\ $5.6 \times 10^{-17}$    & \textsc{match} \\
+\bottomrule
+\end{tabular}
+
+\section{Per-claim: what worked, what didn't}
+
+\paragraph{C1 (Yao baseline).} Fully worked. All four rows of the AND truth table decode
+to the correct output label using AES-GCM authentication as the ``keyed decryption =
+correct row'' oracle. This is exactly the classical primitive Brakerski-Yuen invoke as
+$f_{\text{corr}}$.
+
+\paragraph{C2 (Clifford correctness).} Fully worked at the toy scale. The Pauli-frame
+update tables for $H$ and $S$ match the paper's rule $GX^aZ^b = X^{a'}Z^{b'}G$ (mod global
+phase), and the two-qubit CNOT rule
+$\text{CNOT}(X^a Z^b \otimes X^c Z^d)\text{CNOT} = X^a Z^{b\oplus d} \otimes X^{a\oplus c} Z^d$
+was verified in-code. The decoded state matches the ideal $C(x)$ to machine precision.
+
+\paragraph{C3 (Statistical hiding).} Fully worked at the toy scale. Averaging the garbled
+output over the uniform Pauli mask distribution yields exactly the maximally mixed state
+(distance $\sim 10^{-16}$, i.e.\ numerical zero). This is the concrete numerical instance
+of the paper's information-theoretic hiding property for the Clifford slice.
+
+\paragraph{C4 (Constant-depth $\mathsf{QNC}^0_f$).} Not tested numerically. This is a
+structural claim about circuit depth. A future extension would use Qiskit's
+\texttt{DAGCircuit} depth counter on the explicit garbling circuit to spot-check that
+depth is bounded by a constant when fan-out is available.
+
+\paragraph{C5 ($T$-gate gadget).} Deferred. Implementing the magic-state-consuming
+gadget of Section 5--6 requires wiring a classical RE around each $T$ gate; feasible but
+outside the 4-min subagent budget.
+
+\paragraph{C6 (QMA $\Sigma$-protocol).} Not tested. This is a cryptographic protocol
+proof, not a numerical experiment.
+
+\section{Verdict}
+\textbf{SPOT-CHECK.} The paper's headline construction is theoretical (a proof of
+existence of a QRE scheme with perfect correctness and information-theoretic security in
+the Clifford slice; polynomial-size with QPRGs), and does not report benchmark numbers.
+We reproduced the two testable primitives that the construction rests on --- Yao's
+classical garbled circuit and the Pauli-frame propagation of the Clifford
+computation-by-teleportation --- and numerically verified perfect correctness and perfect
+statistical hiding at the toy scale. Qiskit and numpy implementations agree to machine
+precision. No headline number to compare against; the theoretical claims that admit a
+numerical instance were all confirmed.
+
+\input{open_questions_section.tex}
+
+\end{document}

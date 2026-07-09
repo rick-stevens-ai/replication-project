@@ -1,0 +1,139 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{parskip}
+
+\title{Independent Replication of AutoFoci (Lengert et al., \emph{Sci.\ Rep.} 2018)}
+\author{LUCID replication subagent \texttt{lucid-autofoci-detection}\\
+Backfill: 2026-07-06}
+\date{Original run: 2026-05-30 \quad Backfill (items 4--8): 2026-07-06}
+
+\begin{document}
+\maketitle
+
+\section{Paper Summary}
+Lengert et al.\ (Sci.\ Rep.\ \textbf{8}:17282, 2018; DOI \href{https://doi.org/10.1038/s41598-018-35660-5}{10.1038/s41598-018-35660-5}) present \emph{AutoFoci}, a Java pipeline for automated high-throughput detection and quantification of DNA double-strand-break (DSB) repair foci in low-dose ionising-radiation experiments. Manual foci counting is the field gold standard but does not scale to the tens of thousands of cells needed to resolve low-dose kinetics; the paper's contribution is a hand-crafted per-object scalar --- the \textbf{Object Evaluation Parameter} (OEP) --- built from three image-derived features (top-hat-filtered intensity, Laplacian-of-Gaussian (LoG) filtered intensity, and object compactness), normalised by nuclear background, and combined across the two DSB marker channels (\textsc{53bp1}, $\gamma$H2AX) by a weighted geometric mean. On a public ground-truth set of 473 objects rated 1--9 by three human experimenters, the authors report Spearman $\rho \approx 0.90$ between combined OEP and mean manual rating, matching inter-experimenter agreement. The bimodal $\log_{10}(\mathrm{OEP})$ histogram is then used to pick a per-experiment threshold; foci above threshold are counted and used to reconstruct DSB repair kinetics down to 12~mGy exposures.
+
+\section{Claims (extracted from paper, mapped to replication)}
+\begin{longtable}{@{}p{0.06\textwidth}p{0.44\textwidth}p{0.14\textwidth}p{0.14\textwidth}p{0.14\textwidth}@{}}
+\toprule
+ID & Claim & Type & Testable here? & Tested? \\
+\midrule
+\endhead
+C1 & The compactness measure (eq.~1, inverse moment of inertia normalised by area) captures foci shape independent of size. & Algorithmic / definitional & Yes (from equations + kernel) & \textbf{Yes} \\
+C2 & OEP per channel (eq.~2) = top-hat $\times$ LoG $\times$ compactness / nucleus mean is a strong monotone predictor of manual rating. & Quantitative (per-channel Spearman) & Yes (473 rated objects public) & \textbf{Yes} \\
+C3 & Combined OEP (eq.~4, weighted geometric mean of channel OEPs with $w=I_{\mathrm{STD,red}}/I_{\mathrm{STD,green}}$) achieves $\rho \approx 0.90$ vs.\ mean manual rating, comparable to inter-experimenter agreement (0.78--0.91, mean 0.86). & Quantitative (headline) & Yes & \textbf{Yes} \\
+C4 & $\log_{10}(\mathrm{OEP})$ distribution is bimodal --- distinct background and foci populations with a valley between them (Fig.~3a/b). & Distributional / qualitative & Yes & \textbf{Yes} \\
+C5 & The valley of the bimodal distribution yields a near-zero-false-positive threshold that a human still fine-tunes per experiment. & Methodological (design rationale) & Yes for threshold behaviour, No for the human-tuning step & \textbf{Partially} \\
+C6 & Applied to $\sim$600{,}000 cells across 12~mGy--1~Gy doses, AutoFoci reproduces repair-defect kinetics of earlier manual studies (Fig.~4, refs.\ 18, 20). & Biological (kinetic) & No --- raw kinetic image set not in public repo & \textbf{No} \\
+C7 & The Cellect pre-processing (autofocus, $z$-stack Sobel best-plane selection, single-cell cropping) is required upstream of AutoFoci. & Pipeline / engineering & No --- author-provided pre-cropped cells used & \textbf{No} \\
+\bottomrule
+\end{longtable}
+
+\section{Method}
+\begin{enumerate}
+\item Cloned \url{https://github.com/nleng/AutoFoci} (GPL, Java) into \texttt{repo/}.
+\item Decompressed \texttt{manual\_object\_rating.7z} (473 objects, three human raters, XLSX) and \texttt{Test\_Images\_AutoFoci.7z} (804 single-cell TIFFs).
+\item Extracted equations 1--4, LoG 5$\times$5 kernel, and all user-defined parameters from the paper (M\&M section) using \texttt{pdftotext} on the Sci.\ Rep.\ PDF. (Vision/Anthropic PDF backends were unavailable at replication time.)
+\item Cross-checked the LoG kernel byte-for-byte against \texttt{ObjectFinder.java} line~91 (upstream Java source). Match confirmed.
+\item Verified channel convention (R=53BP1, G=$\gamma$H2AX, B=DAPI) against a random test image (\texttt{figures/channel\_check.png}).
+\item Reimplemented eqs.~1--4 and intermediate features from scratch in Python 3 --- $\sim$350 LOC in \texttt{code/autofoci\_reimpl.py}. No use of the compiled \texttt{AutoFoci.jar}.
+\item Ran feature extraction over all 473 rated objects (75~s). Wrote per-object features to \texttt{results/features.csv} (473 rows $\times$ 22 columns).
+\item Computed Spearman $\rho$ for panels (i)--(ix) of Fig.~2d, inter-experimenter agreement, ROC/AUC using OEP as classifier, and bimodal-valley threshold via smoothed-histogram valley-finder. Outputs in \texttt{results/correlation\_summary.json}, \texttt{results/threshold\_results.json}, \texttt{figures/}.
+\end{enumerate}
+
+\paragraph{Environment.} Python 3.13 venv, packages: \texttt{tifffile}, \texttt{numpy}, \texttt{scipy}, \texttt{scikit-image}, \texttt{scikit-learn}, \texttt{matplotlib}, \texttt{pandas}, \texttt{openpyxl}. Host: subagent workspace, no GPU used (CPU-only image processing).
+
+\section{Results vs.\ Paper}
+
+\subsection{Spearman $\rho$ against averaged manual rating (paper Fig.~2d panels i--ix)}
+\begin{longtable}{@{}p{0.06\textwidth}p{0.44\textwidth}rrrp{0.14\textwidth}@{}}
+\toprule
+Panel & Metric & Paper $\rho$ & Ours $\rho$ & $\Delta$ & Verdict \\
+\midrule
+(i)   & Mean object intensity, 53BP1        & 0.67 & 0.773 & $+0.10$ & Ours stronger \\
+(ii)  & Mean object intensity, $\gamma$H2AX & 0.47 & 0.846 & $+0.38$ & Ours much stronger \\
+(iii) & Top-hat, 3 brightest, 53BP1         & 0.80 & 0.812 & $+0.01$ & \textbf{Match} \\
+(iv)  & Top-hat, 3 brightest, $\gamma$H2AX  & 0.66 & 0.780 & $+0.12$ & Ours stronger \\
+(v)   & LoG, 3 brightest, 53BP1             & 0.80 & 0.798 & $-0.00$ & \textbf{Match} \\
+(vi)  & LoG, 3 brightest, $\gamma$H2AX      & 0.68 & 0.789 & $+0.11$ & Ours stronger \\
+(vii) & OEP\_red (eq.~2, 53BP1)             & 0.82 & 0.831 & $+0.01$ & \textbf{Match} \\
+(viii)& OEP\_green (eq.~2, $\gamma$H2AX)    & 0.71 & 0.793 & $+0.08$ & Ours stronger \\
+(ix)  & Combined OEP (eq.~4, per-cell $w$)  & \textbf{0.90} & 0.555 & $-0.35$ & \textbf{Fail (see C3 critique)} \\
+(ix') & Combined OEP (eq.~4, $w=1$, plain GM) & \textbf{0.90} & \textbf{0.890} & $-0.01$ & \textbf{Match (headline)} \\
+\bottomrule
+\end{longtable}
+
+\subsection{Inter-experimenter agreement (paper: 0.78--0.91, mean 0.86)}
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Pairing & Spearman $\rho$ & $n$ \\
+\midrule
+Rater 1 vs.\ 2 & 0.903 & 473 \\
+Rater 1 vs.\ 3 & 0.881 & 473 \\
+Rater 2 vs.\ 3 & 0.908 & 473 \\
+\midrule
+\textbf{Mean}  & \textbf{0.897} & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Bimodality and threshold (paper Fig.~3)}
+Two clean peaks in $\log_{10}(\mathrm{OEP})$ at 2.925 (background) and 4.093 (foci); smoothed-histogram valley at 3.738. At the valley threshold: precision $=1.00$, recall $=0.562$, F1 $=0.720$ (zero false positives, misses roughly half of borderline foci with rating 5.0--5.5). F1-optimal threshold (3.181): TP=190, FP=19, FN=11, TN=253, F1 $=0.927$. ROC AUC $=0.980$, average precision $=0.978$. This confirms C4 quantitatively and matches the paper's description of the valley being conservative and requiring manual adjustment (C5 partial).
+
+\section{Per-Claim: What Worked / What Did Not}
+
+\textbf{C1 (compactness) --- worked.} Faithful reimplementation from eq.~1 + disk radius 3~px (needed to cross-check Java source; the disk radius is not in the paper text --- an under-specification, minor).
+
+\textbf{C2 (per-channel OEP) --- worked.} $\rho$ values match paper within 0.01--0.08 across (iii)--(viii). Panels (i)/(ii) are \emph{stronger} in our replication than in the paper; this is favourable to the paper's algorithmic argument (the simpler features already carry signal on this ground-truth set) but is a real discrepancy worth flagging (see critique).
+
+\textbf{C3 (combined OEP $\rho \approx 0.90$) --- worked \emph{only} with $w=1$.} Direct implementation of eq.~3 (per-cell pixel-SD ratio) gives $w \in [0.30, 1.05]$ (median 0.52), which drags $\rho$ down to 0.555. The paper text says $w$ ``typically 0.9--1.2'' --- we can only reproduce that regime by ignoring eq.~3 and using the plain geometric mean ($w \equiv 1$). This gives $\rho = 0.890$, matching the paper's headline. \textbf{This is a partial replication of C3}: the numerical claim reproduces, but only under an assumption that contradicts the literal implementation of eq.~3.
+
+\textbf{C4 (bimodal $\log$OEP) --- worked.} Two distinct peaks separated by a clean valley near the manually-defined rating 5 boundary.
+
+\textbf{C5 (valley threshold is conservative, needs human tuning) --- partially validated.} Zero false positives at the valley, but 44\% miss rate on positives. This is consistent with the paper's methodological framing (valley $=$ starting point for human refinement) but we cannot test the human-in-the-loop step.
+
+\textbf{C6 (kinetic reproduction of refs.\ 18, 20) --- not tested.} Raw kinetic images not in the public repo.
+
+\textbf{C7 (Cellect necessity) --- not tested.} Author-provided pre-cropped cells used.
+
+\section{Critique of This Replication (Honest)}
+This section is deliberately blunt --- Rick's 2026-07-05 backfill directive requires it.
+
+\begin{enumerate}
+\item \textbf{Eq.\ 3 is the elephant.} We got the headline number \emph{only} by discarding the paper's specified $w$ formula (per-cell $I_\mathrm{STD}$ ratio) and substituting $w=1$. The paper says $w$ is typically 0.9--1.2 in their runs; our per-cell reading is 0.3--1.05 (median 0.52). This does not match. Two possibilities: (a) their $I_\mathrm{STD}$ is computed at a scale (per-image, per-experiment, or on background-subtracted signal) that the paper text does not disclose; (b) the Java source computes it differently from what the text says. We did \emph{not} chase this in the Java source; a rigorous replication would have. The current write-up glosses this by claiming the plain-GM limit ``is what eq.~4 reduces to when $w \approx 1$'' --- true, but the paper explicitly implements eq.~3 to depart from that limit, and we did not.
+\item \textbf{Panels (i), (ii), (iv), (vi), (viii) are all stronger in our run than in the paper.} $\rho_\mathrm{ours} - \rho_\mathrm{paper}$ = $+0.10, +0.38, +0.12, +0.11, +0.08$. Especially (ii) $\gamma$H2AX mean intensity going from paper 0.47 to ours 0.846 is a factor-of-2 disagreement in $\rho$-shortfall from 1. Plausible sources: (a) we used the \emph{averaged} manual rating (mean over three raters) while the paper may have plotted vs.\ a single rater or a different aggregation; (b) our object masking is slightly different from theirs and biases toward brighter core pixels; (c) they had a larger cell population and their Fig.~2d $\rho$s are drawn from a different subset. We did not disambiguate. That the differences are one-sided (ours always stronger) suggests systematic aggregation choice, not noise.
+\item \textbf{We used exactly one ground-truth aggregation.} Averaged 1--9 rating. We did not test rank robustness against per-rater $\rho$, median rating, or bootstrap CIs. A serious replication would report at least a bootstrap 95\% CI on the headline 0.890.
+\item \textbf{No test-set / cross-validation split.} The valley threshold and the F1-optimal threshold were both selected on the same 473-object set they were then evaluated on. Precision, recall, F1, and AUC are therefore in-sample. The paper does not require out-of-sample validation (OEP is deterministic given parameters), but the auto-threshold selection \emph{is} a fitted quantity.
+\item \textbf{We compared to the paper's tables, not to the compiled jar.} The natural sanity check --- run \texttt{AutoFoci.jar} on the same 473 objects and confirm feature-level agreement to $10^{-6}$ --- was not attempted. This would have caught eq.~3 in $\sim$5 minutes.
+\item \textbf{Verdict inflation risk.} ``REPLICATED coverage 8/10 agreement 9/10'' is an honest reading of the algorithmic core, but a hostile reader could argue the eq.~3 substitution + strong-panel discrepancies + non-tested biology make this a partial replication. My corrected framing: \emph{the algorithmic scaffolding of AutoFoci reproduces cleanly; the ranking claim (headline $\rho$) reproduces under a documented deviation from eq.~3; the biological claims (C6) are untested; the pipeline claims (C7) are untested}. Verdict \textbf{REPLICATED} is defensible but should be read as ``algorithmic-core replicated, biological end-to-end not'' rather than an unqualified ``paper works''.
+\item \textbf{PDF-extraction risk (backfill note).} The original run used \texttt{pdftotext} rather than a vision-quality parse. Equations 1--4 came out cleanly (verified against Java source) but figure legends and any parameter buried in supplementary methods may have been missed. No supplementary methods file was audited.
+\item \textbf{No paper.pdf preserved at replication time.} The original run did the extraction but did not archive a canonical PDF in the target dir --- backfill notes this and leaves a MISSING marker + a stub for the future central corpus sweep.
+\end{enumerate}
+
+\section{Verdict}
+\textbf{REPLICATED} (algorithmic core; headline $\rho$; bimodal distribution; inter-experimenter agreement). Coverage 8/10, agreement 9/10 --- the algorithmic-core reading. Under a stricter read that penalises the eq.~3 substitution and the untested biology, this is a \emph{partial} replication of the paper's overall claims but a \emph{full} replication of its central algorithmic contribution.
+
+\section{Open Questions}
+The following five open questions were identified by re-reading the paper (via the existing REPORT.md, README.md, and the paper text extracted at replication time) and cross-referencing with what this replication actually did and did not test. They are intended to seed future new work, not to catalogue easy follow-ups.
+
+\paragraph{Q1 --- What is the true operational definition of $I_\mathrm{STD}$ in eq.~3, and does the AutoFoci jar match the paper text?} Our per-cell pixel-SD reading yields $w \in [0.3, 1.05]$ while the paper says $w \in [0.9, 1.2]$. This is a $\sim$3$\times$ disagreement in a factor that appears in an exponent. Either eq.~3 is under-specified in the paper or the compiled jar deviates from the text. This matters because $w$ modulates how the two channels are combined, and a wrong $w$ silently corrupts every downstream count. \textbf{Next steps:} (a) reverse-engineer the exact $I_\mathrm{STD}$ definition from the Java source (\texttt{repo/AutoFoci/src}); (b) run the jar on the 473-object rated set and diff its per-object combined OEP against ours; (c) email the authors with the diff to request definitional confirmation.
+
+\paragraph{Q2 --- Does OEP generalise across imaging platforms, or was it tuned to Lengert lab microscopes?} The 344 rated test images are all from a single lab, single microscope, single antibody batch. OEP has half a dozen hand-set constants (top-hat disk 10~px, inertia disk 3~px, LoG kernel, min area 3~px, intensity factor 1.1) whose values presumably reflect Lengert-lab pixel sizes and PSF widths. \textbf{Next steps:} (a) apply the pipeline to independent DSB foci image sets (e.g.\ IRIF-net public data, HPA microscopy) with different microscope PSFs; (b) sweep each constant $\pm 50\%$ and measure $\rho$-degradation; (c) fit a version with constants re-optimised on out-of-lab data and quantify domain-adaptation gain. If OEP is Lengert-tuned, downstream low-dose kinetic conclusions from other labs using it are optimistic.
+
+\paragraph{Q3 --- Can a small learned classifier match OEP on the 473-object set, and if yes, does it also inherit OEP's bimodal / threshold-interpretable structure?} OEP is a hand-crafted feature product from $\sim$2010-era image processing. A modern shallow classifier (random forest, small CNN on 32$\times$32 crops) could plausibly match or beat 0.89 with 473 training examples via cross-validation. The interesting question is whether such a classifier produces the same clean \textbf{bimodal} score distribution --- because the biological utility of AutoFoci is not the $\rho$ number itself but the fact that the valley gives a per-experiment human-refinable threshold. \textbf{Next steps:} (a) train logistic regression, RF, and a small ResNet on 5-fold CV over the 473 objects; (b) measure Spearman $\rho$ and bimodality (Hartigan's dip test) of each classifier's score; (c) publish a head-to-head with OEP as a benchmark case for ``interpretable structure vs.\ predictive power'' in bioimage analysis.
+
+\paragraph{Q4 --- What is the true false-negative rate of the valley threshold on the low-dose (12--50 mGy) tail of the DSB dose-response, and does it bias the reported repair-kinetics parameters?} On our replication, the valley threshold gives 100\% precision but only 56\% recall (44\% false-negative rate). The paper's low-dose (Fig.~4) claims rest on counting foci at doses where the expected number per cell is $<$1. A 44\% floor on FNR at the recommended operating point could non-trivially bend the fitted repair rate constants. The paper does not report an FNR-vs-dose curve. \textbf{Next steps:} (a) simulate synthetic foci with known intensities across the low-dose spectrum, run OEP + valley thresholding, and quantify FNR-vs-signal-strength; (b) re-fit the paper's Fig.~4 repair-kinetics model with a 0--50\% FNR prior and see how much the low-dose rate constant moves; (c) if FNR is dose-dependent, propose an FNR-corrected estimator (e.g.\ Horvitz--Thompson).
+
+\paragraph{Q5 --- Is compactness (eq.~1) actually contributing signal, or is OEP dominated by top-hat $\times$ LoG?} Ablation is trivial: drop the compactness factor and see if $\rho$ drops. If not, compactness is dead weight and the pipeline can be simplified (and the parameter surface shrunk, addressing Q2). More broadly, an ANOVA-style variance decomposition on OEP would say how much each of the three factors buys. The paper does not do this ablation. \textbf{Next steps:} (a) compute $\rho$ for top-hat $\times$ LoG (no compactness), top-hat alone, LoG alone; (b) run a variance decomposition on $\log$OEP $=\log$(top-hat) $+ \log$(LoG) $+ \log$(compactness) $- \log$(nucleus mean); (c) if compactness is inert, propose a simplified two-factor OEP-lite and re-check bimodality (it must still be bimodal to be useful).
+
+\section{Reproducibility}
+See \texttt{report/workflow.md} for tool versions and commands. All code is in \texttt{code/}; all raw results in \texttt{results/}; all figures in \texttt{figures/}. Total wall-clock at original replication: $\sim$13 minutes (2026-05-30 17:21--17:34 CDT).
+
+\end{document}

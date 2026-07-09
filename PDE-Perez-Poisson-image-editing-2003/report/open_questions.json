@@ -1,0 +1,62 @@
+{
+  "paper": "Pérez, Gangnet, Blake (2003), Poisson Image Editing (ACM SIGGRAPH / TOG 22(3): 313–318)",
+  "verdict": "REPLICATED",
+  "scope_note": "Verified in the base replication: C1 seamless-boundary match, C2 membrane-Laplace correctness, C3 mixed-gradient structure preservation, on synthetic RGB imagery with a direct sparse LU solver. C4 (further downstream effects) not tested. The 5 open questions below are genuinely open — they extend the Poisson image-editing framework to regimes the paper does not empirically evaluate.",
+  "open_questions": [
+    {
+      "id": "Q1",
+      "q": "Does the Pérez et al. 2003 gradient-domain Poisson framework generalize cleanly to HDR / multi-exposure fusion, i.e. can 'mixed gradients' (eq. 13) select the most-informative exposure per pixel and produce a fused HDR image whose tone-mapped result is competitive with modern exposure-fusion baselines (Mertens 2007, Debevec–Malik 1997) without introducing halo artifacts near saturated regions?",
+      "basis": "Paper §3 formulates 'importing gradients' (v = ∇g) and 'mixed gradients' (edge-wise max-magnitude selection between src and dest). Multi-exposure fusion is a natural per-edge selection problem (pick the exposure whose gradient carries the most information at that edge). The 2003 paper does not benchmark this application; our replication verifies C1–C3 only on 2-image src/dest scenes, not on N-exposure stacks. The seamless/mixed math is agnostic to N, but boundary conditions, gamut compression, and halo-suppression on ∂Ω of saturated regions are open in the HDR regime.",
+      "next_steps": [
+        "Implement N-image mixed-gradient fusion: at each interior edge, pick v_pq = ∇g^{(k)}_pq from the exposure k that maximizes |∇g^{(k)}_pq|, subject to a well-exposedness weight (Mertens-style w(intensity, saturation, contrast)).",
+        "Benchmark against Mertens 2007 exposure-fusion and Debevec–Malik radiance-map + Reinhard tone-map on standard HDR test sets (e.g. HDR Photographic Survey, Fairchild).",
+        "Quantify halo artifacts near saturated regions with a boundary-gradient audit analogous to our C1 verifier (edge-jump histogram at exposure-transition boundaries).",
+        "Report HDR-VDP-3 / TMQI scores against baselines; publish per-scene solver time and memory."
+      ]
+    },
+    {
+      "id": "Q2",
+      "q": "How far do GPU FFT-based Poisson solvers and algebraic-multigrid (AMG) preconditioners scale on the Pérez 2003 discrete Poisson system for large Ω (4K, 8K, panoramic |Ω| ≥ 10^7 pixels), and at what problem size does direct sparse LU (our replication's solver) become infeasible relative to iterative GPU methods in wall-clock and memory?",
+      "basis": "Our replication uses scipy.sparse.linalg.spsolve (direct LU) at |Ω| ≤ 30,800 with 0.4 s / RGB. The paper reports Gauss–Seidel + SOR / V-cycle multigrid on ~60,000 pixels in 0.4 s on 2003 hardware. Neither the paper nor this replication measures the scaling behavior on modern imagery (4K = ~8.3M pixels; 8K = ~33M pixels; stitched panoramas ≥ 10^8). Direct LU fill-in on 2D banded SPD systems is O(N^{3/2}) memory and O(N^2) work — infeasible above ~10^6. GPU FFT (for regular grids) and AMG (for irregular Ω) are the standard modern replacements; wall-clock crossover points are unpublished for this specific discretization.",
+      "next_steps": [
+        "Implement three solvers on the same discretization: (a) CPU direct sparse LU (baseline, our current); (b) GPU FFT-based Poisson solver with DST-based Dirichlet handling and rectangular Ω-embedding + fictitious-domain masking; (c) GPU AMG (AmgX / hypre) for arbitrary Ω.",
+        "Sweep |Ω| = 10^4, 10^5, 10^6, 10^7 on synthetic disks and real 4K/8K photo masks. Report wall-clock, peak GPU memory, iterations-to-convergence, and residual ||Δf − div v||_∞.",
+        "Locate the |Ω| crossover where FFT beats AMG beats direct-LU; report break-even for a single A100 / H100 vs. modern CPU.",
+        "Verify all three converge to the same f up to a stated tolerance (10^{-8} residual); reuse our C1/C2 verifiers to confirm correctness across solvers."
+      ]
+    },
+    {
+      "id": "Q3",
+      "q": "Under a strong color-transfer preconditioning of the source (e.g. Reinhard color transfer, or histogram matching src→dest, before the Poisson clone), does seamless cloning (v = ∇g on the transferred source) still produce a boundary jump identical to the source's own local gradient, or does the color-transfer step introduce residual seam energy that the Dirichlet BC cannot absorb — and is there a principled joint objective (color-transfer + Poisson-edit) that is provably seam-free?",
+      "basis": "Our C1 verifier shows edited-jump = source-jump to 12 decimal places when v = ∇g is taken directly from the original source. But applied cloning in practice is often preceded by color transfer to match dest palette. Color transfer is a nonlinear per-pixel operation and generally does not commute with the gradient (∇(T(g)) ≠ T(∇g) except for affine T). The paper does not analyze this composition; §3.2 only briefly mentions monochrome transfer as a downstream effect. Whether the composed pipeline retains the boundary-gradient identity that grounds C1's seamlessness proof is not established.",
+      "next_steps": [
+        "Instrument the pipeline: (1) apply Reinhard 2001 color transfer T to source g → g'; (2) run seamless-clone with v = ∇g'; (3) rerun our C1 verifier on (dest, g', mask) to compare edited-jump vs. g''s own local gradient.",
+        "Repeat for (a) affine per-channel matching, (b) Reinhard Lαβ transfer, (c) histogram matching, (d) optimal-transport color transfer.",
+        "Where residual seam energy appears, quantify per-channel |edited-jump − ∇g'|_mean and its ratio to naive-paste.",
+        "Formulate a joint variational objective min_f ∫|∇f − T̂(∇g)|^2 s.t. Dirichlet BC (where T̂ acts on gradients, not colors); derive its Euler–Lagrange equation and compare seam energy against the sequential pipeline."
+      ]
+    },
+    {
+      "id": "Q4",
+      "q": "Is the Pérez 2003 Poisson framework compatible with soft alpha-matting masks (α ∈ [0,1] on ∂Ω) — i.e. can the discrete Dirichlet BC in eq. (7) be replaced by a Robin-like fractional BC that linearly blends src/dest according to α, and does the resulting variational solution retain seam-freeness in the α=1 interior while providing perceptually correct soft edges in the α∈(0,1) transition band?",
+      "basis": "Paper eq. (7) hard-codes a binary mask (pixel is inside Ω or on ∂Ω); Dirichlet BC f|_∂Ω = f*|_∂Ω is inherently binary. Modern image editing (Photoshop layer masks, matting-based cloning) uses soft α masks pervasively. There is no derivation in the 2003 paper for fractional-mask Poisson editing, and our replication tests only binary masks. Whether the natural extension (weighted linear system with α-dependent BC weights) is well-posed, retains SPD structure, and produces perceptually-correct soft edges is unstudied in the original context.",
+      "next_steps": [
+        "Derive the α-weighted variational objective min_f ∫ α(x)|∇f − v|^2 + ∫_∂ (1−α(x))|f − f*|^2, and its discrete Euler–Lagrange linear system; check SPD-ness and existence/uniqueness for α ∈ (0,1] a.e.",
+        "Implement the α-weighted solver as a minor extension of poisson_editing.py; test on synthetic scenes with a smooth-α annulus around Ω.",
+        "Compare against (a) hard-mask Poisson + post-hoc α-blending in image space, (b) alpha-matting deep methods (e.g. IndexNet, MG-Matting) followed by hard-mask Poisson clone, on real matting benchmarks (adobe-image-matting, Composition-1k).",
+        "Boundary-gradient audit: verify that for α=1 pixels the edited-jump vs. source-gradient identity from C1 still holds, and characterize the seam-energy vs. α curve in the transition band."
+      ]
+    },
+    {
+      "id": "Q5",
+      "q": "Against modern deep-learning image inpainting / composition baselines (e.g. LaMa, Stable-Diffusion inpainting, Paint-by-Example, ObjectStitch), how does Pérez 2003 Poisson editing compare specifically on preservation-of-structure metrics (edge maps, gradient histograms, high-frequency SSIM) rather than on generative plausibility, on scenes where the source object must be inserted with geometric and photometric fidelity into a destination?",
+      "basis": "The paper predates deep learning by a decade; comparison against neural methods is absent by construction. Our replication verifies C3 (mixed clone preserves source + dest structure by total-|∇f|) on synthetic scenes; whether Poisson editing beats or loses to LaMa / SD-inpaint / Paint-by-Example on structure preservation (as opposed to naturalness) on real photographic composites is unknown. Neural methods trade structural fidelity for plausibility; Poisson editing has the opposite bias. A head-to-head structure-focused benchmark would clarify when the 2003 method still wins in 2026+ (arguably it does whenever exact gradient preservation and provable seamlessness matter more than photorealism).",
+      "next_steps": [
+        "Build a real-photo cloning benchmark of ~50 (source-object, destination-scene, ground-truth-composite) triples spanning textures (skin, fabric, foliage), photometric conditions (matched vs. mismatched illumination), and object types.",
+        "Run five pipelines: (a) naive paste, (b) Pérez 2003 seamless clone (this work), (c) Pérez 2003 mixed clone, (d) LaMa inpainting, (e) SD-inpaint or Paint-by-Example / ObjectStitch.",
+        "Report structure-preservation metrics: edge-map IoU vs. ground truth (Canny), gradient-histogram EMD, high-frequency SSIM, LPIPS-perceptual for reference; and a seam-visibility user study.",
+        "Publish the (metric × method × condition) matrix; identify the regime where Poisson editing remains state-of-the-art for structure fidelity even in the deep-learning era."
+      ]
+    }
+  ]
+}

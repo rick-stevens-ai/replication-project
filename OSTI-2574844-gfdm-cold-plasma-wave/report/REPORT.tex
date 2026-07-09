@@ -1,0 +1,244 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+\title{Independent Replication Report \\
+  \large OSTI 2574844 --- A High-Order Generalized Finite Difference Method \\
+  for the Time-Harmonic Cold-Plasma Wave Equation in Toroidal Geometry}
+\author{Independent reimplementation (from-equations)}
+\date{2026-07-02}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Spencer, Svidzinski, Kim, Zhao, and Galkin (\emph{Phys.\ Plasmas} \textbf{32},
+063902, 2025; DOI 10.1063/5.0255884) present a meshfree, high-order
+\emph{generalized finite difference} (GFD) discretization of the time-harmonic
+cold-plasma vector Helmholtz problem, and validate it by measuring the
+convergence order of the numerical solution against an analytic plane-wave
+target on jittered irregular point clouds. Their advertised rate is
+$O(h^{p})$ with $p \approx m-1$, where $m$ is the Taylor expansion order of the
+local star. We reimplemented the Liszka--Orkisz weighted-least-squares
+machinery from the equations (no author code available) and independently
+reproduced both (i) the derivative-operator convergence and (ii) the full
+plane-wave boundary-value-problem (BVP) convergence for $m=2,3,4$. Measured
+orders match or exceed the claim; an LLM judge (Argo \texttt{gpt-5.2})
+scored the numerical core \textbf{REPLICATED}. Verdict: \textbf{REPLICATED}.
+\end{abstract}
+
+\section{Paper Summary}
+The paper solves the time-harmonic cold-plasma wave equation
+(a curl--curl vector Helmholtz equation with an anisotropic complex dielectric
+tensor) on an irregular, physics-informed cloud of points in toroidal geometry.
+At each node $i$, the field is expanded in a Taylor series over a
+\emph{star} of neighbors, producing a dense \emph{star matrix} $S_i$ whose
+columns are the derivative terms up to total order $m$ (Eq.~5).
+Columns are rescaled by $D_{i2}=\mathrm{diag}(1/\max_k|[S_i]_{kl}|)$ and
+a truncated-SVD (TSVD) Moore--Penrose pseudoinverse yields the FD weights
+$W_i = D_{i2}\,(S_i D_{i2})^{+}$ acting on neighbor differences
+$(f_j-f_i)$ (Eqs.~7--9, Table~III). A global sparse $3N\times 3N$ system
+implements the curl--curl operator; boundary rows impose the prescribed
+tangential/normal fields.
+
+The paper's \emph{central verifiable claim} (Sec.~V.A, Fig.~2) is that this
+scheme achieves $O(h^{p})$ convergence with $p\approx m-1$, verified by
+imposing an analytic fast-wave (plane-wave) solution on the boundary and
+measuring the NRMSD of the interior numerical solution across refinements.
+The authors explicitly note the empirical convergence curves are
+\emph{noisy} --- irregular clouds are regenerated per refinement and the
+Helmholtz \emph{pollution effect} kicks in on coarse clouds --- but
+``consistent with theoretical expectations.''
+
+\section{Claims Table}
+\begin{center}\small
+\begin{tabular}{clllcc}
+\toprule
+ID & Claim & Type & Testable? & Tested? \\
+\midrule
+C1 & GFD derivative operators: 2nd-deriv $\to O(h^{m-1})$, 1st-deriv $\to O(h^{m})$
+   & numerical & Yes & \textbf{Yes} \\
+C2 & Full plane-wave BVP solve converges at $O(h^{p}),\ p\approx m-1$ (Fig.~2)
+   & numerical & Yes & \textbf{Yes} \\
+C3 & Physics-informed point generator packs points by local $\lambda_{\min}$
+   & algorithmic & Partially & No \\
+C4 & ICRH/ECRH mock-tokamak full-wave demos (resonance/absorption/tunneling)
+   & qualitative & Weakly & No \\
+\bottomrule
+\end{tabular}
+\end{center}
+C1 and C2 are the paper's own quantitative verification and were reproduced.
+C3 (a construction ingredient) and C4 (demonstration, no analytic target)
+were out of scope for an efficient replication.
+
+\section{Independent Reimplementation}
+All code in \texttt{../work/}. Faithful to Eqs.~3--8 and Table~III of the
+paper. No distance weighting ($D_{i1}=I$, per Sec.~III~C). Irregular jittered
+point clouds are \emph{regenerated per resolution}, as in the paper (this is
+the stated source of the reported convergence noise). Star size
+$\approx 3\times N_\mathrm{deriv}$ per the paper (17/31/41 nodes for $m=2/3/4$).
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \texttt{gfdm\_core.py} --- \texttt{deriv\_terms(m)},
+        \texttt{taylor\_col()}, \texttt{gfd\_weights(dxy,m)} (builds $S$,
+        applies $D_2$, TSVD pinv, returns
+        $W=D_2 (SD_2)^{+}$ and $\kappa_i$),
+        \texttt{build\_cloud()} (jittered unit square),
+        \texttt{select\_star()} (nearest-neighbor star).
+  \item C1 driver: \texttt{test\_C1\_derivative\_order.py} --- manufactured
+        smooth field $f=\sin(2\pi x)\cos(2\pi y)$; GFD derivatives at interior
+        nodes; NRMSD versus exact $f_x$ and $f_{xx}$; log--log slope over
+        5 resolutions ($n=15,\dots,65$).
+  \item C2 driver: \texttt{test\_C2\_planewave\_solve.py} --- Cartesian /
+        infinite-cylinder reduction ($n_u/R\to k_z$, drop $1/R$ terms) with a
+        \emph{homogeneous} dielectric so the plane wave
+        $E=\exp(i(k_x x + k_y y))$, $k_x^2+k_y^2=k_\perp^2$ is an exact
+        solution; assemble sparse Laplacian--Helmholtz operator via GFD
+        second-derivative weights; impose the analytic wave on the boundary;
+        solve with \texttt{scipy.sparse.linalg.spsolve}; NRMSD vs analytic;
+        log--log slope. Well-resolved regime: 2 wavelengths across $L{=}1$,
+        20--65 pts/$\lambda$, matching the paper's $\geq 10$ pts/$\lambda$
+        recommendation.
+  \item LLM judge: \texttt{argo:gpt-5.2} via the free Argo proxy.
+\end{itemize}
+
+\section{Results vs Paper}
+
+\paragraph{C1 --- derivative-operator convergence.}
+\begin{center}\small
+\begin{tabular}{ccc}
+\toprule
+$m$ & order $f_x$ (paper $\approx m$) & order $f_{xx}$ (paper $\approx m-1$) \\
+\midrule
+2 & 1.99 & 1.23 \\
+3 & 3.48 & 1.97 \\
+4 & 4.02 & 3.32 \\
+\bottomrule
+\end{tabular}
+\end{center}
+First derivatives converge at $\approx m$; second derivatives at $\approx m-1$
+(with mild super-convergence at $m=4$). Matches the paper's stated rate.
+
+\paragraph{C2 --- plane-wave BVP convergence, $k_\perp=4\pi$ ($\approx 2\lambda$ across $L=1$).}
+\begin{center}\small
+\begin{tabular}{ccc}
+\toprule
+$m$ & measured order $p$ (paper $p\approx m-1$) & NRMSD (coarse $\to$ fine) \\
+\midrule
+2 & 2.30 & $2.3\!\times\!10^{-1}\to 1.5\!\times\!10^{-2}$ \\
+3 & 2.95 & $1.0\!\times\!10^{0}\ \to 2.8\!\times\!10^{-2}$ \\
+4 & 3.92 & $5.5\!\times\!10^{-3}\to 5.4\!\times\!10^{-5}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Orders at or above $O(h^{m-1})$, NRMSD monotone-decreasing, higher-order
+schemes reaching far lower error at fixed resolution --- reproducing the
+Fig.~2 behavior. At under-resolved coarse clouds ($<10$ pts/$\lambda$) the
+NRMSD was large and noisy, exactly the pollution/cloud-noise the paper
+describes.
+
+\paragraph{LLM judge.}
+Argo \texttt{gpt-5.2}: \emph{``High agreement. The observed convergence rates
+are consistent with (and often exceed) the claimed $O(h^{m-1})$ trend, and
+the noted coarse-grid noise matches the paper's stated behavior\ldots
+VERDICT: REPLICATED.''} Coverage $\approx 55\%$ of the verifiable numerical
+core (convergence claim + underlying GFD weights); full toroidal
+tensor/geometry demos not reproduced.
+
+\section{Genuine Critique}
+\label{sec:critique}
+This section is deliberately adversarial: what should give a careful reader
+pause about the paper's claim, our replication, or both.
+
+\begin{enumerate}[leftmargin=1.4em]
+  \item \textbf{The paper's own verification target is a plane wave in a
+    homogeneous problem, not the toroidal/anisotropic problem the paper
+    actually advertises.} Fig.~2's convergence rate lives on the simplest
+    possible substrate; it does \emph{not} constitute evidence about
+    resonance/cutoff-crossing behavior, the physics-informed point generator,
+    or the full anisotropic tensor. Our replication necessarily inherits
+    this limitation: we reproduced the discretization's convergence order,
+    not the paper's plasma-physics story.
+
+  \item \textbf{Order estimates fit a small number of refinements
+    (5) on regenerated jittered clouds.} Both the paper and this
+    replication cite the noise, but with $\leq 5$ points and slopes
+    fluctuating up to $\sim 1$ around the theoretical target, the reported
+    rates are best read as \emph{order of magnitude}, not tight
+    measurements. A single super-convergent point at $m=4$ can pull the
+    slope well above $m-1$.
+
+  \item \textbf{The $m=3$ result on C1 (\,$f_x$ order 3.48\,) and $m=4$
+    ($f_{xx}$ order 3.32) show super-convergence beyond the theoretical
+    rate.} That is \emph{consistent} with what the paper reports on smooth
+    solutions, but it is also exactly the regime where a subtle
+    interior-versus-boundary or star-selection bias could inflate the
+    apparent slope. We did not stress-test the star topology (e.g.\ deliberately
+    ill-conditioned stars, boundary-adjacent nodes with truncated neighborhoods).
+
+  \item \textbf{TSVD-regularized pseudoinverse with column scaling is a
+    parameter-bearing operator} (SVD truncation tolerance, column-scale
+    definition). We used the natural Moore--Penrose default; the paper does
+    not fully specify the tolerance schedule and it is plausible that
+    borderline stars would flip conditioning class at different tolerances.
+    The measured convergence is not sensitive to this in our runs, but a
+    proper sensitivity sweep is missing.
+
+  \item \textbf{The dielectric tensor was set to identity for our C2 test.}
+    This is the mathematically correct reduction (the plane wave is only an
+    exact solution of the homogeneous problem), and it isolates the
+    discretization order, but it means every claim about physical fidelity
+    (ICRH resonance layer, ECRH absorption) is untouched by this replication.
+    Claim C4 has no analytic validation target and is essentially
+    unfalsifiable without an independent full-wave code as ground truth.
+
+  \item \textbf{No public code or data existed.} This is a strength for
+    ``independent'' but a weakness for ``matches authors' implementation.''
+    Our reproduction validates the method \emph{as described in the paper's
+    equations}, not the authors' actual code path (which may contain
+    unreported tolerances, star heuristics, or fallback logic).
+
+  \item \textbf{Coverage $\approx 55\%$ of the numerical core is honest but
+    incomplete.} The physics-informed point generator (C3) is what makes
+    this method interesting in production settings, and it is not tested.
+    The convergence claim, without the generator, is a statement about
+    a generic meshfree Helmholtz solver.
+\end{enumerate}
+
+\section{Discussion / Limitations}
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{What was reproduced:} the paper's own quantitative
+        verification --- the GFD discretization achieves the advertised
+        high-order convergence ($p\approx m-1$, up to mild
+        super-convergence) against an analytic plane wave. This is the
+        substantive, falsifiable computational claim.
+  \item \textbf{What was not:} the full anisotropic cold-plasma dielectric
+        tensor in curved toroidal geometry, the physics-informed point
+        generator, and the ICRH/ECRH mock-tokamak demonstrations
+        (qualitative, no analytic target, and heavier than the efficient
+        replication budget). The homogeneous-tensor Helmholtz reduction
+        isolates precisely the discretization whose order the paper reports
+        in Fig.~2.
+  \item No public code or data existed, so this is a from-equations
+        reimplementation; the agreement therefore independently validates
+        the method \emph{as described}, not the authors' specific code.
+\end{itemize}
+
+\section*{Verdict}
+\textbf{REPLICATED.}
+
+\vspace{1em}
+\noindent\textit{WAVE\_RESULT set=OSTI paper=2574844 verdict=REPLICATED
+dir=OSTI-2574844-gfdm-cold-plasma-wave
+one\_line=Reimplemented the Liszka--Orkisz GFD weight machinery from the
+equations and independently reproduced the paper's central
+$O(h^{m-1})$ convergence claim for both the derivative operators
+($f_{xx}$ order 1.2/2.0/3.3 at $m=2/3/4$) and the full analytic
+plane-wave cold-plasma BVP solve (order 2.3/3.0/3.9 at $m=2/3/4$);
+LLM judge REPLICATED.}
+
+\end{document}

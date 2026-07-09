@@ -1,0 +1,262 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{graphicx}
+
+\title{Independent Replication:\\
+Kassam \& Trefethen, \emph{Fourth-Order Time-Stepping for Stiff PDEs} (2005)}
+\author{OpenClaw PDE replication subagent}
+\date{2026-07-02 initial draft; 2026-07-04 promotion pass}
+
+\begin{document}
+\maketitle
+
+\section{Citation}
+A.-K.~Kassam and L.~N.~Trefethen, ``Fourth-Order Time-Stepping for Stiff PDEs,''
+\emph{SIAM Journal on Scientific Computing}, Vol.~26, No.~4, pp.~1214--1233, 2005.
+DOI: \href{https://doi.org/10.1137/S1064827502410633}{10.1137/S1064827502410633}.
+
+\section{Paper Summary}
+The paper studies the fourth-order exponential time differencing Runge--Kutta
+scheme (ETDRK4) in the Cox--Matthews formulation for stiff semilinear PDEs
+$u_t = L u + N(u)$ discretized in space by Fourier (or Chebyshev) spectral
+methods. Its central technical contribution is that the na\"ive floating-point
+evaluation of the ETDRK4 $\varphi$-function coefficients such as
+\[
+  f_1 \;=\; h\,\frac{-4 - hL + e^{hL}(4 - 3hL + (hL)^2)}{(hL)^3}
+\]
+suffers catastrophic cancellation for small $|hL|$. This is cured to
+machine precision by evaluating each coefficient as the mean of the
+integrand over a circular contour in the complex plane around each
+eigenvalue $hL$. With this fix, ETDRK4 is globally fourth-order in time
+and outperforms other fourth-order exponential-type integrators (in
+particular integrating-factor RK4, IFRK4) on the paper's four benchmark
+stiff PDEs.
+
+\section{Claims}
+\begin{center}\small
+\begin{tabular}{clcc}
+\toprule
+ID & Claim & Type & Verdict \\
+\midrule
+C1 & Direct fp evaluation of $\varphi$-coeffs loses many digits for small $|hL|$ & quant. & REPRODUCED \\
+C2 & Contour-integral evaluation is uniformly machine-precision & quant. & REPRODUCED \\
+C3 & Contour-ETDRK4 is globally 4th order on stiff PDEs & quant. & REPRODUCED \\
+C4 & ETDRK4 more accurate than IFRK4 at equal step size & quant. & REPRODUCED \\
+C5 & Works on KS / Burgers / Allen--Cahn / KdV (incl.\ imaginary spectrum) & quant.+qual. & REPRODUCED \\
+C6 & Long-time chaotic KS (T$\sim$150) stable, correct pattern & qual. & REPRODUCED \\
+C7 & ETDRK4-B / Krogstad variant behaves similarly & quant. & \emph{scope cut} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Method}
+Environment: local CPU (macOS, host \texttt{CherryRd}), Python 3.13,
+NumPy 2.4.3, SciPy 1.18.0, mpmath 1.3.0, Matplotlib 3.10.8. No paid
+endpoints. Analytic initial conditions only.
+
+\begin{enumerate}
+\item \textbf{ETDRK4 core} (\texttt{work/etdrk4\_core.py}). Function
+  \texttt{etdrk4\_coeffs(L, h, M=32, r=1)} averages the $\varphi$-integrand
+  over $M{=}32$ points on the FULL unit circle around each $hL$; coefficients
+  remain complex. \texttt{etdrk4\_coeffs\_direct(L, h)} is retained solely
+  for the cancellation demo.
+\item \textbf{Fourier-spectral PDEs} (\texttt{work/pdes.py}): KS
+  ($N{=}128,\;L_x{=}32\pi$; Trefethen \texttt{kursiv.m} IC),
+  Burgers ($N{=}128,\;\nu{=}0.03$; IC $\sin x$),
+  Allen--Cahn ($N{=}256,\;\varepsilon{=}0.01$; $L{=}-\varepsilon k^2 + 1$),
+  KdV ($N{=}512,\;L_x{=}40$; exact 1-soliton, $c{=}1$).
+\item \textbf{Integrators} (\texttt{work/integrators.py}): ETDRK4 and IFRK4.
+\item \textbf{C1--C2 experiment} (\texttt{run\_cancellation.py}).
+  Sweep $L{=}-|hL|$ for $|hL|\in[10^{-3},10^{1}]$ (60 log-spaced points, $h{=}1$),
+  50-digit mpmath reference.
+\item \textbf{C3--C4 experiment} (\texttt{run\_convergence.py}). Fine ETDRK4
+  reference at $h_{\text{ref}}=h_{\min}/8$, $M{=}64$; five halved $h$s;
+  $\max|u-u_{\text{ref}}|$ log--log slope; mean $\mathrm{err}_{\text{IF}}/\mathrm{err}_{\text{ETD}}$.
+\item \textbf{C3 clean order for KdV} (\texttt{run\_kdv\_selfconv.py}):
+  Cauchy self-convergence log$_2$ ratios.
+\item \textbf{C5 KdV soliton + invariants} (\texttt{run\_kdv\_soliton.py}):
+  three step sizes at $T{=}2$; mass and $\int u^2\,dx$ drift.
+\item \textbf{C6 long-time KS} (\texttt{run\_ks\_figure.py}): $h{=}0.25$, $T{=}150$.
+\end{enumerate}
+
+\section{Results}
+
+\subsection*{C1 \& C2 --- Direct vs contour}
+\begin{center}\small
+\begin{tabular}{lrr}
+\toprule
+$|hL|$ & $\mathrm{err}_{\text{direct}}(f_1)$ & $\mathrm{err}_{\text{contour}}(f_1)$ \\
+\midrule
+1.0e-3 & 2.24e-06 & 6.47e-16 \\
+6.5e-3 & 1.78e-08 & 6.79e-16 \\
+1.1e-1 & 1.05e-12 & 2.65e-16 \\
+2.8e-1 & 2.24e-13 & 1.96e-15 \\
+1.8    & 3.45e-15 & 1.45e-15 \\
+4.6    & 1.71e-16 & 3.66e-18 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Worst-case ratio on $|hL|<0.5$: $7.31\times10^{8}$; max contour $f_1$
+error $3.06\times10^{-15}$ vs max direct $2.24\times10^{-6}$. Matches
+K\&T Fig.~2.
+
+\subsection*{C3 \& C4 --- Convergence and ETDRK4 vs IFRK4}
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule
+PDE & ETDRK4 order & IFRK4 order & mean IFRK4/ETDRK4 ratio \\
+\midrule
+KS $T{=}5$              & 3.80 & 3.60 & $5.03\times$ \\
+Burgers $\nu{=}0.03$    & 3.88 & 3.95 & $1.40\times$ \\
+Allen--Cahn $\varepsilon{=}0.01$ & 4.05 & 4.03 & $4.64\times$ \\
+KdV soliton (ref-limited) & 2.65$^\dagger$ & 3.71 & $5.14\times$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$\dagger$~KdV reference-solution comparison saturates at the spectral
+spatial floor ($\sim 4\times10^{-11}$) at the finest steps. Cauchy
+self-convergence (below) recovers order~4.
+
+\begin{center}\small
+\begin{tabular}{lrr}
+\toprule
+$h$ & $\|u_h - u_{h/2}\|$ & $\log_2$ ratio \\
+\midrule
+2.00e-2 & 5.00e-08 & --- \\
+1.00e-2 & 2.93e-09 & \textbf{4.09} \\
+5.00e-3 & 2.03e-10 & \textbf{3.85} \\
+2.50e-3 & 4.52e-11 & 2.17 (floor) \\
+1.25e-3 & 3.62e-11 & 0.32 (floor) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{C5 --- KdV soliton and invariants}
+$\max|u-u_{\text{exact}}|$ at $T{=}2$: $3.28\times10^{-9}$ for
+$h\in\{2{\cdot}10^{-3},10^{-3},5{\cdot}10^{-4}\}$ (spatial-floor limited).
+Mass drift $2.8\times10^{-16}$, $\int u^2\,dx$ drift $4.5\times10^{-14}$
+at $h{=}5{\cdot}10^{-4}$.
+
+\subsection*{C6 --- Long-time chaotic KS}
+Solution finite; $\max|u|=3.37$; final RMS$=1.18$; mean drift
+$\langle u\rangle_T - \langle u\rangle_0 = 4.4\times10^{-17}$. Space-time
+contour reproduces Trefethen \texttt{kursiv.m} / K\&T Fig.~4.
+
+\section{Verdict}
+\textbf{REPLICATED (strong).} Six of six central testable claims of Kassam
+\& Trefethen (2005) --- including every quantitative one attempted --- were
+independently reproduced from a clean-room Python/NumPy/SciPy implementation
+on the paper's exact test problems at numerically clean magnitudes.
+Only the secondary Krogstad ETDRK4-B variant (C7) was not tested
+(explicit scope cut). All numerics ran locally on CPU with no paid
+endpoints and no external data.
+
+\section{Genuine Critique}
+Below are the honest concerns and limitations of \emph{this replication}
+(not of the paper); they are what a careful reviewer would legitimately
+push back on.
+
+\subsection*{1. KdV order fit against a reference is misleading}
+For KdV the log--log slope against the fine ETDRK4 reference came out at
+$2.65$, well below~4. Only after switching to Cauchy self-convergence do
+we recover $\log_2$ ratios of $4.09$ and $3.85$ in the mid-range. Both
+diagnostics are honest, but a reader looking only at the reference-based
+table could reasonably worry that ETDRK4 is sub-fourth-order on
+imaginary-spectrum problems. The root cause here is spatial spectral
+floor saturation at $\sim 4\times10^{-11}$, not a defect in the
+temporal scheme; but this deserves explicit narrative rather than a
+footnote.
+
+\subsection*{2. Complex-coefficient trap discovered mid-run}
+An early implementation used a half-circle contour and took \texttt{real()}
+of the average. On dissipative-spectrum PDEs (KS, Burgers, Allen--Cahn)
+this looked fine because the true coefficients on the negative real axis
+are real; but on KdV (pure-imaginary spectrum) it silently reduced ETDRK4
+to first order. We caught this by cross-checking KdV order and rebuilt
+the coefficient routine on the full unit circle with complex arithmetic
+retained. It is worth flagging that any future extension --- to
+non-normal $L$, to boundary-forced problems, to Chebyshev spectra with
+non-real eigenvalues --- inherits this same trap and needs the same
+sanity check.
+
+\subsection*{3. KS ``match'' is not pixel-level}
+Kassam and Trefethen's Figure~4 is a space-time contour of a chaotic
+solution; a chaotic trajectory diverges exponentially from any nearby
+trajectory, so pixel identity is impossible. We match on: (i) solution
+bounded, (ii) $\max|u|\approx 3.4$ (paper: $\sim 3$), (iii) mean drift
+$\sim 10^{-17}$, (iv) qualitative banded ``chaotic soliton'' pattern.
+This is a legitimate qualitative match, but it is not equivalent to
+verifying a fixed reference solution.
+
+\subsection*{4. Krogstad variant (C7) not tested}
+The paper compares ETDRK4 (Cox--Matthews) against ETDRK4-B
+(Krogstad). We only implemented Cox--Matthews. Whether Krogstad
+improves accuracy or stability on our benchmarks is an open item
+in this replication, though the paper's headline claim is not
+about Krogstad.
+
+\subsection*{5. Initial conditions are underspecified in the paper}
+We used Trefethen's \texttt{kursiv.m} KS IC and a KdV single-soliton
+(instead of the two-soliton $A{=}25$ case, which needs dealiasing and
+smaller steps). Both choices are defensible and cited, but they are
+choices we made. If a future reader wanted to match the paper's KdV
+plot pixel-for-pixel they would need to add the two-soliton setup.
+
+\subsection*{6. Only fp64; only Fourier}
+The paper also studies Chebyshev-spectral discretizations. We tested
+only Fourier. Chebyshev raises additional issues (non-normal $L$,
+non-uniformly spaced eigenvalues) that our contour routine has not
+been stressed against. Additionally, all runs are in fp64. The
+$\sim 10^{-15}$ contour floor is at the fp64 wall; whether the
+scheme continues to shine at fp128/mpmath precision is untested.
+
+\subsection*{7. No wall-clock competitiveness numbers}
+We show ETDRK4 wins vs IFRK4 at equal $h$ (1.4$\times$ to 5.1$\times$
+error ratio). We do not report wall-clock cost per step, so we do not
+close the loop on ``which is faster to a given tolerance.'' The paper
+argues ETDRK4 is competitive in cost as well as accuracy; our
+replication only supports the accuracy half.
+
+\subsection*{8. Judge signal is single-source}
+\texttt{report/judge\_result.txt} is a single Argo LLM judge on the
+initial draft. It is a useful sanity check, not a peer review. The
+strong-REPLICATED verdict here rests on the numerics, not on the judge.
+
+\section{Reproducibility Notes and Caveats}
+\begin{itemize}
+\item Full unit circle + complex coefficients are essential; the
+  half-circle-plus-\texttt{real()} shortcut reduces ETDRK4 to first
+  order on dispersive problems.
+\item Reference-solution comparisons saturate at the spectral spatial
+  floor at the smallest $h$; use Cauchy self-convergence for a clean
+  temporal-only order estimate.
+\item Comparison to K\&T figures is on slopes / magnitudes / gaps /
+  qualitative pattern, not pixel matches.
+\end{itemize}
+
+\section{Files}
+\begin{lstlisting}[basicstyle=\ttfamily\small]
+report/
+  REPORT.md, REPORT.tex, brief.md, attempt_log.md,
+  artifact_harvest.md, judge_result.txt,
+  workflow.md, artifacts_summary.md, failure_analysis.md,
+  open_questions.json,
+  evidence/
+    cancellation.log, cancellation.png, cancellation_data.json,
+    convergence.log,  convergence.png,  convergence_data.json,
+    kdv_selfconv.log, kdv_soliton.log,
+    ks_figure.log, ks_spacetime.png, ks_figure_diagnostics.json
+work/
+  etdrk4_core.py, pdes.py, integrators.py,
+  run_cancellation.py, run_cancellation_figure.py,
+  run_convergence.py, run_convergence_figure.py,
+  run_kdv_selfconv.py, run_kdv_soliton.py, run_ks_figure.py
+\end{lstlisting}
+
+\end{document}

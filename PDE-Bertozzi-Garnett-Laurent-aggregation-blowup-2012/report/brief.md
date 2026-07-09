@@ -1,0 +1,5 @@
+# Brief
+
+**Paper:** A. L. Bertozzi, J. B. Garnett, T. Laurent, *"Characterization of radially symmetric finite time blowup in multidimensional aggregation equations,"* arXiv:1204.1095 (2012), SIAM J. Math. Anal. (DOI 10.1137/11081986X).
+
+**What/why:** This is a PDE-analysis paper on the nonlocal aggregation equation ρ_t − div(ρ ∇K∗ρ)=0 in R^d. It is primarily rigorous theory, but its Section 4 (Newtonian kernel, α=2−d) makes *concrete, testable* mathematical predictions: the radial problem reduces exactly to the inviscid Burgers equation via mass coordinates, monotone-decreasing data yields shocks only at the origin (monotonicity preserved for all time), and the "collapsing ball" (indicator of a ball) produces a solution whose characteristics all reach the origin *simultaneously* in finite time, with density blowing up as ρ_t = ρ² along characteristics. We independently re-derived and numerically verified these Section-4 predictions from scratch (numpy only, no library PDE solver), since re-running an analysis paper means confirming its exact predictions by independent simulation.

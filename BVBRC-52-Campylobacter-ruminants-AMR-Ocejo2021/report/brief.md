@@ -1,0 +1,5 @@
+# Brief — BVBRC-52
+
+**What:** Independent replication of Ocejo et al. (2021, *Scientific Reports* 11:8998), a whole-genome-sequencing characterisation of antimicrobial resistance (AMR) and genetic diversity in *Campylobacter jejuni* and *C. coli* from ruminants (beef/dairy cattle and sheep) in the Basque Country, Spain.
+
+**Why:** The paper is a canonical BV-BRC-mappable AMR workflow (Genome Assembly via SPAdes → AMR gene screening via ABRicate/ResFinder/CARD/NCBI → MLST → chromosomal point-mutation detection). All 70 raw genomes are public (ENA/NCBI BioProject PRJNA689687), and the paper reports concrete, testable genotype↔phenotype claims, making it an ideal real-data replication target. We downloaded raw Illumina reads for a 16-isolate representative subset, de novo reassembled them, and independently re-derived the assembly statistics, MLST types, AMR gene content, and the two headline chromosomal resistance mutations (gyrA Thr86Ile; 23S rRNA A2075G), then compared against the paper's own supplementary ground truth. **Verdict: PARTIAL replication (strong).**

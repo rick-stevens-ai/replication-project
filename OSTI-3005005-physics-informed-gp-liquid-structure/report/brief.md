@@ -1,0 +1,5 @@
+# Brief
+
+**Paper**: Sullivan, Cervenka, Shanks & Hoepfner, "Physics-Informed Gaussian Process Inference of Liquid Structure from Scattering Data", *J. Phys. Chem. B* **129**, 11802–11815 (2025). OSTI-3005005; DOI 10.1021/acs.jpcb.5c05024.
+
+**What / Why**: Independently reimplement the paper's core method — a nonstationary Gaussian process with a Gibbs kernel and a physics-informed real-space prior mean, transported through the discrete radial Fourier transform so that noisy, truncated momentum-space scattering data S(q) is inverted into a full posterior distribution over the real-space radial distribution function g(r) — from scratch, and verify the paper's central claims (elimination of Fourier truncation ripples, enforcement of g(r→0)=0 and g(r→∞)=1, calibrated uncertainty, and improvement over a naive direct rFT baseline) on a synthetic ground-truth Percus-Yevick hard-sphere liquid at argon-like density (ρ = 0.02125 Å⁻³), where a known analytic S(q)/g(r) pair is available. Uses `numpy`/`scipy` only, single laptop CPU, ~1 s per hyperparameter optimization. LLM-judge scoring via Argo proxy (two independent judges, both PARTIAL).

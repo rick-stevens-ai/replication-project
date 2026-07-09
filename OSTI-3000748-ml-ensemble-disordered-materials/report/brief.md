@@ -1,0 +1,5 @@
+# Brief — OSTI-3000748 (Fang, Hsu, Yan 2025, ACS Nano)
+
+**Verdict:** PARTIAL (LLM-judge confidence 0.78).
+
+The paper couples an equivariant e3nn GNN with Metropolis Monte-Carlo to predict ensemble-averaged optical and electrical conductivity of atomically-disordered MXenes (Ti₃C₂O₂₋ₓFₓ). Its specific R²/MAPE numbers on the 3000-configuration DFT+Wannier MXene dataset cannot be reproduced from public artifacts (dataset undistributed; store loader ships as `.pyc` only). But the paper's two *generalizable* methodological claims — (M1) ensemble mean reduces error, (M2) ensemble spread is an informative, easily-recalibratable UQ — are cleanly reproduced on a real independent public materials dataset (matminer `expt_gap`, 2,483 experimental band gaps): 5-fold CV shows monotone ensemble MAE reduction, Spearman ρ(σ_ens, |error|) up to 0.57, and 3–4× MAE gain via σ-ranked selective prediction vs a flat random baseline. Paper's core physical qualitative claim (electrical > optical local-order sensitivity) also confirmed on a physics-motivated surrogate.

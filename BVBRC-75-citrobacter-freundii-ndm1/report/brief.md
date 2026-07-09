@@ -1,0 +1,5 @@
+# BVBRC-75 — 1-paragraph brief
+
+**What.** Independent replication of Ramsamy et al. 2020 (Pathogens 9:89, PMID 32024012, DOI 10.3390/pathogens9020089), a pathogenomic characterization of the extensively drug-resistant *Citrobacter freundii* isolate H2730R (rectal swab, Durban, South Africa) that carries a blaNDM-1 carbapenemase on a plasmid closely related to the multireplicon plasmid p18-43_01 (CP023554.1). The workflow is BV-BRC Genome Assembly / Comprehensive Genome Analysis: Illumina MiSeq → SKESA → PGAP+RAST annotation → resistome/mobilome/virulome scans → MLST → phylogenomics.
+
+**Why.** BVBRC-75 is one of 100 BV-BRC-workflow papers slated for independent replication in the X-100 project. This paper is a self-contained genome descriptor with all raw material public (deposited genome VWTQ01, published p18-43_01 reference plasmid, PubMLST *C. freundii* database, RefSeq PGAP annotation), so it is a strong candidate for a clean data-and-methods-only reproduction without needing the wet-lab specimen.
