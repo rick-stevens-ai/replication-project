@@ -77,11 +77,22 @@ def find_report(d: Path):
     if top: return top[0], "top"
     nested = d/"report"/"REPORT.md"
     if nested.exists(): return nested, "report/"
+    # 8-artifact-standard layout: report/REPORT.tex (no REPORT.md). Prefer the
+    # canonical REPORT.tex over sibling helper .md files (failure_analysis.md,
+    # workflow.md, etc.) which carry no headline verdict.
+    nested_tex = d/"report"/"REPORT.tex"
+    if nested_tex.exists(): return nested_tex, "report-tex/"
+    top_tex = sorted([p for p in d.glob("*REPORT*.tex") if ok(p)])
+    if top_tex: return top_tex[0], "top-tex"
     rep_dir = d/"report"
     if rep_dir.exists():
+        # prefer a REPORT.md, else a REPORT.tex, before falling back to helper .md
+        rep_md=[p for p in rep_dir.glob("*.md") if ok(p) and "REPORT" in p.name.upper()]
+        if rep_md: return max(rep_md,key=lambda p:p.stat().st_size), "report-dir"
+        rep_tex=[p for p in rep_dir.glob("*.tex") if ok(p) and "REPORT" in p.name.upper()]
+        if rep_tex: return max(rep_tex,key=lambda p:p.stat().st_size), "report-dir-tex"
         mds=[p for p in rep_dir.glob("*.md") if ok(p)]
-        rep=[m for m in mds if "REPORT" in m.name.upper()] or mds
-        if rep: return max(rep,key=lambda p:p.stat().st_size), "report-dir"
+        if mds: return max(mds,key=lambda p:p.stat().st_size), "report-dir"
     mds=[p for p in d.glob("*.md") if ok(p) and p.name.upper()!="README.MD"]
     if mds: return max(mds,key=lambda p:p.stat().st_size), "top-md"
     deep=[p for p in d.glob("**/*.md") if ok(p)]
@@ -118,6 +129,12 @@ def extract_verdict(report: Path):
     """
     try: text = report.read_text(encoding="utf-8", errors="replace")
     except Exception: return None, "read-error"
+
+    # LaTeX reports: strip \textbf{}/\textit{}/\emph{} wrappers so 'Verdict: X'
+    # patterns match, and normalize \section{Verdict} -> a heading line.
+    if report.suffix.lower()==".tex":
+        text = re.sub(r"\\(?:textbf|textit|emph|texttt|mbox|underline)\{([^{}]*)\}", r"\1", text)
+        text = re.sub(r"\\(?:sub)*section\*?\{([^{}]*)\}", r"## \1", text)
     lines = text.splitlines()
 
     # 1. explicit 3-judge aggregate
@@ -125,6 +142,13 @@ def extract_verdict(report: Path):
     if m:
         v = norm_verdict(m.group(1)); 
         if v: return v, "panel"
+
+    # 1b. inline 'Verdict: <TOKEN>' or 'Verdict <TOKEN>' anywhere
+    #     (covers LaTeX \textbf{Verdict: REPLICATED} and prose 'Verdict PARTIAL —').
+    for im in re.finditer(r"(?i)\bverdict\b\s*[:\-\u2014]?\s*\**\s*([A-Za-z][A-Za-z\- ]+)", text):
+        toks = im.group(1).split()
+        v = norm_verdict(toks[0] if toks else "")
+        if v: return v, "self"
 
     def is_table_header(ln: str) -> bool:
         # a table header/row that merely uses 'Verdict' as a COLUMN label
