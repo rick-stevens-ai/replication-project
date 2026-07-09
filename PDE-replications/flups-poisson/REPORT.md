@@ -131,3 +131,10 @@ FLUPS replicates faithfully on commodity macOS hardware. The library installs an
 The headline HPC-scaling story (73K cores, OpenMP+MPI weak/strong efficiency on three supercomputers) was not attempted here; that would require allocation on Aurora or similar, which is out of scope for this single-node honest reproduction.
 
 Recommend: anyone extending this should (a) file the README license clarification upstream, (b) patch h3lpr's install to set a proper macOS dylib id, (c) for full reproducibility provide a Homebrew-friendly arch file (we contributed one as `scripts/make.cherryrd`).
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 6/10, Agreement 9/10). — Convergence claims reproduced tightly via in-tree validation; HPC scaling not attempted
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

@@ -40,3 +40,10 @@ The framework has three stages: (1) build a classifier, (2) generate molecules, 
 - LLaMA-2 was also tested but dropped due to being ~100× slower at inference with comparable results.
 - Energy gap and dipole moment filters require semi-empirical or DFT-level calculations (not just RDKit).
 - For experimental validation, MBA was applied at 1 mg/mL in isopropanol, spin-coated on perovskite, annealed at 100°C for 5 min.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 8/10, Agreement 5/10). — Full pipeline reproduced; classifier F1=0.80 contradicted (got 0.58-0.66, train-set leakage); Stage3 reproduces Rep10
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

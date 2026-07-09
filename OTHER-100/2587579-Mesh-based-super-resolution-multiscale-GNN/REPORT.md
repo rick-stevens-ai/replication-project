@@ -203,3 +203,10 @@ repository:
 Remaining gap to a "lab-grade" reproduction is engineering, not science:
 plug in the actual Nek5000 BFS field, switch the upstream `gnn.py` to
 `input_features = 3` in two places, and run NCCL on a free GPU pool.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 8/10, Agreement 7/10). — Distributed halo-swap validated bitwise, 2D beats baseline 4.77x; 3D undertrained, no real BFS dataset
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

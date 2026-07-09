@@ -206,3 +206,10 @@ Key producers: **Odoribacteraceae** strains isolated from centenarian stool, plu
 
 *Report generated 2026-05-05 by Ollie (OpenClaw subagent)*  
 *Total elapsed time: ~45 minutes*
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 4/10, Agreement 6/10). — Shallow read subset; directional 5AR enrichment only, key organisms too sparse
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

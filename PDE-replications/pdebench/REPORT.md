@@ -140,3 +140,10 @@ See `figures/training_curve.png` and `figures/sample_rollout.png`.
 - PDEBench data: https://doi.org/10.18419/darus-2986 (v8, CC BY 4.0).
 - PDEBench models: https://doi.org/10.18419/darus-2987 .
 - Li et al. 2020, *Fourier Neural Operator*, arXiv:2010.08895 (FNO baseline used here).
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 6/10, Agreement 9/10). — Openness+data-gen+FNO pipeline verified on 1 of ~10 PDEs; headline nRMSE not matched by design
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

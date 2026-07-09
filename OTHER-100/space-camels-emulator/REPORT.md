@@ -144,3 +144,10 @@ The emulator concept is sound and ready for production use in cosmological infer
 - Open question: at what training-set size N does our 4-layer MLP cross 0.1% mean P(k) accuracy under the same LHS prior — is the empirical `N^(-0.5)` scaling clean enough to predict N ≈ 50k, or do we hit an architecture-bound floor before then?
 - Open question (extension): does adding a nonlinear-P(k) head (via HMCode or HaloFit ground truth) preserve the linear-P(k) accuracy, or does the multi-head training degrade the linear emulator — and does a full nonlinear emulator + MCMC chain on a Planck-like mock data vector recover the input cosmology within statistical uncertainty?
 
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 5/10, Agreement 5/10). — CosmoPower concept reproduced at 200x smaller scale; 0.93pct vs paper sub-0.1pct, no MCMC/nonlinear
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

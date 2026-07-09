@@ -210,3 +210,10 @@ vlasov-poisson-dg-hermite/
     ├── fig_convergence.png
     └── fig_two_stream.png
 ```
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 6/10, Agreement 8/10). — Independent SW-Hermite solver; Landau rate 0.9%, conservation exact; DG-x reduced to Fourier, two-stream 22% low
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

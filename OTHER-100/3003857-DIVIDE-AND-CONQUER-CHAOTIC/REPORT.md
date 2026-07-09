@@ -320,3 +320,10 @@ The remaining quantitative gaps — KS attractor KL (240×), Kolmogorov DNS corr
 - **Open question:** is the KS attractor-width bias (predicted std(u_x)=1.34 vs truth 0.97) a finite-data / finite-training artifact, or does MP-NODE have a systematic high-derivative-tail bias under aggressive penalty annealing? A dataset-size sweep on uicgpu would settle this.
 - **Open question:** would the paper's headline gradient-explosion claim (now confirmed quantitatively at 1.6×10¹³× over T=2→40) hold at higher-precision adjoints (Tsit5+CVODES adjoint pair) or is it specific to the standard `torchdiffeq` `dopri5` autodiff path?
 
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 8/10, Agreement 5/10). — MP-NODE gradient-taming confirmed; KS-KL 240x and Kolmogorov correlation miss from undertraining; ERA5 data-blocked
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

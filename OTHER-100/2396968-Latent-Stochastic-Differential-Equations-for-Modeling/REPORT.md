@@ -295,3 +295,10 @@ The central scientific claim of Fagin et al. (2024) — that an amortised latent
 - **Exact missing artifact 3 (blocks per-parameter quantitative cross-check):** The paper does not tabulate per-parameter MSE/MAE numerically (only qualitative ranking via corner plots in Fig 5/Fig 7). The replication's per-parameter table (SF_∞ 19.5% error → spin 34.8% error) cannot be directly compared cell-by-cell; only the qualitative identifiability hierarchy (SF_∞, log₁₀τ, log₁₀M >> β >> z_q/h/θ_inc/λ_Edd >> spin) was verified.
 - **Open question 1:** Does fixing the SDE step at `dt = 1×10⁻³` and extending to ≥30 epochs (still within a 1-week A100 envelope) close most of the 14–19% RMSE/MAE gap, or does the gap persist? If it persists, the architecture itself may have a noise floor higher than the paper reports.
 - **Open question 2 / extension:** The h/a (corona-height vs spin) degeneracy is the headline physical bottleneck. Would augmenting the LSST 6-band training with X-ray reverberation lags (e.g., synthetic Athena WFI lag-frequency spectra) break this degeneracy in the same latent SDE framework? This is the natural follow-up the paper points toward in its conclusion.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 9/10, Agreement 6/10). — Full pipeline runs; parameter-ranking and calibration reproduced; 14-19% metric gap from 60x less compute
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

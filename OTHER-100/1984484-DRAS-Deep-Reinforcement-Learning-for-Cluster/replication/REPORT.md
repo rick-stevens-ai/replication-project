@@ -169,3 +169,10 @@ Total runtime: ~11 minutes on a 2020 iMac (CPU only).
 5. **Reservation mechanism:** When selected job doesn't fit, reserve nodes and activate backfill
 6. **Larger networks:** Scale to paper's 4000/1000 FC sizes
 7. **Fix DQN instability:** Add gradient clipping, reduce learning rate, use double DQN
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 6/10, Agreement 6/10). — Core claim DRL>baselines and PPO>DQN confirmed; simpler trace, single-level, no hierarchical backfill
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

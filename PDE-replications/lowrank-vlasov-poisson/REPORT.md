@@ -181,3 +181,10 @@ python3 make_figures.py
 ```
 
 No external services, no API keys, no GPU. Tested with Python 3.14, NumPy 2.x, SciPy 1.16, Matplotlib 3.x.
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 7/10, Agreement 9/10). — Independent KSL reimplementation; Landau/two-stream claims reproduced quantitatively; 1D1V scope only
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

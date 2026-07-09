@@ -116,3 +116,10 @@ The algorithm remains the foundation of transit detection in space photometry, a
 ---
 
 *Replication performed 2026-04-30 by Ollie (OpenClaw). Code, data, and figures in `replication/`.*
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 7/10, Agreement 9/10). — BLS reimplemented from scratch; all 6 known periods recovered within 0.02pct, validated vs astropy
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

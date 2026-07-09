@@ -95,3 +95,10 @@ Everything else of interest:
 - **KEEP** the paper in LUCID100 — it is on-theme.
 - **RETAG** worktype: `omics/signature replication` → `mechanistic / radiotherapy theory review (RHR / extreme-value TCP)`.
 - **Flag** that the paper is a single-author conceptual review whose ambitious sections all defer to the same author's prior closed-source book/papers; treat as "concept paper, not a primary modelling paper".
+
+
+## Verdict
+
+**Verdict: SPOT-CHECK** (Coverage 2/10, Agreement 9/10). — Single-author review; only self-contained Eq.1 TCP reproduced to 4 decimals, rest defers to author's prior books
+
+<!-- census-verdict: SPOT-CHECK assigned 2026-07-08 by LLM judge (Argo Opus) -->

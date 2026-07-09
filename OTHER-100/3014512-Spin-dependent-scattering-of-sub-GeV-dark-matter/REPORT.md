@@ -149,3 +149,10 @@ This paper presents the first systematic analysis of **spin-dependent (SD) dark 
 - Open question: would replacing DarkELF's stock isotope form factors with the **Odd Group Model nuclear matrix elements** (Engel & Vogel 1989, or the more recent shell-model evaluations) for ⁶⁹/⁷¹Ga + ⁷⁵As pull the GaAs absolute normalization into agreement with the paper, leaving only the BPA-vs-BSH-style microdistribution / target-hierarchy story intact?
 - Open question (extension): does the operator-hierarchy ordering (*a* < ϕ ≈ A′ in detection reach) survive in target materials beyond Al₂O₃ and GaAs — e.g. CaWO₄, Si — and where does the SD/SI gap fall below ~10³ in a way that would let a near-future experiment cross the SI sensitivity floor?
 
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 7/10, Agreement 8/10). — Core rate figures (5-8) reproduced quantitatively within 10-50pct; conclusions confirmed
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

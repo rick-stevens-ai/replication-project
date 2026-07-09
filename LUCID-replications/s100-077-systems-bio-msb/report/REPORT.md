@@ -223,3 +223,10 @@ python3 code/replicate_figures.py  # writes figures/*.png + evidence/ssa_results
 ```
 
 Dependencies: `numpy`, `matplotlib`, `pdftotext` (poppler).
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 7/10, Agreement 9/10). — Telegraph model, balance equation and Gillespie SSA reproduce paper medians to 1-2%; archetypes exact
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

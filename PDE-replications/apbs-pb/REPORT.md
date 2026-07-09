@@ -406,3 +406,10 @@ cd /Users/stevens/Dropbox/REPLICATE-PROJECT/PDE-replications/apbs-pb
 ./code/repass/run_born_refinement.sh  # Born h-convergence
 python3 code/repass/finalize_csvs.py  # rebuild TSVs from logs (parser fix)
 ```
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 8/10, Agreement 9/10). — Open APBS PB engine reproduces all in-scope examples bit-identical; Born h-convergence demonstrated, sub-solvers a build gap
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

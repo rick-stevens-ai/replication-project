@@ -130,3 +130,10 @@ Net: the *trend* (kVp > MV; RBE_DSB rises with yD) is reproducible from the publ
 * `code/rbe_from_dsbs.py` – Eq. 3 audit
 * `code/yd_vs_rbe_fit.py` – Fig. 5 monotonicity audit
 * `evidence/results.txt` – stdout of both scripts
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 6/10, Agreement 7/10). — Eq.3 arithmetic and yD-RBE trend (r=0.86) reproduced; Monte Carlo yD blocked by closed WLTrack engine
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

@@ -50,7 +50,7 @@ NON_PAPER = {"common","drafts","scoring","scripts","papers","priority-lists",
              "LUCID-replications","LUCID-second100","PDE-replications","QC-100",
              "QC-200","OTHER-100","docs","_support",
              "pvmol-gen","pvmol-gen-fajar2026","replicate-msm","rosters_5x100",
-             "perovskite-Passivation-Molecules-AI-Discovery"}
+             "perovskite-Passivation-Molecules-AI-Discovery","_scoring_2026-07-08"}
 
 def collection_of(rel: Path) -> str:
     p = str(rel)

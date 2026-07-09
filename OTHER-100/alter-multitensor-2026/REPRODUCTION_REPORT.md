@@ -242,3 +242,10 @@ independent, open data with pre-registered expectations.
 (`/data/stevens/alter-pathB/`). Glioma results: `f4_glioma_results.json`.
 Engine: independent reimplementation of the Alter–Brown–Botstein / Van Loan
 GSVD. No controlled-access data was used in any result reported here.*
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 6/10, Agreement 5/10). — GSVD geometry/orthogonality reproduce on surrogate; headline prognostic C=0.80 untested (data controlled), failed on glioma
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

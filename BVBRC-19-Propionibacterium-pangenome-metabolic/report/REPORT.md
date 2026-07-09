@@ -151,3 +151,10 @@ paper's 792–906; +438–698 new clusters per added genome, open pangenome) AND
 pathway-presence audit (14/14 claims match) AND prior disk-verified FBA reproduction
 (6/6 GEMs reproduce all 5 reported behaviors). The prior version (PARTIAL, 7/10 / 9/10)
 is preserved at `report/REPORT.md.bak-pre-promo`.*
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 9/10, Agreement 10/10). — 14/14 claims reproduce across pangenome (909 core), pathway audit, and FBA layers
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

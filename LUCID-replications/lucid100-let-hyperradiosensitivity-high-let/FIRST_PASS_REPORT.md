@@ -173,3 +173,10 @@ just bound what a no-author-contact / no-paid-endpoint first pass can claim.
 See `ARTIFACT_MANIFEST.tsv`. 4 downloaded artifacts + 3 scripts + 10 derived
 files + 3 narrative docs (this report, README.md, PROGRESS.md). Total folder
 size ≈ 1.2 MB.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 5/10, Agreement 7/10). — Reproduced 101-curve LQ/IR fits to ~11% vs published params; paywalled LET-compression headline not reachable
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

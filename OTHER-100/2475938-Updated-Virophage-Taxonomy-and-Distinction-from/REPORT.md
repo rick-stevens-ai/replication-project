@@ -99,3 +99,10 @@ Recovered backbone (matches Roux *et al.* Fig. 3 family-level structure):
 - Open question: does pulling the IMG/VR Globus subset (interactively, with credentials) reproduce Roux et al.'s exact vOTU counts and the class-level *Maveriviricetes* vs *Polintoviricetes* boundary, or do the IMG/VR-only contigs introduce new long-branch lineages outside the curated NCBI backbone we recovered?
 - Open question (extension): would re-running CheckV on our 86 "unclassified" NCBI genomes promote enough of them into the virophage / PLV buckets to close the partial/unclassified gap, or are most genuinely fragmented MAG contigs that the paper would also have dropped?
 
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 8/10, Agreement 8/10). — HMM partition and phylogenetic backbone reproduced on 279 NCBI genomes; IMG/VR tail and vOTU clustering not done
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

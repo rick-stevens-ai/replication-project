@@ -339,3 +339,10 @@ The cosmological parameter inference that the replication plan anticipated is ex
     ├── mcmc.log                 # MCMC run log
     └── venv/                    # Python virtual environment
 ```
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 9/10, Agreement 10/10). — Analytic NILC formula (Eq 26) reproduced to <=0.2% using authors' code/data; MCMC deferred to Paper II
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

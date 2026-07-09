@@ -177,3 +177,10 @@ double layers, including the sign of the correction to the diffuse charge
 and the convergence properties of the discretization. We did not attempt
 the MC/MD benchmarking that distinguishes the paper's accuracy claim
 versus earlier models — that benchmark is left as future work.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 7/10, Agreement 8/10). — Independent code confirms 8/10 correlation-sign claims; equilibrium-only, WKB, no MC/MD benchmark
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

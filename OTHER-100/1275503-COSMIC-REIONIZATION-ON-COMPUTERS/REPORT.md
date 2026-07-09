@@ -113,3 +113,10 @@ Key methodological differences from the original:
 **Friction points:** F5 (force-field / hyperparameter drift — the entire CROC simulation physics is replaced by an analytic approximation with tuned rescaling parameters).
 
 **To re-run:** `cd ~/Dropbox/REPLICATE-PROJECT/1275503-COSMIC-REIONIZATION-ON-COMPUTERS/replication && python croc_replication.py` (requires Python 3.10+, NumPy, SciPy, Matplotlib; ~3 min on single core).
+
+
+## Verdict
+
+**Verdict: SPOT-CHECK** (Coverage 5/10, Agreement 4/10). — CROC sim not run; FGPA surrogate reproduces analysis pipeline+trends but opacity off 30-300%
+
+<!-- census-verdict: SPOT-CHECK assigned 2026-07-08 by LLM judge (Argo Opus) -->

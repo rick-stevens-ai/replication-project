@@ -1,6 +1,30 @@
 # REPLICATE Project Status Audit
 
-Updated **2026-07-05 09:20 CDT** by Ollie (post OSTI-100 catch-up batch — new replications + shell finishes + SPOT-CHECK promotions).
+Updated **2026-07-08 20:25 CDT** by Ollie (scoring/normalization pass — eliminated all unscored dirs; see top section).
+
+## 2026-07-08 evening — scoring + non-canonical cleanup (0 unscored)
+- **Root cause fixed:** the 8-artifact-standard dirs (esp. QC-200, all 100) keep their report as `report/REPORT.tex`, but `census.py` only read `*.md`, so it grabbed helper files (`failure_analysis.md`, `workflow.md`) with no verdict and marked ~131 dirs **(unscored)**. Patched `census.py` to (a) prefer `report/REPORT.tex`, (b) parse LaTeX verdict forms (`\textbf{Verdict: X}`, `\section{Verdict}`), (c) match inline `Verdict: X` / `Verdict X`. This alone recovered ~62 verdicts.
+- **LLM-judge pass (free Argo Opus, 4 subagents):** read the 67 remaining report-bearing unscored dirs and assigned honest canonical verdicts, written back durably via `scripts/write_verdict.py` (idempotent `## Verdict` / `\section{Verdict}` block + `census-verdict:` marker).
+- **3 empty shells completed** (had no PDF/report): BVBRC-105 (Bazinet, B. cereus phylogeny) → SPOT-CHECK; BVBRC-127 (Cui, genome adaptation) → SPOT-CHECK; PDE-Cockburn-Kanschat (LDG Navier-Stokes 2004) → PARTIAL. Genuine method-level replications, honest verdicts.
+- **Result: UNSCORED 131 → 0.** All 733 paper dirs now carry an extractable canonical verdict.
+- **Census/reconcile 2026-07-08:** `CENSUS_2026-07-08.csv` + `RECONCILED_MASTER` rebuilt (backup `.bak-pre-rebuild-20260708T202458`).
+
+| Set | total | solid | note |
+|---|--:|--:|---|
+| BVBRC-100 ✅ | 127 | 122 | PARTIAL 72, REPL 50, SPOT 3, NO-GO 1, CONTRA 1 |
+| LUCID-100 ✅ | 142 | 107 | PARTIAL 60, REPL 47, SPOT 19, NO-GO 12, BLOCK 4 |
+| OSTI-100 | 111 | 99 | PARTIAL 79, REPL 20, SPOT 11, CONTRA 1 |
+| OTHER | 61 | 58 | PARTIAL 31, REPL 27, SPOT 1, BLOCK 1, NO-GO 1 |
+| PDE-100 ✅ | 131 | 122 | PARTIAL 62, REPL 60, NO-GO 4, SPOT 3, FAIL 1, CONTRA 1 |
+| QC-100 ✅ | 161 | 148 | REPL 91, PARTIAL 57, SPOT 13 |
+| QC-200 | 105 | 96 | REPL 83, PARTIAL 13, SPOT 9 |
+| **TOTAL** | **838** | **752** | 89.5% solid; 0 unscored |
+
+- **Solid: 637 → 752 (+115)** vs the Jul 6 reconcile — almost entirely from correctly reading verdicts that were already on disk (not new sim work), plus the 4-subagent judge pass + 3 shell completions. OSTI-100 is the only named set still under 100 solid (99 — gap 1).
+
+---
+
+### (previous) Updated 2026-07-05 09:20 CDT by Ollie (post OSTI-100 catch-up batch)
 
 ## OSTI-100 catch-up batch (2026-07-05 morning)
 - **OSTI-100: 68 → 85 solid (+17).** Executed a rolling batch (cap 5 concurrent, free Argo Opus 4.7): finished 3 empty shells (3023663, 3025290, 3366144), 12 new replications from the TOPUP60 roster, and 6 SPOT-CHECK→solid promotions (2891462, 2976249, 3006635, 3013688, 3020811, 3024853 attempted; 2976249 promoted to PARTIAL).

@@ -1823,3 +1823,9 @@ R. Peyret, P. Orlandi, and A. T. Patera, Comput. & Fluids 14, 23
 16. Y. Huang and H. H. Bau, Int. J. Heat Mass Transfer, to appear.
 
 
+
+## Verdict
+
+**Verdict: NO-GO**. — no replication evidence; only PDF text extraction, empty work/ and evidence dirs, no code/results
+
+<!-- census-verdict: NO-GO assigned 2026-07-08 by LLM judge (Argo Opus) -->

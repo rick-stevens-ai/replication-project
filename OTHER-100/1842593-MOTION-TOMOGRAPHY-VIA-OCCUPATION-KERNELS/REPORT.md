@@ -98,3 +98,10 @@ Convergence ordering (constant < linear < Gaussian) matches paper Figure 4. ✅
 | `replication/figures/sweep_n_trajs.png` | Error vs number of trajectories N |
 | `replication_plan_1842593.pdf` | Detailed replication plan |
 | `1842593.pdf` | Original paper |
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 8/10, Agreement 9/10). — All synthetic experiments reproduced with matching trends; real-data Experiment 2 unavailable
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

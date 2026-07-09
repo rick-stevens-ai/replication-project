@@ -65,3 +65,10 @@ The author-contact path is therefore not just *one* option — it is the **only 
 - `AUTHOR_EMAIL_DRAFT.md` — polite, specific email to O'Gorman (cc Yuval) requesting any of four progressively heavier data deliverables. Includes sender notes for Rick on address verification and tone calibration.
 - `ALT_SOURCE_HUNT_REPORT.md` — this file.
 - `memory/subagent-progress/q5_yuval_ogorman.json` — updated with `status="alt_source_hunt_complete"`, `outcome="C"`.
+
+
+## Verdict
+
+**Verdict: BLOCKED**. — Training data unrecoverable from all public sources; only author contact viable, no replication run
+
+<!-- census-verdict: BLOCKED assigned 2026-07-08 by LLM judge (Argo Opus) -->

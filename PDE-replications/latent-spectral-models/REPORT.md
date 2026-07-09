@@ -126,3 +126,10 @@ The paper reports an averaged 11.5% improvement. Our averaged ~18% across two be
 - **Open question:** does the LSM advantage hold when the spectral-block latent dimension is shrunk to match FNO's parameter budget exactly? The Darcy result (d=64 LSM beats d=96 FNO at 18.9 M vs 19.2 M params) suggests yes, but a single benchmark is not decisive.
 - **Open question:** are the dramatic step-LR-induced LSM accuracy jumps (test L2 halving in ~5 epochs after the gamma=0.5 drop at epoch 100) reproducible across seeds, or are they a single-trajectory artifact? Paper-reported ~5 % run-to-run noise on a single seed is below the magnitude of these jumps but warrants a 3–5 seed sweep.
 
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 5/10, Agreement 9/10). — LSM-beats-FNO headline confirmed on 2/7 benchmarks with authors' code; own data brackets 11.5%
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

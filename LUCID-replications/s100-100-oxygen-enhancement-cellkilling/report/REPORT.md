@@ -180,3 +180,10 @@ s100-100-oxygen-enhancement-cellkilling/
 ```
 
 Re-runnable: `cd code && python3 imk_oer_model.py` (numpy + matplotlib only; runtime ~5 s on a laptop).
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 9/10, Agreement 9/10). — IMK OER analytical model fully reproduced within 1%; only hypofractionation BED (paper-side inconsistency) differs
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

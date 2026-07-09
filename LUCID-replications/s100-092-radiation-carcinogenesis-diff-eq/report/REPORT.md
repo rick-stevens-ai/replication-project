@@ -130,3 +130,10 @@ Runs in ~2 seconds on CPU.
 | Agreement / 10 | **7** |
 | Tier | **REPLICATED-WITH-CAVEATS** |
 | Named blocker | **Primary mammary-tumour incidence table (n_at_risk, n_tumour, per cohort) not published in PLoS ONE e28559 supplement or in cited Ethier-Ullrich Cancer Res. 1982/1984 references; needed for exact χ² reproduction.** |
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 9/10, Agreement 7/10). — ODE model from Table 1 reproduces all 4 qualitative shapes and ERR values; exact chi-square blocked by unpublished incidence table
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

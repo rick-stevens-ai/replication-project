@@ -104,3 +104,10 @@ This is a candidate **post-publication critique** worth a short letter to the ed
 ## Status
 
 **Complete for first pass.** All required deliverables produced; smoke reproduces every Tier-1 claim and surfaces a substantive Tier-2 follow-up.
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 8/10, Agreement 9/10). — Tier-1 reproduced all Table 1 demographics, per-gene tests and gamma-H2AX descriptives from open JATS data
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

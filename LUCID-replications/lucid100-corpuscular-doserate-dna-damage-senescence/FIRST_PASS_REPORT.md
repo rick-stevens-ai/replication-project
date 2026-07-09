@@ -171,3 +171,10 @@ replication unless full Monte-Carlo track-structure simulation is pursued
 3. Optionally cross-link this slot with the Wave-6 / Wave-7 dose-rate /
    DSB-repair model cluster (slots 57, 59, 62, 63) since the Lea–Catcheside
    smoke could be reused there.
+
+
+## Verdict
+
+**Verdict: SPOT-CHECK** (Coverage 3/10, Agreement 6/10). — Only text anchor points tested; confirmed 3x dose-rate sparing headline, wet-lab endpoints inaccessible
+
+<!-- census-verdict: SPOT-CHECK assigned 2026-07-08 by LLM judge (Argo Opus) -->

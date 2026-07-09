@@ -102,3 +102,10 @@ Our value: **+0.75 MeV** (with V₃N) vs. experimental **+0.764 MeV** — excell
 | Training logs | `replication/results/logs/` |
 
 **Hardware:** NVIDIA A100-SXM4-40GB (original runs, ~2 min); 5× Tesla V100-SXM3-32GB in parallel (tier-lift, ~6 min total).
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 8/10, Agreement 9/10). — ANN-VMC methodology confirmed; different interaction and missing tensor correlators cause A>=3 underbinding
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

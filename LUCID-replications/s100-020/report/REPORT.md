@@ -319,3 +319,10 @@ python3 code/replicate_eq5.py evidence && python3 code/plot_eq5.py
 ## 7. One-liner verdict
 
 `s100-020: VERDICT Coverage=7/10 Agreement=9/10 — Eq. 5 reproduces Table 1 (RMSE 0.27); inner PHITS+PARTRAC spot-checked.`
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 7/10, Agreement 9/10). — Eq.5 reproduces Table 1 RBE curve (RMSE 0.27); inner PHITS+PARTRAC engine spot-checked not re-run
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

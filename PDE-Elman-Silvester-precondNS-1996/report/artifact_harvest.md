@@ -8,3 +8,10 @@
 
 No datasets to download — this is a synthetic PDE benchmark. All numerical inputs (geometry,
 BCs, wind field, viscosities, meshes) are specified in the paper.
+
+
+## Verdict
+
+**Verdict: NO-GO**. — no replication evidence; code written but never run, empty evidence dir, no results.json
+
+<!-- census-verdict: NO-GO assigned 2026-07-08 by LLM judge (Argo Opus) -->

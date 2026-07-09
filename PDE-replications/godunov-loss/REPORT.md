@@ -61,3 +61,10 @@
 - Open question: with the same Burgers + reference + ICs but an **FNO or DeepONet backbone** (which has a stronger inductive bias for hyperbolic operators), does the Godunov-flux loss outperform plain MSE, recovering the paper's qualitative claim? Our MLP-only result hints that architecture, not loss, is the dominant variable here.
 - Open question: is the right discrete enforcement of the entropy condition a hard constraint at the cell-interface flux (Godunov upwind) rather than a soft TV penalty? Reframing the loss as a projection step instead of an additive regularizer is the most physically defensible next attempt.
 
+
+
+## Verdict
+
+**Verdict: FAILED** (Coverage 4/10, Agreement 3/10). — Paper's Godunov-loss advantage not reproduced; PDF unlocated, loss reconstructed
+
+<!-- census-verdict: FAILED assigned 2026-07-08 by LLM judge (Argo Opus) -->

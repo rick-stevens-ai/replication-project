@@ -160,3 +160,10 @@ scope for this run.
 
 *Generated 2026-05-28 by Ollie (OpenClaw subagent) on CherryRd. See
 `PROGRESS.md` for phase log and `logs/` for raw run output.*
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 6/10, Agreement 8/10). — Ran public Medras-MC code; 7/7 mechanistic claims reproduced, DSB yield and complex fraction quantitatively
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

@@ -153,3 +153,10 @@ replication/src/
 - **Exact missing artifact 3 (blocks Table V completeness):** The non-graph multi-agent RL baseline ("MARL" at 92.32%) was not reimplemented because the paper doesn't specify the MARL architecture (CTDE/IPPO/QMIX/etc.) used as the comparison.
 - **Open question 1:** Does the DG curriculum (5 → 10 → 15 → 20) really account for ~30 pp of the gap between MLP-DQN and GCN-DQN, as the paper attributes? Our experiment shows GCN >> MLP without any curriculum, so the curriculum may be doing less work than the paper claims (it may primarily speed convergence rather than change the asymptotic gap).
 - **Open question 2:** Would the GCN-DQN advantage on 8500-bus generalize to more realistic failure modes (e.g., cascading branch trips, partial-information observability, sequential adversarial scenarios) — or is the gap specific to the "many cells, sparse-DG, masked-actions" regime?
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 8/10, Agreement 7/10). — 8500-bus GCN-DQN matches 100% within 0.33pp; no power-flow env, GAT, or curriculum
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

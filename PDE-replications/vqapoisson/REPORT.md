@@ -146,3 +146,10 @@ common boundary conditions — reproduces to ≤ 10⁻⁵ in the energy and ≤ 
 in the solution vector with a 4-layer ansatz on 3 qubits, using only the
 upstream code (mechanically ported to a current Qiskit). No deviations from
 the paper's algorithm were necessary.
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 8/10, Agreement 9/10). — Upstream VQA code ported to modern Qiskit; central claim reproduced to <=1e-5 across all three BCs
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

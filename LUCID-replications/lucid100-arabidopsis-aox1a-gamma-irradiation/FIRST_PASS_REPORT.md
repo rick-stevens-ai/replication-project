@@ -169,3 +169,10 @@ directional claim" = panel gene in a WT-γ-IR-induced path (W1/W2/W3/W6/W7/W8).
    matrix would be replicable, but the qPCR ΔΔCq values could be
    spot-checked against scaffold log2FC.
 4. **Heavy compute:** none required; not requested.
+
+
+## Verdict
+
+**Verdict: BLOCKED**. — Closed paper, wet-lab qPCR, no deposit, lab-internal lines; 0/8 quantitative, only lateral scaffold cross-validation possible
+
+<!-- census-verdict: BLOCKED assigned 2026-07-08 by LLM judge (Argo Opus) -->

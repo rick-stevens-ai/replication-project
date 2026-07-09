@@ -194,3 +194,10 @@ CherryRd) and a network connection to `oeis.org`.
   - 35 of 100 integers in [1, 100] remain unresolved for full computational achievability — same enumeration-budget gap.
 - **Open question:** does the asymptotic `E1(m,n) ~ (2^m−1)^(n−1)` with leading coefficient `2^m − 1` (observed numerically for m=2…6, n=m+9) admit a closed-form proof in the paper's framework, or only an asymptotic argument? Worth a SymPy re-derivation attempt of the leading term from the recurrence's generating function.
 - **Open question:** are any of the 19 new OEIS sequences in Table 3 connected to existing entries via simple transforms (offset shift, binomial transform)? Cross-search against OEIS could surface bijective interpretations not noted in the paper.
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 9/10, Agreement 10/10). — All formulas, 38 OEIS sequences, Theorem topologies verified; 64/64 PASS, one paper typo surfaced
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

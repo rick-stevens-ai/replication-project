@@ -140,3 +140,10 @@ sub-gaps requires a non-polar slab regeneration (pymatgen `SlabGenerator` with
 - **Open question:** does the bulk-vs-slab ~3.4× reduction in Imε peak (6.98 → 2.08) at ~4.5 eV reflect physical surface depletion of the optically active Ti-d ↔ O-p transitions, or is it an artifact of slab thickness (single-layer vs multi-layer slab convergence)? A thickness-convergence Yambo run on the (001) clean slab would resolve this and is well within reach.
 - **Open question:** is the 9 % residual disagreement on the Pt-induced redshift (2.40 eV vs 2.20 eV paper) due to the PBE/RPA functional choice (the paper used HSE06 for gaps), or to k-mesh / ω-grid convergence? A G0W0 single-shot on the (001)+Pt slab would settle the functional question.
 
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 9/10, Agreement 9/10). — Optical redshift and (001) facet reproduced within 10-20%; polar Pt-doped facets diverged
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

@@ -253,3 +253,10 @@ scaling claim (n = 40 on real IBM hardware) is not tested here.
 One-line summary: *FFNN error mitigation for QAOA on non-planar 3-regular
 graphs reproduces at n = 10 across three noise regimes; per-edge ZZ MSE
 drops 85–95 % after FFNN, matching the paper's mechanism.*
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 6/10, Agreement 9/10). — Both computational claims (noiseless QAOA, FFNN mitigation) reproduced independently; n=40 hardware scaling not tested
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

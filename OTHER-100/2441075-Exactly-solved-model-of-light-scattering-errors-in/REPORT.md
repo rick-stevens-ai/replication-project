@@ -106,3 +106,10 @@ The paper derives an **exact analytic solution** to the Lindblad master equation
 - **Open question:** how does the analytic solution extend to ¹³⁸Ba⁺ (~70 % leakage branching ratio per the paper text)? The mathematical structure is identical, but the four atomic constants (and the larger leakage fraction) would change the postselection penalty and the N → N_max trade-off. We implemented only ⁴⁰Ca⁺.
 - **Open question:** does the postselection-on-no-leakage strategy still recover fidelity in the presence of finite-efficiency leakage detection (e.g. 95 % rather than 100 % single-shot leakage discrimination)? The paper assumes ideal detection; a realistic-detector analysis is a natural next pass.
 
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 9/10, Agreement 9/10). — Analytic solution machine-precision verified; figures qualitative only due to unpublished J_ij matrix
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

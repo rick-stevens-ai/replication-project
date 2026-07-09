@@ -95,3 +95,10 @@ errors are ≲ 1/n. They close by noting that if the memory cells themselves
 hold quantum data (rather than classical bits), the C-NOT copy must be
 replaced by a SWAP and the memory array will end up entangled with Q, A
 at the end of the protocol.
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 7/10, Agreement 9/10). — Bucket-brigade qRAM in Qiskit: O(n) activation scaling, 100% classical queries, superposition fidelity ~1.0
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

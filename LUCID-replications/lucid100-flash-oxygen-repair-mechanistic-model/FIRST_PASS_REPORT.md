@@ -146,3 +146,10 @@ Smoke generated `results/smoke_sweep.csv` (20 conditions: D ∈ {10, 20} Gy ×
 * No-paid-endpoints constraint.
 
 No new blockers for QA / triage. Slot is **complete at the first-pass level**.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 3/10, Agreement 4/10). — Mechanism smoke reproduces FLASH-sparing direction at low O2; central O2-window result not recovered, closed paper/code
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

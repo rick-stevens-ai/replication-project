@@ -57,3 +57,10 @@ A future run with LDA pseudos (or BerkeleyGW post-PBE for GW) would be needed to
 - **Coverage 8 → 9:** added bilayer dielectric function and 24×24 NSCF/bands.
 - **Agreement 8 → 9:** bilayer force now meets paper's 0.001 Ry/Bohr threshold (was 0.011); plasmon frequencies match paper Fig 5.
 - **Not at 10:** PBE-vs-LDA bilayer gap discrepancy and absence of GW/BSE remain.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 8/10, Agreement 8/10). — DFT monolayer gap+plasmon match closely; bilayer gap differs (PBE vs LDA), no GW/BSE
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

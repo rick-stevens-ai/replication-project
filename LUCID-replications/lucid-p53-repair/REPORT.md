@@ -149,3 +149,10 @@ python3 code/run_experiments.py
 ```
 
 Tested with Python 3.14, NumPy 2.x, SciPy 1.13, Matplotlib 3.x.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 6/10, Agreement 6/10). — Independent ODE re-implementation reproduces 6/8 qualitative p53 claims; stochastic apoptosis and oscillations only partial
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

@@ -82,3 +82,10 @@ Ziatdinov et al. demonstrate that a fully convolutional neural network (FCN) wit
 - Open question: does the synthetic-only U-Net (98.8% pixel accuracy, F1 ≥ 0.949 across Sr/Ti/La-Sr/Mn, sub-pixel column localisation 6–47 mÅ) transfer to real experimental HAADF-STEM frames without any retraining, or does the domain gap visible in the combined synthetic+multislice run scale up further? This is the single question the OSTI deposit + ORNL frame set could answer outright.
 - Open question (extension): does the same encoder–decoder FCN approach generalise to MoWSe₂ TMDC and Si-doped graphene with only physics-motivated synthetic training, or do those systems require system-specific contrast modelling beyond Z^1.7?
 
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 6/10, Agreement 7/10). — FCN + training reproduced, synthetic metrics strong; sim-to-experiment transfer untestable (no experimental STEM frames)
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

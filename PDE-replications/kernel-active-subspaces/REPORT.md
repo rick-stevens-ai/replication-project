@@ -264,3 +264,10 @@ hurts.
 | `figures/exp2_sample_diffusions.png` | Three random KL diffusion fields |
 | `figures/exp3_rmse_vs_dim.png` | Nonlinear QoI: KAS wins at r=1, AS wins at r=2,3 |
 | `figures/exp3_sufficient_summaries.png` | Side-by-side linear-AS vs KAS summaries |
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 6/10, Agreement 8/10). — KAS-vs-AS claim confirmed on canonical archetype; DG-CFD case substituted with FD Poisson
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

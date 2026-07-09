@@ -229,3 +229,10 @@ Key takeaways for the Atlas resource estimation:
 - Open question: does the 4.59% / 5.07% Ω_m / σ_8 error tighten to the paper's 3.2% / 4.1% once a small Optuna sweep (say 10 trials × 200 epochs ~ 22 GPU-h on A100) is run, or is some of the residual gap from a different train/val/test simulation split that the paper does not specify exactly?
 - Open question (extension): which of the other 12 field channels lifts the σ_8 prediction R² above 0.95 — does the gas-density channel's σ_8 R² = 0.796 reflect a genuine information ceiling for that field, or does combining channels (e.g. Mgas + T + ne) close it?
 
+
+
+## Verdict
+
+**Verdict: REPLICATED** (Coverage 6/10, Agreement 9/10). — Headline Mgas CNN cosmo-inference reproduced (4.6pct/5.1pct) within paper range; one of 39 cells
+
+<!-- census-verdict: REPLICATED assigned 2026-07-08 by LLM judge (Argo Opus) -->

@@ -176,3 +176,10 @@ All five models train+infer in <10 min on GB10.
     ├── metric_bars.png              ← all 5 models × 4 metrics
     └── sample_forecast.png
 ```
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 7/10, Agreement 7/10). — FNO/ConvLSTM two-stage training and ConvLSTM>FNO ranking reproduced on synthetic BES; no real DIII-D data
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

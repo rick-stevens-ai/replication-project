@@ -96,3 +96,10 @@ Original QA decision (rank 95): `KEEP: relevant and replication-plausible`.
 1. **No further work needed at this slot** unless someone obtains the journal PDF and the parameter tables, at which point we could replace the Li-2014 placeholder rates with the actual RR1965 Tables and run the four named scenarios.
 2. If the PARTRAC code ever becomes available (e.g., via a Helmholtz collaboration), we could re-couple the NHEJ smoke to a real PARTRAC DSB-spectrum input for any of `lucid-partrac-analytical-formulas`, `lucid-slow-fast-nhej`, this slot, and the future Kundrát/Friedland slots.
 3. Add a cross-link from the master-QA TSV `replication_folder` column for rank 95 → `lucid-friedland-stochastic-nhej-track-slot64`.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 3/10, Agreement 5/10). — Architectural NHEJ smoke reproduces biphasic kinetics + LET misrepair qualitatively; closed paper/PARTRAC blocks quantitative
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

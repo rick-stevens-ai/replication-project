@@ -93,3 +93,10 @@ saved model: `replication/results/model_timeseries.pt`.
   (KL still nonzero, but the latent encodes residual pose uncertainty
   rather than chemistry). Mirrors the real-pipeline assumption that
   registration is done upstream.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 9/10, Agreement 9/10). — rVAE disentanglement and time-series tracking reproduced on synthetic analogues
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

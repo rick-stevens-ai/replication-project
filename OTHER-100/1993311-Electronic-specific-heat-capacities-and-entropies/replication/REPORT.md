@@ -115,3 +115,10 @@ The replication is based on synthetic data only, which is an honest limitation. 
 ---
 
 *Replication performed 2026-04-30 by Ollie (OpenClaw). All code in `replication/code/`, data in `replication/results/`, figures in `replication/figures/`.*
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 7/10, Agreement 8/10). — GPR-beats-FD/spline methodology confirmed on synthetic data; no real DMQMC runs
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

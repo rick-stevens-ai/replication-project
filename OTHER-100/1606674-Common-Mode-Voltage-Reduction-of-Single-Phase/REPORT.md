@@ -62,3 +62,10 @@ The paper studies a single-phase quasi-Z-source inverter (qZSI) for transformerl
 - Open question: at what (C_g, R_g) point in the PV-stray-capacitance parameter space does the leakage-current RMS reduction cross the paper's ~75% value, and how robust is that crossing to ±20% tolerance on L_f and the DC-bus boost ratio?
 - Open question (extension): does the ZS1→ZS2 zero-vector substitution preserve its 50% CMV-peak benefit under non-unity modulation index (M ≠ 0.78) and shoot-through duty D ≠ 0.125, or are there edge regimes where the substitution re-introduces high-CM states?
 
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 8/10, Agreement 9/10). — CMV-halving reproduced exactly; leakage magnitude off due to unpublished stray-capacitance params
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

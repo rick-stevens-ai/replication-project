@@ -134,3 +134,10 @@ The one finding that cannot be computationally replicated is the core experiment
 ---
 
 *Report generated: 2026-05-05 | Replication time: ~90 min | Method: NCBI BLASTP against nr (E. coli-restricted)*
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 5/10, Agreement 8/10). — BLAST conservation arm confirms all 21 systems real/conserved; functional screen not replicable
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

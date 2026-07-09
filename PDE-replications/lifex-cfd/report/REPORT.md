@@ -256,3 +256,10 @@ time, aortic_root_flow, R_subcl_flow, R_carotid_flow, L_carotid_flow, L_subcl_fl
 0.002, -2.294e-05, 3.304e-06, 3.347e-06, 3.216e-06, 2.780e-06, 1.029e-05
 0.003, -2.384e-05, 2.969e-06, 2.923e-06, 2.881e-06, 2.641e-06, 1.243e-05
 ```
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 5/10, Agreement 6/10). — 3/5 cases launched, mesh/DOF exact-match, physical outputs; 2 blocked, no full figure comparison
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

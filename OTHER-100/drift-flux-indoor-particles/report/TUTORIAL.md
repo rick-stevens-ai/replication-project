@@ -530,3 +530,10 @@ python3 make_figures.py
 - **Exact missing artifact 3 (limits direct cross-check on Lai-Nazaroff deposition):** The paper does not tabulate the per-particle-size deposition velocities `v_d` it actually used per wall orientation; only the underlying Lai & Nazaroff (2000) formulation is cited. The replication re-implemented Lai-Nazaroff from scratch; bit-exact comparison against the paper's numerical `v_d` values is not possible.
 - **Open question 1:** Does running OpenFOAM with SIMPLER (instead of SIMPLE) + a tighter residual target (10⁻⁵) close the mixing-time gap, or does the gap survive — pointing to the Lai-Nazaroff implementation or the explicit-Euler particle integrator as the residual difference?
 - **Open question 2 / extension:** The replicated CV(t) curves show graceful breakdown of the well-mixed assumption above ~2 µm — qualitatively matching the paper's central conclusion. A natural extension is to test how the well-mixed-breakdown diameter shifts with ventilation rate (ACH = 1, 3, 10, 30) and room aspect ratio, which would generalize the paper's two-case (U = 0.225, 0.45 m/s) result.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 7/10, Agreement 7/10). — Full CFD pipeline; 5 central findings reproduced qualitatively, mixing times ~50pct longer, profiles qualitative only
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

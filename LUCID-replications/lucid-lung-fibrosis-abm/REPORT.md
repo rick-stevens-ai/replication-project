@@ -301,3 +301,10 @@ build-stack weight, not artifact closedness.
 * Breitwieser L. et al. *Bioinformatics* (2021) — BioDynaMo.
 * Schuemann J. et al. *Radiat Res* 191, 125 (2019) — TOPAS-nBio.
 * Niemierko & Goitein, *IJROBP* 25, 135 (1993) — critical-volume NTCP.
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 5/10, Agreement 6/10). — ABM-lite surrogate reproduces dose-response shapes (5.5/10 claims); MC coupling and 3D bystander not built
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->

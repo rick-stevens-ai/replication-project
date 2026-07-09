@@ -97,3 +97,10 @@ The replication proceeded in two phases:
 - Open question: would adaptive sub-nm mesh refinement around the gap/edge regions of the Palace 3D model — keeping the chip otherwise identical — pull p_MS, p_SA, p_MA into agreement with the paper's published values, and would the predicted Q then track the substrate-loss-limited Q = 1.1×10⁵?
 - Open question (extension): how sensitive is the p_MS/p_SA ≈ 2.0 ratio (the key TLS-targeting headline) to deviations from the idealised rectangular trench profile we modelled — does a realistic isotropic-etch curved profile shift the ratio enough to change the mask-design choice?
 
+
+
+## Verdict
+
+**Verdict: PARTIAL** (Coverage 8/10, Agreement 8/10). — Frequencies, Q, participation ratios reproduced; no experimental TLS data or sub-nm meshing
+
+<!-- census-verdict: PARTIAL assigned 2026-07-08 by LLM judge (Argo Opus) -->
