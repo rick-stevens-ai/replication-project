@@ -3,7 +3,7 @@
 Run periodically; idempotent (rewrites the master from scratch each run)."""
 import os, glob, json
 
-BASE = os.path.expanduser("~/Dropbox/REPLICATE-PROJECT")
+BASE = os.path.expanduser(os.environ.get("REPLICATE_BASE", "~/Dropbox/REPLICATE-PROJECT"))
 OUT = os.path.join(BASE, "OPEN_QUESTIONS_CORPUS.jsonl")
 
 def find_oq_files():
@@ -14,6 +14,7 @@ def find_oq_files():
         os.path.join(BASE, "PDE-*", "report", "open_questions.json"),
         os.path.join(BASE, "BVBRC-*", "report", "open_questions.json"),
         os.path.join(BASE, "OSTI-*", "report", "open_questions.json"),
+        os.path.join(BASE, "TEXTURE-*", "report", "open_questions.json"),
         # also any nested location
         os.path.join(BASE, "**", "open_questions.json"),
     ]
@@ -31,7 +32,7 @@ def set_of(path):
     for s in ("QC-100","QC-200"):
         if top == s: return s
     if top == "LUCID-replications": return "LUCID"
-    for s in ("PDE","BVBRC","OSTI"):
+    for s in ("PDE","BVBRC","OSTI","TEXTURE"):
         if top.startswith(s): return s
     return top
 
