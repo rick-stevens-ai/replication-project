@@ -1,0 +1,1332 @@
+INTERIM: pdftotext fallback
+# Marker extraction (INTERIM — pdftotext fallback, marker not available)
+
+> Source: textures-spin-chakraborty2023.pdf (arXiv:2309.14427v2)
+> This is a pdftotext dump standing in for a marker.md structured extraction.
+
+Zero-field finite-momentum and field-induced superconductivity in altermagnets
+Debmalya Chakraborty and Annica M. Black-Schaffer
+
+arXiv:2309.14427v2 [cond-mat.supr-con] 27 Mar 2024
+
+Department of Physics and Astronomy, Uppsala University, Box 516, S-751 20 Uppsala, Sweden
+We explore the possibilities for spin-singlet superconductivity in newly discovered altermagnets.
+Investigating d-wave altermagnets, we show that finite-momentum superconductivity can easily
+emerge in altermagnets even though they have no net magnetization, when the superconducting
+order parameter also has d-wave symmetry with nodes coinciding with the altermagnet nodes.
+Additionally, we find a rich phase diagram when both altermagnetism and an external magnetic
+field are considered, including superconductivity appearing at high magnetic fields from a parent
+zero-field normal state.
+
+Recently discovered altermagnetism [1–8] has opened
+up a new field of research in condensed matter physics
+[9] by introducing a third kind of magnetism in addition
+to the two long-known kinds of magnetism: ferromagnetism and antiferromagnetism. Altermagnetism appear
+in materials due to non-relativistic spin-orbit coupling in
+the non-interacting electronic band structure and is thus
+not due to electronic interactions, usually associated with
+magnetism.
+The unconventional mechanism behind altermagnetism also leads to completely different symmetry properties. In altermagnets, the magnetization appearing
+due to broken Kramer’s spin-degeneracy is momentum
+dependent, with sign changing values and nodes. Notably, due to the sign changes, the net magnetization
+is still zero in an altermagnet. Altermagnetism has already been proposed to be present in many materials
+with majority of them displaying a d-wave symmetry
+[9], including the parent cuprate material La2 CuO4 [3].
+Since doped cuprate materials are intrinsic superconductors with spin-singlet d-wave pairing symmetry [10, 11],
+this provides an alluring prospect of having d-wave superconductivity in altermagnets.
+Almost all known superconductors are believed to be
+well described by Bardeen, Cooper, and Schrieffer (BCS)
+[12] theory, where electrons with opposite momentum k
+and −k and opposite spins ↑ and ↓ pair in a spin-singlet
+configuration. These spin-singlet Cooper pairs become
+less energetically favorable when spin-degeneracy is broken, generating a finite spin-splitting due to either the
+application of an external magnetic field or due to the
+presence of intrinsic net magnetization in the material.
+Thus, increasing spin-splitting eventually destroys the
+BCS state. Still, superconductivity has been shown to
+survive for even larger external magnetic fields, by instead forming Cooper pairs with a finite center-of-mass
+momentum, resulting in finite-momentum superconductivity, originally studied independently by Fulde-Ferrell
+(FF) [13] and Larkin-Ovchinnikov (LO) [14].
+Altermagnets, due to the distinct momentum dependence of their magnetization with no net magnetization, have already been anticipated to provide intriguing possibilities for superconductivity [15]. In fact, spin-
+
+singlet Cooper pairs have very recently been studied
+theoretically [16–21] in altermagnets, but then only induced by proximity effect from external superconductors,
+in heterostructures enticing for spintronics applications.
+However, despite altermagnetism being found in parent
+cuprate compounds, spin-singlet superconductivity as an
+intrinsic quantum phase of matter has not yet been explored in altermagnets.
+In this Letter we investigate intrinsic superconductivity originating from effective electron-electron attraction
+in d-wave altermagnetic metals. We find a highly soughtafter finite-momentum superconducting phase in systems
+with spin-singlet d-wave superconductivity, even with no
+net magnetization present. However, this phase is absent in systems with spin-singlet s-wave superconductivity, which we explain by the unusual momentum-space
+magnetization. By also applying an external magnetic
+field, we also uncover a rich phase diagram resembling almost the shape of a “Yoda-ear”, with a cascade of phase
+transitions between zero- and finite-momentum pairing
+and normal state phases, occurring due to an intricate
+balance of the spin-split Fermi surface and superconducting condensation energy. Interestingly, we find a large
+region of field-induced superconductivity, where superconductivity only appear at high magnetic fields from a
+low-field normal phase. These results establish altermagnetism as a key material property for generating multiple
+exotic and uncommon superconducting behaviors.
+Model, methods and parameters.— To capture established altermagnetism, we consider metallic d-wave altermagnet with the Hamiltonian [3]
+X
+H0 =
+(ξk − σ(tam /2)(cos(kx ) − cos(ky )) + σB) c†kσ ckσ
+k,σ
+
++
+
+X
+
+Vk,k′ c†k+q↑ c†−k+q↓ c−k′ +q↓ ck′ +q↑ ,
+
+k,k′ ,q
+
+where c†kσ (ckσ ) is the creation (annihilation) operator of
+an electron with spin σ and momentum k, ξk is the (spinindependent) electron band dispersion, and tam is the
+strength of the d-wave altermagnetic spin-splitting, originating from electric crystal fields. Eq. (1) encodes the
+two bands closest to the Fermi level, thus relevant for superconductivity, in the minimal four-band lattice model
+
+(1)
+
+2
+
+Vk,k′ = −V (γ(k)γ(k ′ ) + η(k)η(k ′ )) ,
+
+(2)
+
+0.7
+0.6
+
+Normal
+0.5
+0.4
+B
+
+of Ref. [3]. For simplicity we consider the band dispersion
+of a square lattice, given by ξk = −2t(cos(kx )+cos(ky ))−
+µ, with t = 1 the nearest-neighbor hopping amplitude set
+as the energy unit, and µ the chemical potential
+tuned
+P
+to fix the average density of electrons ρ = k,σ ⟨c†kσ ckσ ⟩.
+We also include an in-plane external magnetic field B
+(with the electron magnetic moment µB = 1) for controlling a Zeeman spin-splitting but with no orbital effects expected. Intrinsic superconductivity is provided
+by a generic effective attraction for spin-singlet pairing,
+Vk,k′ . We primarily consider d-wave superconductivity,
+as present in the cuprate superconductors [10, 11], which
+can most simply be generated by a nearest-neighbor attraction
+
+0.3
+
+mal
+
+0.2
+0.1
+0
+0
+
+0.2
+
+tam
+
+0.4
+
+0.6
+
+0.8
+
+where γ(k) = cos(kx ) + cos(ky ) and η(k) = cos(kx ) −
+FIG. 1. Phase diagram of d-wave superconductivity in
+cos(ky ) are the two form factors for nearest-neighbor inthe B-tam plane indicating finite-momentum (FF) superconteraction on a square lattice, and V is a constant attracducting phase (gray), BCS zero-momentum superconductivtion strength. The nodes of the considered d-wave superity (green), and normal phase (white) with boundaries inconductivity lie along the kx = ±ky lines and matches the
+between (blue lines) and between different FF phases (dashed
+chosen directions of the altermagnet nodes in Eq. (1) [22].
+blue line). Normal phase is identified as ∆Q
+d < 0.0009 for all
+For comparison, we also consider conventional, isotropic,
+Q values. Calculations are performed at a set of discrete
+s-wave pairing, using Vk,k′ = −V .
+points in the B-tam plane, spaced 0.025 apart, with blue lines
+drawn by taking the midpoint of the two values of tam hostWe consider only spin-singlet superconductivity, since
+ing different phases for a fixed B. Long arrow indicates one
+pairing in the spin-triplet channel is rare. Hence, we do a
+path for field-induced superconductivity, while short colored
+mean-field decomposition of the Hamiltonian in Eq. (1)
+arrows indicate line-cuts in Fig. 2.
+in the spin-singlet Cooper channel resulting in
+
+X
+X Q
+P
+†
+Q 2
+Q 2
+HMF =
+ξkσ c†kσ ckσ +
+∆k c−k+Q/2↓ ck+Q/2↑ + H.c. energy, E =
+k,σ ξkσ ⟨ckσ ckσ ⟩ − (∆d ) /V − (∆s ) /V +
+k,σ
+k
+µρ, with respect to Q.
++ constant,
+(3) In the following we report results for V = 2 and ρ = 0.6
+on a square lattice of size 1000 × 1000, enough to mimic
+where now ξkσ = ξk + σ(tam /2)(cos(kx ) − cos(ky )) + σB
+the thermodynamic limit and capture relevant values of
+and ∆Q
+Q. Other values of V and ρ give no qualitative difference,
+k is the spin-singlet superconducting order parameter obtained by the self-consistency relation
+see Supplementary Material (SM) [26]. Q is a vector with
+two possible directions in two dimensions. We show in
+X
+†
+†
+′
+the SM [26] that the ground state energy minima occurs
+∆Q
+=
+V
+⟨c
+c
+⟩,
+(4)
+k,k
+k
+k′ +Q/2↑ −k′ +Q/2↓
+for a uniaxial Q along the x-axis and we thus only show
+k′
+results for uniaxial Q, setting Qx ≡ Q for simplicity. We
+Q
+with Q being the finite center-of-mass momentum of the
+further find that ∆Q
+s is very small compared to ∆d for
+Cooper pair. For tam = B = 0, only zero-momentum
+all investigated parameters, thus we only report values
+(Q = 0), or simply BCS pairing, is present, but due to
+for ∆Q
+d.
+the altermagnetism and a finite magnetic field, we always
+Results.— We first show in Fig. 1 the ground state
+allow for a finite Q. Here, we only consider a single Q
+phase diagram obtained by varying B and tam , for a range
+value and focus on FF phase, where the phase of the suof realistic strengths [9]. The phase diagram broadly conperconducting order parameter varies but the amplitude
+sists of three different phases: BCS phase (green), finitedoes not [24]. Incorporating the momentum dependence
+momentum FF phase (gray), and normal phase with no
+Q
+Q
+of Vk,k′ in Eq. (2) we can write ∆Q
+superconductivity (white). Here, we characterize the
+k = ∆d η(k) + ∆s γ(k),
+with ∆Q
+BCS phase as when the ground state energy for Q = 0
+d being the d-wave superconducting order parameter and ∆Q
+is the lowest, while for the FF phase a Q ̸= 0 has the
+s being the extended s-wave superconducting
+lowest
+energy. For comparison we report the same phase
+order parameter [25], where both ∆Q
+parametrically
+des,d
+diagram for conventional s-wave superconductivity in the
+pending on Q. We solve the Hamiltonian HMF in Eq. (3)
+SM [26].
+self-consistently using Eq. (4) for fixed Q, and then obFocusing first on the situation with no applied magtain the true ground state by minimizing the ground state
+
+3
+
+∆Q
+d
+
+0.2
+
+(b)
+
+t
+
+=0.15
+
+am
+
+0.2
+
+0.1
+
+0
+
+tam=0
+tam=0.5
+
+∆Q
+d
+
+B=0
+B=0.12
+B=0.2
+B=0.35
+B=0.48
+
+(a)
+
+t
+
+=0.6
+
+am
+
+0.1
+
+0
+
+(c)
+
+0.8
+
+(d)
+
+Q
+
+0.6
+
+0.6
+
+0.4
+
+Q
+
+netic field, B = 0, we find a finite-momentum FF phase
+for a range of finite altermagnet strengths (0.44 ≲ tam ≲
+0.56). This is remarkable since here the FF phase is obtained without any net magnetization in the system, in
+contrast to its usual occurrence in finite fields [13]. This
+finding is perhaps even more surprising when noting that
+an FF phase is absent for s-wave superconductors at zero
+field, see SM [26]. The emergence of a B = 0 FF phase
+in d-wave superconductors can be understood by considering the nodal structure of both the superconductor
+and altermagnet, see Fig. 3(a). Since the nodes for both
+the altermagnet (where there is no spin-splitting) and
+the d-wave superconducting order parameter (where the
+order parameter is zero) lie along the kx = ±ky lines,
+the gapped parts of the Fermi surface, with finite superconducting order parameter, always host a finite magnetization due to the altermagnetism. As a result, electrons with k, ↑ only finds their spin-singlet BCS Cooper
+partners −k, ↓ at different energies due to the finite spin
+splitting, while pairing k, ↑ and −k + Q, ↓ can still occur
+at the zero energy difference, thus resulting in a finite
+Q FF ground state. In contrast, s-wave superconductors have no superconducting nodes and the system can
+then still gain sufficient condensation energy by forming
+zero-momentum BCS pairs around the altermagnet nodal
+points, where the Fermi surface retains its spin degeneracy, thus preventing an FF ground state.
+Next, considering the tam = 0 line, we find the wellestablished transitions of BCS to FF to normal phases
+with increasing B [13], but with increasing tam and finite
+B ̸= 0 this drastically changes and we uncover an interesting phase diagram looking a bit like a “Yoda-ear”.
+For weak tam ≲ 0.34, transitions are similar to tam = 0,
+though with increasing tam , the critical B required for the
+BCS to FF transition is reduced, eventually reaching zero
+for tam ≈ 0.44 as discussed in the previous paragraph.
+However, for tam ≳ 0.34, the BCS phase re-appears at
+higher B, thus generating a cascade of phase transitions.
+For example, in the regime 0.44 ≲ tam ≲ 0.56, the system shows three different transitions with increasing B:
+one from FF to BCS, next from BCS to another FF′
+phase, and eventually from FF′ phase to normal phase.
+The large-B FF′ phase is characterized as a different FF
+phase due to a distinctly different Q vector, as detailed
+in the next paragraph. Another remarkable feature occurs for 0.59 ≲ tam ≲ 0.76. In this regime of altermagnetism, the system is in a normal phase at zero magnetic
+field B = 0, but then superconductivity emerges with
+increasing magnetic field, first by forming a BCS phase
+and then transitioning into the FF′ phase. In Fig. 1 we
+illustrate one such path of field-induced superconductivity. Field-induced superconductivity should be impossible in spin-singlet superconductors, but here the altermagnetism provides a route to still generate it.
+In order to understand superconductivity within each
+individual phase, we show in Fig. 2 the superconduct-
+
+0.4
+0.2
+
+0.2
+0
+0
+
+0.2 t
+0.4
+am
+
+0.6
+
+0.8
+
+0
+0
+
+0.2
+
+B
+
+0.4
+
+0.6
+
+FIG. 2. Superconducting order parameter ∆Q
+d (a,b) and values of Q (c,d) in the different ground states (lowest total energy) at fixed values of B, varying tam (a,c) and fixed values
+of tam , varying B (b,d).
+
+ing order parameter ∆Q
+d (a,b) and Q values (c,d) in the
+ground state for different line cuts of the phase diagram
+in Fig. 1, indicated by color arrows and chosen to capture all distinct phase transitions. In Fig. 2(a,c), we show
+five different line cuts for fixed B values, varying tam .
+For B = 0 (brown dot), Q becomes finite in the region
+0.44 ≲ tam ≲ 0.56, capturing the FF phase even in the
+absence of applied field. The corresponding ∆Q
+d display
+an expected jump [13] from the BCS value to a lower
+value in the FF phase and with further reduction toward
+zero with increasing tam . For a higher B = 0.12 (blue
+plus), the FF phase is found over an even wider range of
+tam , with a notable monotonic increase in Q. Here the
+jump in ∆Q
+d from the BCS value to the FF value is notably suppressed. Further increasing the magnetic field
+to B = 0.2 (red star) results in four transitions as tam
+is increased: BCS to FF, FF to BCS, BCS to FF, and
+eventually FF to normal phase, with both Q and ∆Q
+d displaying jumps between BCS to FF or FF to BCS transitions. The difference in Q values of the two FF phases
+separated by the intermediary BCS phase can be thought
+of as the reminiscent of the notable monotonic increase
+in Q in the FF phase for lower B (compare blue plus and
+red star curves). For B = 0.35 (green cross), the system
+instead goes from one FF phase directly to another FF′
+phase with increasing tam , with a distinct jump in Q values at the transition. As we establish in the SM [26], this
+is due to two competing FF states with different Q ̸= 0 in
+this regime of B. The global energy minima is obtained
+for one Q for a range of tam and then the energy balance
+shifts to the other Q at higher tam . With even further
+increase in tam , the Q = 0 solution becomes most energetically favorable, before eventually reaching the normal
+phase at large tam . Due to this competition between dif-
+
+4
+ferent local energy minima, ∆Q
+d shows a non-monotonic
+behavior with increasing tam and is also suppressed at
+the FF to FF′ transition. This suppression is enhanced
+for larger B, eventually reducing ∆Q
+d to zero resulting
+in a normal phase between two FF phases, as seen for
+B = 0.48 (magenta circle).
+The field behavior including field-induced superconductivity is most prominent in line cuts at fixed tam and
+varying B, as shown in Fig. 2(b,d). For tam = 0.0, 0.15
+(blue dot, red plus), ∆Q
+d and Q shows behavior expected
+in a spin-singlet superconductor in an applied magnetic
+field, with the BCS phase giving way to the FF phase at
+larger fields [13]. Here, larger tam makes the FF phase
+occurring in a larger parameter space. For tam = 0.5
+(green cross) the situation is notably changed. At zero
+and low fields an FF phase is present, which then transitions into a BCS phase at finite fields, a transition that is
+accompanied with a notable large increase in ∆Q
+d . Thus
+an applied magnetic field here causes a strengthening of
+superconductivity. Beyond the BCS phase, another FF′
+phase appear, before transitioning into the normal phase.
+Finally, at higher tam = 0.6 (magenta circle), ∆Q
+d instead
+clearly jumps from zero to a finite value with increasing
+magnetic field, showing the emergence of field-induced
+superconductivity.
+The remarkable finding of field-induced superconductivity can be understood by looking at the normal state
+band structures. For clarity we focus on the field-induced
+path marked in Fig. 1 and show in Fig. 3 the normal
+state Fermi surface of opposite spins for increasing B
+at fixed tam = 0.6. For B = 0 in (a), the Fermi surfaces of ↑-spin (yellow) and ↓-spin (blue) are split significantly, especially in regions away from the superconducting nodes (dashed green), implying that k, ↑ and −k, ↓
+electrons are far apart in energy in these regions. Consequently, spin-singlet pairing is energetically unfavorable, which explains the lack of zero-field superconductivity. As shown in (b), increasing the magnetic field to
+B = 0.38 compensates the spin-splitting due to altermagnetism on some parts of the Fermi surface. This feature
+is related to a topological nodal to nodeless transition in
+altermagnets [27]. In particular, regions of the Fermi surface near kx = 0 have now almost no spin splitting and
+spin-singlet zero-momentum BCS pairing can thus be realized here, see the pair density plot in (d). Notably,
+finite B makes the Fermi surfaces asymmetric between
+ky = 0 and kx = 0, with parts near ky = 0 regions still
+showing notable spin splitting. Now, since a d-wave superconducting gap has maxima in its anti-nodal regions
+(i.e. around the kx,y = 0 regions), a finite condensation
+energy is possible by producing spin-singlet pairing near
+the kx = 0 regions. In contrast, for s-wave superconductors the gap is isotropic and thus the condensation energy
+gain with pairing only around the kx = 0 regions does
+not stabilize s-wave superconductivity. This makes fieldinduced s-wave superconductivity absent in the s-wave
+
+B=0
+
+B=0.38
+(b)
+
+(a)
+
+B=0.48
+(c)
+
+B=0.38
+(d)
+
+FIG. 3. (a-c) Contour plots of the normal state electronic
+bands ξk↑ = 0 (yellow) and ξk↓ = 0 (blue) signifying the spinsplit Fermi surfaces present at tam = 0.6. Dashed green lines
+mark the d-wave superconducting order parameter nodes. (d)
+Pair density ⟨c†k c†−k ⟩.
+
+superconductivity phase diagram, see SM [26]. Further
+increase in magnetic field to B = 0.48 in (c) results in
+a separation of the two spin Fermi surfaces also in the
+kx = 0 regions. Subsequently, BCS pairing becomes unstable and finite-momentum FF′ pairing instead occurs,
+before eventually, for even stronger B, the spin-splitting
+is significant for all momenta and all types of superconductivity is destroyed.
+Discussion.—Considering spin-singlet superconductivity in altermagnets we find a finite-momentum (FF) superconducting phase in the absence of an applied magnetic field. This zero-field FF phase is dependent on
+coinciding superconducting gap and altermagnet nodes,
+and do not appear in an s-wave superconductor. In the
+presence of external magnetic field, we also uncover fieldinduced superconductivity, due to an intricate interplay
+between Fermi surface shape and superconducting condensation energy. Although we are primarily concerned
+with d-wave symmetry, our results are also directly applicable to g- and i-wave altermagnets, as long as the
+superconducting pairing at least partially has the same
+nodal structure, see SM [26]. We further validate that
+our finding of a zero-field FF phase is robust and present
+also when altermagnetism is induced by interactions [28],
+see SM.
+Our finding of zero-field finite-momentum superconductivity is remarkable since the net magnetization is always zero in altermagnets. Finding finite-momentum superconductivity in microscopic models in the absence of
+
+5
+applied magnetic field has been a long-standing unsolved
+theory problem [29–32], despite mounting experimental
+evidence of such a phase, often referred to as pair density
+waves [33–40]. Our work provides one straight-forward
+path to realize finite-momentum superconductivity likely
+applicable to many materials, including the possibility
+of being the origin of such a phase in the cuprate superconductors, without needing preceding charge density
+order [32, 34, 41–45]. Moreover, finite-momentum superconductivity may be important for technological applications, as e.g. illustrated by superconducting diode effects
+[46–48], opening up for large technological potential for
+superconducting altermagnets. Another remarkable feature of our results is the presence of a field-induced superconducting phase at experimentally accessible fields,
+see SM [26]. Such a phase is both rare [49–51] and unexpected, but has gained renewed interest after its recent observation in UTe2 [52]. Our work also opens for
+many other exotic possibilities of superconductivity. Investigating the relation of the finite-momentum Cooper
+pairs in altermagnets and odd-frequency pairing, or generally finite-energy pairs, is one interesting direction [53–
+55]. Additional presence of relativistic spin-orbit coupling can further provide a platform for studying the
+interplay of finite-momentum and topological superconductivity [56, 57].
+Although superconductivity has not yet been discovered experimentally in altermagnetic materials within the
+two years of their discovery, our results point out several promising directions. With too large altermagnetic
+spin-splitting only the normal phase is reached and thus
+limiting altermagnetism is favorable. Or, for strong altermagnetism, applying an external magnetic field, can
+be used to induce superconductivity. Moreover, d-wave
+superconductivity is likely much more amenable to altermagnetism than conventional s-wave superconductivity. Alternatively, doping altermagnet insulators, making
+them metallic, is also a promising route.
+Note added: After submission we became aware of
+Refs. [58] and [59], where a zero-field finite-momentum
+phase is discussed in the context of cuprates with
+nematic-spin-nematic order and organic conductors with
+antiferromagnetism, respectively.
+Acknowledgments.— We gratefully acknowledge financial support from the Knut and Alice Wallenberg Foundation through the Wallenberg Academy Fellows program
+the Swedish Research Council (Vetenskapsrådet grant
+agreement no. 2018-03488) The computations were enabled by resources provided by the National Academic
+Infrastructure for Supercomputing in Sweden (NAISS) at
+the Uppsala Multidisciplinary Center for Advanced Computational Science (UPPMAX) funded by the Swedish
+Research Council through grant agreement no. 202206725.
+
+[1] L. Šmejkal, R. González-Hernández, T. Jungwirth, and
+J. Sinova, Sci. Adv. 6, eaaz8809 (2020).
+[2] I. I. Mazin, K. Koepernik, M. D. Johannes, R. GonzálezHernández, and L. Šmejkal, Proc. Natl. Acad. Sci. 118,
+e2108924118 (2021).
+[3] L. Šmejkal, J. Sinova, and T. Jungwirth, Phys. Rev. X
+12, 031042 (2022).
+[4] Z. Feng, X. Zhou, L. Šmejkal, L. Wu, Z. Zhu, H. Guo,
+R. González-Hernández, X. Wang, H. Yan, P. Qin,
+X. Zhang, H. Wu, H. Chen, Z. Meng, L. Liu, Z. Xia,
+J. Sinova, T. Jungwirth, and Z. Liu, Nature Electronics
+5, 735 (2022).
+[5] S. Hayami, Y. Yanagi, and H. Kusunose, J. Phys. Soc.
+Jpn. 88, 123702 (2019).
+[6] S. Hayami, Y. Yanagi, and H. Kusunose, Phys. Rev. B
+102, 144441 (2020).
+[7] R. D. Gonzalez Betancourt, J. Zubáč, R. GonzalezHernandez, K. Geishendorf, Z. Šobáň, G. Springholz,
+K. Olejnı́k, L. Šmejkal, J. Sinova, T. Jungwirth, S. T. B.
+Goennenwein, A. Thomas, H. Reichlová, J. Železný, and
+D. Kriegner, Phys. Rev. Lett. 130, 036702 (2023).
+[8] H. Bai, Y. C. Zhang, Y. J. Zhou, P. Chen, C. H. Wan,
+L. Han, W. X. Zhu, S. X. Liang, Y. C. Su, X. F. Han,
+F. Pan, and C. Song, Phys. Rev. Lett. 130, 216701
+(2023).
+[9] L. Šmejkal, J. Sinova, and T. Jungwirth, Phys. Rev. X
+12, 040501 (2022).
+[10] D. Scalapino, Physics Reports 250, 329 (1995).
+[11] C. C. Tsuei and J. R. Kirtley, Rev. Mod. Phys. 72, 969
+(2000).
+[12] J. Bardeen, L. N. Cooper, and J. R. Schrieffer, Phys.
+Rev. 108, 1175 (1957).
+[13] P. Fulde and R. A. Ferrell, Phys. Rev. 135, A550 (1964).
+[14] A. I. Larkin and Y. N. Ovchinnikov, Zh. Eksp. Teor. Fiz.
+47, 1136 (1964).
+[15] I. I. Mazin, arXiv:2203.05000 (2022).
+[16] S.-B. Zhang,
+L.-H. Hu,
+and T. Neupert,
+arXiv:2302.13185 (2023).
+[17] M. Wei, L. Xiang, F. Xu, L. Zhang, G. Tang, and
+J. Wang, arXiv:2308.00248 (2023).
+[18] J. A. Ouassou, A. Brataas, and J. Linder, Phys. Rev.
+Lett. 131, 076003 (2023).
+[19] C. W. J. Beenakker and T. Vakhtel, Phys. Rev. B 108,
+075425 (2023).
+[20] M. Papaj, arXiv:2305.03856 (2023).
+[21] H. G. Giil and J. Linder, “Superconductor-altermagnet
+memory functionality without stray fields,” (2023),
+arXiv:2308.10939 [cond-mat.supr-con].
+[22] The choice is motivated by the similar momentum dependence of altermagnetism and superconductivity in parent
+and doped cuprate material La2 CuO4 , respectively [3].
+[23] A. Datta, K. Yang, and A. Ghosal, Phys. Rev. B 100,
+035114 (2019).
+[24] We do not consider the LO phase due to additional complexity of related charge density waves [23], as already
+the FF phase shows that finite-momentum pairing is favorable. The total current of the FF phase is still zero,
+despite the finite Q [13].
+[25] K. Fossheim and A. Sudbø, Superconductivity: Physics
+and Applications (Wiley, 2005).
+[26] See Supplementary Material where we show the phase di-
+
+6
+agram for s-wave superconductivity, the ground state energy in full (Qx , Qy )-space, representative line cuts to illustrate phase transitions between different Q-values, the
+d-wave phase diagram for smaller interaction strength,
+and results for a different, interaction-driven, model of
+altermagnetism, also including Refs.[60, 61].
+[27] R. M. Fernandes, V. S. de Carvalho, T. Birol, and R. G.
+Pereira, Phys. Rev. B 109, 024404 (2024).
+[28] T. A. Maier and S. Okamoto, Phys. Rev. B 108, L100402
+(2023).
+[29] H. Chen and H.-J. Gao, Nature 618, 910 (2023).
+[30] Y.-M. Wu, P. A. Nosov, A. A. Patel, and S. Raghu,
+Phys. Rev. Lett. 130, 026001 (2023).
+[31] K. S. Huang, Z. Han, S. A. Kivelson, and H. Yao, npj
+Quantum Materials 7, 17 (2022).
+[32] D. F. Agterberg, J. S. Davis, S. D. Edkins, E. Fradkin,
+D. J. Van Harlingen, S. A. Kivelson, P. A. Lee, L. Radzihovsky, J. M. Tranquada, and Y. Wang, Annu. Rev.
+Condens. Matter Phys. 11, 231 (2020).
+[33] M. H. Hamidian, S. D. Edkins, S. H. Joo, A. Kostin,
+H. Eisaki, S. Uchida, M. J. Lawler, E.-A. Kim, A. P.
+Mackenzie, K. Fujita, J. Lee, and J. C. S. Davis, Nature
+532, 343 (2016).
+[34] S. D. Edkins, A. Kostin, K. Fujita, A. P. Mackenzie,
+H. Eisaki, S. Uchida, S. Sachdev, M. J. Lawler, E.-A.
+Kim, J. C. Séamus Davis, and M. H. Hamidian, Science
+364, 976 (2019).
+[35] X. Liu, Y. X. Chong, R. Sharma, and J. C. S. Davis,
+Science 372, 1447 (2021).
+[36] S. Kasahara, Y. Sato, S. Licciardello, M. Čulo, S. Arsenijević, T. Ottenbros, T. Tominaga, J. Böker, I. Eremin,
+T. Shibauchi, J. Wosnitza, N. E. Hussey, and Y. Matsuda, Phys. Rev. Lett. 124, 107001 (2020).
+[37] H. Chen, H. Yang, B. Hu, Z. Zhao, J. Yuan, Y. Xing,
+G. Qian, Z. Huang, G. Li, Y. Ye, S. Ma, S. Ni, H. Zhang,
+Q. Yin, C. Gong, Z. Tu, H. Lei, H. Tan, S. Zhou, C. Shen,
+X. Dong, B. Yan, Z. Wang, and H.-J. Gao, Nature 599,
+222 (2021).
+[38] Q. Gu, J. P. Carroll, S. Wang, S. Ran, C. Broyles, H. Siddiquee, N. P. Butch, S. R. Saha, J. Paglione, J. C. S.
+Davis, and X. Liu, Nature 618, 921 (2023).
+[39] Y. Liu, T. Wei, G. He, Y. Zhang, Z. Wang, and J. Wang,
+Nature 618, 934 (2023).
+[40] H. Zhao, R. Blackwell, M. Thinel, T. Handa, S. Ishida,
+X. Zhu, A. Iyo, H. Eisaki, A. N. Pasupathy, and K. Fujita, Nature 618, 940 (2023).
+[41] Z. Dai, Y.-H. Zhang, T. Senthil, and P. A. Lee, Phys.
+Rev. B 97, 174511 (2018).
+[42] Z. Dai, T. Senthil, and P. A. Lee, Phys. Rev. B 101,
+064502 (2020).
+[43] P. A. Lee, Phys. Rev. X 4, 031017 (2014).
+[44] M. R. Norman and J. C. S. Davis, Proc. Natl. Acad. Sci.
+115, 5389 (2018).
+[45] D. Chakraborty, M. Grandadam, M. H. Hamidian,
+J. C. S. Davis, Y. Sidis, and C. Pépin, Phys. Rev. B
+100, 224511 (2019).
+[46] F. Ando, Y. Miyasaka, T. Li, J. Ishizuka, T. Arakawa,
+Y. Shiota, T. Moriyama, Y. Yanase, and T. Ono, Nature
+584, 373 (2020).
+[47] A. Daido, Y. Ikeda, and Y. Yanase, Phys. Rev. Lett.
+128, 037001 (2022).
+[48] N. F. Q. Yuan and L. Fu, Proc. Nat. Acad. Sci. 119,
+e2119548119 (2022).
+[49] H. W. Meul, C. Rossel, M. Decroux, O. Fischer, G. Re-
+
+menyi, and A. Briggs, Phys. Rev. Lett. 53, 497 (1984).
+[50] S. Uji, H. Shinagawa, T. Terashima, T. Yakabe,
+Y. Terai, M. Tokumoto, A. Kobayashi, H. Tanaka, and
+H. Kobayashi, Nature 410, 908 (2001).
+[51] T. Konoike, S. Uji, T. Terashima, M. Nishimura, S. Yasuzuka, K. Enomoto, H. Fujiwara, B. Zhang, and
+H. Kobayashi, Phys. Rev. B 70, 094514 (2004).
+[52] S. Ran, I.-L. Liu, Y. S. Eo, D. J. Campbell, P. M.
+Neves, W. T. Fuhrman, S. R. Saha, C. Eckberg, H. Kim,
+D. Graf, F. Balakirev, J. Singleton, J. Paglione, and
+N. P. Butch, Nat. Phys. 15, 1250 (2019).
+[53] D. Chakraborty and A. M. Black-Schaffer, New Journal
+of Physics 23, 033001 (2021).
+[54] D. Chakraborty and A. M. Black-Schaffer, Phys. Rev.
+Lett. 129, 247001 (2022).
+[55] D. Chakraborty and A. M. Black-Schaffer, Phys. Rev. B
+106, 024511 (2022).
+[56] D. Zhu, Z.-Y. Zhuang, Z. Wu,
+and Z. Yan,
+arXiv:2305.10479 (2023).
+[57] S. A. A. Ghorashi, T. L. Hughes,
+and J. Cano,
+arXiv:2306.09413 (2023).
+[58] R. Soto-Garrido and E. Fradkin, Phys. Rev. B 89, 165126
+(2014).
+[59] S. Sumita, M. Naka, and H. Seo, Phys. Rev. Res. 5,
+043171 (2023).
+[60] K. Y. T. Nagamiya and R. Kubo, Advances in Physics
+4, 1 (1955).
+[61] A. N. Bogdanov, A. V. Zhuravlev, and U. K. Rößler,
+Phys. Rev. B 75, 094425 (2007).
+
+1
+
+Supplementary Material for
+“Zero-field finite-momentum and field-induced superconductivity in altermagnets”
+In this Supplementary Material (SM), we provide additional information to support our results and conclusions in
+the main text. In particular, in order, we provide the phase diagram for s-wave superconductivity in the presence
+of an applied magnetic field in altermagnets for the same parameters as used for d-wave superconductivity in the
+main text. We then display the ground state energy of the d-wave superconductor treated in the main text in the
+full (Qx , Qy )-space for two representative B, tam values and provide line cuts for varying tam for fixed B = 0.35 in
+order to illustrate phase transitions between different Q-values. In addition, we show the phase diagram for smaller
+nearest-neighbor attractive interaction strength than in the main text, and, finally, we show the robustness of our
+findings using a very different model of altermagnetism based on altermagnetism generated by electronic interaction.
+
+Phase diagram for s-wave superconductivity
+
+In Fig. 1 of the main text we show the phase diagram of d-wave superconductivity in the simultaneous presence of
+altermagnetism and external magnetic field. Here, we report the corresponding phase diagram for s-wave superconductivity. We consider an onsite effective electron-electron attraction, resulting in the interaction Vk,k′ = −V , i.e. no
+momentum-dependent form factors, in contrast to Eq. (2) of the main text for d-wave superconductivity. Such an
+attraction leads to conventional spin-singlet s-wave superconductivity, with the superconducting order parameter ∆Q
+0
+no longer momentum-dependent and thus fully isotropic in momentum space. We again solve the self-consistent gap
+equation following the same procedure and using the same parameters as in the main text, but now with Vk,k′ = −V
+Q
+and ∆Q
+k = ∆0 in Eqs. (1-4) of the main text.
+
+0.4
+
+B
+
+0.3
+
+Normal
+
+0.2
+
+0.1
+
+BCS
+0
+0
+
+0.1
+
+0.2
+
+tam
+
+0.3
+
+0.4
+
+0.5
+
+FIG. S1. Phase diagram of s-wave superconductivity in the B-tam plane, indicating finite-momentum (FF) superconducting
+phase (gray), BCS zero-momentum superconductivity (green), and normal phase (white) with boundaries in-between (blue
+lines) (same as Fig. 1 in the main text but instead for s-wave superconductivity). Normal phase is identified as ∆Q
+0 < 0.0009
+for all Q values. Calculations are performed at a set of discrete points in the B-tam plane, spaced 0.025 apart, with blue lines
+drawn by taking the midpoint of the two values of tam hosting different phases for a fixed B.
+
+In Fig. S1 we show the resulting phase diagram in the B-tam plane. As clearly seen, we do not find a finitemomentum FF state for B = 0. The reason for not finding the FF state at zero field is the isotropic nature of
+s-wave superconductors. The electrons near the nodes of the altermagnet do not break the spin-degeneracy. As a
+result, the condensation energy gain due to BCS (Q = 0) pairing near the altermagnetic nodal regions prohibits the
+system to form any finite-momentum superconducting pairing. This is in contrast to d-wave superconductors where
+
+2
+the altermagnetic nodes coincides with the nodes of the superconductor, which essentially eliminates pairing at the
+altermagnet nodes. With increasing B, but staying at tam = 0, the FF phase appears, as is well-known [13]. This
+FF phase persists for finite tam , but the FF region shrinks for larger tam . Eventually, at large B and tam , the system
+goes into a normal phase with no superconductivity. The critical tam for the BCS to normal transition increases only
+slightly for high B, this essentially eliminates the region of field-induced superconductivity that is clearly present
+for d-wave superconductivity (although for some parameters small regions can still exist). Again, it is the lack of
+superconducting nodes in s-wave superconductors, that makes the interesting “Yoda-ear” phase diagram obtained for
+d-wave superconductors disappear here.
+
+Ground state energy as a function of (Qx , Qy )
+
+(a)
+
+(b)
+
+FIG. S2. Ground state energy E for d-wave superconductivity as a function of (Qx , Qy ) for tam = 0.25 and B = 0.175 (a)
+and B = 0.375 (b). Green circles indicate the energy minimum. For computational reasons, results are obtained for a smaller
+lattice of 200 × 200.
+
+In the main text, we only discuss uniaxial Q vectors, using the notation Q = (Qx , 0). This choice is motivated
+by our findings of the ground state energy in the full momentum space (Qx , Qy ). In Fig. S2, we demonstrate these
+results by plotting the ground state energy E in the full (Qx , Qy )-space for two representative B and tam values. We
+check for other B, tam values and find similar features. As seen in Fig. S2, the ground state energy minima clearly
+occur on the Qy = 0 line. Note that rotational symmetry is broken due to the presence of a finite B, as it is already
+evident from the Fermi surfaces shown in Fig. 3 of the main text. For B = 0 (not shown), the rotational symmetry
+is preserved and the energy minimum then occurs on both the Qy = 0 and Qx = 0 lines, at the same Qx /Qy values.
+These results establish that using only uniaxial Q = (Qx , 0) is sufficient.
+
+Phase transitions between different center-of-mass momenta Q
+
+The phase diagram in Fig. 1 of the main text is obtained by analyzing the ground state energy E as a function
+of varying Q. The richness of the phase diagram is due to the energy landscape and its development of multiple
+local minima as a function of Q. In Fig. S3 we illustrate this phenomenon by plotting the ground state energy as
+a function of Q ≡ Qx for B = 0.35 in order to capture several distinct phases seen in Fig. 1 in the main text and
+directly comparable to the green curves in Fig. 2(a,c) in the main text.
+Starting at tam = 0 (a), E has a unique minima near Q = 0.4. With increasing tam , this minima shifts to higher
+Q values (b,c). However, from tam ≈ 0.3 (b) a new minima additionally appears at a lower, still finite, Q value. The
+energy for this newly appearing minima eventually becomes equivalent to the minima at the higher Q (c,d) and then
+even becomes the new global minima with increasing tam (d). This sudden change in Q is evident in the green curves
+in Fig. 2(a,c) in the main text near tam = 0.38. We also indicate this transition as a dashed line in Fig. 1 in the main
+text. Further increasing tam causes the minima at the higher Q to disappear (e,f). For these tam strengths, the energy
+for Q = 0 also becomes lower and then becoming comparable to the energy of the Q ̸= 0 minima (g), eventually
+making the BCS Q = 0 state the global energy minima (h) for even larger tam , thus making BCS superconductivity
+
+3
+appear. Finally, increasing tam even further gives no non-zero solution of the superconducting gap equation, resulting
+into a transition to the normal phase.
+
+=0
+
+am
+
+0
+
+−5
+
+−5
+
+x 10
+
+2
+
+(b)
+
+t
+
+=0.3
+
+am
+
+0
+
+−5
+
+x 10
+
+4
+
+(c)
+
+tam=0.35
+
+0
+
+−2
+
+−10
+
+tam=0.38
+
+2
+0
+
+0.2
+
+Q
+
+0.4
+
+0.6
+
+−15
+0
+
+0.2 Q 0.4
+
+0.6
+
+x 10
+2 (e)
+
+5
+
+x 10
+(f)
+
+E−E(Q=1)
+
+tam=0.4
+
+0
+
+−2
+−4
+
+tam=0.42
+
+0
+
+−5
+
+0.6
+
+0.6
+
+5
+
+x 10
+(g)
+
+1
+tam=0.45
+
+0
+
+0.2 Q 0.4
+
+0.6
+
+−15
+0
+
+0.2 Q 0.4
+
+0.6
+
+x 10
+(h)
+
+tam=0.5
+
+0
+
+−1
+
+−10
+
+−10
+0
+
+−6
+0
+
+−4
+
+−5
+
+−6
+0.2 Q 0.4
+
+0.2 Q 0.4
+−5
+
+−5
+
+−5
+
+−4
+
+−6
+0
+E−E(Q=1)
+
+−6
+0
+
+−4
+
+E−E(Q=1)
+
+−4
+
+E−E(Q=1)
+
+x 10
+(d)
+
+−2
+
+−2
+
+−8
+0
+
+E−E(Q=1)
+
+t
+
+2
+
+5
+
+E−E(Q=1)
+
+E−E(Q=1)
+
+−5
+
+x 10
+(a)
+
+E−E(Q=1)
+
+−5
+
+4
+
+0.2 Q 0.4
+
+0.6
+
+−2
+0
+
+0.2 Q 0.4
+
+0.6
+
+FIG. S3. Ground state energy E for d-wave superconductivity as a function of Q = Qx for a fixed B = 0.35 and increasing tam .
+For visualization purposes we subtract E at Q = 1 where ∆Q
+d = 0.
+
+Phase diagram of d-wave superconductivity with smaller interaction strength
+
+In Fig. 1 of the main text we show the ground state phase diagram of d-wave superconductivity with the attractive
+nearest-neighbor interaction strength V = 2. Here in Fig. S4 we complement those results by showing the phase
+diagram using a smaller interaction strength, V = 1.3. Remarkably, the phase diagram is qualiatitively very similar
+with a “yoda-ear” also for V = 1.3. This establish that our results are stable with regards to the strength of
+superconductivity. We however note that the scale on each axis changes, such the critical fields are now reduced.
+This is to be expected since reducing V leads to a reduced value of ∆d and hence the overall energy scale for
+superconductivity.
+In Fig. S4 we see that field-induced superconductivity starts occurring for fields as low as 0.06. With further lowering
+V , the magnetic fields required to have field-induced superconductivity can be made even lower (not shown). In order
+to get an estimate about the magnitude of fields necessary we note that the magnetic fields in Fig. S4 and Fig. 1 of
+the main text are in units of µB /t. We can then make an estimate of the magnetic field in Tesla. Taking a typical
+value of t = 100 meV and with µB = 5.8 × 10−2 meV/Tesla, a field value of 0.01 in units of µB /t is approximately
+16 Tesla. Magnetic fields of 16 Tesla, and multiples thereof, are easily accessible in high-magnetic field experiments
+often used for superconductors. It is therefore realistic to assume field-induced superconductivity can be achieved in
+altermagnets.
+
+Interaction-induced model for altermagnetism
+
+In the main text, we show results for an altermagnetic model where the band structure alone gives d-wave spinsplitting, i.e. altermagnetism, due to the electric crystal potential. This is the original proposal for altermagnetism.
+There also exists now other proposals of generating altermagnetism. In particular, it has very recently been shown that
+electronic interaction combined with band structure effects can generate altermagnetism [28]. In order to illustrate
+the robustness of our results to different models of altermagnetism, we adapt in this section this interaction-induced
+altermagnetic model and investigate the nature of superconductivity.
+
+4
+0.2
+0.18
+
+Normal
+
+0.16
+0.14
+0.12
+B
+
+FF'
+0.1
+
+FF
+0.08
+
+BCS
+
+Normal
+
+0.06
+0.04
+0.02
+
+BCS
+
+0
+0
+
+0.05
+
+0.1
+
+tam 0.15
+
+0.2
+
+0.25
+
+FIG. S4. Phase diagram of d-wave superconductivity in the B-tam plane indicating finite-momentum (FF) superconducting
+phase (gray), BCS zero-momentum superconductivity (green), and normal phase (white) with boundaries in-between (blue
+lines) and between different FF phases (dashed blue line), for a smaller interaction strength V = 1.3 than in the main text
+(there V = 2). Normal phase is identified as ∆Q
+d < 0.0002 for all Q values. Calculations are performed at a set of discrete
+points in the B-tam plane, spaced 0.02 apart, with blue lines drawn by taking the midpoint of the two values of tam hosting
+different phases for a fixed B.
+
+Following Ref. [28], we consider a square lattice with two sublattices with the non-interacting, kinetic energy, given
+in momentum space as
+
+
+X
+H̃0 =
+ξAA (k)c†Akσ cAkσ + ξBB (k)c†Bkσ cBkσ + ϵAB (k) c†Akσ cBkσ + h.c. ,
+(S1)
+k,σ
+
+where c†A/Bkσ (cA/Bkσ ) are the creation (annihilation) operators of an electron with spin σ, momentum k on the
+sublattice A/B, with
+ξAA (k) = −2t1 cos(2kx ) − 2t2 cos(2ky ) − µ,
+ξBB (k) = −2t2 cos(2kx ) − 2t1 cos(2ky ) − µ,
+ϵAB (k) = −2t(cos(kx ) + cos(ky )).
+
+(S2)
+
+Here t is the nearest-neighbor hopping amplitude, t1/2 are third-nearest-neighbor hopping amplitudes, and µ is the
+chemical potential tuned to fix the average density of electrons. We here also use the tilde-symbol to indicate that
+this is an alternative, interaction-induced, model for altermagnetism. We then add two kinds of interactions. First,
+an onsite repulsive Hubbard interaction is added,
+X
+H̃U =
+U ni↑ ni↓ ,
+(S3)
+i
+
+where niσ is the number operator and U is the onsite coulomb repulsion. A mean-field decoupling of the Hubbard
+interaction in the Hartree channel gives
+H̃U,MF =
+
+X1
+iσ
+
+2
+
+U (ρniσ − mi σniσ ) + constant,
+
+(S4)
+
+where ρ is the average electron density per sublattice and mi = ⟨ni↑ − ni↓ ⟩ is the magnetization. A homogeneous
+solution of the form mi = mA = −mB ≡ m gives a sublattice dependence of the magnetization, and, if non-zero,
+supports either antiferromagnetism or altermagnetism. As shown in Ref. [28], altermagnetism appears when there is a
+sublattice asymmetry with ξAA (k) ̸= ξBB (k). From Eq. (S2), the condition ξAA (k) ̸= ξBB (k) is equivalent to t1 ̸= t2 .
+
+5
+Next, in order to generate d-wave superconductivity, as in the main text, we also add a nearest-neighbor attractive
+interaction,
+X
+H̃V =
+V niσ njσ′ ,
+(S5)
+⟨ij⟩σσ ′
+
+where V is the nearest-neighbor attractive strength. Upon mean-field decoupling in the spin-singlet Cooper channel
+this term can be written in the same form as Eq. (3) of the main text,
+
+X Q
+∆k cA−k+Q/2↓ cBk+Q/2↑ + H.c.
+H̃V,MF =
+k
+
++ constant,
+
+(S6)
+
+where ∆Q
+k is the spin-singlet superconducting order parameter obtained from the self-consistency relation
+∆Q
+k =
+
+X1
+k′
+
+2
+
+Vk,k′ ⟨c†Ak′ +Q/2↑ c†B−k′ +Q/2↓ + h.c.⟩,
+
+(S7)
+
+with Q being the finite center-of-mass momentum of the Cooper pair and the interaction Vk,k′ given by
+Vk,k′ = −V (γ(k)γ(k ′ ) + η(k)η(k ′ )) ,
+
+(S8)
+
+which is the same as Eq. (2) of the main text.
+†
+ The total Hamiltonian, H̃ = H̃0 + H̃U,MF
+ + H̃V,MF can be written in a matrix form using the basis Ψ =
+c†Ak+Q/2↑ , c†Bk+Q/2↑ , cA−k+Q/2↓ , cB−k+Q/2↓ as
+
+H̃ =
+
+X
+
+Ψ† ĤΨ + constant,
+
+(S9)
+
+k
+
+with
+
+ξAA (k + Q/2) − M
+ϵAB (k + Q/2)
+0
+∆Q
+k
+ ϵAB (k + Q/2)
+
+ξBB (k + Q/2) + M
+∆Q
+0
+k
+.
+Ĥ = 
+Q
+
+0
+∆k
+−ξAA (−k + Q/2) − M
+−ϵAB (−k + Q/2) 
+∆Q
+0
+−ϵAB (−k + Q/2)
+−ξBB (−k + Q/2) + M
+k
+
+
+(S10)
+
+Here we define M = 12 U m, while the spin-independent Hartree shift term 12 U ρ of Eq. (S4) is absorbed in µ. We then
+follow the same procedure as in the main text to find the ground state by self-consistently solving for all the order
+parameters and find the minima in the energy by varying Q. In addition to ∆Q
+s,d as in the main text, here M is
+another order parameter which must also be obtained self-consistently. In the following, we report results for average
+density per sublattice ρ = 0.9, V = 2, using t = 1 as the energy unit and the same system size as in the main text.
+We first fix t1 − t2 = 0.2 and show |M |, ∆Q
+d , and Q in Fig. S5 (a-c) with varying U . For U ≤ 3.7, there is no
+magnetization, |M | = 0. In this regime of U , uniform BCS d-wave superconductivity exists with Q = 0. Note that the
+Q
+extended s-wave order parameter ∆Q
+s is very small compared to ∆d and hence is not shown. At a critical U = 3.8,
+|M | acquires a finite large value and then increases linearly with further increase of U . The corresponding Fermi
+surfaces are shown in (g) for U = 4.6. Due to finite |M | and asymmetry t1 − t2 , the Fermi surfaces of ↑-spin (yellow)
+and ↓-spin (blue) are split, except along |kx | = |ky | and |kx ± ky | = π, with the former also present for the type of
+altermagnetism in the main text. This shows that a finite interaction U generates altermagnetism with nodes along
+|kx | = |ky | and |kx ± ky | = π. Even though the nodes of the d-wave superconductivity (green dashed lines in (g)) now
+match partially with the nodes of this type of interaction-induced altermagnetism, we find a FF phase for a range of
+3.7 < U < 4.4, see (b,c). In order to analyze the robustness of this FF phase, we next fix a value of U = 4 in this
+regime of FF phase and instead vary the asymmetry t1 − t2 . The obtained results are shown in Fig. S5(d-f). For
+t1 − t2 = 0 (not shown), a finite |M | generates antiferromagnetism and not altermagnetism, with the ↑-spin and ↓-spin
+Fermi surfaces not split (not shown). Consequently, we find uniform BCS d-wave superconductivity for t1 − t2 ≤ 0.12
+Q
+due to no or low spin-splitting. However, the corresponding |∆Q
+d | is lower than |∆d | when |M | = 0, compare (b)
+and (e). Such reduction in |∆Q
+d | is due to the competition between superconductivity and antiferromagnetism. With
+increasing t1 − t2 , the spin-splitting increases and the FF phase appears. The FF phase survives for the range of
+
+6
+
+t1−t2=0.2
+
+U=4
+
+1.5
+
+|M|
+
+1
+
+U=4.6
+
+0.5
+
+0
+
+(b)
+
+0
+0.3
+
+(g)
+(e)
+
+FF
+
+|∆Q
+|
+d
+
+0.3
+|∆Q
+|
+d
+
+(d)
+
+1
+|M|
+
+(a)
+
+FF
+
+0.1
+
+0.1
+0
+
+0
+
+0.3
+
+0.2
+
+Q
+
+Q
+
+(c)
+
+(f)
+
+0.1
+0.1
+0
+3.5
+
+4
+
+U
+
+4.5
+
+0
+0.1
+
+0.2
+
+t1−t2
+
+0.3
+
+FIG. S5. Magnetization per sublattice |M | (a,d), superconducting order parameter ∆Q
+d (b,e), and values of Q (c,f) in the
+ground states (lowest total energy) at fixed t1 − t2 , varying U (a-c) and fixed U , varying t1 − t2 (d-f). (g) Normal-state Fermi
+surface of the ↑- (yellow) and ↓-spins (blue) showing interaction-generated altermagnetic spin-splitting. Dashed green lines
+mark the d-wave superconducting order parameter nodes.
+
+0.12 < t1 − t2 < 0.27. For larger t1 − t2 ≥ 0.27, |M | becomes zero since for these values of t1 − t2 the critical
+U needed to obtain finite |M | is larger than U = 4 used. With |M | = 0, uniform BCS d-wave superconductivity
+then re-appears, and now with a sudden increase in |∆Q
+d |, due to lack of competition between superconductivity and
+magnetism. These results establish that zero-field FF phase is present and exists in a large range of parameters
+also for interaction-induced altermagnetism. The alignment of the altermagnet and superconducting nodes is a key
+component, just as for the altermagnetism driven by band structure effects studied in the main text.
+Before ending, we note that we here do not consider an external magnetic field, but leave it for future work. We do
+this because it has long been known that magnetic field can induce a spin-flop transition in antiferromagnets [60, 61],
+where spins change their alignment in a non-trivial way. It would be interesting to see if the possibility of a spin-flop
+transition also exists in altermagnets and establish the associated changes to superconductivity. Given this possibility,
+different alignments of magnetization need to be considered and hence this go beyond the scope of this current work.
+We emphasize that the model in the main text, i.e., a model where altermagnetism is originated from electric crystal
+field potential, is not going to be affected by any spin-flop transition with magnetic field since there it is the lattice
+structure which solely decides magnetic structure and not interaction.
+In summary, the results in this section show that a zero-field FF phase is also obtained in a model where altermagnetism is generated by electronic interactions. This demonstrates that our findings in the main text are robust to
+different modeling schemes of altermagnetism.
+
+

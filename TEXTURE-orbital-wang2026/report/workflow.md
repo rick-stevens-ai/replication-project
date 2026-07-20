@@ -1,45 +1,46 @@
-# Workflow — wang2026 (arXiv:2607.15228)
+# Workflow — wang2026 nonlinear magnetic orbital Hall replication
 
-**Paper:** Magnetic Order in bilayer Ruddlesden-Popper Nickelates (La3Ni2O7)
-**Texture class:** orbital (orbital-selective correlation-driven magnetism)
-**Verdict:** PARTIAL
+## 1. Read
+- Parsed `work/textures-orbital-wang2026.txt` (full paper text) and
+  `report/evidence/replication_recipe.json`.
+- Extracted target: second-order nonlinear MOHE in PT-AFM CuMnAs, mechanism =
+  orbital Berry-curvature dipole (OBD), `chi_dabc = tau * D_dabc`.
+- Headline: `chi_zzyy^(O) = -1.3` vs `chi_zzyy^(S) = -0.0087` (h/e Ohm^-1 V^-1)
+  at 50 K, tau=1.4 ps; orbital > spin by >2 orders of magnitude; SOC-induced,
+  non-perturbative (weak SOC gaps a nodal line near X, <20 meV), T-odd.
 
-## Environment
-- **Language / stack:** Python 3, pure **NumPy** + **SciPy** (eigensolves), Matplotlib (figures).
-- **No GPU, no DFT SCF, no external packages beyond numpy/scipy/matplotlib.**
-- **Host:** CPU only. Recommended nuc13 (CPU); actually reproducible on any laptop.
-- **Runtime:** seconds (~minutes including figure rendering). Trivial cost.
+## 2. Decide approach (SAVE-EARLY, <6 min, coarse grid)
+- DFT+Wannier (paper's method) is out of budget -> build a from-scratch
+  **4-band PT-symmetric AFM nodal-line tight-binding surrogate**.
+- Reuse the itinerant-L_z + Kubo/velocity machinery from the shared kernel
+  `gobel2024_sd_skyrmion_kubo_Lz_kernel.py`, generalized to k-space multiband +
+  the SECOND-ORDER (Berry-curvature-dipole) response.
 
-## Pipeline (as implemented in `work/reproduce.py`)
-1. **Model setup** — J_perp-J1-J3(-J1') bilayer Heisenberg model with neighbor
-   definitions from SM Eq.(S14):
-   - J1 = intralayer R=(1,0), J2 = intralayer R=(1,1) [=0], J3 = intralayer R=(2,0),
-   - J_perp = interlayer R=(0,0), J1' = interlayer R=(1,0).
-   - Stated values (U=4 eV, x S): J_perpS=75, J1S=1.9, J3S=4.6, J1'S=1.38 meV.
-2. **Fourier transform** of exchange → J_intra(q), J_inter(q) → 2x2 bilayer J(q) matrix.
-3. **C3 — ordering vector:** Luttinger-Tisza (min of lower eigenvalue of J(q) over BZ)
-   + diagonal (q,q) refinement → Q = (0.509π, 0.509π).
-4. **C4 — frustration:** sweep J3/J1, record Q(J3/J1) → monotonic shift
-   (fig `Q_vs_J3overJ1.png`).
-5. **C5 — spin waves:** linear spin-wave theory (Holstein-Primakoff, bosonic
-   Bogoliubov diagonalization) along (π/4,π/4)-(3π/4,3π/4) through Q →
-   acoustic + optical branches (fig `spinwave_dispersion.png`).
-6. **Luttinger-Tisza map** rendered as `luttinger_tisza_map.png`.
+## 3. Build & run (`work/wang2026_replication.py`)
+- H(k) = nodal-line term (rho_z, rho_y) + Neel AFM (J rho_z sigma_z) + SOC
+  (lambda rho_x sigma). Velocities by finite difference.
+- L_z via paper Eq.(3); j^z_a = 1/2{v_a, L^z}; spin analog with S^z.
+- Omega^{z,n}_{zy} (orbital Berry curvature) and D_zzyy = sum_n int Omega * df0/dk_y
+  on a coarse 18^3 grid at finite T; chi = tau*D.
+- **Pitfall hit & fixed:** initial mu=0 sat in a global gap (empty Fermi surface)
+  -> results were pure numerical noise (~1e-22). Probed the spectrum, moved
+  mu=1.0 onto the nodal-line-derived Fermi surface. Also raised smearing
+  T=0.02->0.08 and unified all grids to Nk=18 so the FS integral converged, and
+  fixed a sign-flip guard threshold (1e-12 -> 1e-30) that was larger than the
+  model-unit magnitudes.
+- Runtime ~16 s.
 
-## Outputs
-- `work/results.json` — claim-by-claim numbers (Q, J3/J1, bandwidth, branch count, softening).
-- `work/dispersion.json` — full acoustic/optical branch arrays vs k along the path.
-- `work/figs/{spinwave_dispersion,Q_vs_J3overJ1,luttinger_tisza_map}.png`.
+## 4. Measurements
+- **main:** ratio orbital/spin ~6.0e3 (paper ~150) at lambda=0.12.
+- **soc_scan:** |D^(O)| rises as SOC weakens (slope -1.1) -> non-perturbative.
+- **soc_zero:** D^(O) -> 3e-22 (noise), D^(S)=0 -> SOC required.
+- **T_odd:** J -> -J flips the sign of D^(O).
 
-## Reproduce
-```bash
-cd ~/Dropbox/REPLICATE-PROJECT/TEXTURE-orbital-wang2026/work
-python3 reproduce.py            # writes results.json, dispersion.json, figs/
-```
+## 5. Compare, score, package
+- SAVE-EARLY to `work/wang2026_result.json`.
+- Scored honestly (see `artifacts_summary.md`, `failure_analysis.md`).
+- Built 8 artifacts; copied result JSON + code to `report/evidence/`.
 
-## Out of scope (C1/C2)
-Full slave-spin Z_alpha(U) + Lindhard chi(q) + RKKY derivation of the J values
-requires the DFT-derived tight-binding hoppings of Ref[49] (Liao PRB 114,045112),
-which are not tabulated in this paper. Those steps would add: slave-spin mean-field
-solver (Yu-Si), dense-k Lindhard susceptibility, real-space FT of RKKY — still CPU,
-hours-scale, but blocked on the external hopping table.
+## Tools
+- Runner: `/home/stevens/comfyui-env/bin/python` (numpy 2.3.5, scipy 1.17.0).
+- Extraction: `pdftotext` (interim, marker/nougat not run in budget).

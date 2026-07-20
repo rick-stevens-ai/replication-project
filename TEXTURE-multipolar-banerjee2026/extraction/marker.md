@@ -1,0 +1,3195 @@
+INTERIM: pdftotext fallback
+# marker.md extraction (interim, pdftotext) — banerjee2026
+
+> NOTE: True marker/nougat OCR not run in this subagent environment; this is a
+> pdftotext text dump serving as the interim extraction artifact. Equations
+> appear as linearized unicode. Section headers preserved as best-effort.
+
+Light-driven octupolar inverse Faraday effect and multipolar order in Mott insulators
+Saikat Banerjee ,1, ∗ Tara Steinhöfel ,1, † Florian Lange,2, ‡ Matthias Eschrig ,1, § and Holger Fehske
+
+arXiv:2605.08049v1 [cond-mat.str-el] 8 May 2026
+
+1
+
+1, 2, ¶
+
+Institute of Physics, University of Greifswald, Felix-Hausdorff-Strasse 6, 17489 Greifswald, Germany
+2
+Erlangen National High Performance Computing Center,
+Friedrich-Alexander-Universität Erlangen-Nürnberg, 91058 Erlangen, Germany
+(Dated: May 11, 2026)
+Hidden multipolar orders in spin-orbit-coupled Mott insulators provide a promising setting for
+correlated quantum matter, yet their control and detection remain major challenges. Here, we
+demonstrate that circularly polarized light enables both in 4d2 /5d2 systems with edge-sharing octahedra. Using a Floquet Schrieffer-Wolff expansion of a driven Hubbard-Kanamori model, we derive
+a low-energy multipolar Hamiltonian with two qualitatively new light-driven terms. One is an effective static field that couples linearly to the magnetic octupole, realizing an octupolar inverse Faraday
+effect. The other is a bond-dependent anisotropic exchange interaction absent in equilibrium. These
+two couplings are the key result of this work: the first provides a direct optical handle on hidden
+octupolar order, while the second reorganizes the multipolar exchange landscape and opens an enlarged Kitaev-like multipolar liquid regime. Their interplay produces a nonequilibrium multipolar
+phase space inaccessible in equilibrium, enabling optical tuning among antiferro-octupolar, ferrooctupolar, partially polarized ferro-quadrupolar, Ising octupolar, and multipolar liquid phases. We
+further show that the induced multipolar order couples to the lattice, generating reversible trigonal
+and tetragonal distortions that provide structural fingerprints in pump-probe experiments. Our
+work establishes a general mechanism for the optical generation, control, and detection of hidden
+multipolar quantum states.
+
+I.
+
+INTRODUCTION
+
+Mott insulators exhibit emergent quantum phenomena
+driven by strong electronic correlations. When spin-orbit
+coupling (SOC) is also significant, the resulting entanglement of spin and orbital degrees of freedom can generate
+ordered states that extend far beyond conventional dipolar magnetism [1–9]. Multipolar orders are among the
+most striking examples, especially quadrupolar and octupolar states in spin-orbit-coupled Mott insulators [10–
+19]. These higher-rank moments originate from the combined effects of strong SOC and electronic configuration,
+and can support unconventional ordered phases and exotic excitations with pronounced thermodynamic and dynamical signatures [10, 20–24]. Yet precisely because
+such orders are often “hidden” from standard probes,
+their selective detection and control remain a central
+challenge. This raises a natural question: can one externally generate, manipulate, and detect hidden multipolar order in a controlled and reversible manner? Recent experimental work [25] has established light-induced
+hidden states as an active frontier in correlated quantum
+materials, motivating the question of whether similarly
+direct optical control can be extended to hidden multipolar order. In this work, we show that periodic driving by
+circularly polarized light (CPL) provides a direct route
+to do so.
+
+∗ saikat.banerjee@uni-greifswald.de
+† s-ttstei@uni-greifswald.de
+‡ florian.lange@fau.de
+
+§ matthias.eschrig@uni-greifswald.de
+
+¶ fehske@physik.uni-greifswald.de
+
+Our central result is that CPL applied to a spin-orbitcoupled 4d2 /5d2 Mott insulator generates an effective
+static response field that couples linearly and selectively
+to magnetic octupole moments. In direct analogy to
+the inverse Faraday effect in spin systems, we identify
+this mechanism as an octupolar inverse Faraday effect
+(OIFE). The OIFE provides a direct optical handle on
+a hidden higher-rank multipolar degree of freedom and
+thereby establishes a nonequilibrium route to octupolar
+control that is absent in equilibrium (see Fig. 1). While
+our previous work [26] established the conventional inverse Faraday effect in Mott insulators through lightinduced effective fields coupled to spin moments, the
+present work goes substantially beyond that setting by
+showing that the drive can couple directly to magnetic
+octupole moments and simultaneously induce a bonddependent anisotropic multipolar exchange interaction.
+
+Spin-orbit & Hund's rule
+coupling
+
+CPL pump
+
+Octupolar
+inverse Faraday Eﬀect
+
+X-ray probe
+
+FIG. 1. Schematic illustration of the central mechanism considered in this work: Circularly polarized light
+(CPL) incident on an ideal octahedron generates a local octupolar moment (illustrated by the red arrow) via the octupolar inverse Faraday effect. Through coupling to trigonal
+lattice distortions, this local electronic response drives a structural distortion that can be detected by x-ray diffraction. The
+effect is reversible and disappears once the light is switched
+off.
+
+
+---PAGE BREAK---
+2
+This induced anisotropy is the second key result of the
+paper. Its interplay with the OIFE produces a qualitatively new nonequilibrium multipolar Hamiltonian and,
+with it, a phase space that is inaccessible in the undriven
+system.
+A central consequence of these two drive-induced ingredients is that the OIFE and the anisotropic exchange do
+not merely perturb an underlying ordered phase, but reorganize the low-energy multipolar landscape. Together,
+they produce a third major outcome of this work: a
+nonequilibrium multipolar phase diagram that is inaccessible in the undriven system. In particular, the induced
+anisotropy strongly promotes and broadens a Kitaevlike multipolar liquid regime, while the OIFE acts as
+a direct conjugate field to the octupolar degree of freedom. The resulting driven phase space contains antiferrooctupolar (AFO), ferro-octupolar (FO), partially polarized ferro-quadrupolar (PPFQ), and multipolar liquid
+(ML) regimes. We also identify a likely Ising octupolar
+(IO) order in the intermediate region between the PPFQ
+and ML phases. This intermediate regime is also noteworthy because related noncollinear multipolar textures
+have been proposed to support ferroelectric polarization,
+suggesting a possible connection to multipolar multiferroicity [19, 23].
+Before presenting the theoretical framework and main
+results, we briefly comment on the material setting and
+validity regime of the model. Multipolar order has recently attracted considerable interest in several 4d2 /5d2
+double perovskites, including osmates and rhenates such
+as Ba2 YXO6 (X = Os, Re; Y = Ca, Mg, Na) [27]. Both experimental [15, 20, 28–30] and theoretical [16, 22, 31–33]
+studies suggest that several of these compounds support
+bulk octupolar order, whereas certain surface terminations may favor quadrupolar order [34]. Most of these
+systems are based on corner-sharing octahedra. Here, by
+contrast, we consider a complementary class of 4d2 /5d2
+Mott insulators with edge-sharing octahedra, as illustrated in Fig. 2(a). Such geometries are well known from
+Kitaev-like materials such as α-RuCl3 [35] and the honeycomb iridates [36]. Here, we mention ReCl5 [37] only
+as an illustrative example of compound with the appropriate edge-sharing geometry and d2 electronic configuration, rather than as specific targets of the present
+work [38–40]. Its role here is simply to show that the
+underlying structural motif is realistic. More broadly,
+related non-Kramers multipolar degrees of freedom in f 2
+heavy-fermion compounds [41] and symmetry-selective
+responses in recently proposed d-wave altermagnets [42]
+suggest that the mechanism discussed here may extend
+beyond the specific d2 edge-sharing setting.
+To capture the driven low-energy physics, we employ
+a generalized time-dependent Floquet Schrieffer-Wolff
+transformation (FSWT) [26, 43] and derive an effective model for quadrupolar and octupolar moments in
+a spin-orbit-coupled Mott insulator. This effective description contains precisely the two nonequilibrium ingredients that define our main result: the OIFE and the
+
+driven bond-dependent anisotropic exchange interaction.
+We solve the resulting model by exact diagonalization
+(ED) to determine the multipolar phases as functions
+of the effective control parameters [44]. Our analysis
+shows that the interplay between the OIFE and the induced anisotropy stabilizes FO and PPFQ order over a
+broad region of parameter space. In addition, we find IO
+and a multipolar liquid phase at intermediate and large
+anisotropy over finite OIFE. To complement the EDbased phase analysis, we further present representative
+density matrix renormalization group (DMRG) [45, 46]
+real-space textures, which provide a useful real-space consistency check of the dominant multipolar patterns in the
+numerically identified regimes. Importantly, these phases
+are light-induced: in the absence of CPL, only the AFO
+phase remains, consistent with earlier work [17, 18].
+At a phenomenological level, we further analyze how
+light-driven FO and PPFQ orders couple to lattice distortions. This leads to trigonal and tetragonal distortions of
+the ideal octahedral environment, respectively. We also
+estimate the corresponding mean static distortions in the
+ordered states. When the drive is turned off, these orders disappear and the lattice relaxes back toward the
+undistorted octahedral structure. This reversible on-off
+response provides a direct route for detecting otherwise
+hidden multipolar order. More broadly, Floquet engineering offers a controlled way to tune the effective multipolar exchange couplings. By varying the CPL frequency
+and intensity, one can navigate distinct multipolar sectors of the driven multipolar phase diagram and access
+qualitatively different nonequilibrium multipolar states.
+In summary, this work establishes a mechanism for the
+optical generation, control, and detection of hidden multipolar states in spin-orbit-coupled Mott insulators, as
+schematically presented in Fig. 1. CPL introduces qualitatively new terms into the low-energy multipolar Hamiltonian that is absent in equilibrium. Their interplay produces a rich nonequilibrium multipolar phase diagram
+containing various multipolar ordered regimes, and, crucially, opens an enlarged Kitaev-like liquid regime in the
+driven system. Our results therefore identify a novel
+route by which light can both directly address hidden
+octupolar order and engineer the anisotropic interactions needed to access liquid-like multipolar behavior. At
+the same time, the driven ordered states point toward
+symmetry-allowed lattice distortions, which provide reversible structural fingerprints of the hidden order.
+
+II.
+
+MICROSCOPIC MODELLING
+A.
+
+Atomic multipolar states
+
+We begin by modelling the low-energy atomic states
+relevant to 4d2 /5d2 Mott insulators. In a cubic environment, the unperturbed d-orbital levels split into a
+lower-energy t2g triplet and a higher-energy eg doublet,
+see Fig. 2. Hund’s rule causes the two electrons in the
+
+
+---PAGE BREAK---
+3
+the two spin-orbit-coupled states
+∣⇑⟩ =
+
+∣Jz = 2⟩ + ∣Jz = −2⟩
+√
+,
+2
+
+∣⇓⟩ = ∣Jz = 0⟩ .
+
+(1)
+
+The associated energy-level structure is shown in
+Fig. 2(b), and the corresponding spatial charge distribution of the pseudospin states is displayed in the upperright inset of Fig. 2. Since these states are associated
+with the angular-momentum projections Jz = 0, ±2, the
+Eg doublet lacks a magnetic dipole moment. Nevertheless, simple selection rules allow the doublet to host two
+quadrupole moments (time-reversal even) and one octupole moment (time-reversal odd). This follows from
+the nonzero matrix elements of the Stevens operators
+within the manifold: O20 = 3Jz2 − J2 , O22 = Jx2 − Jy2 ,
+and Txyz = Jx Jy Jz (here, the bar denotes symmetrization over all indices) [13, 14, 17, 19]. Normalizing the
+Stevens operators,
+O22
+√ → σ̃ x ,
+4 3
+
+FIG. 2. (a) Schematic representation of an edge-sharing octahedral lattice in which the transition-metal (TM) ions, shown
+as red spheres, form a honeycomb network and are driven
+by circularly polarized light (CPL). The three inequivalent
+nearest-neighbor bonds are labeled by x, y, and z. (b) Local
+octahedral environment of a TM ion coordinated by six ligand sites, shown as green spheres, together with the hierarchy
+of atomic energy levels. The cubic crystal field splits the d
+orbitals into the lower t2g and higher eg manifolds, while spinorbit coupling and crystal-field effects further separate the
+low-energy Eg doublet from the excited T2g triplet by an energy gap ∆. (c) Spatial charge distributions of the two states
+forming the low-energy Eg doublet. (d,e) Ligand-mediated
+hopping channels for a representative z bond. The hopping
+processes proceed through the ligand pz orbitals and involve
+the dyz and dzx orbitals on the neighboring TM sites. The
+relative signs of the TM–ligand hopping amplitudes are fixed
+by the Slater–Koster geometry; as a result, only the lower
+path in panel (d) and the upper path in panel (e) contribute
+with finite hopping amplitude.
+
+d2 configuration to form a total spin angular momentum
+S = 1 and a total effective orbital angular momentum
+L = 1 within the t2g manifold [47]. Strong SOC then
+produces a J = 2 manifold, which can further split into
+low-energy Eg and high-energy T2g manifolds through
+t2g − eg mixing [13, 48]. For relatively large SOC, the
+Eg -T2g gap, ∆ [cf. Fig. 2(b)], can be computed using
+standard second-order perturbation theory [17, 49–51].
+In the following, we focus on the low-energy nonKramers doublet denoted by Eg , which is represented by
+
+Txyz
+√ → σ̃ y ,
+2 3
+
+O20
+→ σ̃ z ,
+12
+
+(2)
+
+we identify an SU(2) algebra, i.e., [σ̃ α , σ̃ β ] = iϵαβγ σ̃ γ . In
+this pseudospin language, σ̃ y corresponds to the magnetic
+octupole Txyz , whereas σ̃ x and σ̃ z represent quadrupolar operators. This distinction will be central below,
+because the Floquet drive generates a direct conjugate
+field for the octupolar channel while simultaneously inducing anisotropic exchange that mixes octupolar and
+quadrupolar sectors.
+We note that σ̃ y transforms differently from σ̃ x and σ̃ z
+under the cubic point-group operations: σ̃ y is compatible with the full cubic symmetry, including the threefold rotations C3 ; σ̃ x and σ̃ z are more easily lifted
+by symmetry-lowering perturbations. Consequently, a
+cubic-symmetry-breaking distortion is expected to gap
+out, or strongly suppress, the quadrupolar components
+while leaving a comparatively low-energy octupolar degree of freedom intact. This phenomenological consideration has been invoked to explain the weak time-reversal
+symmetry breaking reported by muon spin resonance
+experiments in several osmate compounds [52]. Here,
+by contrast, we show that CPL does more than select
+between preexisting octupolar and quadrupolar tendencies: it dynamically couples these sectors, generating
+both a direct octupolar response field and light-induced
+anisotropic exchange channels.
+B.
+
+CPL on edge-sharing geometry
+
+Let us now focus on transition-metal (TM) ions in
+an edge-sharing octahedral geometry, as illustrated in
+Fig. 2(a). Two TM ions sharing an octahedral edge are
+connected by two distinct hopping paths, each mediated
+by a different ligand ion. These correspond to the upper
+and lower triangular geometries in Fig. 2(d,e). We apply
+CPL perpendicular to the honeycomb [111] plane of the
+
+
+---PAGE BREAK---
+4
+TM ions, cf. Fig. 2(a). Since CPL carries orbital angular momentum lph = ±1, it cannot couple linearly to the
+multipole moments; however, nonlinear coupling is generally allowed. In equilibrium, a bilinear coupling between
+octupolar and quadrupolar moments is also forbidden because these operators carry different time-reversal symmetry. The drive changes this situation by generating
+exchange processes that effectively breaks time-reversal
+symmetry and activate couplings that are absent in equilibrium.
+Consequently, CPL gives rise to two distinctly nonequilibrium couplings: First, it produces a static nonlinear
+response field that couples uniformly to the octupolar
+channel, namely the OIFE. Second, it induces bonddependent anisotropic exchange terms that mix octupolar and quadrupolar moments. On the honeycomb lattice, the underlying C3 symmetry further constrains this
+anisotropy to a bond-selective form. As we show below,
+these two terms are the central microscopic output of the
+Floquet derivation and form the basis of the light-induced
+phase space studied in the remainder of the paper.
+
+main purpose of this derivation is to show microscopically
+how CPL generates a direct octupolar response field and,
+at the same time, the anisotropic exchange channel that
+later opens the frustration-dominated Kitaev-like sector.
+The atomic Hubbard-Kanamori model is parameterized by the local Coulomb interaction U , Hund’s coupling
+JH , strong spin-orbit coupling λ, and the ligand chargetransfer energy ∆c . The relevant hopping processes include both the TM–ligand hopping tpd and the direct
+hopping t2 between neighboring TM ions, as illustrated
+in Fig. 2(d,e). The relative signs of the ligand-TM hopping amplitudes are fixed by the standard Slater-Koster
+rules [53]. Throughout this work, we use units where
+̵ = e = 1.
+h
+In the presence of CPL, these hopping processes acquire Peierls phases. The phase for hopping between
+neighboring TM sites is ϕij (t) = −rij ⋅ A(t), while the
+phase for hopping between TM and ligand sites is given
+by θil (t) = −ril ⋅ A(t). Here, i labels a TM site and l
+labels a ligand site. The time-dependent vector potential
+is defined as follows:
+A(t) =
+
+C.
+
+Multipolar exchange Hamiltonian: Single-layer
+honeycomb plane in [111] direction
+
+We now briefly outline the derivation of the low-energy
+pseudospin Hamiltonian that captures both the OIFE
+and the bond-dependent anisotropic exchange interaction in d2 Mott insulators. Starting from the underlying Hubbard-Kanamori model (see Appendix A), we
+perform the FSWT in the presence of ligand-mediated
+hopping processes and derive the effective quadrupoleoctupole exchange Hamiltonian given in Eq. (4). The
+
+E0
+(x̂ sin Ωt + ŷ cos Ωt) .
+Ω
+
+The explicit tight-binding Hamiltonian is given in
+Eq. (A1b) of Appendix A. To derive the effective model,
+we consider a four-site cluster along the z bond and use
+cubic symmetry to obtain the corresponding interactions
+on the x and y bonds [54, 55]; see Fig. 2(a). After
+performing the FSWT up to third order (also including specific relevant fourth order contributions, see the
+discussion below) and projecting the resulting Hamiltonian onto the Eg manifold [19, 26], we obtain the effective pseudospin exchange Hamiltonian in the prethermal
+regime:
+
+Heff = Jeff (ζ) ∑ (σ̃iy σ̃jy − σ̃ix σ̃jx − σ̃iz σ̃jz ) + Γ(3) (ζ) ∑ (σ̃iγ σ̃jy + σ̃iy σ̃jγ ) + hm (ζ) ∑ σ̃iy ,
+⟨ij⟩
+
+where σ̃iγ = σ̃iz cos ϕγ + σ̃ix sin ϕγ for bonds along the cubic
+directions γ = {z, x, y}, with ϕγ = 0, 2π/3, 4π/3, respectively [56]. The couplings Jeff (ζ), Γ(3) (ζ), and hm (ζ)
+denote distinct exchange contributions, where the superscript specifies the order of the perturbative process.
+Here, we define the drive strength as ζ = E0 r/Ω, where r
+is the distance between neighboring TM sites or between
+TM and ligand sites. Most importantly, Eq. (4) makes
+explicit that CPL generates two qualitatively new terms
+that are absent in equilibrium: the uniform octupolar response field hm and the bond-dependent anisotropic exchange Γ(3) . These are the central nonequilibrium couplings studied throughout the rest of the manuscript.
+Throughout this work, we assume an off-resonant drive
+whose frequency is smaller than the charge-transfer and
+
+(3)
+
+⟨ij⟩,γ
+
+(4)
+
+i
+
+local excitation gaps yet larger than the exchange scales.
+In this high-frequency off-resonant regime, heating is
+parametrically slow, and the dynamics is governed by a
+long-lived prethermal effective Hamiltonian, as in Eq. (4).
+A rough estimate of the corresponding prethermal lifetime is given by [57]
+̵
+̵
+τ ∗ ∼ (h/Λ)
+exp(αhΩ/Λ),
+
+(5)
+
+where Λ denotes the largest local energy scale in Eq. (4),
+and α ∼ O(1). When Ω ∼ 100 THz and Λ lies in the meV
+̵
+range, one has hΩ/Λ
+≫ 1, placing the system deeply in
+the high-frequency regime. This suggests a parametrically broad prethermal window that can extend beyond
+typical pump-probe timescales. Our rough estimate gives
+a prethermal lifetime in the several-picosecond range,
+
+
+---PAGE BREAK---
+5
+which is within experimental reach [58]. In real materials, additional absorption channels such as phonons or
+higher-energy electronic resonances may reduce τ ∗ quantitatively. Nevertheless, the estimate indicates a broad
+regime in which the prethermal description should remain applicable [59].
+
+The detailed derivation of the exchange couplings is
+presented in Appendices B and C, where they are expressed in terms of the light intensity and frequency, as
+well as the parameters of the underlying tight-binding
+and Hubbard-Kanamori models. For completeness, we
+summarize their explicit forms below:
+
+Jeff (ζ) = J (2) (ζ) − J (3) (ζ) + J (4) (ζ),
+p
+
+J (2) (ζ) = ∑ Jn2 (A0 )
+n=−p
+
+3(Ũ − nΩ)
+
+,
+
+(6a)
+(6b)
+
+t2pd t2 cos[(n − l)ψ0 ]
+8 (n+l+m=0)
+,
+Jn (A) Jl (A) Jm (A0 )
+∑
+9 {n,l,m}
+(Ũ − mΩ)(∆c − nΩ)
+
+(6c)
+
+t4pd
+2 (n+l+m+r=0)
+,
+Jn (A) Jl (A) Jm (A) Jr (A)
+∑
+3 {n,l,m,r}
+(∆c − nΩ)(∆c − lΩ)(Ũ − rΩ)
+
+(6d)
+
+J (3) (ζ) =
+J (4) (ζ) =
+
+2t22
+
+t2pd t2 sin[(n − l)ψ0 ]
+16 (n+l+m=0)
+J
+(A)
+J
+(A)
+J
+(A
+)
+Γ(3) (ζ) = √
+,
+∑
+n
+l
+m
+0
+(Ũ − mΩ)(∆c − nΩ)
+9 3 {n,l,m}
+
+(6e)
+
+t2pd t2 sin[(n − l)ψ0 ]
+8 (n+l+m=0)
+,
+hm (ζ) = √
+Jn (A) Jl (A) Jm (A0 )
+∑
+(Ũ − mΩ)(∆c − nΩ)
+9 3 {n,l,m}
+
+(6f)
+
+Here, Jn (x) denotes the Bessel function of the first kind.
+A (A0 ) is defined as E0 rpd /Ω (E0 rdd /Ω), and ψ0 is the
+angle subtended by the ligand–TM–TM bond geometry.
+The summation over the Floquet indices n, l, and m is
+constrained by n + l + m = 0. In the numerical evaluation of these expressions, the Floquet sums are truncated
+to a finite number p of photon sectors. This truncation
+is controlled in the off-resonant prethermal regime considered here: the Bessel-function weights suppress highorder photon processes, while the retained virtual denominators remain away from resonances, i.e., ∣Ũ − mΩ∣ and
+∣∆c − nΩ∣ remain large compared with the hopping amplitudes. The resulting couplings should therefore be understood as representative microscopic estimates within
+this off-resonant Floquet regime. The effective interaction scale, denoted by Ũ , depends on Hund’s coupling,
+spin-orbit coupling, and the onsite Coulomb repulsion.
+Precise definitions are provided in Appendix A and Appendix C.
+Realistic parameters reveal that in our system t2pd /∆c
+is of similar magnitude as t2 . Therefore, within our perturbation scheme, we have a hierarchy of energy scales,
+given by (a) a high energy scale, which is represented
+by the effective on-site Coulomb repulsion Ũ , the crystal
+field splitting ∆c , and the spin-orbit coupling strength
+λ, (b) an intermediate energy scale, which includes the
+TM-ligand hopping parameter tpd and the Hund’s coupling JH , and (c) a low-energy scale that includes the
+TM-TM hopping parameter t2 . Given an expansion parameter s, we assign the order s0 = 1 to the high-energy
+
+scale, the order s to the intermediate energy scale, and
+the order s2 to the low energy scale. As a result, the
+leading order terms are all of order s4 , and are proportional to t22 , t2 t2pd , and t4pd . Consequently, the J (4) term
+is particularly relevant. This contribution arises from
+back-and-forth virtual hopping processes in which electrons follow either the upper or the lower triangular paths
+shown in Fig. 2(d,e). The explicit analytical structure
+of J (4) (ζ) is obtained from the fourth-order expansion
+in Eq. (B4d). We neglect the remaining fourth-order
+contributions, which arise from full cyclic TM–ligand–
+TM–ligand–TM hopping paths connecting the upper and
+lower triangles. These terms are proportional to JH2 and
+can, in principle, generate biquadratic multipolar exchange interactions. These are, however, an order s2
+smaller than J (4) (ζ) and negligible within our scheme.
+In the parameter regime relevant to this work, the
+dominant light-induced terms are hm and Γ(3) . The
+field hm couples linearly to the octupolar moment and is
+identified as the OIFE field; a low-Floquet-mode expansion gives hm ∝ ∣E(Ω) × E∗ (Ω)∣, confirming its inverseFaraday-type origin from the optical helicity of the drive.
+By contrast, Γ(3) generates a bond-dependent anisotropic
+exchange that mixes octupolar and quadrupolar degrees
+of freedom. Incidentally Γ(3) follows a similar dependence on the electric field for the analogous low-Floquetmode expansion. Thus, CPL simultaneously provides a
+direct conjugate field for hidden octupolar order and introduces the bond-selective frustration that reorganizes
+the multipolar landscape, ultimately opening the liquid-
+
+
+---PAGE BREAK---
+6
+for which contributions from Bessel functions of order
+higher than p are negligible over the range of drive
+strengths ζ shown in Fig. 3(a,b).
+
+like sector of the driven phase diagram (see Fig. 8).
+
+D.
+
+Model parameters and tunability
+
+Our Floquet engineering protocol enables controlled
+variation of the effective couplings Jeff , Γ(3) , and hm . To
+obtain a concrete estimate, we use representative microscopic parameters tpd = 1.5 eV, t2 = 0.25 eV, Ũ = 3.0 eV,
+∆c = 5.0 eV, and Ω ∼ 100 THz [60, 61], and evaluate
+the resulting exchange couplings as functions of the dimensionless drive strength ζ. As illustrated in Fig. 3(a),
+the induced anisotropy, defined as Γ(3) /Jeff , increases
+substantially with ζ, demonstrating that the drive can
+tune the anisotropic exchange to values comparable to
+the dominant multipolar interaction scale. This is an
+important point for the physics that follows: the bonddependent anisotropy is not parametrically small, but
+can become strong enough to compete directly with the
+leading exchange and thereby reshape the low-energy
+phase structure.
+Fig. 3(b) shows that within the present minimal microscopic description, the OIFE field hm and Γ(3) evolve proportionally over the same range of drive strength ζ. This
+proportionality is a consequence of the minimal microscopic model adopted here, in particular the use of a single effective TM–TM hopping amplitude t2 , rather than
+a generic restriction of Floquet control. In this simplified
+setting, the drive traces out a constrained Floquet trajectory in the two-dimensional parameter space spanned
+by (Γ(3) /Jeff , hm /Jeff ), corresponding approximately to a
+diagonal path across the phase diagram shown in Fig. 8.
+Even along this restricted path, however, the growth of
+Γ(3) already shows that CPL can access a regime where
+anisotropic frustration is strong and where the liquid-like
+sector becomes prominent.
+We choose the Floquet cutoff p = 7 in Eqs. (6a)–(6f),
+
+2.0
+
++
+
++
+3.0
+
+10-2
+
+1.5
+1.0
+0.5
+0
+-0.5
+-1.0
+-1.5
+-2.0
+
+Jeff
+Γ(3)
+
+1.0
+0
+0
+(a)
+
+1
+
+2
+ζ
+
+3
+
+4
+
+(b)
+
+10-3
+Γ(3)
+hm
+
+0
+
+1
+
+2
+ζ
+
+3
+
+4
+
+FIG. 3. The relative tunability of the exchange couplings
+in Eq. (4) is shown as a function of the drive strength (ζ)
+for CPL at a frequency of approximately 100 THz. The left
+panel compares Jeff and Γ(3) (given in eV), whereas the right
+panel compares Γ(3) and hm as the drive strength increases.
+These curves are evaluated from the analytical expressions in
+Eqs. (6a)–(6f) using the parameters given in the text. In our
+present model, Γ(3) and hm are proportional to each other.
+However, in a more realistic description, this constraint can
+be lifted, for example, in the presence of an external magnetic
+field.
+
+The above constraint can be relaxed without significantly complicating the modelling by introduction of an
+additional, experimentally natural control parameter: a
+weak static magnetic field applied along the [111] direction. According to Ref. [18], virtual exchange processes
+involving T2g -Eg intermediate states can also generate an
+additional uniform linear term in the effective Hamiltonian:
+HB = −
+
+24(gJ µB B)3 ⇑ξ ξξ ξ⇑
+jx jz jx ∑ σ̃iy ,
+∆2
+i
+
+(7)
+
+where jαµν = ⟨µ∣Jα ∣ν⟩, with ∣⇑⟩ and ∣⇓⟩ denoting the Eg
+states and ∣ξ⟩, ∣η⟩, and ∣ζ⟩ the T2g states [cf. Eqs. (A5a)–
+(A5c)]. Here B is the magnetic-field strength, µB is the
+Bohr magneton, and gJ is the corresponding gyromagnetic ratio. Eq. (7) therefore provides an independent
+handle on the uniform σ̃ y channel, allowing the effective field scale to be varied separately from the driveinduced exchange anisotropy. This makes it possible to
+move beyond the minimal Floquet trajectory and to access a broader region of the phase diagram than CPL
+alone would permit. In practice, this term acts as an independent offset in the uniform σ̃ y channel while leaving
+the drive-induced anisotropy unchanged to leading order.
+Finally, we emphasize that the detailed ζ-dependence
+and the relative hierarchy of Jeff , Γ(3) , and hm depend
+sensitively on microscopic details. The estimates presented here assume an idealized TM–TM hopping structure encoded by a single amplitude t2 , but in realistic materials several symmetry-allowed hopping channels
+between t2g orbitals are generally present. These additional channels alter the analytical structure of the
+effective couplings in Eqs. (6b)–(6f) and can naturally
+weaken the correlation between hm and Γ(3) , resulting in
+greater tunability, as discussed in previous contexts including Floquet-engineered Kitaev materials [26, 43, 62–
+64]. Thus, the minimal trajectory shown in Fig. 3 should
+be viewed as a representative and controlled starting
+point rather than as a fundamental limitation of the
+mechanism itself.
+E.
+
+Hidden symmetries
+
+We next discuss a useful hidden-symmetry structure of
+the Hamiltonian in Eq. (4) on the bipartite honeycomb
+lattice. By choosing the local quantization axis along
+the y direction, one can perform a sublattice-dependent
+pseudospin rotation on one of the two sublattices (e.g.,
+the B sublattice) according to
+σ̃iy → σ̃iy ;
+
+σ̃ix → (−1)i σ̃ix ;
+
+σ̃iz → (−1)i σ̃iz ,
+
+(8)
+
+where i = A, B labels the two sublattices. Under
+this transformation, the exchange term in Eq. (4) is
+
+
+---PAGE BREAK---
+7
+mapped onto the conventional antiferromagnetic Heisenberg form:
+Jeff ∑ σ̃i ⋅ σ̃j ,
+
+(9)
+
+sector seen later in the phase diagram. The hiddensymmetry form therefore anticipates the central role
+played by Γ(3) in opening the frustration-dominated multipolar regime.
+
+⟨ij⟩
+
+while the uniform field term remains unchanged. However, the anisotropic term acquires a form closely analogous to a bond-dependent Dzyaloshinskii–Moriya interaction:
+Haniso = Γ(3) ∑ ηi Dγij ⋅ (σ̃i × σ̃j ) ,
+
+(10)
+
+⟨ij⟩,γ
+
+where Dγij = (− cos ϕγ , 0, sin ϕγ ) is a bond-dependent
+Dzyaloshinskii-Moriya vector and ηi = ±1 on the A and
+B sublattices, respectively. This term should not be interpreted as a microscopic Dzyaloshinskii–Moriya interaction arising from broken inversion symmetry. Reversing the sublattice rotation restores the original symmetry and Eq. (4). Rather, the Dzyaloshinskii–Moriya-like
+form appears only in the rotated pseudospin basis, where
+Dγij = −Dγji is set by the sublattice gauge factor ηi .
+This representation is useful because it makes the physical role of Γ(3) especially transparent. The anisotropy
+acts as a bond-dependent frustrated coupling between
+neighboring pseudospins, thereby competing with conventional multipolar order. In the driven model, this
+frustration is precisely what destabilizes simple ordered
+states and promotes the weakly ordered or liquid-like
+
+F.
+
+Transformation in cubic coordinates
+
+The multipolar exchange model in Eq. (4) can be
+rewritten in cubic coordinates to clarify its connection
+to a liquid-like regime. To connect the octahedral description to the standard cubic-coordinate formulation of
+anisotropic exchange models, we perform a basis transformation that makes the structure of Eq. (4) explicit
+and enables a direct comparison with the conventional
+J-K-Γ-Γ′ model [65, 66]. Since the octupolar moment
+is polarized along the [111] direction, the appropriate
+transformation is:
+x
+− √1
+⎛s ⎞ ⎛ 1 2
+⎜sy ⎟ = ⎜
+⎜ √2
+⎝sz ⎠ ⎝ 0
+
+√1
+3
+√1
+3
+√1
+3
+
+√1
+x
+6 ⎞ ⎛σ̃ ⎞
+√1 ⎟ ⎜σ̃ y ⎟ ,
+6 ⎟
+z
+− √26 ⎠ ⎝σ̃ ⎠
+
+(11)
+
+where s = (sx , sy , sz ) denotes the pseudospin components
+in the cubic coordinate system.
+Using the bond-dependent angles ϕγ = 0, 2π/3, and
+4π/3 for the z, x, and y bonds, respectively, the exchange
+Hamiltonian takes the form
+
+hm
+β γ
+γ β
+β α
+γ α
+β
+y
+′
+α γ
+z
+x
+Heff = J ∑ si ⋅sj +K ∑ sγi sγj +Γ ∑ (sα
+i sj + si sj )+Γ ∑ (si sj + si sj + si sj + si sj )+ √ ∑ (si + si + si ) , (12)
+3 i
+⟨ij⟩,γ
+⟨ij⟩,γ
+⟨ij⟩
+⟨ij⟩,γ
+
+which constitutes a J-K-Γ-Γ′ Hamiltonian in the presence of a uniform field in [111] direction. The couplings
+in Eq. (12) are not independent, but are instead determined by the original parameters Jeff and Γ(3) as
+√ (3)
+Jeff
+2Γ
+J =−
++
+,
+3 √
+3
+K = − 2 Γ(3) ,
+√ (3)
+2Jeff
+2Γ
+Γ=
++
+,
+(13)
+3
+√ 3 (3)
+2Jeff
+2Γ
+Γ′ =
+−
+.
+3
+6
+The evolution of these parameters as function of Γ(3)
+is shown in Fig. 4 for Jeff = 1. In this representation,
+the role of Γ(3) becomes especially transparent: it directly generates a Kitaev-like coupling K proportional
+to Γ(3) . The rotated basis therefore shows explicitly that
+the bond-directional character of the effective exchange
+interactions is controlled by the light-induced anisotropy.
+
+J
+
+K
+
+Γ
+
+Γ'
+
+2
+Γ(3)/Jeﬀ
+
+3
+
+2
+0
+-2
+-4
+-6
+
+0
+
+1
+
+4
+
+FIG. 4. Variations of the exchange parameters in the rotated
+pseudo-spin Hamiltonian in Eq. (12) when the anisotropic parameter Γ(3) is varied while keeping Jeff fixed in Eq. (4). The
+relations in Eq. (13) yield a large Kitaev coupling K over
+most of the parameter range. Energies are given in units of
+Jeff with Jeff = 1.
+
+
+---PAGE BREAK---
+8
+
+This point is central to our interpretation of the driven
+phase diagram, because it identifies Γ(3) as the microscopic origin of the extended frustration-dominated sector.
+In the next section, we map out the multipolar phase
+diagram [Fig. 8] using ED of the original pseudospin
+Hamiltonian in Eq. (4). We fix Jeff = 1 and vary both
+Γ(3) and hm . For fixed hm , scanning along the horizontal axis of Fig. 8 corresponds to a continuous evolution of the effective couplings J, K, Γ, and Γ′ according to Eq. (13) and as shown in Fig. 4. We find that
+the Kitaev term remains substantially larger than the
+other couplings for Γ(3) > 1, making this regime especially favorable for liquid-like multipolar behavior. By
+contrast, for Γ(3) < 1, multiple couplings compete on a
+more equal footing, leading to the variety of competing
+ordered phases seen in the structure-factor heat maps of
+Fig. 5(a-c).
+III.
+
+NUMERICAL RESULTS
+
+The tunability analysis in Sec. II D showed that periodic driving, together with an external static magnetic
+field along the [111] direction, can generate the two central nonequilibrium couplings of the effective model: Γ(3)
+and hm . Guided by this result, we analyze the effective pseudospin Hamiltonian in Eq. (4) over the twoparameter space spanned by Γ(3) /Jeff and hm /Jeff using
+ED. Rather than aiming at an exhaustive classification
+of all possible phases and phase boundaries, our purpose is to determine the representative driven multipolar
+regimes supported by the model and to understand how
+they emerge from the interplay of the light-induced couplings. Since the Hamiltonian involves several competing
+channels, no single observable is sufficient to characterize
+the full landscape. We therefore combine several complementary diagnostics and use them together to construct
+the numerical phase diagram discussed below.
+A.
+
+Multipolar structure factors
+
+We performed finite-size ED calculations to compute
+the multipolar moments as
+α
+⟨ϕgs ∣σ̃iα ∣ϕgs ⟩
+i ⟨ϕgs ∣σ̃i ∣ϕgs ⟩
+, mα
+, (14)
+AF = ∑(−1)
+N
+N
+i
+i
+
+mα
+F =∑
+
+where α = {x, y, z} labels the different multipolar components, the subscripts “F” and “AF” distinguish ferro- and
+antiferro-type channels, respectively, and ∣ϕgs ⟩ denotes
+the ED ground state. On finite clusters, however, both
+the uniform and staggered first moments vanish identically (except σ̃ y as a result of hm acting as a pinning
+field), so the more useful diagnostics are the corresponding two-point correlations. The most important quantities for identifying the phases are therefore the static
+
+F
+structure factors. We define the quadrupolar [SQ
+(q)],
+F
+AF
+octupolar [SO (q)], staggered quadrupolar [SQ (q)], and
+AF
+staggered octupolar [SO
+(q)] structure factors as
+F
+SQ
+(q) =
+
+4
+x x
+z z
+iq.r
+∑ ⟨ϕgs ∣σ̃i σ̃j + σ̃i σ̃j ∣ϕgs ⟩ e ij ,
+N 2 ij
+
+(15a)
+
+F
+SO
+(q) =
+
+4
+y y
+iq.r
+∑ ⟨ϕgs ∣σ̃i σ̃j ∣ϕgs ⟩ e ij ,
+N 2 ij
+
+(15b)
+
+AF
+SQ
+(q) =
+
+4
+x x
+z z
+iq.r
+∑ ηi ηj ⟨ϕgs ∣σ̃i σ̃j + σ̃i σ̃j ∣ϕgs ⟩ e ij , (15c)
+N 2 ij
+
+AF
+SO
+(q) =
+
+4
+y y
+iq.r
+∑ ηi ηj ⟨ϕgs ∣σ̃i σ̃j ∣ϕgs ⟩ e ij ,
+N 2 ij
+
+(15d)
+
+where rij = ri − rj , N is the number of sites, and q is
+the corresponding momentum in the honeycomb Brillouin zone (BZ). In Eqs. (15c) and (15d), the sublattice
+factor ηi = ±1 distinguishes the A and B sublattices. The
+overall prefactor 4/N 2 normalizes the structure factors to
+values of order unity in an ordered phase. We analyze the
+multipolar SSFs over all allowed q points in the BZ for
+clusters with N ∈ {8, 12, 16, 18, 20, 24}. In practice, only
+the structure factors at q = Γ develop values of order
+unity for the ordered regimes identified below, while the
+other finite-q contributions extrapolate to zero within the
+accessible system sizes. The resulting structure-factor
+maps are shown in Fig. 5(a-c).
+
+B.
+
+Determining phase boundaries
+1.
+
+Fidelity susceptibility
+
+To identify phase boundaries, we use several quantities computed from ED on finite clusters. The first is
+the fidelity susceptibility (FS), which serves as a primary
+diagnostic and is defined as
+χF (λ) =
+
+2 − 2 ∣⟨ϕgs (λ + dλ)∣ϕgs (λ)⟩∣
+,
+dλ2
+
+(16)
+
+where λ ∈ {Γ(3) , hm }, dλ is an infinitesimal increment,
+and ∣ϕgs ⟩ is the ED ground state. Because the phase diagram depends on two control parameters, we perform
+two complementary sets of scans: (i) χF (hm ) at fixed
+Γ(3) , and (ii) χF (Γ(3) ) at fixed hm . In both cases, we
+choose the uniform increment dλ = 0.02 over the parameter range hm , Γ(3) ∈ [0, 4]. The resulting FS contours are
+shown in Fig. 5(j,k) for 24 sites, and in Fig. 11 of Appendix E for additional system sizes,. Since FS is most
+reliable for nondegenerate ground states, we compare it
+with two further diagnostics: the mixed second derivative of the ground-state energy, ∂ 2 E0 /∂hm ∂Γ(3) , shown
+in Fig. 5(l), and the low-energy gap E1 − E0 , shown in
+Fig. 11 of Appendix E.
+
+
+---PAGE BREAK---
+9
+
+FIG. 5. (a–c) Heat maps of the relevant multipolar structure factors in the Γ(3) –hm plane for the largest ED cluster (N =
+24): (a) uniform ferro-octupolar, (b) uniform ferro-quadrupolar, and (c) mixed correlations combining uniform quadrupolar
+and staggered octupolar components. For the finite clusters considered here, structure-factor weight at non-zero q does not
+extrapolate to a robust thermodynamic contribution in the corresponding liquid-like regime. (d–i) FM maps in the same
+parameter plane, showing the evolution of the relevant low-energy block structure and highlighting the phase boundaries and
+intermediate regimes. For each FM landscape, the optimized fitness score exceeds 90%. (j–k) Fidelity-susceptibility scans are
+used to locate phase transitions and crossover lines. (l) The mixed second derivative of the ground-state energy E0 provides
+an additional diagnostic of the phase boundaries.
+
+2.
+
+Fidelity map
+
+Next, we compute a related quantity, the fidelity map
+(FM). Given a quantum many-body system described by
+
+the Hamiltonian H(λ), where λ is the driving parameter,
+the FM is defined as the overlap between ground states
+
+
+---PAGE BREAK---
+10
+at two different parameter points,
+
+3.
+
+Fij = ∣⟨ϕgs (λi )∣ϕgs (λj )⟩∣ ,
+
+(17)
+
+for arbitrary λi and λj [67]. Unlike the FS, the two states
+entering Fij need not correspond to neighboring parameter values. The basic idea is that if the model hosts
+several distinct phases as a function of λ, then states
+belonging to the same phase have large mutual overlap,
+whereas states from different phases have smaller overlap. Consequently, the FM can develop an approximately
+block-diagonal structure that offers an intuitive way of
+separating the different regimes. In practice, however,
+this block structure is not uniformly sharp across the full
+parameter space, as seen in Fig. 5(d-i).
+To identify the relevant phase boundaries in a systematic way, we therefore introduce square bounding boxes
+for the candidate phases and sum the fidelity within each
+box:
+C({b}) = − ∑ ∑ Fij ,
+
+(18)
+
+{b} i,j∈{b}
+
+where {b} specifies the box locations. The cost function is the total negative fidelity summed over all boxes,
+so minimizing C corresponds to maximizing the fidelity
+within each candidate phase region. The optimized
+boxes, together with the corresponding phase labels, are
+shown as red boxes in Fig. 5(d-i). To determine them efficiently, we use the cuckoo-search algorithm [68, 69]. This
+approach offers two practical advantages: it can avoid becoming trapped in local minima, and it is substantially
+more efficient than a brute-force search when the number
+of phase boundaries increases.
+N = 24
+
+N = 20
+hm = 2.0
+
+hm = 0.5
+-log F
+
+AFO
+
+ML
+
+PPFQ
+
+ML
+
+Γ(3)/Jeﬀ
+
+Γ(3)/Jeﬀ
+
+-log F
+
+hm = 3.5
+FO
+
+PPFQ
+
+Γ(3)/Jeﬀ
+
+hm = 3.5
+ML
+
+IO
+
+Γ(3)/Jeﬀ
+
+FIG. 6. Finite-size scaling analysis performed along Γ(3) for
+representative fixed values of the OIFE field hm . The structure factors were evaluated for clusters with N = 20 and
+N = 24 to track the evolution of the dominant multipolar
+correlations across the phase diagram. Comparing these two
+system sizes highlights the stability of the finite-size trends
+and helps identify any transition (crossover) between ordered
+and liquid-like regimes.
+
+Finite-size scaling
+
+Because of the nearby competing phases visible in the
+multipolar SSF heat maps and FM profiles, we do not attempt a full universality classification of the phase transitions. Instead, we carry out the simplest finite-size analysis of the tentative phase boundaries, without attempting a complete scaling collapse, as shown in Fig. 6. In
+practice, the FS and structure factors are most useful for
+identifying the evolution along hm at Γ(3) = 0, whereas for
+finite Γ(3) the competing channels make those diagnostics less transparent. We therefore choose representative
+cuts at fixed hm and analyze the finite-size behavior of
+− log F in Fig. 6. Since the estimated phase boundaries
+shift slightly with system size, we do not claim asymptotically exact transition lines. Rather, we use the scaling
+analysis to support the existence and overall extent of
+the phases themselves. Additional FS and E1 − E0 heat
+maps for various cluster sizes are shown in Fig. 11 of Appendix E. Apart from the 18-site cluster, which exhibits
+additional finite-cluster symmetries, the remaining system sizes show broadly consistent behavior. We exclude
+the smallest system size, N = 8, from the scaling discussion.
+
+C.
+
+Multipolar phase diagram
+
+Taken together, the FS, FM, multipolar SSFs, and
+finite-size fidelity scaling provide the strongest finite-size
+evidence available here for the phase diagram shown in
+Fig. 8. In our data, the FS is especially effective for
+resolving the phase evolution along hm in the weakanisotropy regime near Γ(3) = 0, whereas the FM serves
+as a complementary diagnostic when Γ(3) is varied at
+fixed hm . Combined with the momentum-resolved structure factors, these observables lead to a coherent reconstruction of the phase diagram. At the same time, we
+stress that our goal is not to claim asymptotically exact boundary locations for every competing regime, nor
+a mathematically exhaustive classification of all states of
+the Hamiltonian in Eq. (4) [or Eq. (12)], which would require substantially larger system sizes and additional diagnostics. Rather, we use these complementary observables to extract the most robust features of the driven
+phase structure. The main conclusion is that the OIFE
+field and the light-induced anisotropy together navigate a
+nontrivial path through the field-driven J-K-Γ-Γ′ model
+and access a sizable region whose ED signatures are consistently compatible with several distinct multipolar orders as well as a frustration-dominated liquid-like regime.
+Representative DMRG real-space multipolar textures,
+presented in Appendix F, provide complementary support for the dominant patterns inferred from the ED
+structure factors and fidelity diagnostics.
+
+
+---PAGE BREAK---
+11
+
+Antiferro-octupolar phase
+
+We now turn to the opposite corner of the hm –Γ(3)
+plane and focus on the region near the origin. When both
+∣hm ∣ and ∣Γ(3) ∣ are much smaller than Jeff , the physics
+is governed primarily by the Jeff exchange interaction,
+which stabilizes AFO order on the bipartite honeycomb
+lattice. At the origin, hm = Γ(3) = 0, the Hamiltonian maps under the sublattice rotation onto the standard antiferromagnetic Heisenberg model. According to
+Refs. 70 and 71, this limit supports Néel order. In the
+present representation, this corresponds to staggered octupolar order accompanied by uniform quadrupolar correlations, as dictated by Eq. (4). Numerically, this regime
+is characterized by pronounced structure-factor weight in
+the antiferro-octupolar and ferro-quadrupolar channels,
+
+(b) 0.75
+
+0.35
+
+0.65
+
+SQ(Γ)
+
+0.30
+
+F
+
+AF
+
+For sufficiently large positive hm , the ground state realizes a uniform FO phase in which the octupolar component σ̃ y is strongly polarized by the OIFE field. In
+ED, this regime is characterized by a large uniform expectation value ⟨σ̃ y ⟩, a dominant Γ-point contribution to
+the octupolar structure factor, and strongly suppressed
+quadrupolar correlations. To benchmark this regime, we
+compute both the FO order parameter and the corresponding structure factor from ∣ϕgs ⟩. We first examine
+the FS [Fig. 5(j,k)] together with the E1 − E0 landscape
+shown in Fig. 11, focusing initially on the vicinity of
+Γ(3) = 0. In this limit, the FS develops multiple ridge
+lines as hm is increased, reflecting the stepwise growth
+of the octupolar magnetization in unit increments, i.e.,
+y
+⟨σ̃ y ⟩ = 1, 2, . . . , σ̃max
+. The total number of ridge lines,
+N /2, exactly matches this successive increase until the
+system becomes fully polarized at hm = 3Jeff . Under the
+sublattice transformation discussed above, this behavior
+is consistent with earlier results for the field-driven antiferromagnetic Heisenberg model [70]. For Γ(3) = 0, the
+transition into the fully polarized state occurs precisely
+at hm = 3Jeff , as shown in Fig. 5(a).
+As Γ(3) is increased from zero, the FO phase boundary shifts toward smaller values of hm , indicating that
+the anisotropy assists the stabilization of the uniform octupolar state over an intermediate range. At still larger
+Γ(3) , however, the same anisotropy eventually destabilizes the FO phase in favor of more frustrated regimes.
+Within the FO region, the uniform octupolar moment
+F
+myf and the structure factor SO
+(Γ) saturate to −0.5 and
+1, respectively, confirming the fully polarized character
+of the phase. As discussed below, this uniform FO order
+also allows a trigonal shear distortion of the surrounding octahedral environment. The corresponding DMRG
+texture in Fig. 12(a) shows a nearly uniform σ̃ y polarization with suppressed σ̃ x and σ̃ z components, providing a
+real-space consistency check of the ED identification of
+the FO phase.
+
+2.
+
+(a)
+
+Ferro-octupolar phase
+
+SO(Γ)
+
+1.
+
+0.55
+
+0.25
+0.45
+0.00
+
+0.02
+
+0.04
+1/N
+
+0.06
+
+0.08
+
+0.00
+
+0.02
+
+0.04
+1/N
+
+0.06
+
+0.08
+
+FIG. 7. Finite-size scaling of the dominant Γ-point correF
+lations: the uniform quadrupolar structure factor SQ
+(Γ) in
+AF
+panel (a) and the staggered octupolar structure factor SO
+(Γ)
+in panel (b). Linear fits in 1/N are used to estimate the thermodynamic limit, and the corresponding extrapolated intercepts are marked by dark blue circles. Error bars are approximately 4%.
+
+while the other structure factors remain small. Accordingly, we identify this region in Fig. 5(c) as the regime in
+F
+AF
+which SQ
+(Γ) + SO
+(Γ) is maximal.
+To estimate the phase boundary near the origin within
+the limitations of ED, we perform a finite-size scaling
+analysis of these two quantities in order to infer their
+thermodynamic behavior. For this purpose, we use the
+phenomenological forms
+F
+SQ
+(1/N ) ∼ m20 + C0 /N,
+
+(19a)
+
+AF
+SO
+(1/N ) ∼ m21 + C1 /N,
+
+(19b)
+
+where m0 and m1 denote the corresponding thermodynamic order parameters. We extract these quantities
+F
+AF
+from ED data by plotting SQ
+(Γ) and SO
+(Γ) as functions
+of 1/N for clusters with N = 12, 16, 18, 20, and 24, excluding the N = 8 cluster because of its strong finite-size effects. Extrapolating to N → ∞, we obtain m0 ∼ 0.67 and
+m1 ∼ 0.47. The corresponding scaling analysis is shown
+in Fig. 7. Using these thermodynamic intercepts—while
+adopting slightly smaller values to account for the fitting uncertainty—together with the structure-factor profiles at finite hm and Γ(3) , we determine the AFO phase
+boundary shown in Fig. 8. Both hm and Γ(3) act as competing perturbations: the OIFE field favors a uniform
+octupolar component, whereas Γ(3) introduces frustrated
+mixing between octupolar and quadrupolar channels. As
+a result, the AFO phase is confined to a relatively small
+region near the origin and becomes unstable once either parameter increases sufficiently. The corresponding DMRG texture in Fig. 12(b) displays the expected
+staggered σ̃ y pattern for the representative symmetryselected texture shown, providing a real-space consistency check of the ED-based identification of the AFO
+phase.
+
+3.
+
+Partially polarized ferro-quadrupolar phase
+
+As hm increases, the system does not evolve directly
+from the AFO phase to the fully polarized FO phase.
+For Γ(3) = 0, an intermediate regime appears in which
+
+
+---PAGE BREAK---
+12
+TABLE I. Summary of the complementary numerical diagnostics used to identify the dominant regimes in Fig. 8. The labels
+summarize the most robust finite-size signatures extracted from the ED analysis of the Hamiltonian in Eq. (4), supplemented
+where indicated by the DMRG textures discussed in Appendix F. The phase labels are as follows: FO (ferro-octupolar order),
+AFO (antiferro-octupolar order), PPFQ (partially polarized ferro-quadrupolar order), IO (Ising octupolar order), and ML
+(multipolar liquid phase).
+label
+
+key diagnostics
+
+main numerical signatures
+
+status
+
+FO
+
+F
+SO
+(Γ); χF ; FM; myF ; DMRG
+
+large ferro-octupolar correlations; pronounced FS response; clear FM block
+structure; stable finite-size scaling
+
+robust
+
+PPFQ
+
+F
+F
+AF
+SO
+(Γ); SQ
+(Γ); SO
+(Γ); χF ;
+FM; E1 − E0 ; DMRG
+
+dominant ferro-quadrupolar correlations; clear FS-based evolution of the
+ground state; distinct FM block structure; stable finite-size scaling
+
+robust
+
+AFO
+
+F
+AF
+SQ
+(Γ) + SO
+(Γ); χF ; FM;
+DMRG
+
+strong antiferro-octupolar and ferroquadrupolar correlations; clear FM
+block structure; stable finite-size scaling
+
+robust
+
+IO
+
+F
+FM; FS maps; SO
+(Γ);
+
+persistent uniform octupolar correlations; absence of a robust ordered
+quadrupolar pattern in ED
+
+supported by ED
+
+ML
+
+χF ; FM; suppressed SSFs;
+DMRG
+
+suppressed multipolar correlations;
+broad and weakly structured FM
+response; small E1 − E0 ; DMRG textures consistent with field-induced
+paramagnetic-like response and no
+stable bulk order
+
+consistent
+with
+Kitaev-like
+liquid
+behavior [Eq. (13)
+and Fig. 4]
+
+the octupolar sector is only partially polarized while
+ferro-quadrupolar correlations remain robust. This is
+consistent with earlier studies of the field-driven antiferromagnetic Heisenberg model on the honeycomb lattice, where the corresponding regime was identified as a
+canted Néel state [72]. In the present multipolar setting,
+however, this regime extends over a finite range of Γ(3) ,
+where strong ferro-quadrupolar correlations coexist with
+increasing ferro-octupolar polarization and progressively
+weakened staggered octupolar order. We therefore identify this regime as a partially polarized ferro-quadrupolar
+(PPFQ) phase.
+The transition into the PPFQ phase is evident in the
+F
+structure factors. In this regime, SQ
+(Γ) remains strongly
+AF
+peaked, SO (Γ) decreases as hm is increased, and the
+F
+uniform octupolar correlations SO
+(Γ) steadily grow. For
+(3)
+Γ = 0, this growth occurs in discrete steps, such that
+N myf = 1, 2, . . . , N myf,max , until the fully polarized state
+is reached at hm = 3Jeff . Correspondingly, the FS and
+energy-derivative profiles exhibit a sequence of discrete
+ridge lines [Fig. 5(j,k,l)], whose total number is exactly
+N /2. Within our finite size ED, it is difficult to comment
+whether the transition from AFO to PPFQ is a crossover
+or a true phase transition because of the indefinite signa-
+
+tures from the energy derivatives. However, the discrete
+ridge-line structure in the FS profile suggests that this
+evolution is more likely associated with a transition than
+with a smooth crossover. Results for additional system
+sizes are shown in Fig. 11 of Appendix E. The corresponding DMRG texture in Fig. 12(c) shows a dominant nearly
+uniform quadrupolar component together with partial σ̃ y
+polarization, providing a real-space consistency check of
+the ED-based identification of the PPFQ phase.
+For weak but finite Γ(3) , the phase between the AFO
+and FO regions retains the same overall character. However, the competition among uniform and staggered multipolar correlations makes the phase boundary less transparent from the structure factors alone. We therefore
+identify the transition primarily from FS and FM scans
+at fixed hm or fixed Γ(3) , using the dominant maximum
+along each cut and supporting this assignment with the
+structure-factor evolution [see Fig. 5(e-i)]. Within the
+F
+F
+(Γ) remains dominant, SO
+(Γ) increases,
+PPFQ phase, SQ
+AF
+and SO (Γ) is progressively suppressed. For sufficiently
+large Γ(3) , the anisotropic interaction eventually destabilizes the PPFQ phase in favor of the more frustrated
+liquid-like regime discussed below. At larger hm , the
+transition out of the PPFQ region proceeds through a
+
+
+---PAGE BREAK---
+13
+
+Ising octupolar phase
+
+Within ED, this regime is distinguished by a persistent uniform octupolar component but no comparably
+robust quadrupolar structure-factor signature. In particular, the FM structure separates this region from both
+the PPFQ and ML regimes, while the dominant Γ-point
+response remains in the ferro-octupolar channel. We
+therefore refer to this region as an Ising-octupolar (IO)
+regime. This terminology emphasizes the dominant octupolar character of the finite-size ground state, rather
+than implying a complete thermodynamic classification
+of all competing correlations.
+Physically, the IO regime appears when a finite OIFE
+field favors uniform octupolar polarization, while the
+bond-dependent anisotropic exchange suppresses the development of a simple ferro-quadrupolar texture. The
+corresponding DMRG real-space textures are consistent
+with this interpretation in that they show a large nearly
+uniform σ̃ y component. At the same time, the quadrupolar components in DMRG do not display a sufficiently
+stable or simple pattern from which one could assign a
+unique ordering vector. We therefore identify the IO
+regime primarily from the ED fidelity and structurefactor diagnostics, with DMRG providing supporting evidence for the dominant octupolar polarization. A more
+complete characterization of the subdominant quadrupolar correlations and possible thermodynamic ordering
+pattern would require larger-scale calculations and additional diagnostics.
+
+5.
+
+Multipolar-liquid regime
+
+In the remaining part of the hm –Γ(3) phase diagram,
+our ED results show no clear signature of conventional
+long-range multipolar order. The FS maps remain comparatively featureless, while neither the energy derivatives nor the low-energy gap E1 −E0 exhibit a pronounced
+transition line or strong ordering tendency [cf. Figs. 5(jl) and 11]. Consistently, the corresponding FM blocks
+are broad and weakly structured [Fig. 5(h,i)], in contrast
+to the sharply segmented patterns found in the ordered
+regimes.
+The momentum-resolved structure factors lead to the
+same conclusion. Across the accessible clusters, no sharp
+peak develops at any specific q, and finite-size scaling
+does not yield a stable nonzero thermodynamic intercept
+for any candidate order parameter. Unlike in the FO,
+AFO, PPFQ, and IO regimes, no single channel emerges
+
+FO
+
+IO
+
+3
+
+ML
+
+PPFQ
+
+1
+0
+
+AFO
+
+4.
+
+4
+
+hm/Jeﬀ
+
+distinct intermediate regime in which uniform octupolar correlations remain substantial while several structure
+factors acquire comparable weight at different momenta.
+As discussed below, the persistent ferro-quadrupolar order in the PPFQ phase also permits tetragonal or orthorhombic distortions of the octahedral environment.
+
+0
+
+1
+
+Γ(3)/Jeﬀ
+
+3
+
+4
+
+FIG. 8. Schematic multipolar phase diagram of the effective
+Hamiltonian in Eq. (4), obtained from exact diagonalization
+on a 24-site honeycomb cluster and displayed after spline interpolation of the raw data shown in the inset. The structure of the phase diagram is inferred from a combination of
+complementary finite-size diagnostics, including momentumresolved multipolar structure factors, fidelity susceptibility,
+fidelity maps, finite-size scaling, the low-energy gap E1 − E0 ,
+and derivatives of the ground-state energy with respect to
+Γ(3) and hm . The AFO, PPFQ, and FO phases are identified
+primarily through their characteristic structure-factor signatures, whereas the IO and ML regimes are supported by the
+combined ED diagnostics and the representative real-space
+DMRG textures discussed in Appendix F. Additional details
+on the numerical characterization and the associated order
+parameters are given in Sec. III. For visual clarity, the phase
+diagram is shown without explicit phase-boundary contours.
+Energies are measured in units of Jeff = 1. Phase labels:
+FO, ferro-octupolar; AFO, antiferro-octupolar; PPFQ, partially polarized ferro-quadrupolar; IO, Ising octupolar; and
+ML, multipolar liquid. Inset: parameter-space landscape obtained directly from the raw ED data on finite clusters before
+interpolation. The total uncertainty is estimated to be approximately 6%, combining contributions from the linear extrapolation procedure (∼ 4%) and the finite parameter-mesh
+resolution (∼ 4%).
+
+as dominant. Thus, within the resolution of ED, we find
+no evidence for either commensurate or incommensurate
+long-range order in this region.
+This conclusion is also consistent with the DMRG textures presented in Appendix F, which do not reveal any
+robust bulk quadrupolar or octupolar pattern comparable to those of the ordered regimes. Figure 12(d) provides
+a complementary view of the texture evolution within
+the ML regime as hm is increased. Throughout this
+range, the quadrupolar components σx and σz remain
+essentially featureless and do not develop any coherent
+bulk texture, whereas the octupolar component σy increases smoothly with the applied field. This response
+is characteristic of a field-induced paramagnetic polar-
+
+
+---PAGE BREAK---
+14
+ization rather than the onset of a distinct ordered state.
+Moreover, finite-size scaling shows that the induced σy
+component extrapolates to zero in the thermodynamic
+limit, indicating that the finite-field response within the
+ML regime does not correspond to stable long-range octupolar order. We therefore do not assign this part of
+the phase diagram to a conventional ordered state. Instead, the most natural interpretation is provided by
+the cubic-coordinate form of the effective Hamiltonian,
+Eqs. (12) and (13): as discussed in Sec. II F, increasing
+Γ(3) enhances the bond-directional exchange and drives
+the system into a regime with dominant Kitaev-like coupling [cf. Fig. 4]. Taken together, the combined ED and
+DMRG results support the identification of this region
+as a multipolar-liquid phase with a possible Kitaev-like
+character.
+Representative real-space textures for the regimes
+shown in Fig. 8 are presented in Appendix F, obtained from DMRG calculations using the ITensor package [73]. These calculations are intended to complement
+the ED-based phase identification by providing bulk realspace fingerprints of the representative driven multipolar
+regimes, rather than a final thermodynamic classification
+of every crossover and boundary.
+
+IV.
+
+LIGHT-INDUCED OCTAHEDRAL
+DISTORTIONS
+
+Motivated by the light-induced multipolar phase diagram in Fig. 8, we now analyze the associated octahedral
+distortions at a phenomenological level. This provides
+a direct connection between the driven multipolar states
+discussed above and experimentally accessible structural
+signatures. In particular, the FO and PPFQ regimes permit symmetry-distinct lattice responses, thereby offering a route to detect otherwise hidden multipolar order
+through pump-probe diffraction experiments.
+We begin with the FO regime induced by the OIFE
+and characterize it by the uniform order parameter myF
+[see definitions in Eq. (14)]. In this regime, the OIFE acts
+as an effective uniform field which, in cubic coordinates,
+
+Fq = −λ1 (ϵxx − ϵyy )mxF − λ2 (2ϵzz − ϵxx − ϵyy )mzF +
+
+can be written as
+hm
+h = √ (x̂, ŷ, ẑ).
+3
+The relevant lattice degrees of freedom are the three
+trigonal shear strains ϵαβ with αβ = xy, yz, zx of the ideal
+octahedron shown in Fig. 9(a-c). Since the FO order
+is odd under time reversal, the lowest-order symmetryallowed magnetoelastic coupling is linear in both the
+ferro-octupolar order parameter myF and the effective
+field h, and couples naturally to the trigonal shear sector.
+The corresponding Landau free energy is [14, 75]
+Fo = −λ0 myF ∑ hα ϵβγ + 2C44 (ϵ2xy + ϵ2yz + ϵ2zx ) , (20)
+αβγ
+α≠β≠γ
+
+where λ0 is a phenomenological magnetoelastic coupling
+and C44 is the corresponding shear modulus. Minimizing Fo with respect to ϵαβ yields the uniform trigonal
+distortion
+⟨ϵxy ⟩ = ⟨ϵyz ⟩ = ⟨ϵzx ⟩ =
+
+λ0 myF hm
+√
+.
+4 3 C44
+
+This result shows that the light-induced FO order necessarily lowers the lattice symmetry from cubic to trigonal. Equation (21) also provides a direct estimate of
+the distortion amplitude once the effective couplings are
+specified, thereby tying the structural response quantitatively to the underlying multipolar order. Experimentally, such a distortion should appear as a splitting or
+shift of symmetry-related Bragg reflections in wide-angle
+x-ray diffraction, time-resolved pump-probe x-ray diffraction, or ultrafast electron diffraction. It may also manifest as a coherent shear deformation of the ligand cage
+in local structural probes.
+We next consider the PPFQ regime, which is characterized by finite ferro-quadrupolar order parameters mxF
+and mzF [see definitions in Eq. (14)]. In this case, the
+relevant symmetry-allowed lattice degrees of freedom are
+the normal strain components ϵxx , ϵyy , and ϵzz of the
+octahedral environment. Retaining the lowest-order invariants allowed by cubic symmetry, the corresponding
+Landau free energy reads [75]
+
+C11 2
+(ϵxx + ϵ2yy + ϵ2zz ) + C12 (ϵxx ϵyy + ϵyy ϵzz + ϵzz ϵxx ) ,
+2
+
+where λ1,2 are phenomenological magnetoelastic couplings and C11 and C12 are the usual cubic elastic constants. Minimizing Fq with respect to the normal strains
+
+(21)
+
+(22)
+
+yields
+6λ1 mxF
+,
+C11 − C12
+6λ2 mzF
+⟨2ϵzz − ϵxx − ϵyy ⟩ =
+.
+C11 − C12
+⟨ϵxx − ϵyy ⟩ =
+
+(23a)
+(23b)
+
+The first combination corresponds to an in-plane or-
+
+
+---PAGE BREAK---
+15
+
+z
+
+(a)
+
+(b)
+
+(c)
+
+(d)
+
+(e)
+
+y
+x
+
+εxy (hz)
+
+εyz (hx)
+
+2εzz-εxx-εyy (mzF )
+
+εzx (hy)
+
+εxx- εyy (mFx )
+
+FIG. 9. Trigonal distortions [(a)–(c)] of the ideal octahedron induced by the OIFE field h = (hx , hy , hz ), with components given
+by Eq. (21). The coupling appears in the presence of finite ferro-octupolar order, where all octupolar moments form a uniform
+texture (upper-left panel). The TM atoms (black spheres) form a honeycomb lattice in the [111] plane of the edge-sharing
+geometry. Bonds along the x-, y-, and z-directions are indicated by different colors, as shown in the upper-left panel. Panel
+(d) illustrates a tetragonal distortion, while panel (e) shows an orthorhombic distortion of the octahedra induced by nonzero
+quadrupolar moments, as described by Eqs. (23a) and (23b). Black arrows indicate the distortion directions.
+
+TABLE II. Symmetry-allowed vibronic couplings relevant to the octahedral distortions discussed in this section, following
+the convention of Ref. [74]. The ideal trigonal distortion corresponds to the symmetric combination of the tabulated shear
+coordinates and has the appropriate D3d symmetry.
+type
+2 × Eg
+
+name
+tetragonal
+orthorhombic
+
+3 × T2g
+
+trigonal
+
+ϵγ
+2ϵzz − ϵxx − ϵyy
+ϵxx − ϵyy
+ϵyz
+ϵxz
+ϵxy
+
+thorhombic distortion (a ≠ b), while the second produces
+a tetragonal distortion through a change of the ratio c/a.
+Thus, the PPFQ regime is accompanied by a structural
+response that can be resolved by symmetry. Its magnitude can again be estimated directly once the effective coupling constants are known. These distortions
+are experimentally accessible through splitting or shifts
+of symmetry-related Bragg reflections. A natural protocol is therefore a pump-probe measurement in which the
+circularly polarized drive acts as the pump, while timeresolved x-ray diffraction or ultrafast electron diffraction
+monitors the transient lattice symmetry. The structural
+signal is then expected to follow the pump envelope and
+to disappear once the drive is switched off [76, 77].
+These strain components are symmetry-forbidden in
+the absence of the corresponding drive-induced multipolar order. Their reversible on-off appearance therefore
+provides a direct structural fingerprint of the FO and
+PPFQ regimes summarized in Fig. 9. More broadly, the
+present phenomenological analysis not only identifies the
+symmetry channel of the distortion, but also determines
+its expected scale once the effective couplings are fixed,
+for example through ab initio estimates of the magnetoelastic parameters. This makes the predicted lattice response directly testable and establishes a concrete route
+to detecting hidden multipolar order in driven spin-orbitcoupled Mott insulators.
+
+Oh
+D4h
+D2h
+D3d
+
+V.
+
+shear coordinates
+2z 2 − x2 − y 2
+√
+3 (x2 − y 2 )
+yz
+xz
+xy
+
+CONCLUSION AND OUTLOOK
+
+In this work, we identified a nonequilibrium route to
+controlling hidden multipolar degrees of freedom in spinorbit-coupled 4d2 /5d2 Mott insulators using CPL. Starting from a microscopic Hubbard-Kanamori model on
+an edge-sharing octahedral lattice, we derived a driven
+low-energy multipolar Hamiltonian by means of a timedependent FSWT. The resulting prethermal effective
+theory contains two qualitatively new light-induced ingredients. The first is a rectified static response field hm
+that couples linearly and uniformly to the magnetic octupole Txyz , thereby realizing an OIFE. The second is
+a bond-dependent anisotropic exchange Γ(3) that mixes
+octupolar and quadrupolar channels in a symmetryselective manner on the honeycomb lattice. These two
+terms vanish in the absence of driving, demonstrating
+that they are genuine Floquet-induced couplings rather
+than remnants of equilibrium physics.
+A central message of this paper is that these two
+light-generated terms play distinct but complementary
+roles. The OIFE provides a direct optical handle on a
+hidden octupolar degree of freedom, while the induced
+anisotropic exchange reorganizes the underlying multipolar interaction landscape. Together they generate a
+driven multipolar phase space that is absent in the un-
+
+
+---PAGE BREAK---
+16
+driven model. Using ED, we showed that the interplay
+between hm and Γ(3) tunes the system among AFO,
+field-polarized FO, PPFQ, and IO regimes, while opening an extended frustration-dominated sector with strong
+Kitaev-like multipolar-liquid tendencies. In this sense,
+the anisotropic light-induced exchange is not merely a
+secondary correction to the octupolar response, but a decisive ingredient that opens and broadens the liquid-like
+sector of the driven phase diagram.
+Within the minimal microscopic derivation, hm and
+Γ(3) evolve in a correlated manner under the drive,
+so that CPL alone traces only a restricted trajectory
+through the full phase diagram. A weak external magnetic field applied along [111] direction provides an additional control parameter through the uniform σ̃ y term
+in Eq. (7), thereby shifting this trajectory and enabling
+access to a broader region of parameter space. More generally, our results illustrate a broader principle: Floquet
+rectification can generate conjugate fields for higher-rank
+moments while simultaneously engineering symmetryallowed anisotropic exchange interactions. This provides
+a route for the selective stabilization, manipulation, and
+tuning of hidden multipolar order beyond equilibrium
+settings.
+An important experimental consequence of our results is that the light-induced multipolar phases need
+not remain hidden. At the phenomenological level, uniform FO order permits symmetry-allowed trigonal distortions, whereas the PPFQ regime allows tetragonal and
+orthorhombic distortions of the surrounding octahedra.
+These structural responses are expected to appear only
+in the presence of the drive and to relax once the light is
+switched off, thereby providing a direct on-off fingerprint
+of otherwise hidden multipolar order. This feature makes
+the proposed mechanism accessible to pump-probe measurements using time-resolved x-ray diffraction, ultrafast
+electron diffraction, or related structural probes, and establishes a concrete setting in which optical control and
+lattice readout are intrinsically linked.
+The present work also opens several natural directions
+for future study. On the theoretical side, the formalism
+can be extended to other lattice geometries, particularly
+corner-sharing octahedral networks, where the symmetry
+constraints and hierarchy of Floquet-induced couplings
+are expected to differ and may generate distinct driven
+multipolar Hamiltonians. For the ideal corner-sharing
+case, the corresponding effective Hamiltonian is given in
+Appendix D. On the materials side, spin-orbit-coupled
+4d2 /5d2 compounds with suppressed conventional dipolar magnetism remain especially promising platforms for
+realizing the mechanism discussed here. In particular,
+edge-sharing candidate material such as ReCl5 is appealing as illustrative materials in which OIFE- and
+anisotropy-driven multipolar responses may be searched
+for, although a fully material-specific analysis and search
+for materials with similar motifs remain as future work.
+More broadly, the mechanism developed here establishes
+
+periodic driving as a selective tool for controlling higherrank order parameters. It not only enables the switching and manipulation of hidden multipolar order, but
+also provides access to frustration-enhanced regimes in
+which strong multipolar correlations persist without conventional long-range order.
+Finally, we note that our formulation resonates
+with recent ideas of “quantum printing” [78], in
+which structured light—for example, Laguerre-Gaussian
+beams [79]—is proposed to imprint higher-angularmomentum pairing channels such as p-, d-, and f wave superconductivity onto otherwise simple fluids. Although the microscopic degrees of freedom are very different, both settings reflect a common organizing principle: suitably structured optical driving can generate
+and stabilize forms of order that are inaccessible, or only
+weakly expressed, in equilibrium. From this perspective, the octupolar inverse Faraday effect and the lightinduced anisotropic multipolar exchange identified here
+provide a concrete example of how periodic driving can
+be used not only to manipulate an existing ordered state,
+but to create qualitatively new routes toward hidden and
+frustration-driven quantum matter.
+
+VI.
+
+ACKNOWLEDGMENTS
+
+The numerical calculations were performed using
+the HPC resources provided by the Erlangen National
+High Performance Computing Center (NHR@FAU) of
+the Friedrich-Alexander Universität Erlangen-Nürnberg
+(FAU) and URZ of the University of Greifswald, Germany. NHR funding is provided by federal and Bavarian state authorities. NHR@FAU hardware is partially
+funded by the German Research Foundation (DFG) –
+440719683. We acknowledge discussions with Alexander V. Balatsky, Sang-Wook Cheong, Gayanath W. Fernando, R. Matthias Geilhufe, Stephan Humeniuk, and
+Alexander Tyner. DMRG simulations were performed
+using the ITensor library [73].
+
+VII.
+
+DATA AVAILABILITY
+
+The data supporting the findings of this study may be
+obtained from the corresponding author upon reasonable
+request.
+
+Appendix A: Hubbard-Kanamori description
+
+In this section, we introduce the multi-orbital
+Hubbard-Kanamori model relevant to 4d2 /5d2 Mott insulators and characterize the corresponding states for the
+Eg orbitals described in the main text. Our starting point
+is H(t) = H0 + H1 (t) with
+
+
+---PAGE BREAK---
+17
+
+H0 =
+
+λ
+U′
+JH
+U
+p
+†
+†
+†
+d
+d
+d
+d
+∑ niα↑ niα↓ +
+∑ niασ′ niβσ +
+∑ diασ diβσ′ diασ′ diβσ + ∑ diασ Lαβ ⋅ Sσσ′ diβσ′ + ∆c ∑ nlµσ , (A1a)
+2 i
+2 iσσ′
+2 iα≠β
+2 i
+lσ
+α≠β
+
+H1 (t) = − t2 ∑ eiϕij (t) d†iyzσ djxzσ + tpd ∑ eiθil (t) d†ixzσ plzσ + {xz ↔ yz, l ↔ l′ , tpd ↔ −tpd } + h.c.,
+⟨il⟩
+⟨ij⟩
+
+where α, β label the d-orbitals (α, β ∈ {xy, yz, zx}) and
+we assume summation over repeated greek indices. In
+Eq. (A1a) nplµσ = p†lµσ plµσ , where µ and l denote the porbitals (µ ∈ {x, y, z}) and their spatial locations, respectively. Furthermore, U is the onsite Coulomb repulsion,
+JH is the Hund’s coupling (U ′ = U − 2JH for rotationally
+invariant systems), and λ is the strength of the atomic
+spin-orbit coupling. ∆c represents the crystal field splitting due to the octahedral environment. The hopping
+terms in Eq. (A1b) are adopted from Slater-Koster integrals for both the direct TM-TM and the TM-ligand
+overlaps. Peierls phases are defined as in the main text.
+Here, tpd denotes the hopping amplitude between the ligand and TM sites. We we consider the largest direct hopping amplitude between the TM sites as t2 . Initially, we
+focus on the atomic states for d2 electronic configuration.
+The interplay of Hund’s coupling, SOC and crystal field
+effect leads to a low-energy doublet (Eg ) and high-energy
+triplet states (T2g ), where the level splitting of the various atomic states is illustrated in Fig. 2(d,e) [13, 15–20].
+
+(A1b)
+
+states in the two-electron basis labeled by ∣ml , ms ⟩:
+∣1, 1⟩ =
+∣1, 0⟩ =
+
+d†ixy↑ d†izx↑ + id†ixy↑ d†iyz↑
+√
+∣0⟩ ,
+2
+†
+†
+†
+†
+∑σ (dixyσ dizxσ + idixyσ diyzσ )
+
+2
+
+(A2a)
+∣0⟩ ,
+
+d†ixy↓ d†izx↓ + id†ixy↓ d†iyz↓
+√
+∣0⟩ ,
+2
+d†ixy↑ d†izx↑ − id†ixy↑ d†iyz↑
+√
+∣−1, 1⟩ =
+∣0⟩ ,
+2
+
+∣1, −1⟩ =
+
+∣−1, 0⟩ =
+
+†
+†
+†
+†
+∑σ (dixyσ dizxσ − idixyσ diyzσ )
+
+2
+
+(A2c)
+(A2d)
+∣0⟩ ,
+
+d†ixy↓ d†izx↓ − id†ixy↓ d†iyz↓
+√
+∣0⟩ ,
+2
+∣0, 1⟩ = d†iyz↑ d†izx↑ ∣0⟩ ,
+
+∣−1, −1⟩ =
+
+∣0, 0⟩ =
+
+d†iyz↑ d†izx↓ + d†iyz↓ d†izx↑
+√
+
+2
+†
+†
+∣0, −1⟩ = diyz↓ dizx↓ ∣0⟩ .
+
+(A2b)
+
+∣0⟩ ,
+
+(A2e)
+(A2f)
+(A2g)
+(A2h)
+(A2i)
+
+With these states, we construct the J basis as follows
+(the coefficients of the various terms are governed by the
+Clebsch-Gordon rules):
+∣1, −1⟩ − ∣0, 0⟩ + ∣−1, 1⟩
+√
+,
+3
+∣1, 0⟩ − ∣0, 1⟩
+√
+∣Ji = 1; Ji;z = +1⟩ =
+,
+2
+∣1, −1⟩ − ∣−1, 1⟩
+√
+∣Ji = 1; Ji;z = 0⟩ =
+,
+2
+∣−1, 0⟩ − ∣0, −1⟩
+√
+∣Ji = 1; Ji;z = −1⟩ = −
+,
+2
+∣Ji = 2; Ji;z = +2⟩ = ∣1, 1⟩ ,
+∣Ji = 0; Ji;z = 0⟩ =
+
+∣1, 0⟩ + ∣0, 1⟩
+√
+,
+2
+∣1, −1⟩ + 2 ∣0, 0⟩ + ∣−1, 1⟩
+√
+∣Ji = 2; Ji;z = 0⟩ =
+,
+6
+∣−1, 0⟩ + ∣0, −1⟩
+√
+∣Ji = 2; Ji;z = −1⟩ = −
+,
+2
+∣Ji = 2; Ji;z = −2⟩ = ∣−1, −1⟩ .
+∣Ji = 2; Ji;z = +1⟩ =
+
+In the case of strong SOC, we rewrite the low-energy
+manifold in the J = L + S basis. Note that the alignment
+of the second spin angular momentum for the d2 configuration is dictated by the strong Hund’s coupling. First,
+we construct the nine states by collecting all two-electron
+
+(A3a)
+(A3b)
+(A3c)
+(A3d)
+(A3e)
+(A3f)
+(A3g)
+(A3h)
+(A3i)
+
+
+---PAGE BREAK---
+18
+With the above states obtained, we can write down the
+
+Eg doublet from Eq. (1):
+
+†
+†
+†
+†
+†
+†
+†
+†
+∣Ji = 2; Ji;z = +2⟩ + ∣Ji = 2; Ji;z = −2⟩ dixy↑ dizx↑ + idixy↑ diyz↑ + dixy↓ dizx↓ − idixy↓ diyz↓
+√
+∣0⟩ ,
+=
+2
+2
+d†ixy↓ d†izx↓ + 2d†iyz↑ d†izx↓ + id†ixy↓ d†iyz↓ + d†ixy↑ d†izx↑ + 2d†iyz↓ d†izx↑ − id†ixy↑ d†iyz↑
+√
+∣⇓⟩i = ∣Ji = 2; Ji;z = 0⟩ =
+∣0⟩ .
+2 3
+
+∣⇑⟩i =
+
+For the sake of completeness, we will also present the
+three triplet states T2g :
+∣i, ξ⟩ = ∣Ji = 2; Ji;z = +1⟩ ,
+∣Ji = 2; Ji;z = +2⟩ − ∣Ji = 2; Ji;z = −2⟩
+√
+,
+2
+∣i, ζ⟩ = ∣Ji = 2; Ji;z = −1⟩ .
+∣i, η⟩ =
+
+(A5a)
+(A5b)
+(A5c)
+
+The final splitting, ∆, between the T2g and Eg states is
+induced by the Hund’s rule and spin-orbit couplings [48].
+It can be understood simply as follows: First, the original
+l = 2 manifold of the d-orbital splits into the eg and t2g
+levels in an octahedral environment. Second, two electrons in the d- orbital lead to a J = 2 level insinde a
+cubic environment. This level is isomorphic to the l = 2
+level in terms of degeneracy and symmetry properties. It
+must split into a T2g and a Eg level.
+Finally, we illustrate the various hopping paths that
+follow the tight-binding Hamiltonian in Eq. (A1b) and
+the geometry in Fig. 2(c,d). The TM site indices are de-
+
+S(t) = S (1) (t) + S (2) (t) + S (3) (t) + ⋯
+
+(B2)
+
+(A4b)
+
+noted by i and j, and the ligand sites are denoted by l and
+l′ . The direct hopping between the TM sites, such as between sites i and j is denoted by t2 while hopping between
+the TM site i and ligand sites l is denoted by tpd . The angle between ligand-TM-TM sites, i.e., the angle between
+the ligand and the two TM sites, is denoted by ψ0 , and
+the TM-TM (or TM-ligand) distance is denoted by rdd
+(or rpd ). To derive the low-energy multipolar exchange
+Hamiltonian, we only consider super-exchange processes
+in a four-site cluster, as shown in Fig. 2(c,d). Additionally, we restrict ourselves to third-order perturbation theory, considering both the hopping paths in the upper and
+lower triangles.
+
+Appendix B: Floquet Schrieffer-Wolff
+transformation
+
+Here, we give the fundamental steps involved in deriving othe low-energy Hamiltonian through the timedependent (Floquet) Schrieffer-Wolff transformation. To
+do so, we change to the rotating frame:
+
+1
+H′ (t) = eiS(t) H(t)e−iS(t) − eiS(t)(t) i∂t e−iS(t) = H(t) + [iS(t), H(t) − i∂t ] + [iS(t), [iS(t), H(t) − i∂t ]] + ⋯
+2
+
+The generating function S can be expanded in leading
+order in terms of the hopping parameters (tpd and t2 in
+our case). Formally, this reads
+
+(A4a)
+
+(B1)
+
+(A1b) as a sum of diagonal and off-diagonal part as
+H(t) = H0 + H1 (t), where H0 is the Hubbard-Kanamori
+part as defined in Eq. (A1a), and H1 (t) is the hopping
+Hamiltonian as defined in Eq. (A1b). The rotated Hamiltonian (B1) then takes the form
+
+We now rewrite our Hamiltonian H(t) in Eq. (A1a)-
+
+1
+H′ (t) = H0 + H1 (t) + [iS(t), H0 + H1 (t) − i∂t ] + [iS(t), [iS(t), H0 + H1 (t) − i∂t ]] + ⋯.
+2
+
+By rewriting the above equation order by order, we ob-
+
+tain the following:
+
+(B3)
+
+
+---PAGE BREAK---
+19
+
+H′ (t) = H0 +
+H1 (t) + i[S (1) (t), H0 ] − ∂t S (1) (t) +
+
+⋯ 1st order
+
+(B4a)
+
+1
+i[S (1) (t), H1 (t)] + i[S (2) (t), H0 ] − [S (1) (t), i∂t S (1) (t) + [S (1) (t), H0 ]] − ∂t S (2) (t) + ⋯ 2nd order
+2
+
+(B4b)
+
+1
+i[S (3) (t), H0 ] + i[S (2) (t), H1 (t)] − [S (1) (t), i∂t S (2) (t) + [S (1) (t), H1 (t)] + [S (2) (t), H0 ]] −
+2
+1 (2)
+(1)
+(1)
+[S (t), i∂t S (t) + [S (t), H0 ]] −
+2
+i (1)
+[S (t), [S (1) (t), i∂t S (1) (t) + [S (1) (t), H0 ]]] − ∂t S (3) (t) +
+⋯ 3rd order
+3!
+
+(B4c)
+
+1
+i[S (4) (t), H0 ] + i[S (3) (t), H1 (t)] − [S (3) (t), i∂t S (1) (t) + [S (1) (t), H0 ]] −
+2
+1 (2)
+(2)
+(1)
+[S (t), i∂t S (t) + [S (t), H1 (t)] + [S (2) (t), H0 ]] −
+2
+1 (1)
+[S (t), i∂t S (3) (t) + [S (2) (t), H1 (t)] + [S (3) (t), H0 ]] −
+2
+i (1)
+[S (t), i[S (1) (t), ∂t S (2) (t)] + i[S (2) (t), ∂t S (1) (t)] + [S (1) (t), [S (1) (t), H1 (t)]] +
+3!
+i
+[S (1) (t), [S (2) (t), H0 ]] + [S (2) (t), [S (1) (t), H0 ]]] − [S (2) (t), i[S (1) (t), ∂t S (1) (t)] + [S (1) (t), [S (1) (t), H0 ]] +
+3!
+1 (1)
+[S (t), [S (1) (t), [S (1) (t), i∂t S (1) (t) + [S (1) (t), H0 ]]]] − ∂t S (4) (t) +
+⋯ 4th order
+(B4d)
+4!
+O(S (5) ) . . .
+
+We can now construct the generating functions for each
+order using the corresponding dynamical equations of
+motion. To do so, we introduce two projection operators
+Pi and Qi = 1−Pi , that project an arbitrary operator onto
+the low- and high-energy Hilbert spaces, respectively. In
+this particular case, the atomic projection operator Pi is
+defined as
+Pi = ∣i; ⇑⟩ ⟨i; ⇑∣ + ∣i; ⇓⟩ ⟨i; ⇓∣ .
+
+Qhigh = 1 − Plow .
+
+(m)
+
+(m)
+
+Heff,01 (t) = Heff,10 (t) = 0,
+(m)
+
+(m)
+
+(m)
+
+(m)
+
+Heff,01 (t) = Plow Heff (t)Qhigh ,
+Heff,10 (t) = Qhigh Heff (t)Plow .
+
+(B7a)
+(B7b)
+(B7c)
+
+(B5)
+
+Accordingly, Plow is defined as Plow = ∏N
+i=1 Pi where N
+is the number of sites. Furthermore, we decompose each
+operator A into transitions based on the two projection
+operators:
+Apq = Plow AQhigh ,
+
+not have a mixing term:
+
+(B6)
+
+The Hamiltonian in the rotated frame can be simplified
+(m)
+as follows: H′ (t) = ∑nm=0 Heff (t) + O(n + 1). The final
+goal is to find a suitable form of the operators S (m) , such
+(m)
+that the m-th order effective Hamiltonian Heff (t) does
+
+In what follows, we derive the formal expressions for the
+generating function, S(t), in each order of the perturbation expansion. When computing the generating function S (1) (t), we use of the dynamical equation of motion
+given in Eq. (B4a). At each order, the generator S can be
+obtained from the Liouville equation with various source
+terms:
+∂t S (1) (t) = i[S (1) (t), H0 ] + H1 (t).
+
+(B8)
+
+We introduce the retarded and advanced Green’s func-
+
+
+---PAGE BREAK---
+20
+tions to solve Eq. (B8):
+G R (t, t′ ) = −ie−i(H0 −iη)(t−t ) θ(t − t′ ),
+′
+
+′
+
+i(H0 +iη)(t′ −t)
+
+G (t, t ) = ie
+A
+
+∂t S
+
+(1)
+
+(t) = i[S
+
+(1)
+
+′
+
+(B9a)
+
+θ(t − t),
+
+(B9b)
+
+(t), H0 ] + H1 (t),
+
+(B9c)
+
+where θ(t − t′ ) is the step function. Note that S (1) (t) is
+a 2 × 2 matrix in the basis of Plow and Qhigh ,
+S
+
+(1)
+
+P S (1) (t)Plow Plow S (1) (t)Qhigh
+(t) = ( low (1)
+),
+Qhigh S (t)Plow Qhigh S (1) (t)Qhigh
+
+with vanishing diagonal terms Plow S (1) (t)Plow =
+Qhigh S (1) (t)Qhigh = 0 because a single hopping will
+change any double occupancy in d2 configuration to d1
+or d3 . Since S (1) (t) is a Hermitian operator we have
+[S (1) (t)]† = S (1) (t), which translates into
+†
+
+[Plow S (1) (t)Qhigh ] = Qhigh S (1) (t)Plow .
+
+(B10)
+
+Writing down the dynamical equations of S (1) (t) projected into the individual energy subspaces we obtain
+
+∂t Plow S (1) (t)Qhigh = iPlow S (1) (t)H0 Qhigh − iPlow H0 S (1) (t)Qhigh + Plow H1 (t)Qhigh ,
+((((
+(
+(
+(1)
+(1)
+(
+(
+( Qhigh S (t)Qhigh + Plow H1 (t)Qhigh
+= iPlow S (t)Qhigh Qhigh H0 Qhigh − iPlow(
+H0 Q(
+high
+(( (
+(1)
+= iPlow S (t)Qhigh Qhigh H0 Qhigh + Plow H1 (t)Qhigh ,
+(B11a)
+∂t Qhigh S (1) (t)Plow = iQhigh S (1) (t)H0 Plow − iQhigh H0 S (1) (t)Plow + Qhigh H1 (t)Plow
+(
+((((
+(
+(1)
+(
+(
+( high Qhigh H0 Plow − iQhigh H0 Qhigh Qhigh S (1) (t)Plow + Qhigh H1 (t)Plow
+S ((t)Q
+= iQhigh
+((((
+= −iQhigh H0 Qhigh Qhigh S (1) (t)Plow + Qhigh H1 (t)Plow .
+(B11b)
+
+We obtain the projected operators from Eq. (B11a) and
+
+Eq. (B11b) as
+
+Plow S (1) (t)Q = −i ∫ dt′ Plow H1 (t′ )Qhigh G A (t′ − t) = ∫ dt′ θ(t − t′ )Plow H1 (t′ )Qhigh ei(H0 +iη)(t−t ) ,
+
+(B12a)
+
+Qhigh S (1) (t)Plow = i ∫ dt′ G R (t − t′ )Qhigh H1 (t′ )Plow = ∫ dt′ θ(t − t′ )e−i(H0 −iη)(t−t ) Qhigh H1 (t′ )Plow .
+
+(B12b)
+
+′
+
+′
+
+With this, we write the second-order effective Hamilto-
+
+nian by assuming S (2) (t) = 0 and solving Eq. (B4b):
+i
+(2)
+Heff (t) = [S (1) (t), H1 (t)].
+2
+
+(B13)
+
+Projecting the effective Hamiltonian in the low-energy
+subspace, we get
+
+i
+(2)
+Heff (t) = [Plow S (1) (t)Qhigh Qhigh H1 (t)Plow − Plow H1 (t)Qhigh Qhigh S (1) (t)Plow ].
+2
+
+Now, we can substitute the solutions given by Eq. (B12a)
+and Eq. (B12b) into Eq. (B14) to obtain an explicit expression for the second-order effective Hamiltonian. The
+derivation of the third-order Hamiltonian is done in a
+similar way. We are interested in the third-order effective
+Hamiltonian because the dominant hoppings are consid-
+
+(B14)
+
+ered to be between TM and ligand atoms. The corresponding dynamical equation for S (2) (t) is
+
+
+---PAGE BREAK---
+21
+i
+(2)
+∂t S (2) (t) = i[S (2) (t), H0 ] + [S (1) (t), H1 (t)] = i[S (2) (t), H0 ] + Heff (t).
+2
+
+Assuming that S (3) (t) = 0, we obtain the effective Hamil-
+
+tonian in the third order perturbation:
+
+i
+1
+(3)
+Heff (t) = Plow [S (2) (t), H1 (t)]Plow − Plow [S (1) (t), [S (1) (t), H1 (t)]]Plow
+2
+12
+i
+i
+(2)
+= Plow [S (2) (t), H1 (t)]Plow + Plow [S (1) (t), Heff (t)]Plow .
+2
+6
+
+We determine the second-order generating function
+S (2) (t) using the Liouville equation with a source term
+
+(B15)
+
+(B16)
+
+as given in Eq. (B15). The corresponding projected solutions are
+
+i
+Plow S (2) (t)Qhigh = −i ∫ dt′ Plow ( [S (1) (t′ ), H1 (t′ )]) Qhigh G A (t′ − t)
+2
+(2)
+
+= ∫ dt′ θ(t′ − t)Plow (Heff (t)) Qhigh ei(H0 +iη)(t−t ) ,
+′
+
+(B17a)
+
+i
+Qhigh S (2) (t)Plow = i ∫ dt′ G R (t − t′ )Qhigh ( [S (1) (t′ ), H1 (t′ )]) Plow
+2
+(2)
+
+= ∫ dt′ θ(t′ − t)e−i(H0 −iη)(t−t ) Qhigh (Heff (t)) Plow .
+′
+
+Appendix C: Multipolar exchange model
+
+To perform a controlled perturbation theory, we now
+introduce two different high-energy projection operators
+Q1h , and Q2h , as well as a similar low-energy projection
+operator Pl . For notational simplicity, we introduce the
+abbreviations low → l and high → h. Here, Q1h (Q2h )
+corresponds to the high-energy states of the HubbardKanamori part (the ligand energy), while Pl corresponds
+to the low-energy manifold spanned by the non-Kramers
+doublets. To simplify, we focus on the z-bond and retain only the largest hopping amplitude t2 ≠ 0, while neglecting all others. The derivation of the second-order
+exchange Hamiltonian has been addressed in previous
+theoretical works [17, 19, 22]. Here, we focus on the
+third-order perturbation theory through the ligand degrees of freedom. For completeness, however, we also
+present the result of second-order perturbation theory,
+which includes only the generating function S (1) (t) and
+
+is therefore restricted to mutual hopping between the two
+TM atoms. In the presence of the circularly polarized
+light (CPL), this leads to the simplified Hamiltonian [26]:
+(2)
+
+Heff = J (2) (ζ) ∑ (σ̃iy σ̃jy − σ̃ix σ̃jx − σ̃iz σ̃jz ) ,
+
+(C1)
+
+⟨ij⟩
+2J 2 (A0 )t22
+where J (2) (ζ) = ∑n 3(nŨ −nΩ)
+. Here, Jn (x) is the Bessel
+function, Ũ = U − 3JH + λ [19], A0 = rddΩE0 , and ζ = A0
+
+is the drive strength. Below, we provide a detailed
+derivation for the third-order effective Hamiltonian. The
+previous derivation is similar to this one, so we will
+skip the details here. The scaled Hubbard interaction
+Ũ = U − 3JH + λ appears in the expressions for the various
+exchange couplings in Eqs. (6b)-(B4c) in the main text.
+Perturbation theory. Following Eq. (B16), the explicit
+form of the third-order Hamiltonian projected onto the
+Pl subspace is
+
+i
+1
+(3)
+Heff (t) = Pl [S (2) (t), H1 (t)]Pl − Pl [S (1) (t), [S (1) (t), H1 (t)]]Pl
+2
+12
+i
+1
+= {Pl S (2) (t)H1 (t)Pl − Pl H1 (t)S (2) (t)Pl } − Pl {S (1) (t)M(t) − M(t)S (1) (t)},
+2
+12
+¸¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¶
+´¹¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹¸ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹¶ ´¹¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ ¹ T
+2
+T1
+
+(B17b)
+
+(C2)
+
+
+---PAGE BREAK---
+22
+where M(t) = [S (1) (t), H1 (t)]. The first term T1 can be
+
+simplified as follows:
+
+i
+T1 = [Pl S (2) (t)H1 (t)Pl − Pl H1 (t)S (2) (t)Pl ]
+2
+i
+= [Pl S (2) (t)Qh Qh H1 (t)Pl − Pl H1 (t)Qh Qh S (2) (t)Pl ]
+2
+⎧
+⎪
+′
+′
+1
+⎪
+= ∫ dt′ θ(t − t′ )⎨Pl H1 (t)Qh e−i(H0 −iη)(t−t ) Qh [S (1) (t′ ), H1 (t′ )]Pl − Pl [S (1) (t′ ), H1 (t′ )]Qh ei(H0 +iη)(t−t ) Qh H1 (t)Pl
+⎪
+4
+⎪
+⎩
+t
+t
+′
+′
+1
+= (∫ dt′ Pl H1 (t)Qh e−i(H0 −iη)(t−t ) Qh S (1) (t′ )Qh Qh H1 (t′ )Pl − ∫ dt′ Pl H1 (t)Qh e−i(H0 −iη)(t−t ) Qh H1 (t′ )Qh Qh S (1) (t′ )Pl
+4 −∞
+−∞
+−∫
+
+t
+−∞
+
+dt′ Pl S (1) (t′ )Qh Qh H1 (t′ )Qh ei(H0 +iη)(t−t ) Qh H1 (t)Pl + ∫
+′
+
+t
+−∞
+
+dt′ Pl H1 (t′ )Qh Qh S (1) (t′ )Qh ei(H0 +iη)(t−t ) Qh H1 (t)Pl ) ,
+′
+
+(C3)
+
+where repeated indices have to be summed over. Since
+there are two types of projection operators, we derive the
+transition matrix elements for S (1) (t) with respect to Q1h
+and Q2h . In this case, the matrix S (1) (t) is a 3 × 3 matrix
+of the form
+S
+
+(1)
+
+⎛ Pl S (1) (t)Pl Pl S (1) (t)Q1h Pl S (1) (t)Q2h ⎞
+1 (1)
+1 (1)
+1
+1 (1)
+2⎟
+(t) = ⎜
+⎜Qh S (t)Pl Qh S (t)Qh Qh S (t)Qh ⎟ .
+⎝Q2h S (1) (t)Pl Q2h S (1) (t)Q1h Q2h S (1) (t)Q2h ⎠
+
+The transition matrix elements Pl S (1) (t)Qih and
+i (1)
+Qh S (t)Pl , ∀i = 1, 2 follow from deriving Eqs. (B11a)-
+
+(B11b). We now have two more transition matrix
+elements: Qih S (1) (t)Qjh , ∀ i, j = 1, 2. However, when
+deriving the low-energy model, we ignore any highenergy exchange paths. Therefore, we choose a gauge
+condition such that Qih S (1) (t)Qjh = 0 for any exchange
+path i, j = 1, 2. With this condition, the expressions for
+T1 and T2 simplify as follows:
+
+′
+1 t
+T1 = − ∫ dt′ Pl H1 (t)Qh e−i(H0 −iη)(t−t ) Qh H1 (t′ )Qh Qh S (1) (t′ )Pl + H.c.,
+4 −∞
+1
+T2 = Pl S (1) (t)Qh Qh H1 (t)Qh Qh S (1) (t)Pl .
+6
+
+Using the solutions for S (1) (t) and S (2) (t) given above,
+we can now compute the effective time-dependent Hamiltonian. Finally, taking into account the periodicity of
+CPL, we project the time-periodic effective model to the
+zero-photon Floquet sector via a Floquet-Magnus expan-
+
+∞
+
+eiϕij (t) = ∑ Jn (A0 )einΩt ,
+n=−∞
+
+r
+
+∞
+
+(C4b)
+
+sion. In this regard, the Peierls phases in the hopping
+terms are rewritten in terms of Bessel functions, which
+appear in the expressions for the coupling constants in
+Eqs. (6b)-(B4c) in the main text. This yields
+
+eiθil′ (t) = ∑ Jm (A)eimΩt+imψ0 ,
+m=−∞
+
+(C4a)
+
+∞
+
+eiθl′ j (t) = ∑ Jl (A)eilΩt−ilψ0 ,
+
+(C5)
+
+l=−∞
+
+E
+
+where A0 = rddΩE0 , and A = pdΩ 0 with rdd (rpd )
+being the distance between TM-TM (TM-Ligand)
+sites in Fig. 2(c,d). Jn (x) is the Bessel function of
+the first kind, and Ω is the frequency of the incident CPL.
+
+Exchange Hamiltonian. We therefore obtain the
+third-order effective Hamiltonian by performing the
+above procedure and taking a subsequent time-average.
+
+
+---PAGE BREAK---
+23
+The respective matrix elements are evaluated using
+
+DiracQ package in MATHEMATICA V.14.3 [80]:
+
+(3)
+
+Heff = J (3) (ζ) ∑ (σ̃iz σ̃jz + σ̃ix σ̃jx − σ̃iy σ̃jy ) + Γ(3) (ζ) ∑ (σ̃iz σ̃jy + σ̃iy σ̃jz ) + hm (ζ) ∑ σ̃iy ,
+⟨ij⟩
+
+⟨ij⟩
+
+where the exchange couplings are derived in terms of the
+hopping and interaction parameters as provided earlier.
+
+Since we analyzed the z-bond, the generic third-order
+Hamiltonian can be obtained by exploiting the cubic rotation symmetry for the Γ(3) term:
+
+(3)
+
+Heff = J (3) (ζ) ∑ (σ̃iz σ̃jz + σ̃ix σ̃jx − σ̃iy σ̃jy ) + Γ(3) (ζ) ∑ (σ̃iγ σ̃jy + σ̃iy σ̃jγ ) + hm (ζ) ∑ σ̃iy ,
+⟨ij⟩,γ
+
+⟨ij⟩
+
+where σ̃iγ is defined as
+σ̃iγ = cos ϕγ σ̃iz + sin ϕγ σ̃ix ,
+
+(C8)
+
+and ϕγ = {0, 2π
+, 4π
+} for γ ∈ {z, x, y} bonds. Note that
+3
+3
+both the rectified static response hm and the anisotropic
+coupling Γ(3) vanish in the absence of incident CPL. Using Eq. (C1) and Eq. (C6), we obtain the full Hamiltonian, Eq. (4) in the main text. In the above definitions,
+all the exchange couplings√depend on the drive strength
+ζ. For ideal octahedra, 2rpd = rdd , and accordingly
+A0 = ζ, and A = √ζ2 . The variation of the different exchange couplings as a function of ζ is shown in Fig. 3 in
+the main text. For plotting, we restricted the summation
+to −5 ≤ {n, l, m} ≤ 5 in the above expressions.
+Appendix D: Multipolar exchange couplings in
+different geometry
+
+Throughout this work, we have studied a specific d2
+Mott insulator system under periodic driving, focusing
+on edge-sharing octahedral lattices along the [111] plane.
+In this case, the TM ions form a two-dimensional honeycomb structure, and we solve the corresponding model
+Hamiltonian [cf. Eq. (4)]. However, our formalism allows us to investigate along other planes within the same
+edge-sharing octahedral geometry, as well as extend to
+other cases, such as corner-sharing octahedra, where the
+TM-Ligand-TM angle is 180○ . In this case, the absence of
+triangular flux from the incident CPL constrains us to focus on the second-order perturbation theory. Similarly to
+the previous case, we perform a Floquet Schrieffer-Wolff
+transformation and obtain the Hamiltonian
+2t22 Jn2 (A0 )
+2
+(σ̃i ⋅ σ̃j + σ̃iγ σ̃jγ )
+3
+⟨ij⟩γ n 3(Ũ − nΩ)
+
+Heff = ∑ ∑
+
+(D1)
+
+in the [111] plane, where the TM ions form a triangular lattice. Again, A0 = E0 rdd /Ω, t2 is the strength of
+
+(C6)
+
+i
+
+(C7)
+
+i
+
+the TM-TM hopping, and σ̃iγ = cos ϕγ σ̃iz + sin ϕγ σ̃ix for
+three different γ-bond-directions, as mentioned earlier.
+In contrast to the edge-sharing case, the bond-dependent
+exchange anisotropy term naturally appears without the
+support of ligand-mediated hopping.
+
+Appendix E: Exact diagonalization
+
+In this section, we present details of our numerical
+analysis, which is based on the ED of the multipolar
+exchange Hamiltonian given in Eq. (4). Our focus is
+on the [111] plane of edge-sharing octahedra, which
+forms a honeycomb structure. Accordingly, we study
+the model on a periodic honeycomb lattice. Since the
+dimension of Hilbert space grows exponentially with
+the size of the system, we primarily draw conclusions
+from a 24-site honeycomb cluster. The dimension of
+the Hilbert space for this cluster is 224 ≈ 1.7 × 107 . The
+periodic cluster is shown in Fig. 10(a). We characterize
+the different multipolar phases by computing oneand two-point correlation functions for system sizes
+N = {8, 12, 16, 18, 20, 24}, followed by a finite-size scaling. We determine the phase boundaries from various
+quantities, such as FS and FM, as well as multipolar
+structure factors, which we compute using a custom
+Fortran 90 code.
+High-symmetry points. The primitive basis vectors used
+to construct the honeycomb lattice are
+√
+a1 = a( 3, 0),
+
+a2 =
+
+a √
+( 3, 3).
+2
+
+(E1)
+
+For convenience, we work in units where the lattice constant a = 1. The corresponding reciprocal lattice vectors
+bi are
+b1 =
+
+2π √
+( 3, −1),
+3
+
+b2 =
+
+4π
+(0, 1).
+3
+
+(E2)
+
+
+---PAGE BREAK---
+24
+(a)
+
+6
+
+12
+
+5
+
+18
+
+11
+
+4
+
+10
+
+17
+
+23
+
+16
+
+9
+
+3
+
+24
+
+22
+
+15
+
+21
+
+2
+
+8
+
+14
+
+20
+
+1
+
+7
+
+13
+
+19
+
+(b)
+
+(c)
+
+b2
+
+a2
+
+K
+M
+Γ
+
+a1
+
+K’
+
+b1
+
+FIG. 10. (a) Sketch of a 24-site honeycomb lattice with periodic boundary conditions. The different colors of the bonds
+correspond to the three different bond types x, y, and z- as
+discussed in the main text. Red and blue circles label the
+A and B sub-lattices, respectively. Bonds due to periodic
+boundary conditions are drawn dashed for visual clarity. (b,c)
+Lattice vectors in direct (a1,2 ) and reciprocal spaces (b1,2 )
+with sublattice A (B) colored red (blue). The first Brillouin
+zone in reciprocal space is shown, and the corresponding highsymmetry points are marked with colored circles.
+
+The high-symmetry points of the hexagonal Brillouin
+zone, see Fig. 10(c), are
+Γ = (0, 0),
+π √
+M = ( 3, 1),
+3
+2π 1
+K=
+( √ , 1),
+3
+3
+4π √
+′
+K =
+( 3, 0).
+9
+
+(E3a)
+(E3b)
+(E3c)
+(E3d)
+
+As discussed in the main text, here we present the
+fidelity-susceptibility scans along both hm and Γ(3) for
+system sizes N = {12, 16, 18, 20, 24}. The scans of χF (hm )
+exhibit a sequence of pronounced ridge-like features, reflecting the evolution across the field-driven regimes.
+In contrast, χF (Γ(3) ) remains largely featureless over
+most of the parameter space (see the left two column
+of Fig. 11). The only robust feature that consistently
+persists across all accessible system sizes is the ridge associated with the FO region. This indicates that the FO
+region boundary is the most stable finite-size signature
+in the fidelity susceptibility data. In the right panel of
+Fig. 11 we also show the profile of E1 − E0 obtained by
+the ED on finite clusters.
+
+FIG. 11. The fidelity susceptibility is shown as a function
+of hm (left panel) and Γ(3) (middle panel) for an increasing
+number of sites, ranging from 12 to 24. The most prominent
+ridge line, which remains fixed among different systems, is
+shown around hm = 3J, Γ(3) = 0. The right panel shows the
+energy difference between the ground and the first excited
+−E0
+) as a function of system size. The region labeled
+states ( E1N
+as FO is the fully polarized ferro-octupolar state.
+
+Appendix F: Multipolar textures using DMRG
+
+To complement the ED analysis of the effective Hamiltonian in Eq. (4) presented in the main text, we show
+real-space multipolar textures obtained from DMRG calculations on honeycomb cylinders. The purpose of these
+calculations is not to redraw the full phase diagram,
+but rather to visualize the characteristic local texture
+of the dominant multipolar components at representative points in the different parameter regimes. In this
+sense, the DMRG results provide a consistency check of
+the phase characterization, while the phase identification
+itself remains anchored in the ED diagnostics discussed
+in Sec. III.
+We performed DMRG calculations for long cylinders
+with 24 × 4 unit cells and periodic boundary conditions
+along the a2 axis [see Fig. 10], using a maximum bond
+dimension of 1200. The obtained multipolar textures are
+
+
+---PAGE BREAK---
+25
+
+(a) FO : (Γ(3) = 1, hm = 4)
+
+(b) AFO : (Γ(3) = 0, hm = 0)
+
+(c) PPFQ : (Γ(3) = 0.1, hm = 2)
+
+(d) ML : (Γ(3) = 2, hm = 1)
+
+FIG. 12. Representative DMRG multipolar textures on finite
+honeycomb cylinders for parameter sets chosen from the FO,
+AFO, PPFQ, and ML regions of the ED phase diagram in
+Fig. 8. Panels (a)–(d) show typical textures in the FO, AFO,
+PPFQ, and ML regimes, respectively. Only the central region
+of each 24 × 4 cylinder is displayed. At each site, the arrow
+represents the local projected pseudospin components in the
+(⟨σ̃ z ⟩ , ⟨σ̃ y ⟩) plane; its direction encodes the relative signs and
+magnitudes of ⟨σ̃ z ⟩ and ⟨σ̃ y ⟩, while its length indicates the
+size of this projection. The arrows therefore visualize local
+multipolar components and should not be interpreted as spatial directions, hopping paths, or bond orientations. Red and
+blue colors are utilized to distinguish two sublattices. Top
+right panel: orientation of the x, y, and z bonds on the honeycomb lattice.
+
+displayed in Fig. 12. Only ⟨σ̃iy ⟩ and ⟨σ̃iz ⟩ are shown,
+because the x component is negligible in all considered
+cases. Note that the orientation of the quadrupolar order depends on how the model is mapped to the cylinder,
+e.g., which type of bond is aligned with the cylinder axis.
+In the FO regime, the texture is dominated by a uniform octupolar component, consistent with the OIFEinduced ferro-octupolar order discussed in the main text.
+Because of the open boundaries of the cylinder, the fully
+polarized state is not an exact eigenstate and ⟨σ̃ y ⟩ = 0.5
+does not hold exactly. The deviation is negligible in the
+center region of the cylinder, however.
+The AFO phase is characterized by an octupolar order
+that alternates between the two sublattices, and a uniform quadrupolar order. For Γ(3) = hm = 0, the direction
+of the moments ⟨σ̃i ⟩ is arbitrary due to the spin rota-
+
+tion symmetry. In the shown example, we have therefore
+added a small staggered field term ∝ ∑i ηi σ̃iy of strength
+0.001, where ηi = ±1 depends on the sublattice, to select a purely octupolar order. For finite Γ(3) , we expect
+the order to generally have a quadrupolar and octupolar components, however, as indicated by the structure
+factors obtained with ED.
+The DMRG textures in the PPFQ region display coexisting ferro-quadrupolar and ferro-octupolar components,
+in agreement with the ED calculations. A similar realspace texture is obtained in the putative IO regime, for
+example at Γ(3) = 2 and hm = 3.5 (not shown). Thus, at
+the level of local real-space textures alone, DMRG does
+not sharply distinguish the PPFQ and IO regions. This
+is not unexpected, since the IO regime is identified in ED
+primarily through the evolution of the fidelity map and
+the suppression of a robust quadrupolar structure-factor
+signature, rather than through a qualitatively different
+local octupolar texture. The DMRG texture nevertheless shows a nearly uniform local octupolar component
+in this regime.
+In the ML regime, the DMRG textures provide a useful
+complementary real-space characterization of the absence
+of simple long-range multipolar order. For Γ(3) = 2 on
+24 × 4 cylinders, the zero-field texture remains essentially
+featureless, consistent with the suppressed structurefactor response found in ED. Upon increasing hm , weak
+field-induced textures appear, with a pattern reminiscent
+of the neighboring PPFQ regime but with a substantially reduced amplitude [see Fig. 12(d)]. This behavior
+is consistent with the interpretation of the ML regime as
+a frustration-dominated state in which the applied octupolar field induces only a weak local response rather
+than stabilizing a robust ordered multipolar texture. We
+have also checked wider 12×6 cylinders; however, because
+these calculations are substantially more demanding and
+the accessible system sizes remain limited, we refrain
+from drawing firm conclusions about finite-circumference
+trends in the ML regime.
+These results suggest that the large-Γ(3) region is
+strongly frustrated and close to several competing ordering tendencies, rather than being described by a simple conventional long-range order. This interpretation
+is consistent with the ED diagnostics, where the structure factors are suppressed and no single multipolar ordering channel dominates. It is also natural from the
+cubic-coordinate representation: large Γ(3) corresponds
+to a J-K-Γ-Γ′ model with strong K and Γ interactions, a regime in which previous studies have found
+closely competing spin-liquid, zigzag, and incommensurate phases [65]. Thus, while the present DMRG data
+do not uniquely resolve the internal structure of the ML
+region, they support its identification as a frustrationdominated multipolar regime. A more detailed characterization of whether this region remains a single liquidlike phase or splits into several nearby competing regimes
+at larger sizes is left for future work.
+
+
+---PAGE BREAK---
+26
+
+[1] J. M. Coey, Magnetism and magnetic materials (Cambridge university press, 2010).
+[2] E. Morosan, D. Natelson, A. H. Nevidomskyy, and Q. Si,
+Strongly Correlated Materials, Adv. Mater. 24, 4896
+(2012).
+[3] R. Adler, C.-J. Kang, C.-H. Yee, and G. Kotliar, Correlated materials design: prospects and challenges, Rep.
+Prog. Phys. 82, 012504 (2018).
+[4] K. Buschow and F. Müller, Physics of Magnetism and
+Magnetic Materials (Kluwer Academic/Plenum Publishers, New York, 2003).
+[5] A. Szilva, Y. Kvashnin, E. A. Stepanov, L. Nordström,
+O. Eriksson, A. I. Lichtenstein, and M. I. Katsnelson,
+Quantitative theory of magnetic interactions in solids,
+Rev. Mod. Phys. 95, 035004 (2023).
+[6] A. Georges, L. d. Medici, and J. Mravlje, Strong Correlations from Hund’s Coupling, Annu. Rev. Condens.
+Matter Phys. 4, 137 (2013).
+[7] S. Banerjee, W. Zhu, and S.-Z. Lin, Electromagnetic signatures of a chiral quantum spin liquid, npj Quantum
+Mater. 8, 63 (2023).
+[8] G. W. Fernando, S. Banerjee, and R. M. Geilhufe, Correlated Electrons and Magnetism in Double Perovskites,
+Int. J. High Speed Electron. Syst. 35, 2640002 (2026).
+[9] S. Banerjee and S.-Z. Lin, Emergent orbital magnetization in Kitaev quantum magnets, SciPost Phys. 14, 127
+(2023).
+[10] L. V. Pourovskii, D. Fiore Mosca, L. Celiberti,
+S. Khmelevskyi, A. Paramekanti, and C. Franchini, Hidden orders in spin–orbit-entangled correlated insulators,
+Nat. Rev. Mater. 10, 674 (2025).
+[11] L. V. Pourovskii and S. Khmelevskyi, Hidden order and
+multipolar exchange striction in a correlated f -electron
+system, Proc. Natl. Acad. Sci. (U.S.A) 118, e2025317118
+(2021).
+[12] Y. Murakami, D. Golež, M. Eckstein, and P. Werner,
+Photoinduced nonequilibrium states in Mott insulators,
+Rev. Mod. Phys. 97, 035001 (2025).
+[13] G. Chen and L. Balents, Spin-orbit coupling in d2 ordered
+double perovskites, Phys. Rev. B 84, 094420 (2011).
+[14] A. S. Patri, A. Sakai, S. Lee, A. Paramekanti, S. Nakatsuji, and Y. B. Kim, Unveiling hidden multipolar orders
+with magnetostriction, Nat. Commun. 10, 4092 (2019).
+[15] D. D. Maharaj, G. Sala, M. B. Stone, E. Kermarrec,
+C. Ritter, F. Fauth, C. A. Marjerrison, J. E. Greedan,
+A. Paramekanti, and B. D. Gaulin, Octupolar versus Néel
+Order in Cubic 5d2 Double Perovskites, Phys. Rev. Lett.
+124, 087206 (2020).
+[16] L. V. Pourovskii, D. F. Mosca, and C. Franchini, Ferrooctupolar Order and Low-Energy Excitations in d2 Double Perovskites of Osmium, Phys. Rev. Lett. 127, 237201
+(2021).
+[17] G. Khaliullin, D. Churchill, P. P. Stavropoulos, and H.Y. Kee, Exchange interactions, Jahn-Teller coupling, and
+multipole orders in pseudospin one-half 5d2 Mott insulators, Phys. Rev. Res. 3, 033163 (2021).
+[18] A. Rayyan, D. Churchill, and H.-Y. Kee, Field-induced
+Kitaev multipolar liquid in spin-orbit coupled d2 honeycomb Mott insulators, Phys. Rev. B 107, L020408 (2023).
+[19] S. Banerjee, S. Humeniuk, A. R. Bishop, A. Saxena, and
+A. V. Balatsky, Multipolar multiferroics in 4d2 /5d2 Mott
+
+insulators, Phys. Rev. B 111, L201107 (2025).
+[20] D. Hirai, H. Sagayama, S. Gao, H. Ohsumi, G. Chen, T.h. Arima, and Z. Hiroi, Detection of multipolar orders
+in the spin-orbit-coupled 5d Mott insulator Ba2 MgReO6 ,
+Phys. Rev. Res. 2, 022063 (2020).
+[21] K. Hart, R. Sutcliffe, G. Refael, and A. Paramekanti,
+Phonon-Driven Multipolar Dynamics in a Spin-Orbit
+Coupled Mott Insulator, Phys. Rev. Lett. 134, 246701
+(2025).
+[22] A. Paramekanti, D. D. Maharaj, and B. D. Gaulin, Octupolar order in d-orbital Mott insulators, Phys. Rev. B
+101, 054439 (2020).
+[23] P. Zhao, J. Yang, and G. v. Chen, Multipolar ferroelectricity in the Mott regime, Phys. Rev. B 111, 224416
+(2025).
+[24] N. Iwahara, Z. Huang, I. Neefjes, and L. F. Chibotaru,
+Multipolar exchange interaction and complex order in
+insulating lanthanides, Phys. Rev. B 105, 144401 (2022).
+[25] S. Fan, F. Jin, T. Kim, U. Kumar, Z. Zhang, V. Bhartiya, J. Li, B. Yalin, Y. Gu, M. Gu, W. Hu, C. Mazzoli,
+G. L. Carr, O. S. Barišić, A. S. Mishchenko, V. Bisogni,
+S. Singh, W. Wu, and J. Pelliciari, Excitations across
+the Equilibrium and Photoinduced “Hidden” States of
+Magnetoresistive Manganites, Phys. Rev. X 16, 021018
+(2026).
+[26] S. Banerjee, U. Kumar, and S.-Z. Lin, Inverse Faraday
+effect in Mott insulators, Phys. Rev. B 105, L180414
+(2022).
+[27] V. da Cruz Pinha Barbosa, D. D. Maharaj, Z. W.
+Cronkright, Y. Wang, R. Cong, E. Garcia, A. P. Reyes,
+J. Yan, C. Ritter, V. F. Mitrović, B. D. Gaulin, J. E.
+Greedan, and P. M. Woodward, Exploring the Links between Structural Distortions, Orbital Ordering, and Multipolar Magnetic Ordering in Double Perovskites Containing Re(VI) and Os(VII), Chem. Mater. 36, 11478
+(2024).
+[28] G. J. Nilsen, C. M. Thompson, C. Marjerisson, D. I.
+Badrtdinov, A. A. Tsirlin, and J. E. Greedan, Magnetic
+order and multipoles in the 5d2 rhenium double perovskite Ba2 YReO6 , Phys. Rev. B 103, 104430 (2021).
+[29] R. Caciuffo, J. A. Paixão, C. Detlefs, M. J. Longfield,
+P. Santini, N. Bernhoeft, J. Rebizant, and G. H. Lander, Multipolar ordering in NpO2 below 25 K, J. Phys.
+Condens. Matter. 15, S2287 (2003).
+[30] D. Hirai and Z. Hiroi, Successive symmetry breaking in
+a Jeff = 3/2 quartet in the spin–orbit coupled insulator
+Ba2 MgReO6 , J. Phys. Soc. Jpn. 88, 064712 (2019).
+[31] S. Voleti, D. D. Maharaj, B. D. Gaulin, G. Luke, and
+A. Paramekanti, Multipolar magnetism in d-orbital systems: Crystal field levels, octupolar order, and orbital
+loop currents, Phys. Rev. B 101, 155118 (2020).
+[32] D. Churchill and H.-Y. Kee, Competing multipolar orders in a face-centered cubic lattice: Application to the
+osmium double perovskites, Phys. Rev. B 105, 014438
+(2022).
+[33] D. F. Mosca, L. Celiberti, L. V. Pourovskii, and C. Franchini, Polaron-driven switching of octupolar order in
+doped 5d2 double perovskite (2026), arXiv:2603.18155.
+[34] S. Voleti, A. Haldar, and A. Paramekanti, Octupolar order and Ising quantum criticality tuned by strain and
+dimensionality: Application to d-orbital Mott insulators,
+
+
+---PAGE BREAK---
+27
+Phys. Rev. B 104, 174431 (2021).
+[35] A. Banerjee, J. Yan, J. Knolle, C. A. Bridges, M. B.
+Stone, M. D. Lumsden, D. G. Mandrus, D. A. Tennant,
+R. Moessner, and S. E. Nagler, Neutron scattering in the
+proximate quantum spin liquid RuCl3 , Science 356, 1055
+(2017).
+[36] Y. Singh, S. Manni, J. Reuther, T. Berlijn, R. Thomale,
+W. Ku, S. Trebst, and P. Gegenwart, Relevance of the
+Heisenberg-Kitaev Model for the Honeycomb Lattice Iridates A2 IrO3 , Phys. Rev. Lett. 108, 127203 (2012).
+[37] K. F. Mucker, G. S. Smith, and Q. Johnson, The crystal
+structure of ReCl5 , Acta Crystallogr. B 24, 874 (1968).
+[38] A. Vorobyova, A. Boltalin, D. Tsymbarenko, I. Morozov, T. Vasilchikova, V. Gapontsev, K. Lyssenko,
+S. Demishev, A. Semeno, S. Streltsov, and O. Volkova,
+Anisotropy of exchange interactions in honeycomb ladder compound ReCl5 , Mater. Chem. Phys. 332, 130215
+(2025).
+[39] Y. Song, W.-H. Dong, K.-R. Hao, S. Du, and L. Zhang,
+Designing topological and correlated 2D magnetic states
+via superatomic lattice constructions of zirconium dichloride, Nano Res. 16, 13509 (2023).
+[40] A. Cisar, J. D. Corbett, and R. L. Daake, The zirconium
+dichloride phase region. Synthesis, structure, and photoelectron spectral studies of 3R-ZrCl2 , 6T-Zr1.05 Cl2 , and
+related phases, Inorg. Chem. 18, 836 (1979).
+[41] H. Kusunose, Description of Multipole in f-Electron Systems, J. Phys. Soc. Jpn. 77, 064710 (2008).
+[42] H.-W. Ko and K.-J. Lee, Magnetic Octupole Hall Effect
+in d-Wave Altermagnets (2025), arXiv:2508.00794.
+[43] U. Kumar, S. Banerjee, and S.-Z. Lin, Floquet engineering of Kitaev quantum magnets, Commun. Phys. 5, 157
+(2022).
+[44] A. Weiße and H. Fehske, Exact diagonalization techniques, in Computational Many-Particle Physics, Lecture Notes in Physics, Vol. 739, edited by H. Fehske,
+R. Schneider, and A. Weiße (Springer, Berlin, Heidelberg, 2008) pp. 529–544.
+[45] S. R. White, Density matrix formulation for quantum
+renormalization groups, Phys. Rev. Lett. 69, 2863 (1992).
+[46] U. Schollwöck, The density-matrix renormalization group
+in the age of matrix product states, Ann. Phys. 326, 96
+(2011).
+[47] A. Abragam and B. Bleaney, Electron paramagnetic resonance of transition ions (Oxford : Clarendon press,
+1970).
+[48] G. L. Stamokostas and G. A. Fiete, Mixing of t2g -eg orbitals in 4d and 5d transition metal oxides, Phys. Rev. B
+97, 085150 (2018).
+[49] R. Maezono and N. Nagaosa, Complex orbital state in
+manganites, Phys. Rev. B 62, 11576 (2000).
+[50] J. van den Brink and D. Khomskii, Orbital ordering of
+complex orbitals in doped Mott insulators, Phys. Rev. B
+63, 140416 (2001).
+[51] Y. Kuramoto, H. Kusunose, and A. Kiss, Multipole Orders and Fluctuations in Strongly Correlated Electron
+Systems, J. Phys. Soc. Jpn. 78, 072001 (2009).
+[52] C. A. Marjerrison, C. M. Thompson, A. Z. Sharma, A. M.
+Hallas, M. N. Wilson, T. J. S. Munsie, R. Flacau, C. R.
+Wiebe, B. D. Gaulin, G. M. Luke, and J. E. Greedan,
+Magnetic ground states in the three Os6+ 5d2 double perovskites Ba2 MOsO6 M=(Mg,Zn,Cd) from Néel order to
+its suppression, Phys. Rev. B 94, 134429 (2016).
+[53] W. A. Harrison, Electronic structure and the properties
+
+of solids: the physics of the chemical bond (Dover Publications, Mineola, NY, 1989).
+[54] A. Georges, L. d. Medici, and J. Mravlje, Strong Correlations from Hund’s Coupling, Annu. Rev. Condens.
+Matter Phys. 4, 137 (2013).
+[55] Z. Nussinov and J. van den Brink, Compass models: Theory and physical motivations, Rev. Mod. Phys. 87, 1
+(2015).
+[56] D. I. Khomskii, Transition Metal Compounds (Cambridge University Press, 2014).
+[57] D. A. Abanin, W. De Roeck, and F. m. c. Huveneers,
+Exponentially slow heating in periodically driven manybody systems, Phys. Rev. Lett. 115, 256803 (2015).
+[58] A. V. Kimel, A. Kirilyuk, P. A. Usachev, R. V. Pisarev,
+A. M. Balbashov, and T. Rasing, Ultrafast non-thermal
+control of magnetization by instantaneous photomagnetic
+pulses, Nature 435, 655 (2005).
+[59] A. de la Torre, D. M. Kennes, M. Claassen, S. Gerber,
+J. W. McIver, and M. A. Sentef, Colloquium: Nonthermal pathways to ultrafast control in quantum materials,
+Rev. Mod. Phys. 93, 041002 (2021).
+[60] D. Fiore Mosca, L. V. Pourovskii, and C. Franchini, Modeling magnetic multipolar phases in density functional
+theory, Phys. Rev. B 106, 035127 (2022).
+[61] T. Yamakawa, T. Miyamoto, D. Sakai, and H. Okamoto,
+Dynamical aspects of excitonic Floquet states generated
+by a phase-locked mid-infrared pulse in a one-dimensional
+Mott insulator, New J. Phys. 25, 093044 (2023).
+[62] A. Sriram and M. Claassen, Light-induced control of
+magnetic phases in Kitaev quantum magnets, Phys. Rev.
+Res. 4, L032036 (2022).
+[63] P. Strobel and M. Daghofer, Comparing the influence of
+Floquet dynamics in various Kitaev-Heisenberg materials, Phys. Rev. B 105, 085144 (2022).
+[64] N. Arakawa and K. Yonemitsu, Floquet engineering of
+Mott insulators with strong spin-orbit coupling, Phys.
+Rev. B 103, L100408 (2021).
+[65] I. Rousochatzakis, N. B. Perkins, Q. Luo, and H.-Y. Kee,
+Beyond Kitaev physics in strong spin-orbit coupled magnets, Rep. Prog. Phys. 87, 026502 (2024).
+[66] M. Möller, P. A. Maksimov, S. Jiang, S. R. White, R. Valentı́, and A. L. Chernyshev, Rethinking α-RuCl3 : Parameters, models, and phase diagram, Phys. Rev. B 112,
+104403 (2025).
+[67] H.-K. Tang, M. A. Marashli, and W. C. Yu, Unveiling
+quantum phase transitions by fidelity mapping, Phys.
+Rev. B 104, 075142 (2021).
+[68] X.-S. Yang and S. Deb, Cuckoo search: recent advances
+and applications, Neural Comput. Appl. 24, 169 (2014).
+[69] Y. Xiong, Z. Zou, and J. Cheng, Cuckoo search algorithm
+based on cloud model and its application, Sci. Rep. 13,
+10098 (2023).
+[70] G. Sala, M. B. Stone, G. B. Halász, M. D. Lumsden, A. F.
+May, D. M. Pajerowski, S. Ohira-Kawamura, K. Kaneko,
+D. G. Mazzone, G. Simutis, J. Lass, Y. Kato, S.-H.
+Do, J. Y. Y. Lin, and A. D. Christianson, Field-tuned
+quantum renormalization of spin dynamics in the honeycomb lattice Heisenberg antiferromagnet YbCl3 , Commun. Phys. 6, 234 (2023).
+[71] J. D. Reger, J. A. Riera, and A. P. Young, Monte Carlo
+simulations of the spin-1/2 Heisenberg antiferromagnet
+in two dimensions, J. Phys. Condens. Matter 1, 1855
+(1989).
+[72] J. Richter, J. Schulenburg, and A. Honecker, Quan-
+
+
+---PAGE BREAK---
+28
+tum magnetism in two dimensions: From semi-classical
+néel order to magnetic disorder, in Quantum Magnetism,
+edited by U. Schollwöck, J. Richter, D. J. J. Farnell, and
+R. F. Bishop (Springer Berlin Heidelberg, Berlin, Heidelberg”, 2004) pp. 85–153.
+[73] M. Fishman, S. R. White, and E. M. Stoudenmire, The
+ITensor Software Library for Tensor Network Calculations, SciPost Phys. Codebases , 4 (2022).
+[74] I. Bersuker, Vibronic interactions, in The Jahn-Teller
+Effect (Cambridge University Press, 2006) Chap. 2, p.
+12–44.
+[75] L. D. Landau and E. M. Lifshitz, Theory of Elasticity
+(Pergamon, New York, 1970).
+[76] A. Bishnoi, S. Kumar, and N. Joshi, Chapter 9 - WideAngle X-ray Diffraction (WXRD): Technique for Characterization of Nanomaterials and Polymer Nanocom-
+
+posites, in Microscopy Methods in Nanomaterials Characterization, Micro and Nano Technologies, edited by
+S. Thomas, R. Thomas, A. K. Zachariah, and R. K.
+Mishra (Elsevier, 2017) pp. 313–337.
+[77] J. W. Menter, The direct study by electron microscopy
+of crystal lattices and their imperfections, Proc. R. Soc.
+Lond. Ser. A, Math. Phys. Sci. 236, 119 (1956).
+[78] G. Aeppli, A. V. Balatsky, S. Bonetti, G. Cardoso,
+S. Raghu, E. Syljuåsen, T.-T. Yeh, S.-Z. Lin, Y. Liu,
+J. Weissenrieder, and P. J. Wong, Quantum Printing
+(2025), arXiv:2509.16792.
+[79] F. Pampaloni and J. Enderlein, Gaussian, HermiteGaussian, and Laguerre-Gaussian beams: A primer
+(2004), arXiv:physics/0410021.
+[80] J. G. Wright and B. S. Shastry, Diracq: A package for
+algebraic manipulation of non-commuting quantum variables, J. Open Res. Softw. 3, 13 (2015).
+
+
+---PAGE BREAK---

@@ -1,0 +1,1518 @@
+<!-- INTERIM: pdftotext fallback (marker unavailable in this environment) -->
+# Das (2014) — Spin-orbit density wave (SODW), URu2Si2 hidden order
+
+arXiv:1406.5271v2 [cond-mat.str-el]
+
+October 10, 2018                                      Philosophical Magazine    specialissue˙HO˙PM˙v2
+
+
+
+                                                      Philosophical Magazine
+                                                      Vol. , No. , 10 April 2014, 1–23
+
+
+
+
+                                                       Spin-orbit density wave: A new phase of matter applicable to the
+                                                                         hidden order state of URu2 Si2
+
+                                                                                                  Tanmoy Das∗
+                                                       Theoretical Division, Los Alamos National Laboratory, Los Alamos, New Mexico, 87545,
+    arXiv:1406.5271v2 [cond-mat.str-el] 23 Jun 2014
+
+
+
+
+                                                                                               USA
+                                                                                              (Received: August 2013)
+
+
+                                                            We provide a brief review and detailed analysis of the spin-orbit density wave (SODW), pro-
+                                                            posed as a possible explanation to the ‘hidden order’ phase of URu2 Si2 . Due to the interplay
+                                                            between inter-orbital Coulomb interaction and spin-orbit coupling (SOC) in this compound,
+                                                            the SODW is shown to arise from Fermi surface nesting instability between two spin-orbit split
+                                                            bands. An effective low-energy Hamiltonian including single-particle SOC and two-particle
+                                                            SODW is derived, while numerical results are calculated by using density-functional the-
+                                                            ory (DFT) based band structure input. Computed gapped quasiparticle spectrum, entropy
+                                                            loss and spin-excitation spectrum are in detailed agreement with experiments. Interestingly,
+                                                            despite the fact that SODW governs dynamical spin-excitations, the static magnetic mo-
+                                                            ment is calculated to be zero, owing to the time-reversal invariance imposed by SOC. As
+                                                            a consequence, SODW can be destroyed by finite magnetic field even at zero temperature.
+                                                            Our estimation of the location of the quantum critical point is close to the experimental
+                                                            value of Bc ∼ 35 T. Finally, we extend the idea of SODW to other SOC systems including
+                                                            iridium oxides (iridates) and two-dimensional electronic systems such as BiAg2 surface and
+                                                            LaAlO3 /SrTiO3 interface. We show hints of quasiparticle gapping, reduction of preexisting
+                                                            magnetic moment, large magneto-resistance etc. in these systems which can be explained
+                                                            consistently within the SODW theory.
+
+
+                                                            Keywords: Spin-orbit density wave; hidden order; heavy fermion; quantum phase
+                                                            transition, URu2 Si2 .
+
+
+
+
+                                                      1.    Introduction
+
+                                                      A second order phase transition has been observed in the heavy fermion metal
+                                                      URu2 Si2 at Th =17.5 K via a sharp discontinuous jump in the specific heat with
+                                                      about 24% entropy loss.[1] Considering an associated sharp anomaly in the c−axis
+                                                      magnetic susceptibility, it was initially assumed to be an antiferromagnetic (AF)
+                                                      phase.[1, 2] However, in subsequent works,[3, 4] including a very recent one,[5] the
+                                                      presence of any static magnetic moment has been eliminated. This apparent ‘mag-
+                                                      netic dichotomy’ has remained a smoking gun feature of the phase, known as the
+                                                      ‘so-called’ hidden order (HO) phase of URu2 Si2 . Additional key fingerprints of the
+                                                      HO state include a relatively weak intensity peak at the commensurate wavevector
+                                                      Q0 =(001),[6] and a dispersive collective excitation at an incommensurate vector
+                                                      Q1 =(1±0.4,0,0),[7] as probed by inelastic neutron scattering (INS) measurement.
+                                                      Furthermore, the INS spectral weight loss at the incommensurate wavevector, as
+                                                      opposed to the commensurate one, can fully account for the entropy loss at the
+                                                      HO transition. Direct spectroscopies including angle-resolved photoemission spec-
+                                                      troscopy (ARPES)[8–12] scanning tunneling microscopy (STM)[13, 14] and point
+
+                                                       ∗ Email: tnmydas@gmail.com
+
+
+
+                                                      ISSN: print/ISSN online
+                                                       c 2014 Taylor & Francis
+                                                      DOI: 10.1080/14786435.2014.916425
+                                                      http://www.informaworld.com
+October 10, 2018   Philosophical Magazine   specialissue˙HO˙PM˙v2
+
+
+                   2                             Taylor & Francis and I.T. Consultant
+
+
+                   contact spectroscopy[15] have found the presence of a Fermi surface (FS) gapping
+                   at the HO state, which is consistent with the bulk measurement of about 40%
+                   loss of quasiparticle weight at this phase.[16] Finally, a Shubunikov de-Hass (SdH)
+                   measurement finds that the quantum oscillation frequency does not change by any
+                   significant amount in going from HO phase at ambient pressure to the large mo-
+                   ment AF (LMAF) phase at high pressure.[17] Considering also the high-magnetic
+                   field phase diagram of URu2 Si2 where the HO phase is intertwined with the LMAF
+                   and possibly with other unknown phases,[18, 19] this SdH data can be interpreted
+                   along the same line. Therefore, a feasible solution to the HO problem lies in a
+                   theory which can explain the ‘magnetic dichotomy’, while accounting for the large
+                   FS gapping and entropy change, among others.
+                      According to the Fermi-liquid theory, the HO phase transition is associated with
+                   a symmetry breaking static order parameter. Numerous evidence of anomalies
+                   probed by INS[6, 7] and spectroscopies[8, 9, 12–14] at either Q0 and/ or at Q1
+                   suggest that HO breaks translational symmetry. Recent evidence from ultrasonic
+                   measurement[20, 21] (and also from ARPES[22]) points to the presence of a lat-
+                   tice anomaly (Γ3 -type lattice symmetry breaking) at the HO transition, suggesting
+                   the involvement of orbital degrees of freedom, in addition to spin. As mentioned
+                   before, no evidence of time-reversal symmetry breaking is reported to date.[5] In-
+                   terestingly, a recent magneto-torque measurement has reported the presence of an
+                   in-plane rotational symmetry breaking in a single crystal sample, which, however,
+                   has been placed on hold until reproduced.[23]
+                      This interesting problem has triggered the development of many novel propos-
+                   als. While these proposals are mainly targeted to solve the HO state in URu2 Si2 ,
+                   they are also interesting in a general ground. Among them, many multipolar
+                   orders, including quadrupoles,[24–26] octupoles,[25, 27] hexadecapoles[28, 29] to
+                   dotriacontapoles or rank-5 orders[30, 31] can be highlighted. However, an inter-
+                   esting group analysis study have shown that such higher-rank order parameters
+                   are not allowed in URu2 Si2 .[32] Among dipole orders conventional and uncon-
+                   ventional spin,[4, 33–35] orbital,[34, 36] and other unconventional orders[37] have
+                   been proposed. Variety of theoretical models aiming to explain the ‘nematic’ be-
+                   havior of the HO state (if indeed exists) are given in Refs. [31, 38–40]. In a third
+                   paradigm, the typical concept of hybridization between light and heavy bands
+                   has been extended to be modulated with a specific nesting wavevector without
+                   spin,[41] with 1/2 spins in both bands,[38] and with integer and 1/2 spins in heavy
+                   and light bands, respectively[40]. However, multiple spectroscopic data including
+                   STM,[13, 14] point-contact tunneling,[15] and ARPES[10] as well as resistivity,
+                   specific heat and magnetic susceptibility[1, 2, 42] have demonstrated that the hy-
+                   bridization phenomena is insensitive to the HO temperature, and it starts at a
+                   much higher temperature (about 60-100 K). This is supported by good consistency
+                   of the ARPES data in the paramagnetic phase with first-principles band struc-
+                   ture calculation, with some discrepancies lying mainly along the kz direction.[12]
+                   More interestingly, only the hybridization theory[41] and the present SODW the-
+                   ory assuming incommensurate nesting can only explain the INS dispersion and the
+                   spectral weight loss at this wavevector, while no other theory has succeeded in
+                   explaining this crucial experimental signature of the HO phase.
+                      Taken together, a consistent and widespread research activity from both theo-
+                   retical and experimental perspectives have been channeled in the HO research for
+                   three decades, and the recent boost to it has been triggered by the high-quality
+                   sample preparation and spectroscopic data. These high-quality data have been suc-
+                   cessful in narrowing down the possible origin of the HO state, however no consensus
+                   about the nature of HO phase has yet been reached. In present author’s opinion,
+October 10, 2018   Philosophical Magazine     specialissue˙HO˙PM˙v2
+
+
+                                                            Philosophical Magazine                                           3
+
+
+                              (a)                                    E
+
+
+
+
+                                                                Q
+                                                                                        Δ λ
+                               -k                                                                                k
+
+
+
+                              (b)                           V
+
+                                                λ
+
+
+                                                 Si=0
+                                              orbital 1, spin                       orbital 2, spin
+                   Figure 1. Schematic illustration of SODW in momentum- and real-space. (a) We illustrate the nature
+                   of SODW for two SOC split bands in URu2 Si2 . Due to the single-particle SOC, each orbital is spin-
+                   polarized, but they are mixed in the SODW state determined by the coherence factors. In the case of
+                   URu2 Si2 , two orbital states along (110)-direction in the BCT lattice are nested, and thus becomes gapped
+                   at EF .[43] Due to the relevant density wave coherence factors, the quadratic gapped bands on both sides
+                   of EF share different spin-orbital weights, as indicated by red to blue gradient colormap. (b) A real-
+                   space view of SODW. Here nearest atomic distance is between two sublattices at which SODW order
+                   parameter modulates due to the onsite interaction V . But owing to strong atomic SOC, opposite spin
+                   polarization in the other orbital state is present (denoted by λ) at the same site which makes the total
+                   spin-moment to vanish at each spatial point, and the Hamiltonian preserves time-reversal symmetry. Of
+                   course, perturbations such as crystal distortion or orbital fluctuations may render a finite magnetic moment
+                   at each site in this setup, but its magnitude can be expected to be small. Figure taken from Ref. [43].
+
+                   the solution is hidden in the ‘magnetic dichotomy’ associated with the HO state.
+                   These clues have led to the proposal of the SODW which explains this apparent
+                   paradox.
+                     The paper includes a coherent combination of new calculations, a review on
+                   the prior works, and also hints of future works on SODW. The first-principles
+                   bandstructure calculation and the low-energy modelling presented in Secs. 3, 4,
+                   and a major part of the discussions in Sec. 5 are taken from Ref. [43]. A substantial
+                   overlap between Secs. 6, 8 and Ref. [44] can also be expected. Some parts of the
+                   application of SODW in other materials which deal with the ARPES results for
+                   two-dimensional electron gas with Rashba-type SOC is taken from Ref. [45]. The
+                   rest of the calculations and Figs. 3, 4, 5, 6(e)-(h), 7, 10 are produced here.
+
+
+                   2.    Mechanism and predictions of the SODW order parameter
+
+                   Recently, it has been shown that SOC can drive new states of matter, including
+                   quantum spin-Hall effect,[46] and topological insulator,[47, 48] without electron-
+                   electron interaction via symmetry invariance. Another relevant physics of our in-
+                   terest is the theory of Weyl semimetal, originally refereed to ‘accidental degeneracy
+                   in bands’[49], in which multiple relativistic Dirac points are scattered in the mo-
+                   mentum space (and thus termed ‘semimetal’) owing to a broken crystal symmetry,
+                   but they remain topologically protected via other subjective symmetry invariance.
+October 10, 2018   Philosophical Magazine   specialissue˙HO˙PM˙v2
+
+
+                   4                             Taylor & Francis and I.T. Consultant
+
+
+                   Considering the ‘magnetic dichotomy’ of the HO phase which apparently breaks
+                   time-reversal symmetry (magnetic anomaly) and preserves time-reversal symme-
+                   try (no magnetic moment), we introduce the concept of SODW. It breaks transla-
+                   tional symmetry by FS nesting, but respects time-reversal invariance owing to the
+                   SOC.[43–45] While the model is originally applied to URu2 Si2 ,[44] it has subse-
+                   quently been extended to two-dimensional electron gas (2DEG) systems in which
+                   interface induced Rashba-type SOC is strong, and finite interaction strength can
+                   give rise to the SODW and FS gapping,[45] consistent with corresponding ARPES
+                   data.[50]
+                     The essential ingredient for the SODW is the presence of (at least) two spin-orbit
+                   split bands in the low-energy spectrum, and the FS nesting between them is to be
+                   significantly large. If the SOC strength is larger than the Coulomb interaction,
+                   an interband spin density wave (SDW) which breaks time-reversal symmetry is
+                   disfavored. However, above a critical value of the interorbital Coulomb strength, a
+                   SODW can emerge. The schematic view of the SODW is shown in Figs. 1(a) and
+                   1(b), in momentum and real-space, respectively. In the k-space, thin solid blue and
+                   red lines are two bands, split by SOC λ, while the corresponding dashed lines are
+                   the folded bands shifted by a nesting vector Q. The SODW order gaps out the
+                   ‘accidental degenerate’ points on the FS, and the weight of each orbital is mixed
+                   between them. It is evident that SODW can be thought of as two concomitant
+                   SDWs with opposite spin state at each spatial point, owing to large SOC. For
+                   Rashba-type SOC, the spin-chirality of each band is different to Fig. 1, and thus
+                   the low-energy Hamiltonian changes slightly (see Sec. 7), however, the general
+                   concept is the same.
+                     The consistency of the SODW properties with many experimental signatures of
+                   the HO phase in URu2 Si2 is appealing, particularly as it reconciles the apparently
+                   contradictory magnetic properties of this phase. Among them, we highlight several
+                   robust features as: (1) The present order breaks translational symmetry,[7] and
+                   spin-rotational symmetry, but thanks to SOC, the order parameter respects time-
+                   reversal symmetry and charge conservation at each lattice point. (2) As a result,
+                   no magnetic moment is induced, in agreement with measurements.[5] (3) Time-
+                   reversal symmetry invariance fosters magnetic field to be a perturbation to the
+                   order parameter, and the corresponding critical field primarily depends on the
+                   gap value and the g-factor. Experiments validate the vanishing of the HO around
+                   B ∼ 35 T.[19]. (4) As a consequence, as field increases the HO gap decreases
+                   (given other parameters such as temperature is constant), and thus the resistivity
+                   decreases. In other words, a large magnetoresistance effect is expected within the
+                   SODW framework. (5) Finally, we offer a detectable prediction of a second spin-1
+                   collective mode localized inside the gap at q ∼ 0 in the SODW state which can be
+                   probed via electron spin resonance (ESR) or nuclear quadrupole resonance (NQR)
+                   at zero magnetic field or polarized neutron scattering measurements.
+                     Finally, we envisage to take this model further and apply to LaAlO3 /SrTiO3
+                   (LAO/STO)[51] and iridium-oxide (iridate)[52] where SOC and electronic interac-
+                   tion are large and tunable. In these materials, we present evidence of quasiparticle
+                   gapping[45, 50], and strong reduction of preexisting magnetic moment below crit-
+                   ical temperature, magnetic field or carrier density, as seen in URu2 Si2 along the
+                   pressure axis.
+
+
+                   3.    First-principles band structure and the zone folding in URu2 Si2
+
+                   In order to determine the symmetry properties of the low-lying states, we be-
+                   gin with investigating the ab-initio ‘parent’ band dispersion and the FS of
+October 10, 2018   Philosophical Magazine              specialissue˙HO˙PM˙v2
+
+
+                                                                   Philosophical Magazine                                         5
+
+
+                                                 (a)              In BCT unit cell
+                                           0.5
+
+
+                               E-EF (eV)   0.0
+
+
+
+                                     -0.5
+                                         Γ               -X       -M           Γ       M         X           Γ
+                                                                                            Q
+                                        (b)               X              M                                (c)
+                                     π
+
+
+
+
+                                                                                                               χ′(q,0) [1/eV]
+                                                          Q                                             2.5
+                                      ky [1/a]
+
+
+
+
+                                                                                                        2.0
+                                                                                                        1.5
+                                           -π
+
+
+
+
+                                           -π          kx [1/a]        π
+                                                                                                     1.7              2.8
+                   Figure 2. (a) Non-interacting band dispersion (blue line) is plotted along several representative high-
+                   symmetry momentum cuts. Red lines are superimposed bands shifted by the nesting vector Q = 0.5(π, π, 0)
+                   in the BCT unit cell. While a significant region of nesting is visible on the FSs in (b) between original
+                   and folded bands along the high-symmetry lines, the dispersions exhibit linear contacts at EF with Dirac
+                   cones. This implies that Q nesting causes the development of a density wave in the particle-hole channel
+                   with topological properties. (b) FS on kz =0 plane is shown by blue line. Red line is the FS shifted by Q
+                   vector. Good nesting is evident along the (110)-direction between different orbital states. This diagonal
+                   nesting reorients itself along the (100)-direction in the simple tetragonal (ST) lattice.[44] Some additional
+                   wiggling in the FS lines arise from finite resolution in the calculation. (c) Static susceptibility is plotted in
+                   the 2D q-space, affirming a paramount FS instability peak at Q. Figure extracted from Ref. [43].
+
+                   URu2 Si2 [53, 54] in Fig. 2. The electronic structure in the vicinity of the Fermi
+                   level (EF ) (±0.2eV) is dominated by the 5f states of U atom in the entire Bril-
+                   louin zone.[12, 13, 35, 55] Due to the lack of the ‘so-called’ itinerant states of
+                   d- or p-characters within the ±500 meV vicinity of EF , the typical hybridization
+                   process is weak in this system, and is pushed to a higher temperature ∼60-80 K
+                   [1, 2, 10, 11, 13, 14]. Furthermore, pertaining to larger atomic size of 5f -electrons
+                   in U-atoms, than in the largely localized smaller 4f -atoms, the inter-atomic elec-
+                   tron hopping is larger here and mobile 5f electrons stem within the single-electron
+                   picture. In other words, the electronic structure of this actinide compound can be
+                   described adequately by first-principles calculation, without invoking Kondo-like
+                   physics. In fact, the good consistency between the DFT calculation[35, 43, 44, 55]
+                   and ARPES data[12] has excluded the presence of d-electrons within the ±500 meV
+                   vicinity of EF to cause any significant hybridization.
+                     Owing to the SOC and the tetragonal symmetry, the 5f states split into the octet
+                   J= 72 (Γ8 ) states and the sextet J= 25 (Γ6 ) states. URu2 Si2 follows a typical band
+                   progression in which the Γ8 bands are pushed upward to the empty states while
+                   the Γ6 states drop to the vicinity of EF . The DFT band structure, calculated by
+                   Wien2k software,[53, 54] is shown by blue solid line in Fig. 2(a) along several rep-
+                   resentative high-symmetry momentum directions in the body-centered tetragonal
+                   (BCT) lattice of the crystal. The corresponding FS topology is depicted in Fig. 2(b),
+October 10, 2018   Philosophical Magazine   specialissue˙HO˙PM˙v2
+
+
+                   6                             Taylor & Francis and I.T. Consultant
+
+
+                   overlayed by a shifted FS with the ‘hot-spot’ wavevector Q = (π/2, π/2, 0) (red
+                   lines) in this unit cell notation. Paramount FS nesting is evident here between the
+                   two spin-orbit split bands, and hence identified it to be responsible for the SODW
+                   state. The FS nesting property is confirmed by static susceptibility calculation,
+                   plotted in the basal plane momentum space, in Fig. 2(c), exhibiting a dominant
+                   peak at this Q vector. The band structure shifted by Q is then plotted in Fig. 2(a)
+                   in red color which reveals that the low-energy bands are linear in momentum, and
+                   the contact points between main- and folded-bands at EF are in the particle-hole
+                   channel along the (110) direction. Therefore, the nesting condition in this system
+                   resembles the so-called ‘accidental degenerate points’ or Weyl-type Dirac cones[49].
+                      Since the nesting is between different spin-orbit split bands, a typical SDW is
+                   prohibited by time-reversal symmetry and the strong SOC in this case. On the
+                   other hand, a spin-orbit entangled order parameter in the two-particle channel
+                   can collectively propagate with alternating sign in the total angular momentum at
+                   the wavelength determined by the modulation vector. This is the guiding instabil-
+                   ity that drives spontaneous rotational symmetry breaking, while the time-reversal
+                   symmetry remains intact. This is because, both SU (2) groups for spin and orbital
+                   separately are odd under time-reversal, but their product SU (2) ⊗ SU (2) is even.
+                   As the parent state is not a non-trivial topological phase, a gap is opened to lift
+                   the FS instability.
+
+
+                   4.    Minimal Hamiltonian for the SODW
+
+                   Motivated by the above-mentioned experimental results and band structure sym-
+                   metry properties, we write down the effective theory for the SODW using two SOC
+                   split bands. We restrict our discussion to the low-lying Γ6 bands and neglect the
+                   unfilled Γ8 bands. Due to the j-j-type SOC and time-reversal symmetry, the Γ6
+                   atomic states consist of three doublets, characterized by up and down ‘pseudospins’:
+                   mJ =± 25 , ± 32 , ± 21 , where mJ is the z component of J. Although we consider all
+                   relevant bands that cross EF directly from the DFT results for the numerical cal-
+                   culations, however, to explicate the physical mechanism of SODW, and the role of
+                   SOC in it, we start from a two-orbital basis with atomistic SOC, λ. If no other
+                   symmetry is broken, the other band (mostly of J= 52 character) remains ungapped
+                   and thus not considered in the discussion. We, however, note that a nesting be-
+                   tween J= 25 and J= 32 states as reported in Ref. [55], can also lead to SODW at a
+                   different interaction strength. The purpose here is to derive a general Hamiltonian
+                   of such kind, in which no particular assumption of the orbital symmetry and the
+                   relevant details of the SOC are imposed. Our starting noninteracting Hamiltonian
+                   is thus
+                                                  X h                                       i
+                                           H0 =          ξjk c†jk,σ cjk,σ + iσλc†jk,σ cjk,σ̄ ,     (1)
+                                                jk,σ=−σ̄
+
+
+                   where c†jkσ is the electron creation operator in the j th orbital with spin σ = ±, and
+                   ξjk is its corresponding dispersion spectrum in a translational invariant crystal of
+                   Bloch momentum k. With a translational symmetry breaking at the reduced re-
+                   ciprocal wavevector or the “hot-spot” vector Q, the new spin-orbit basis in the
+                   Nambu-space yields Ψk = (c1k,↑ , c2k,↓ , c1k+Q,↑ , c†2k+Q,↓ ). The spin-polarized
+                   Nambu operator is an important consideration which distinguishes the present
+                   SODW order parameter from an inter-orbital SDW, and promotes a zero mag-
+                   netic moment as will be evaluated rigorously below. In this basis, we express our
+October 10, 2018   Philosophical Magazine     specialissue˙HO˙PM˙v2
+
+
+                                                                 Philosophical Magazine                              7
+
+
+                   interacting Hamiltonian in a matrix form[43] as
+                                                                           
+                                                           ξ1k iλ   0   ∆
+                                                          −iλ ξ2k ∆∗   0 
+                                                    Hk = 
+                                                          0 ∆ ξ1k+Q −iλ  .
+                                                                                                                  (2)
+                                                           ∆∗ 0    iλ ξ2k+Q
+
+                   The SODW field parameter ∆ is taken to be complex for generality and will be
+                   defined below. This SODW Hamiltonian (2) is very similar to the one proposed
+                   for the Rashba-type SOC system,(see Sec. 7) and also for 5d system iridates.[57]
+                   Also, it is interesting to compare the Hamiltonian with that for the topological
+                   insulator (Eq. 1 of Ref. [58]) in which we replace the two-particle gap term ∆ by
+                   their hybridization term.
+                     We diagonalize the above Hamiltonian in two steps by the Bogolyubov method.
+                   First, we define the Bogolyubov spinor for the SOC term as
+                                                                                              
+                                                    b1k,σ                 αk σβk          c1k,σ
+                                                                 =                                     ,           (3)
+                                                    b2k,σ̄               −σβk αk          c2k,σ̄
+
+                   After this basis transformation, the Hamiltonian in Eq. 1 becomes diagonal with
+                                           +
+                   eigenstates E1,2k,σ = ξk ± E0k , and the corresponding spin-orbit helical weight
+                                             ξ−
+                                  
+                   is αk2 (βk2 ) = 12 1 ± Ek0k , where ξk± = (ξ1k ± ξ2k )/2, and E0k
+                                                                                  2 = (ξ − )2 + λ2 . The
+                                                                                        k
+                   subsequent diagonalization onto the Nambu-basis on the reduced Brillouin zone
+                   follows similarly, and the spin and orbital notations are retained explicitly. Here
+                   the Bogolyubov basis transformation is
+                                                                                                      
+                                            dnk,σ                    uk   τnm σvk                  bnk,σ
+                                                         =                                                     ,   (4)
+                                          dmk+Q,σ̄                −τnm σvk uk                  bmk+Q,σ̄
+
+                   where n = 1, 2 6= m are the band indices, and τ12 = −τ21 = 1 is the spin-orbit he-
+                   licity index which changes sign when orbitals are interchanged. Here the canonical
+                   density operators uk (vk ) take equivalent forms as before, and the corresponding
+                                                                                      2 = (ξ˜− )2 +|∆|2 .
+                   quasiparticle states are replaced by ξ˜k± = (E1k ±E2k+Q )/2, and Ẽ0k     k
+                   A schematic view of the SODW split bands and the shared orbital character, de-
+                   termined by coherence factors uk /vk between them is given in Fig. 1(a). It is
+                   interesting to notice that SOC allows the many-particle wavefunction to have a
+                   dynamical spin flip on the same orbital at the same momentum as indicated by
+                   vertical arrow, which governs a collective S = 1 mode as derived below.
+                      It is worthwhile to combine the above two steps to visualize how the four-vector
+                   SODW Nambu operator transforms under translational symmetry breaking while
+                   retaining time-reversal symmetry:
+
+                                             αk uk −βk uk σ̄βk vk∗ −σαk vk
+                                                                                  
+                                c1k,σ                                          d1k,σ
+                             c2k,σ̄   βk uk αk uk −σ̄αk v ∗ −σβk vk   d2k,σ̄ 
+                                                                   k
+                             c1k+Q,σ  =  −σβk vk∗ σ̄αk vk αk uk −βk uk   d1k+Q,σ  .                          (5)
+                                                                                  
+
+                              c2k+Q,σ̄       σαk vk∗ σ̄βk vk βk uk   αk uk    d2k+Q,σ̄
+
+                     An immediate ansatz emerges from the above transformation − guided by the
+                   same symmetry of the Hamiltonian in Eq. 2 − that the system is time-reversal
+                   invariant under the representation of this symmetry T = I ⊗ iτy K, where K is
+                   the complex conjugation, I is the 2×2 identity matrix, and τy is the second Pauli
+                   matrix. Under time-reversal, the Hamiltonian transforms as Hk = T H−k T −1 =
+October 10, 2018   Philosophical Magazine        specialissue˙HO˙PM˙v2
+
+
+                   8                                     Taylor & Francis and I.T. Consultant
+
+                                   c1k↑                      c1k+Q↓
+                                   c2k↑                      c2k+Q↓
+
+                                   SDW
+                                                                                                     J
+                                                     =                   U      -
+
+
+                                   SODW
+                                                                                                     J΄
+                                                     =                    V      +
+
+
+                   Figure 3. Feynman diagram representations of SDW and SODW in a two spin-polarized orbital systems
+                   (having SOC) under translational symmetry breaking perturbation are shown by considering all possible
+                   contractions of the interaction Hamiltonian in Eq. (6). Forward and backward arrows dictate creation
+                   and annihilation operators, respectively. Therefore, opposite arrows in each order parameter and bubble
+                   indicate that they are in the particle-hole channel.
+
+                           ∗ I ⊗ τ . This important symmetry consideration renders a zero magnetic
+                   I ⊗ τy H−k     y
+                   moment as depicted schematically in Fig. 2b and is evaluated in Eq. (9) below.
+
+
+                   4.1.    SODW order parameter
+
+                   In a multiorbital setup, the full interacting Hamiltonian includes intra- and interor-
+                   bital Coulomb interactions, U and V , Hund’s coupling J, and pair-exchange term
+                   J 0:
+                                      "
+                                X X †
+                        Hint =             U cik1 ,↑ cik2 ,↑ c†ik3 ,↓ cik4 ,↓
+                                  k1 −k4         i
+                                       X                                                                                           
+                                  +              V c†ik1 ,σ cik2 ,σ c†jk3 ,σ̄ cjk4 ,σ̄ + (V − J)c†ik1 ,σ cik2 ,σ c†jk3 ,σ cjk4 ,σ
+                                       i<j,σ
+                                                                                                                                      
+                                       X                                                                                           
+                                   +             Jc†ik1 ,σ c†jk3 ,σ̄ cik2 ,σ̄ cjk4 ,σ J 0 c†ik1 ,σ c†ik3 ,σ̄ cjk2 ,σ̄ cjk4 ,σ + h.c.  . (6)
+                                       i<j,σ
+
+
+                   where k1 +k3 = k2 +k4 . The linearized equations for the two order parameters SDW
+                   and SODW are presented graphically in Fig. 4 which leads to the self-consistent
+                   equations as 1 = −Tn Γn where n=‘SDW’, and ‘SODW’. For a given order, we
+                   consider all possible contractions of the interaction term written in Eq. 2, which
+                   lead to the following vertices
+                                                              jj
+                                 ΓiSDW = U χii
+                                            ii (Q, ω = 0) + Jχii (Q, ω = 0) (for i = 1, 2 6= j),
+                                                           0 21
+                               ΓSODW = V χ12
+                                          12 (Q, ω = 0) + J χ12 (Q, ω = 0).                                                             (7)
+
+                   The corresponding susceptibilities in the particle-hole channel are then defined as
+
+                                    1 X i                                 f (Eν (k + q)) − f (Eµ (k))
+                   χjk
+                    il (q, ω) = −      φµ (k)φj†    k         l†
+                                              µ (k)φν (k + q)φν (k + q)                               .
+                                    N                                   ω + i0+ + Eν (k + q) − Eµ (k)
+                                          k,µν
+
+                                                                                                                                         (8)
+October 10, 2018   Philosophical Magazine     specialissue˙HO˙PM˙v2
+
+
+                                                            Philosophical Magazine                                          9
+
+
+
+
+                                                       SDW
+                                                                          SDW+
+                                                                          SODW
+
+
+
+
+                                              U/V
+                                                                               SODW
+
+
+                                                                      λ/W
+                   Figure 4. Schematic phase diagram of SDW and SODW phases in the relevant parameter space. Along the
+                   horizontal-axis, the strength of SOC λ with respect to the corresponding bandwidth (W ) is plotted, while
+                   the vertical-axis gives the ratio between the intraorbital (U ) and interorbital (V ) Coulomb interactions.
+                   Large values of SOC and V drive SODW, while large U favors SDW, and their delicate balance can lead to
+                   a coexistence between them. Other relevant interaction terms such as Hund’s coupling and pair scattering
+                   which contribute to the SDW and SODW orders, respectively, can be assumed to have similar but smaller
+                   effects, see Eq. (7).
+
+
+                      It is interesting to see that Hund’s coupling does not contribute to the SODW,
+                   while the pair scattering term does. However, in many materials, this term has
+                   very small value and can be neglected for some practical purposes. The vertices
+                   in Eqs. (7) are different here from a typical multiband system (see, for example,
+                   Ref. [56]) due to the presence of SOC. Based on Eqs. 7 and 8, we can deduce a
+                   general phase diagram in Fig. 4 for the competition and coexistence of SODW and
+                   SODW. For a single orbital system, only an intraband nesting χii    ii is present and
+                   thus only SDW is allowed. When SOC is included, the inter-orbital susceptibility
+                   χij
+                     ij is turned on. The relative competition between these two nestings determines
+                   the dominant instability to win in a given band structure. At the limit of J =
+                   J 0 = 0, when SOC λ → 0, no SODW is possible, similarly, as U → 0, no SDW
+                   is possible from interorbital susceptibility (since J = 0 is also imposed). For large
+                   V , i.e. small U/V , SDW is more stable for finite λ. When U/V → 1 (assuming
+                   both intra- and interorbital nesting are comparable), two phases can coexist. From
+                   Eq. 7, it is also easy to deduce that while inter-orbital susceptibility helps SDW
+                   via Hund’s coupling J, no intra-orbital term is involved in the SODW phase.
+                      If there is no orbital fluctuation present in the system, for the two fully spin-
+                   polarized bands, the magnetic moment along any direction vanishes. This is achiev-
+                   able in materials with strong SOC as in URu2 Si2 in which λ ∼1 eV. This can be
+                   verified by a trivial analytical computation of the spin-operator:
+
+                                1 X †          i
+                           S=        hcik+Q,α σαβ cik,β i
+                                N
+                                  ik
+                                1 X        h
+                              =      αk βk σ (−uk vk∗ + uk vk∗ ) hd†1k,σ d1k,σ i
+                                N
+                                      ik
+                                                                                                     i
+                                                +σ̄ (−uk vk + uk vk ) hd†2k,σ̄ d2k,σ̄ i + (k → k + Q) = 0.                (9)
+
+                   Magnetic moment vanishes in each band for any value of the interaction strength,
+                   owing to the presence of two opposite SDW coupled by SOC. We should carefully
+October 10, 2018   Philosophical Magazine      specialissue˙HO˙PM˙v2
+
+
+                   10                                 Taylor & Francis and I.T. Consultant
+
+
+                   distinguish the induced magnetic moment of SODW in Eq. (9), from a SDW terms
+                   (a finite gap term to be placed in the ‘13’ component of Hamiltonian in Eq. (2)
+                   which has of course different interaction term as discussed in Eq. 7). Our conclusion
+                   of zero moment is only valid when no SDW term is explicitly present.
+                     Finally, the SODW order parameter can then be written in an explicit form as
+                                                              0
+                               V XD †        y x
+                                                         E 2V X            h                     i
+                         σ∆0 =     cik+Q,α iτij σαβ cjk,β =     uk Re [vk ] f (Ẽk+ ) − f (Ẽk− ) ,(10)
+                               N                            N
+                                       ijk                                     k
+
+
+                   where the fermion occupation number is defined as f (Ẽk+ ) = hd†1k,σ d1k,σ i and so
+                   on, and Ẽk± are the degenerate eigenstates of the interaction Hamiltonian in Eq. 2.
+                   The notation ‘prime’ over the momentum summation indicates that the summation
+                   is restricted within the reduced Brillouin zone. The complex gap parameter that
+                   enters in the Hamiltonian is ∆ = ∆0 (σx + σy ). For the experimental value of
+                   gap amplitude ∆0 ∼ 10 meV, we estimate the critical inter-orbital interaction
+                   strength to be V ∼ 0.6 eV which is a reasonable number for 5f electrons estimated
+                   earlier.[59, 60]
+
+
+                   4.2.    Competition and coexistence of HO and LMAF phases
+
+
+                                       Δsdw                  |Δsdw|2
+                                                                          -2×                |Δsdw|4
+                    g1k↑                g1k+Q↓                                       +…
+                                                             |Δsodw|2                              -2×           +…
+                           iλ           Δsodw      -iλ                    -2×        +…
+                    g2k↑                g2k+Q↓              |Δsdw|2|Δsodw|2                  |Δsodw|4
+
+                                                                       -2×           +…
+                                                                                                   -2×           +…
+                    iλ          Δsdw          Δsodw
+
+                   Figure 5. Feynman diagram of various GL coefficients for SODW and SDW order parameters. The green’s
+                   function gikσ and gik+Qσ are assumed to be for particle and hole states, respectively, or vice versa.
+
+                      A fascinating property of the HO state in URu2 Si2 is that it transforms into
+                   the LMAF phase via a first-order phase transition as pressure (and also magnetic
+                   field) is increased. SdH oscillation measurement[17] has demonstrated that the
+                   angle-dependence of the oscillation frequency, which is taken to be proportional
+                   to the closed FS areas at finite magnetic field, does not change as we go from the
+                   HO phase to the LMAF phase via increasing pressure. This observation suggests
+                   that both HO and LMAF phases coexist in URu2 Si2 , at least at high magnetic
+                   field. Based on this result, we study the stability of the two phases, attributing
+                   the LMAF phase as a SDW state, within a Ginzburg-Landau (GL) treatment by
+                   integrating out the diagonal and the SOC terms (single-particle terms). Here we
+                   denote ∆sodw , and ∆sdw for the SODW and SDW order parameters. The GL free
+                   energy can be expressed as
+                                                              X                    |∆sodw |2 |∆sdw |2
+                                 F[∆sodw , ∆sdw ] = −T              ln detG−1
+                                                                           k,n +            +         ,
+                                                                                      V        U
+                                                              k,n
+
+                                                                                                                  (11)
+October 10, 2018   Philosophical Magazine   specialissue˙HO˙PM˙v2
+
+
+                                                          Philosophical Magazine                                 11
+
+
+                   where the inverse Green’s function in the Nambu-Grassmann space is Ĝ−1k,n = iωn I −
+                   Hk , with iωn is the Matsubara frequency for the fermions, and I4×4 is the identity
+                   matrix. Expanding Eq. 11 up to the fourth order in the gap fields, we obtain the
+                   essential GL functional for a homogeneous system of real fields as
+                                                      X
+                                                               αi |∆i |2 + βi |∆i |4 + γ|∆sodw |2 |∆sdw |2 .
+                                                                                   
+                            F[∆sodw , ∆sdw ] =                                                                 (12)
+                                                 i=sdw,sodw
+
+
+                   All expansion coefficients αi , βi , and γ are shown in Fig. 5 which lead to
+
+                                                           1    (2)      (4)
+                                                      α1 =   − χ1 + 2λ2 χ1 ,                                   (13)
+                                                           U
+                                                           1    (2)      (4)
+                                                      α2 =   − χ2 + 2λ2 χ2 ,                                   (14)
+                                                           V
+                                                                (4)         (6)
+                                                      βi = −χi + 2λ2 χi ,                                      (15)
+                                                                (4)         (6)
+                                                       γ = −χ3 + 2λ2 χ3 .                                      (16)
+
+                   For simplicity the SDW order parameter for both states are assumed to be the
+                   same. The two, four and six order susceptibilities χ(2),(4),(6) are defined in the band
+                   basis as
+                                   (2)
+                                         X
+                                 χ1 = T      g1k,n g1k+Q,n ,                                           (17)
+                                              k,n
+                                      (2)
+                                              X
+                                    χ2 = T          g1k,n g2k+Q,n ,                                            (18)
+                                              k,n
+                                      (4)
+                                              X
+                                    χ1 = T          (g1k,n g1k+Q,n )2 ,                                        (19)
+                                              k,n
+                                      (4)
+                                              X
+                                    χ2 = T          (g1k,n g2k+Q,n )2 ,                                        (20)
+                                              k,n
+                                      (4)
+                                              X
+                                    χ3 = T          g1k,n g1k+Q,n g1k,n g2k+Q,n ,                              (21)
+                                              k,n
+                                      (6)
+                                              X
+                                    χ1 = T          g1k,n g1k+Q,n g2k+Q,n g2k,n g2k+Q,n g1k+Q,n ,              (22)
+                                              k,n
+                                      (6)
+                                              X
+                                    χ2 = T          g1k,n g2k+Q,n g1k+Q,n g2k,n g1k+Q,n g2k+Q,n ,              (23)
+                                              k,n
+                                      (6)
+                                              X
+                                    χ3 = T          g1k,n g1k+Q,n g2k+Q,n g1k,n g2k+Q,n g1k+Q,n .              (24)
+                                              k,n
+
+                                                                                                               (25)
+
+                   Here the Green’s functions g denote the diagonal components of the full Green’s
+                   function matrix as gjk,n = (iωn − ξjk )−1 . The phase transition for each order
+                   parameter is determined as usual by the corresponding quadratic terms as αi =
+                   α0i (T − Ti ), where Ti are the transition temperatures for them without phase
+                   competition. For multiple competing order parameters, a general criterion was
+                   derived before in various contexts[61–63] that both phases can share a uniform
+                   coexistence region if 0 < γ 2 < β1 β2 . Whereas for γ 2 > β1 β2 , the phase fluctuation is
+October 10, 2018   Philosophical Magazine   specialissue˙HO˙PM˙v2
+
+
+                   12                            Taylor & Francis and I.T. Consultant
+
+
+                   sufficiently strong that both phases are separated by a first-order phase transition.
+                   Given the experimental fact in URu2 Si2 that HO and LMAF phases share a first-
+                   order phase boundary as a function of pressure, the second criterion is expected in
+                   this material. However, the numerical calculations of the susceptibilities and the
+                   effects of pressure are beyond the scope of the present paper.
+
+
+                   5.     Electronic and magnetic anomalies of SODW
+
+                   We give two representative results of the electronic and magnetic structure of the
+                   SODW in the HO state and compare them with ARPES and INS data, respectively.
+
+
+                   5.1.    Quasiparticle gapping and entropy count
+                   We first evaluate the electronic signature of HO gap opening. The SODW order
+                   induced HO state is evaluated by using DFT-based band structure as the input
+                   frame of reference, and downfolding the full DFT results in the reduced space near
+                   EF with the ‘hot-spot’ wavevector Q = (π/2, π/2, 0) in the BCT crystal structure.
+                   Figure 6 gives single-particle maps along several representative momentum cuts,
+                   and the FS topology before and after the HO transition. Gapping of the FS is
+                   clearly visible for the two bands aligned along the (110) direction at the degenerate
+                   Dirac points at EF , introduced in Fig. 1(a). This gapping process truncates the
+                   paramagnetic FS into small pockets aligned along the bond-direction. We require
+                   to pay particular attention to the location of the FS pockets in this system, since
+                   the original crystal structure is BCT (not simple tetragonal which is often used
+                   for the simplification of computation). In this unit cell notation, the location of
+                   the gapping and FS pockets governed in the SODW state are in direct agreement
+                   with the ARPES spectral function map on the FS.[12] We find that the loci of the
+                   gapped states move away from EF as we increase the kz value.
+                      ARPES has also reported an interesting result that a conduction band collapses
+                   below EF at the Γ-point upon entering into the HO state.[8] This unusual behavior
+                   is also reproduced within the present framework, without invoking the previously-
+                   thought hybridization phenomena. As mentioned before, the optimum FS nesting
+                   occurs at the kz = 0-plane, and beyond it, the same nesting condition moves
+                   to empty states as the Γ-centered electron pocket gradually shrinks. This is the
+                   manifestation of the itinerant nature of the HO gap which generates an anisotropic
+                   gap on the electronic structure, and can also induce momentum dependence in
+                   the g-factor measured in quantum oscillation measurements.[64] We locate the
+                   kz ∼ 0.57π plane where the bottom of the paramagnetic electron pocket resides
+                   just above EF , and upon the HO gap opening in the empty state, this pocket
+                   drops into the Fermi sea. This result, shown in the bottom row of Fig. 6, agrees
+                   well with ARPES measurements.[8] Since ARPES can probe different kz -planes
+                   with the variation of incident photon energy, our theoretical result is consistent
+                   with the experimental fact that such phenomena is observed at a finite photon
+                   energy of hν = 21.2 eV. Our explanation can further be confirmed by observing
+                   the possible flickering presence of the Γ-centered electron pocket as a function of
+                   the photon energy.
+                      The corresponding density of states (DOS) before and after the HO transition
+                   are shown in Fig. 7. Without invoking any hybridization, we see two flat band-
+                   like peaks (or the van-Hove singularities) below and above EF (which are pushed
+                   further towards lower energy by renormalization). The HO gap opens around EF
+                   as seen from the inset box in Fig. 7 and the corresponding spectral weight shifts
+October 10, 2018   Philosophical Magazine                specialissue˙HO˙PM˙v2
+
+
+                                                                       Philosophical Magazine                                13
+
+
+                                       (a)       T > Th                (b)       T < Th                 (b) – (a)
+
+                     E-EF (eV)
+                                 0.1
+                                  0
+                             -0.1
+                                -M                   Γ            M-M                 Γ         M-M         Γ           M
+                                             (c) 1                            (d)                 (d) – (c)
+
+
+
+                          kz = 0
+                                               -1
+                                                -1                 1              -1            1         -1             1
+                                       (e)        T > Th               (f)       T < Th                 (f) – (e)
+                                 0.1
+                     E-EF (eV)
+
+
+
+
+                                  0
+                             -0.1
+                                -M                   Γ            M -M                Γ         M -M         Γ          M
+                                             (g) 1                            (h)                  (h) – (g)
+
+
+                          kz = 0.57π
+                                               -1
+                                                -1                1              -1             1         -1             1
+                   Figure 6. Images of electronic fingerprints of the SODW state, and the ‘surprising’ collapse of conduc-
+                   tion band (at kz = 0.57π) at the HO transition. (a) Spectral weight maps of the bare band dispersion
+                   plotted along the (110) direction above the HO transition, deduced from DFT calculation with a constant
+                   broadening of 0.5 meV. (b) Corresponding quasiparticle dispersion is shown in the HO state within the
+                   SODW scenario. Clear semiconductor-like gap at EF is observed for the two bands centering the Γ-point
+                   (indicated by arrow). (b)-(a) The difference in spectral weight between the HO and paramagnetic states
+                   is shown here. The difference highlights the shift of band around M-point as pointed out in an ARPES
+                   data (Fig. 3 of Ref. [12]) (c), (d) Computed FS below and above the HO transition, respectively, plotted
+                   at the kz = 0 plane. A good correspondence between theory and ARPES result (Fig. 2 of Ref. [12]) can
+                   be noted here. (c)-(d) The corresponding spectral weight differences are shown at EF . (e)-(f) Computed
+                   spectral function of dispersion on a characteristic kz = 0.57π plane in the paramagnetic and HO states,
+                   respectively. The ‘unusual’ collapse of the conduction band below EF is reproduced in theory due to the
+                   opening of the HO in the empty state on this kz -plane. This intriguing result is observed in ARPES data[8]
+                   along the same momentum cut at an incident photon energy of 21.2 eV in Ref. [8], in reasonable agreement
+                   with the kz value in theory. (g), (h) Corresponding FS on the same kz -cut confirms the development of a
+                   tiny electron pocket centering Γ-point below the HO transition. We do not find any other kz -cuts, except
+                   near kz = 0, where the SODW-induced HO parameter gaps out most of the FS. An artificially large gap
+                   value of 20 meV is chosen here for visualization, where the actual gap lies in between 5-10 meV range. The
+                   figure for kz = 0-plane (top panel) is reproduced from Ref. [43].
+
+
+                   to the states at a higher energy below EF . The results are consistent with STM
+                   measurements.[13, 14]
+                     In this context, we note an interesting consequence of the two flat-bands in the
+                   particle-hole channel. As shown in Pu-115 and U-115 families,[59, 60] such particle-
+                   hole channel, triggered by SOC, causes large dynamical spin and pseudospin fluc-
+                   tuations which dress the electronic states in the intermediate coupling regime. A
+                   trademark feature of the intermediate coupling scenario is the duality between
+                   renormalized itinerant quasiparticle states and localized high energy states in the
+                   same or different orbitals, separated by the (pseudo-) spin fluctuation energy scale,
+                   which is seen in ARPES.[65] The pseudospin fluctuation is also reported in a recent
+                   NMR study in this system.[66] This is a future problem to study in URu2 Si2 .
+October 10, 2018   Philosophical Magazine                specialissue˙HO˙PM˙v2
+
+
+                   14                                          Taylor & Francis and I.T. Consultant
+
+
+                                                     7
+                                                             2.8
+
+
+
+
+                                   DOS (States/eV)
+                                                     5
+                                                             2.6
+                                                              -40            0        40
+
+
+                                                     3
+                                                     -200           -100         0     100                 200
+                                                                            E-EF (meV)
+                   Figure 7. DOS below (red) and above (blue) the HO transition. Two van-Hove singularities or flat band-
+                   like features are observed below and above EF which yield large spin- and pseudospin fluctuation in the
+                   particle-hole channel and thus govern large mass enhancement in the electronic states as seen in other
+                   actinide compounds.[59, 60] Near EF the HO gap opens, and the corresponding residual spectral weight
+                   shifts below EF .
+
+
+                     The entropy release of the HO transition can be easily evaluated from the
+                   Free-energy estimation. The Free-energy of the HO state is deduced from F =
+                   −kB T ln(Tre−H/kB T ) + N µ, where kB is Boltzmann constant, N is number of filled
+                   states, and µ is the chemical potential. In the diagonal basis with a mean-field order,
+                   the Free energy translates into F = −kB T 0k ln[ ν=± e−Ẽk /kB T ]+N (µ+|∆|2 /V ).
+                                                                P      P          ν
+
+
+                   And the corresponding entropy release at the HO transition is evaluated to be
+                   ∆S = (∂F/∂T )Th =17.5 K ∼ 0.3kB ln2, which is close to its experimental estimate
+                   from the specific heat jump.[1]
+
+
+                   5.2.    Magnetic excitation spectrum
+
+                   Now we present the results of the spin-excitation spectrum as a function of both
+                   momentum and energy. INS measures the imaginary part of the spin-susceptibility
+                   − modulo materials specific form factor − which is theoretically computed from
+                   Eq. (8). In the SODW state, the susceptibility is a 2×2 matrix (to be precise it
+                   is a 4×4 matrix including both intra and interband contributions separately as is
+                   done in the main computation), made of direct transitions (in the diagonal terms)
+                   and Umklapp scattering terms placed in off-diagonals[67]:
+
+                                                                                                          
+                                                         0               χ(q, q, ω)     χ(q, q + Q, ω)
+                                           χ(q, q , ω) =                                                            (26)
+                                                                       χ(q, q + Q, ω) χ(q + Q, q + Q, ω)
+
+                   Here the direct term χ(q, q, ω) means that the scattering between the two main
+                   bands and between the two shadow bands while the Umklapp scattering term χ(q+
+                   Q, q + Q, ω) arises from the scattering betwee then main and shadow bands. All
+                   scattering processes included here are in the particle-hole channel. Although, the
+                   mechanism and structure of the INS results presented in Fig. 7 are tied mainly to
+                   the details of the electronic structure and the HO ‘hot-spot’ wavevector embedded
+                   within this bare susceptibility, however, for completeness we invoke the many-
+October 10, 2018   Philosophical Magazine      specialissue˙HO˙PM˙v2
+
+
+                                                                  Philosophical Magazine                                     15
+
+
+
+                          (a) χ′′(q,ω)                            (b)       INS                    (c) χ′′(Q+q,ω)
+                         2                                        8
+                                                                                                2
+
+
+
+
+                                                        ω (meV)
+                                                                  6                                                     0.7
+                                                    2
+
+
+
+
+                                                                                            ω /Δ
+                   ω/Δ
+
+
+                         1                                        4                             1
+                                                                                                                         0
+                                                   0              2
+                         0                                                                         0
+                             0        π          2π               0        π               2π       0       π      2π
+                                 qx=qy [1/a]                            qx [1/a]                         qx=qy [1/a]
+                   Figure 8. Computed spin-excitation spectrum and comparison with available INS data. Imaginary part of
+                   the spin-excitation spectrum plotted along the q=(110) direction as a function of excitation energy in the
+                   HO state. (a) For the inter-band (or equivalently inter-orbital) components, we observe the development
+                   of a collective mode inside the HO gap with an upward linear-in-energy dispersion starting from Q ∼
+                   0.55(π, π, 0). Although a good correspondence between theory and experiment is visible when compared
+                   with the INS data[7] in (b), a lattice transformation between the BCT to the ST lattice is required to align
+                   the (100)-direction in the experimental figure to our plot along the (110) direction. The gapped Goldstone
+                   mode or roton-mode is well reproduced via SODW order parameter at this incommensurate wavevector,
+                   which deviates slightly from the embedded HO wavevector of Q due to band structure effect. (b) INS data
+                   in the HO state is taken from Ref. [7]. (c) Umklapp spin susceptibility exhibits a second collective mode,
+                   localized at q ∼ 0 with intensity, which is an order of magnitude smaller than that of the intra-band one.
+                   This mode can be probed via ESR or NQR measurements. Figure extracted from Ref. [43].
+
+                   body correction within the random-phase approximation (RPA). RPA calculation is
+                   justified in this heavy-fermion systems at low-T where itinerant electronic structure
+                   is well-established. The RPA interaction Hamiltonian is same as given in Eq. 6,
+                   with J = J 0 = 0. Different bandwidths of different orbitals amount to different
+                   critical values of U , and V , however, to justify that the final results are parameter
+                   free, we take the lowest critical value of U =1 eV and V =0.6 eV which shifts the
+                   energy scale of all the excitation mode slightly to a lower energy.
+                      Figure 8 presents the computed direct and Umklapp spin excitation spectra in
+                   (a) and (c), respectively, along the zone diagonal direction, and compares with the
+                   corresponding experimental data[7] obtained along the zone boundary direction
+                   given in Fig. 8(b). For direct transition in the particle-hole continuum (trace of the
+                   susceptibility matrix), we clearly mark a prominent S = 1 collective mode with
+                   a dispersion that resembles gapped Goldstone mode or a roton-like spectrum. For
+                   the case of the discrete symmetry breaking due to the complex order parameter
+                   ∆∗ , such gapping of the Goldstone mode can bee justified. The mode is localized
+                   around the Q ∼ 0.55(π, π, 0) value, slightly shifted from the original HO wavevector
+                   Q due to band structure effect. However, the shift of the mode below ω < ∆ is
+                   a many-body correction as discussed above. To match the mode energy of the
+                   experimental data about ω = 5 meV, a gap amplitude of ∆0 ∼ 6 meV is invoked
+                   in our calculation which is close to the spectroscopic value of the HO gap.[13, 14]
+                   Although a static neutron signal is reported in Ref. [5] at q = (π, π, 0), but in the
+                   inelastic spectrum, both experiment[7] and our theory find a weaker and featureless
+                   intensity at this wavevector.
+
+
+                   5.3.      q ∼ 0 collective mode
+                   By construction, the SODW is associated with an interaction induced spin-orbit
+                   entangled electronic structure, rendering conceptual similarity with the spin-orbit
+                   order in the particle-particle channel proposed by Leggett[68] for the liquid 3 He
+                   superconducting phase, dynamical generation of SOC,[69], or the single-particle
+October 10, 2018   Philosophical Magazine     specialissue˙HO˙PM˙v2
+
+
+                   16                                Taylor & Francis and I.T. Consultant
+
+
+
+
+                                                     Th
+
+
+
+
+                                     Th
+
+
+
+
+                                                                           P (GPa)
+
+
+
+                   Figure 9. Phase diagram of URu2 Si2 along the magnetic field (B) and pressure (P ) directions. The data
+                   on the P − T plane is taken from Ref. [70]. The symbols along B − T plane are extracted from Ref. [18]
+                   with more similar data available in Ref. [19] (not included in the phase diagram here). A QCP at T = 0
+                   along the field direction is expected from our theory, and is also observed in experiment.[18] Although
+                   we theoretically overestimate the critical field (see text), we normalize it to match the experimental value
+                   for visualization. Deducing the phase diagram for SC and other possible phases that may arise around or
+                   above the QCP is beyond the scope of the present calculation. Figure reproduced from the supplementary
+                   information of Ref. [44]
+
+
+                   quantum spin-Hall state[46] which do not break time-reversal symmetry. In what
+                   follows, the Umklapp scattering process between different spin-orbital states brings
+                   out two Zeeman-like spin-split states at the same momentum k, on both sides of the
+                   HO gap with coherence factors uk /vk , without any external magnetic field, as dis-
+                   cussed in Fig. 1(a). Therefore, a second spin-flip collectiveP
+                                                                                mode is expected in the
+                   off-diagonal susceptibility in Eq. (26) as χ(q, q + Q, ω) ∼ k δ(ω − ξ1k + ξ2k+Q+q )
+                   to localize inside the SODW gap ω ≤ |∆| around q ∼ 0. Indeed, our computation
+                   confirms the existence of this collective mode at energy ω/∆ ∼ 0.75, as shown in
+                   Fig. 8(c). Since the intensity of this mode is about an order of magnitude lower
+                   than that of the Q-mode presented in Fig. 8(a), it will be difficult to simultaneously
+                   detect them together in the INS measurement. However, ESR or NQR, having the
+                   capability of detecting lineshifts of resonance without the application of a static
+                   magnetic field, will be able to measure our proposed q ∼ 0 mode.
+
+
+                   6.    SODW under magnetic field
+
+                   The present spin-orbit order is not only topologically protected by time-reversal
+                   symmetry, but most importantly it is thermodynamically shielded with a conden-
+                   sation energy equal to the quasiparticle gap. The HO gap is insensitive to any
+                   time-reversal invariant perturbation such as pressure (with sufficient pressure the
+                   HO transforms into the LMAF phase), while time-reversal breaking perturbation
+                   such as magnetic field will destroy the order. Remarkably, these are the hallmark
+                   features of the HO states,[18, 19] which find a natural explanation within our
+                   SODW order scenario. In what follows, the magnetic field will destroy the HO
+                   state even at T = 0 K, that means at a quantum critical point (QCP) as the HO is
+                   a spontaneously broken symmetry phase. However, due to the finite gap opening
+                   at the HO state, it requires finite field value to destroy the order. The thermo-
+                   dynamical critical field can be approximately determined by the critical Zeeman
+October 10, 2018   Philosophical Magazine                  specialissue˙HO˙PM˙v2
+
+
+                                                                                    Philosophical Magazine                                                   17
+
+
+                                    (a)        URu2Si2                          (b)          Iridate                       (c)   LAO/STO
+                                                                                                       FC
+                    M (μB f.u.-1)
+                                    0.4                                       2.6
+                                                                                                       ZFC
+
+
+
+
+                                                                                                             Anisotropy
+                                                                  M (μB/Ir)
+                                                                                                                          0.6                      FM
+
+
+                                          HO
+                                    0.2           LMAF                        2.2                                         0.3
+                                                                                                       AF                        Large ρ
+                                                                                                                           0                                12
+                                                                                     Ins.                                                               8
+                                                                              1.8                                          1.6   2.0               4
+                                     0                                                                                                     2.4 0
+                                      0            10        20                     0       100 200 300
+                                                P (kbar)                                       T (K)
+                   Figure 10. (a) In-plane magnetic moment per U-atom as a function of pressure. The main point of this
+                   plot is to emphasize that the magnetic moment of the high-pressure LMAF phase is strongly reduced in
+                   the HO state. A phenomenological explanation for this transition from SDW to SODW with decreasing
+                   pressure is given in the text. Black line is to guide the eyes. Figure reproduced from Ref. [71]. (b) Similarity
+                   of the reduction of the magnetic moment with reduced temperature is observed in another SOC iridate.
+                   Interestingly, below a characteristic temperature where magnetic moment begins to reduce, the resistivity
+                   rises exponentially (metal to insulator transition). Figure reproduced from Ref. [52]. (c) A very recent
+                   observation of a characteristic reduction of preexisting ferromagnetic order below a critical field, carrier
+                   density and temperature, at which an ‘unidentified’ phase with large resistivity is reported in the interface
+                   of LAO/STO. Figure is reproduced from Ref. [51].
+
+                   term EZ ∼ 2gµB B (g is ‘g’-factor, µB is Bohr magneton) which can overcome the
+                   condensation gap energy (i.e. Ez = ∆). Assuming a mean-field like magnetic field
+                   dependence of the SODW gap ∆, we obtain an approximate phase diagram of the
+                   HO state as a function of B. The critical field is obtained to be Bc = 43 T for
+                   an isotropic g-factor of ∼1 for 5f electrons and zero field gap of ∆ = 5 meV. The
+                   result is shown in Fig. 9. Experimental value of Bc is 35 T.[18] HO interaction can
+                   increase the value of the g-factor which will reduce Bc . In fact, a SdH oscillation
+                   measurement reports the presence of an anisotropic g-factor in the HO state,[64]
+                   which whether can be reproduced by the SODW order or not is to be explored in
+                   a future study.
+                      The present model cannot deduce the phase diagram for the superconducting
+                   (SC) state, possibly intervening the HO state, or any other phases that may arise
+                   around or above the QCP.[18] However, from the study of Sec. 4.2, we can expect
+                   the appearance of a SDW phase near this phase boundary. Experimentally, it is
+                   known that the second order phase transition at low field transforms into a first
+                   order one at high field, which may play a role in eliminating the QCP of the SODW
+                   state in this system. However, the QCP as a function of magnetic field is a general
+                   result for SODW and can thus be searched in other materials.
+                      In this context, we note an interesting result in the LaAlO3 /SrTiO3 (LAO/STO)
+                   interface.[51] This interface is known to host local ferromagnetism and 2DEG state.
+                   It is shown in a recent magnetoresistance and anomalous Hall effect experiment
+                   that below a critical value of the magnetic field, the magnetic polarization is dra-
+                   matically reduced while resistivity sharply rises, see Fig. 10(c). This unique phe-
+                   nomenon indicates the emergence of a new phase which onsets below a critical
+                   field and quenches magnetic moment while reduces the electric conductivity via
+                   FS gapping. These are the key properties of the SODW. Similar effect of large
+                   magnetoresistance is also expected in URu2 Si2 .
+
+
+                   7.               SODW in other spin-orbit coupled systems
+
+                   Finally we discuss the possible evidence of the SODW in other systems. We recall
+                   that SODW quenches any preexisting magnetic moment. This is evident in the
+                   URu2 Si2 phase diagram as a function of pressure, see Fig. 10(a). Pressure increases
+                   the noninteracting bandwidth (W ), and thus the ratio of λ/W decreases, and the
+October 10, 2018   Philosophical Magazine         specialissue˙HO˙PM˙v2
+
+
+                   18                                   Taylor & Francis and I.T. Consultant
+
+
+                   possibility of the existence of SODW is reduced while that of the SDW increases,
+                   as illustrated in Fig. 4.
+                     A very similar behavior of the magnetic moment is observed as a function of T for
+                   a typical bilayer iridate Sr3 Ir2 O7 [52] and in the LAO/STO interface[51] as shown in
+                   Figs. 10(b) and (c), respectively. Iridates exhibit metal-insulator transition (MIT)
+                   promoted by strong SOC of 5d orbitals,[72] but no consensus on the origin of
+                   MIT has emerged yet. For this given system, an antiferromagnetic (AF) order sets
+                   in below 280 K for both field cooled (FC) and zero field cooled (ZFC) samples,
+                   however, the resistivity shows a power-law temperature dependence below TAF
+                   (a behavior expected for a semi-metallic phase).[52] The resistivity exhibits an
+                   abrupt exponential rise which marks the onset of the MIT below T ∗ ∼ 70 K, and
+                   simultaneously the magnetic moment begins to drop. The new experimental data
+                   in the LAO/STO interface which has strong Rashba-type SOC, shows that below
+                   a critical magnetic field and carrier density, the preexisting ferromagnetic order is
+                   quenched, while the resistivity increases, signaling the onset of a new non-magnetic
+                   order parameter, as shown in Fig. 10(c).[51] Based on the similarity of the phase
+                   diagram of magnetic moment of URu2 Si2 , Sr3 Ir2 O7 , and LAO/STO, we envisage
+                   that a SODW phase is also present in these materials.[57]
+
+
+                                                               2DEG (Bi-surface)
+                                            0
+                              E-EF (eV)
+
+
+
+
+                                          -0.3
+
+                                      -0.6
+                                                 -0.5                      0                        0.5
+                                                                      kx [π/a] (1/Ǻ)
+                   Figure 11. ARPES data of 2 monolayers of BiAg2 thin film plotted in black to while gradient colormap.
+                   The red dashed lines are the quasiparticle dispersion in the SODW state in the presence of Rashba-type
+                   SOC. Figure reproduced from Ref. [45].
+
+
+                     Another motivation for the search of SODW in 2DEG is the ARPES evidence
+                   of a large quasiparticle gapping on the thin film of BiAg2 even when the spin-
+                   degenerate point of the Rashba-split bands remain ungapped.[50] To study the
+                   emergence of SODW in this case, we consider a system of two-component Fermi
+                   gas in the presence of Rashba-type SOC, which can be represented in the two
+                   component fermion field ψk = [ψk,↑ , ψk,↓ ]T as H0 (k) = ψk† [ξk 1 − iαR (σx sin ky −
+                   σy sin kx )]ψk . Here ξk is the free-fermion dispersion term, modeled by nearest-
+                   neighbor electronic hopping t as ξk = −2t[cos kx + cos ky ] − EF , where EF is the
+                   chemical potential. The second term is the 2D lattice generalization of the standard
+                   Rashba SOC term Hso = −iαR (σ̂ × k̂)z , with σ̂ being the Pauli matrices and αR
+                   being the SOC strength. The helical dispersion spectrum of Hamiltonian H0 is
+                     ±
+                   Ek,0  = ξk ± αR [(sin kx )2 + (sin ky )2 ]1/2 . The corresponding FS exhibits paramount
+                   nesting instability at Q = 0.115(π, π) as shown in Ref. [45].
+                     In this translational symmetry broking case, we define the the Nambu-Gor’kov
+                   spinor as Ψk = [ψk,↑ , ψk,↓ , ψk+Qi ,↑ , ψk+Qi ,↓ , ...]T , where i = 1 − 4 corresponds
+                   to four-different Q-vectors. In this basis, the auxiliary SODW field ∆(k) =
+                       †
+                   V ψk+Q,ν   [σz ⊗ σx ]νν 0 ψk,ν 0 , where V is the contact potential. Correspondingly, the
+October 10, 2018   Philosophical Magazine   specialissue˙HO˙PM˙v2
+
+
+                                                        Philosophical Magazine                              19
+
+
+                   inverse single-particle Green’s function in the fermionic Matsubara frequency is
+                   obtained as
+                                                                                      
+                                             iωn 1 − H0 (k)        σx∆           ...
+                                   G−1 = 
+                                                σ x ∆†     iωn 1 − H0 (k + Qi ) . . . 
+                                                                                       .      (27)
+                                                    ..               ..          ..
+                                                     .                .              .
+
+                   The other terms belong to the three values of Qi . At the mean-field level, ∆(k)
+                   represents the gap parameter which is same for all values of Q. As in the case of
+                   the Hamiltonian for URu2 Si2 in Eq. 2, the above Hamiltonian also has resemblance
+                   with the Hamiltonian for the topological insulator in heterostructure of Rashba-
+                   type SOC 2DEG proposed in Ref. [73] in which the SODW term is replaced by the
+                   interlayer tunneling amplitude. Taking the trace of the above Green’s function, we
+                   obtain the excitation spectrum as
+
+                                                 Ekµ,ν = S+
+                                                          ν + µ[(S ν )2 + ∆2 ]1/2 ,
+                                                                  −
+                                                       ν (k) = (E ν ± E ν̄ )/2,
+                                                 with S±                                                 (28)
+                                                                 k,0   k,0
+
+                   where ν̄ = −ν = ± is the helical index and µ = ± is the split band index due to
+                   translational symmetry breaking. For a self-consistent value of V ∼310 meV, we
+                   obtain a quasiparticle gap of ∆ =120 meV, which agrees well with the gap ampli-
+                   tude measure for 2 monolayers of BiAg2 .[50]. Experimentally it was also demon-
+                   strated that the quasiparticle gap is tunable by changing the number of layers
+                   of BiAg2 layer which we modeled by changing interaction parameter V , while all
+                   other parameters including Rashba SOC remain constant. We plot the correspond-
+                   ing calculated band dispersion on top of the experimental dispersion in Fig. 11,
+                   and find good correspondence between the theory and experiment.
+                     In both experiment and theory, two key features should be noted here. We notice
+                   the presence of shadow bands (or reconstructed bands due to translational sym-
+                   metry breaking) which convey the fact that the quasiparticle gap is not a single-
+                   particle gap. Furthermore, since the Kramer’s degeneracy at the Γ-momentum
+                   point remains ungapped, this particular phase is not a SDW. Such a reconstruc-
+                   tion of FS and FS nesting has also been documented in a quantum wire of atomic
+                   Pb grown on Si(557) having strong SOC spitting.[74] Our SODW model for the
+                   Rashba-type SOC which is a generic feature arising in many interfaces and surface
+                   states (sometimes in bulk states as well) establishes that the SODW phase may be
+                   present in many systems other than URu2 Si2 .
+
+
+                   8.    Topological properties of the SODW
+
+                   The similarity of the Hamiltonian for the SODW in URu2 Si2 in Eq. 2 and Rashba-
+                   type SODW in Eq. 27 with that of the non-interacting TI in Refs. [58, 73] motivates
+                   us to evaluate the topological invariant index of the interacting Hamiltonian in
+                   Eq. 2. To characterize the topological phenomena, we revisit the Fu-Kane classifi-
+                   cation scheme[75] which implies that if a time-reversal invariant system possess an
+                   odd value of Z2 invariant index, then the system is guaranteed to be topologically
+                   non-trivial. Z2 index is evaluated by the time-reversal invariant index νi = ±1, if
+                   defined, for all filled bands as Z2 = ν1 ν2 ...νn , where n is the total number of orbitals
+                   in the Fermi sea. A more efficient method of determining the topological phase is
+                   called the adiabatic transformation scheme used earlier in realizing a large class of
+                   topological systems, especially when Z2 calculation is difficult.[73] In this method,
+October 10, 2018   Philosophical Magazine   specialissue˙HO˙PM˙v2
+
+
+                   20                            Taylor & Francis and I.T. Consultant
+
+
+                   the non-trivial topological phase of a system can be realized by comparing its
+                   band-progression with respect to an equivalent trivial topological system. URu2 Si2
+                   is topologically trivial above the HO state, i.e. Z20 = +1. The gap opening makes
+                   the top of the valence band (odd parity) to drop below EF as shown in Fig. 6(b).
+                   Thereby, an odd parity gained in the occupied level endows the system to a non-
+                   trivial topological
+                                   R metal. To see that we evaluate the topological index for the HO
+                   term as νho = dkΩ(k), where the corresponding
+                                                                        Berry curvature can be written
+                                                       ˆ     ˆ
+                   in terms of d-vector as Ω = dˆ·   ∂ d
+                                                         ×
+                                                        ∂kx
+                                                           ∂ d
+                                                                 with dˆ = d/|d|. The components of the
+                                                                ∂ky
+                   d vector is obtained from the SODW order parameter given in Eq. (10). When the
+                   d vector has a odd parity symmetry, it is easy to show that νho = −1 which makes
+                   the total Z2 value of the HO phase to be Z2 = Z20 × νho = −1, and hence we prove
+                   that the HO gap is a topologically non-trivial phase. The consequence of a topolog-
+                   ical bulk gap is the presence of surface states.[75] In our present model, we expect
+                   two surface states of opposite spin connecting different orbitals inside the HO gap.
+                   As the system is a weak topological semimetal, the surface states are unlikely to
+                   be topologically protected. The spin-orbit locking of these states can be probed
+                   by ARPES using circular polarized incident photon which will be a crucial test
+                   of this postulate. Furthermore, the topological nature of the HO state can lead to
+                   non-trivial ground state in the LMAF and SC state, if they uniformly coexist. For
+                   example, topological HO with LMAF phase may host non-Abelian axion particle,
+                   or in the SC state may give rise to a topological SC.[76]
+
+
+                   9.    Discussion and conclusion
+
+                   To conclude, in this article we presented detailed analytical calculation and nu-
+                   merical results of SODW as a candidate proposal of the long-sought HO phase of
+                   the heavy-fermion metal URu2 Si2 . The proposal of the SODW is motivated by the
+                   ‘magnetic dichotomy’ phenomena at this phase transition as well as the FS instabil-
+                   ity between two spin-orbit split bands as deduced consistently by DFT calculation
+                   and ARPES results. DFT calculation demonstrated the presence of a logarithmic-
+                   like divergent susceptibility at Q = 0.5(π, π, 0) in the BCT crystal structure which
+                   connects inter-orbital Fermi momenta. As a result, a density wave originates which
+                   involves both spin and orbital flips at the same time between two in-plane sublat-
+                   tices of U atoms which is thus termed as SODW. The corresponding SODW gap
+                   opens in the electronic and magnetic spectrum, but no static magnetic moment is
+                   induced due to time-reversal invariance imposed by SOC.
+                      We formulated a general two orbital model Hamiltonian including SOC. The
+                   similarity of the SODW Hamiltonian (Eq. 2) with that of the three-dimensional
+                   topological insulator[58] is noted. The numerical results were deduced by includ-
+                   ing DFT bandstructure for the noninteracting bands. We found that FS gapping
+                   occurs along the zone diagonal direction in the BCT crystal, in agreement with
+                   ARPES data.[12] We also computed the spin-excitation dispersion which showed a
+                   gapped upward dispersion at the incommensurate wavevector, in agreement with
+                   INS data.[7] Finally, we showed that the SODW order yields a second resonance
+                   mode at q ∼0, which can be probed by polarized INS or ESR experiment at zero
+                   magnetic field. Most importantly, despite dynamical magnetic signal, the static
+                   magnetic moment was shown analytically to be zero.
+                      The feedback effect of the time-reversal invariance can be tested by applying
+                   magnetic field to the HO state. Due to symmetry reason, the HO can be destroyed
+                   by magnetic field, but to overcome the finite gap opening, a finite magnetic field
+                   is required to compensate for the HO gap at zero temperature. For this reason,
+October 10, 2018   Philosophical Magazine   specialissue˙HO˙PM˙v2
+
+
+                                                        Philosophical Magazine                        21
+
+
+                   SODW predicts the presence of a QCP along the field axis. With a rough estimation
+                   of the critical field (assuming the Zeeman energy to be equal to the gap energy),
+                   we found a good agreement with experiment.[18]
+                      We also gave evidence of the presence of SODW in other SOC systems such as
+                   iridates, BiAg2 thin film, and LAO/STO interface. For BiAg2 thin film, ARPES
+                   exhibits the presence of unusual quasiparticle gapping and shadow bands while the
+                   spin-degenerate point at Γ-momentum is ungapped.[50] These results are not re-
+                   produced by corresponding DFT band structure. We extended the SODW concept
+                   to the Rashba-type SOC bandstructure and explained the nature of this unusual
+                   gapping phenomena.[45] Similarly, in iridates[52] and LAO/STO interface,[51] we
+                   found that a preexisting magnetic moment is quenched below a characteristic tem-
+                   perature and magnetic field, respectively, indicating the presence of an unusual
+                   phase. More interestingly, for iridates, it was also shown that a metal-insulator
+                   transition occurs at the same temperature where the magnetic moment decreases,
+                   suggesting that magnetic ordering is unlikely to be responsible for the MIT behav-
+                   ior in this compound. Due to the presence of SOC and the possible presence of FS
+                   nesting, we envisioned to explain these unusual properties by SODW. However, no
+                   theoretical calculation for iridates and LAO/STO were presented in this article.
+                      Taken together, SODW was shown to be a new state of matter which breaks
+                   translational symmetry, but not time-reversal symmetry. This is why SODW is
+                   fundamentally distinct from an inter-orbital SDW. Also the contributing interac-
+                   tion terms for SODW are inter-orbital interaction V and pair interaction J 0 , as
+                   given in Eq. (7), while for the inter-orbital SDW the pair scattering is replaced by
+                   the Hund’s coupling J. In the present SODW model both contributing orbitals are
+                   itinerant and they are split by SOC.
+                      Finally, we comment on two future research directions to further explore the
+                   nature of SODW in URu2 Si2 . (1) The competition between HO and LMAF phase as
+                   a function of pressure has remained unexplained. As shown in the phase diagram in
+                   Fig. 9, the HO phase at ambient pressure goes through a first order phase transition
+                   around 0.5 GPa, and at higher pressure it coexists and/ or competes with the
+                   LMAF phase. With pressure, however, the HO transition temperature increases,
+                   rather than decreases. To explain this phenomenon, our strategy is to study the
+                   competition between SDW and SODW. We expect that as pressure increases, the
+                   effective non-interacting bandwidth increases. Therefore, λ/W decreases which,
+                   according to Fig. 4 weakens SODW, and favors SDW. The corresponding Ginzburg-
+                   Landau criterion for this problem is deduced in Sec. 4.2. (2) As magnetic field is
+                   expected to reduce the SODW order for all systems due to time-reversal invariance,
+                   one would expect to gain more quasiparticle state on the FS with increasing field
+                   at a fixed temperature. At T = 0 the resistivity of a system is determined by the
+                   quasiparticle scattering on the FS without the inclusion of scattering lifetime or
+                   the imaginary part of the self-energy, Therefore, with decreasing field, one would
+                   expect a larger FS gapping and thus larger resistivity. This is seen in LAO/STO
+                   interface[51] and in iridates,[52]; and we expect to see similar effect in URu2 Si2 .
+
+
+                   Acknowledgement(s)
+
+                   The author acknowledges valuable discussion with A. Leggett, J. Mydosh, P. Cole-
+                   man, M. J. Graf, P. Woëlfle, J.-X. Zhu, J. Haraldsen, P. Riseborough, A. F.
+                   Santander-Syro. The author also expresses gratitude to A. V. Chubukov and A.
+                   Rahmanian for discussion of SODW formalism in iridates. The work is supported
+                   by the U.S. DOE through the Office of Science (BES) and the LDRD Program and
+                   faciliated by NERSC computing allocation.
+October 10, 2018   Philosophical Magazine   specialissue˙HO˙PM˙v2
+
+
+                   22                                       REFERENCES
+
+
+                   References
+
+                    [1] T.T.M. Palstra, A.A. Menovsky, J. van den Berg, A.J. Dirkmaat, P.H. Kes, G.J. Nieuwenhuys
+                        and J. A. Mydosh, Phys. Rev. Lett. 55 (1985) p. 2727.
+                    [2] A.P. Ramirez, P. Coleman, P. Chandra, E. Brück, A.A. Menovsky, Z. Fisk, and E. Bucher,
+                        Phys. Rev. Lett. 68 (1992) p. 2680.
+                    [3] C. Broholm, H. Lin, P.T. Matthews, T.E. Mason, W.J.L. Buyers, M.F. Collins, A.A. Men-
+                        ovsky, J.A. Mydosh, and J.K. Kjems, Phys. Rev. B 43 (1991) p. 12809.
+                    [4] Y. J. Jo, L. Balicas, C. Capan, K. Behnia, P. Lejay, J. Flouquet, J. A. Mydosh, and P.
+                        Schlottmann, Phys. Rev. Lett. 98 (2007) p. 166404.
+                    [5] P. Das, R.E. Baumbach, K. Huang, M.B. Maple, Y. Zhao, J.S. Helton, J.W. Lynn, E.D.
+                        Bauer, and M. Janoschek, New J. Phys 15 (2013) p. 053031.
+                    [6] A.Villaume, F. Bourdarot, E. Hassinger, S. Raymond, V. Taufour, D. Aoki, and J. Flouquet,
+                        Phys. Rev. B 78 (2008) p. 012504.
+                    [7] C. R. Wiebe, J. A. Janik, G. J. MacDougall, G. M. Luke, J. D. Garrett, H. D. Zhou, Y.-J.
+                        Jo, L. Balicas, Y. Qiu, J. R. D. Copley, Z. Yamani, and W. J. L. Buyers, Nat. Phys. 3 (2007)
+                        p. 96.
+                    [8] A. F. Santander-Syro, M. Klein, F. L. Boariu, A. Nuber, P. Lejay, and F. Reinert, Nat. Phys.
+                        5 (2009) p. 637.
+                    [9] R. Yoshida, Y. Nakamura, M. Fukui, Y. Haga, E. Yamamoto, Y. nuki, M. Okawa, S. Shin,
+                        M. Hirai, Y. Muraoka, and T. Yokoya, Phys. Rev. B 82 (2010) p. 205108.
+                   [10] S. Chatterjee, J. Trinckauf, T. Hanke, D. E. Shai, J. W. Harter, T. J. Williams, G. M. Luke,
+                        K. M. Shen, and J. Geck, Phys. Rev. Lett. 110 (2013) p. 186401.
+                   [11] S. Chatterjee, J. Trinckauf, T. Hnke, D. E. Shai, J. W. Harter, T. J. Williams, G. M. Luke,
+                        K. M. Shen, and J. Geck Phys. Rev. Lett. 110 (2013) p. 186401.
+                   [12] J.-Q. Meng, P. M. Oppeneer, J. A. Mydosh, P. S. Riseborough, K. Gofryk, J. J. Joyce, E. D.
+                        Bauer, Y. Li, and T. Durakiewicz, Phys. Rev. Lett. 111 (2013) p. 127002.
+                   [13] A. R. Schmidt, M. H. Hamidian, P. Wahl, F. Meier, A. V. Balatsky, J. D. Garrett, T. J.
+                        Williams, G. M. Luke, and J. C. Davis, Nature 465 (2010) p. 570-576.
+                   [14] P. Aynajian, E. H. da Silva Neto, C. V. Parker, Y. Huang, A. Pasupathy, J.Mydosh, and A.
+                        Yazdani, Proc. Nat. Acad. Sci. USA 107 (2010) p. 10383.
+                   [15] W. K. Park, P. H. Tobash, F. Ronning, E. D. Bauer, J. L. Sarrao, J. D. Thompson, and L.
+                        H. Greene, Phys. Rev. Lett. 108 (2012) p. 246403.
+                   [16] M. B. Maple, J. W. Chen, Y. Dalichaouch, T. Kohara, C. Rossel, M. S. Torikachvili, M. W.
+                        McElfresh, and J. D. Thompson, Phys. Rev. Lett. 56 (1986) p. 185-188.
+                   [17] E. Hassinger, G. Knebel, T.D. Matsuda, D. Aoki, V. Taufour, and J. Flouquet, Phys. Rev.
+                        Lett. 105, (2010) p. 216409.
+                   [18] K. H. Kim, N. Harrison, M. Jaime, G. S. Boebingera, and J. Mydosh, Phys. Rev. Lett. 91
+                        (2003) p. 256401.
+                   [19] J. Levallois, K. Behnia, J. Flouquet, P. Lejay, and C. Proust, Europhys. Lett. 85 (2009) p.
+                        27003.
+                   [20] B. Wolf, W. Sixl, R. Graf, D. Finsterbusch, G. Bruls, B. Liithi, E. A. Knetsch, A. A. Men-
+                        ovsky, and J. A. Mydosh, J. Low Temp. Phys. 94 (1994) p. 307.
+                   [21] T. Yanagisawa, S. Mombetsu, H. Hidaka, H. Amitsuka, M. Akatsu, S. Yasin, S. Zherlitsyn,
+                        J. Wosnitza, K. Huang, and M. Brian Maple, J. Phys. Soc. Jpn. 82 (2012) p. 013601.
+                   [22] A. F. Santander-Syro, private communication.
+                   [23] R. Okazaki, T. Shibauchi, H. J. Shi, Y. Haga, T. D. Matsuda, E. Yamamoto, Y. Onuki, H.
+                        Ikeda, and Y. Matsuda, Science 331 (2011) p. 439.
+                   [24] P. Santini, Phys. Rev. B 57 (1998) p. 5191-5199.
+                   [25] A. Tsuruta, A. Kobayashi, T. Matsuura, and Y. Kuroda, J. Phys. Soc. Jpn. 69 (2000) p.
+                        663-666.
+                   [26] H. Harima, K. Miyake, and J. Flouquet, J. Phys. Soc. Jpn. 79 (2010) p. 033705.
+                   [27] K. Hanzawa, J. Phys.: Condens. Matter 19 (2007) p. 072202.
+                   [28] K. Haule, and G. Kotliar, Nat. Phys. 5 (2009) p. 796-799.
+                   [29] H. Kusonose, and H. Harima, J. Phys. Soc. Jpn. 80 (2011) p. 084702.
+                   [30] J. G. Rau, and H.-Y. Kee, Phys. Rev. B 85 (2012) p. 245112.
+                   [31] H. Ikeda, M.-T. Suzuki, R. Arita, T. Takimoto, T. Shibauchi, and Y. Matsuda, Nat. Phys. 8
+                        (2012) p. 528-533.
+                   [32] P. Fazekas, A. Kiss, and K. Radnóczi, Prog. Theor. Phys. Supp. 160 (2005) p. 114-133.
+                   [33] V. P.Mineev, and M. E. Zhitomirsky, Phys. Rev. B 72 (2005) p. 014432.
+                   [34] Y. Okuno, and K. Miyake, J. Phys. Soc. Jpn. 67 (1998) p. 2469.
+                   [35] S. Elgazzar, J. Rusz, M. Amft, P. M. Oppeneer, and J. A. Mydosh, Nat. Mat. 8 (2009) p.
+October 10, 2018   Philosophical Magazine   specialissue˙HO˙PM˙v2
+
+
+                                                            REFERENCES                                           23
+
+
+                        337-341.
+                   [36] T. Kasuya, J. Phys. Soc. Jpn. 66 (1997) p. 3348.
+                   [37] C. Pépin, M.R. Norman, S. Burdin, and A. Ferraz, Phys. Rev. Lett. 106 (2011) p. 106601.
+                   [38] P. S. Riseborough, B. Coqblin, and S. G. Magalhäes, Phys. Rev. B 85 (2012) p. 165116.
+                   [39] S. Fujimoto, Phys. Rev. Lett. 106 (2011) p. 196407.
+                   [40] P. Chandra, P. Coleman, and R. Flint, Nat. Phys. 493 (2013) p. 621-626.
+                   [41] Y. Dubi, and A. V. Balatsky, Phys. Rev. Lett. 106 (2011) p. 086401.
+                   [42] T. T. M. Palstra, A. A. Menovsky, and J. A. Mydosh, Phys. Rev. B 33 (1986) p. 6527.
+                   [43] T. Das, Phys. Rev. B 89 (2014) p. 045135.
+                   [44] T. Das, Sci. Rep. 2 (2012) p. 596.
+                   [45] T. Das, Phys. Rev. Lett. 109 (2012) p. 246406.
+                   [46] B. A. Bernevig, T. L Hughes, and S.-C. Zhang, Science 314 (2006) p. 1757.
+                   [47] M. Z. Hasan, and C. L. Kane, Rev. Mod. Phys. 82 (2010) p. 3045-3067.
+                   [48] X.-L. Qi, and S.-C. Zhang, Rev. Mod. Phys. 83 (2011) p. 1057-1110.
+                   [49] C. Herring, Phys. Rev. 52 (1937) p. 365-373.
+                   [50] H. Bentmann, S. Abdelouahed, M. Mulazzi, J. Henk, and F. Reinert, Phys. Rev. Lett. 108
+                        (2012) p. 196801.
+                   [51] A. Joshua, J. Ruhman, S. Pecker, E. Altman and S. Ilani, Proc. Natl. Acad. Sci. (USA), 110
+                        (2013) p. 9633-9638.
+                   [52] C. Dhital, S. Khadka, Z. Yamani, C. de la Cruz, T. C. Hogan, S. M. Disseler, M. Pokharel,
+                        K. C. Lukas, W. Tian, C. P. Opeil, Z. Wang, and S. D. Wilson, Phys. Rev. B 86 (2012) p.
+                        100401(R).
+                   [53] P. Blaha, K. Schwarz, G. K. H. Madsen, D. Kvasnicka, and J. Luitz, (Techn. Univ. Wien)
+                        (2001).
+                   [54] J. P. Perdew, K. Burke, and M. Ernzerhof, Phys. Rev. Lett. 77 (1996) p. 3865.
+                   [55] P. M. Oppeneer, S. Elgazzar, J. Rusz, Q. Feng, T. Durakiewicz, and J. A. Mydosh, Phys.
+                        Rev. B 84 (2011) p. 241102(R).
+                   [56] T. Das, and A. V. Balatsky, Phys. Rev. B 84, (2011) p. 014521.
+                   [57] T. Das, A. Rahmanian, and A. V. Chubukov, manuscript under preparation.
+                   [58] H. Zhang, C.-X. Liu, X.-L. Qi, Xi Dai, Z. Fang, and S.-C. Zhang, Nat. Phys. 5 (2009) p. 438.
+                   [59] T. Das, J.-X. Zhu, and M. J. Graf, Phys. Rev. Lett. 108 (2012) p. 017001.
+                   [60] T. Das, T. Durakiewicz, J.-X. Zhu, J. J. Joyce, J. L. Sarrao, and M. J. Graf, Phys. Rev. X
+                        2 (2012) p. 041012.
+                   [61] R. M. Fernandes, and JÖrg Schmalian, Phys. Rev. B 82 (2010) p. 014521.
+                   [62] A. B. Vorontsov, M. G. Vavilov, and A. V. Chubukov, 81 (2010) p. 174538.
+                   [63] T. Das, Phys. Rev. B 87 (2013) p. 144505.
+                   [64] M. M. Altarawneh, N. Harrison, S. E. Sebastian, L. Balicas, P. H. Tobash, J. D. Thompson,
+                        F. Ronning, and E. D. Bauer, Phys. Rev. Lett. 106 (2011) p. 146403.
+                   [65] I. Kawasaki, S. Fujimori, Y. Takeda, T. Okane, A. Yasui, Y. Saitoh, H. Yamagami, Y. Haga,
+                        E. Yamamoto, and Y. Önuki, Phys. Rev. B 83 (2011) p. 235121.
+                   [66] K. R. Shirer, J. T. Haraldsen, A.P. Dioguardi, J. Crocker, N. apRoberts-Warren, A.C. Shock-
+                        ley, C.-H. Lin, D.M. Nisson, J.C. Cooley, M. Janoschek, K. Huang, N. Kanchanavatee, M.B.
+                        Maple, M.J. Graf, A.V. Balatsky, and N.J. Curro, Phys. Rev. B 88 (2013) p. 094436.
+                   [67] J. R. Schrieffer, X. 6. Wen, and S. C. Zhang, Phys. Rev. B 39 (1989) p. 11663.
+                   [68] A. J. Leggett, J. Phys. C: Solid State Phys. 6 (1973) p. 3187-3204.
+                   [69] C. Wu, and S.-C. Zhang, Phys. Rev. Lett. 93 (2004) p. 36403.
+                   [70] E. Hassinger, G. Knebel, K. Izawa, P. Lejay, B. Salce, J. and Flouquet, Phys. Rev. B 77
+                        (2008) p. 115117.
+                   [71] H. Amitsuka, K. Matsuda, I. Kawasaki, K. Tenya, M. Yokoyama, C. Sekine, N. Tateiwa,
+                        T. C. Kobayashi, S. Kawarazaki, and H. Yoshizawa, J. Magn. Magn. Mater. 310 (2007) p.
+                        214-220.
+                   [72] B. J. Kim, H. Jin, S. J. Moon, J.-Y. Kim, B.-G. Park, C. S. Leem, J. Yu, T. W. Noh, C. Kim,
+                        S.-J. Oh, J.-H. Park, V. Durairaj, G. Cao, and E. Rotenberg, Phys. Rev. Lett. 101 (2008) p.
+                        076402.
+                   [73] H. Lin, T. Das, Y. J. Wang, L. A. Wray, S.-Y. Xu, M. Z. Hasan, and A. Bansil, Phys. Rev.
+                        B 87 (2013) p. 121202(R).
+                   [74] C. Tegenkamp, D. Lükermann, H. Pfnüur, B. Slomski, G. Landolt, and J. H. Dil, Phys. Rev.
+                        Lett. 107 (2012) p. 266401.
+                   [75] L. Fu, C. L. Kane, and E. J. Mele, Phys. Rev. Lett. 98 (2007) p. 106803.
+                   [76] P. Goswami, and L. Balicas, arXiv:1312.3632.
+
