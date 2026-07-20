@@ -1,0 +1,1283 @@
+# Marker extraction (interim: pdftotext -layout)
+#
+# Paper: Electrically Tunable Picosecond-scale Octupole Fluctuations in Chiral Antiferromagnets
+# Konakanchi et al., arXiv:2501.18978v1 (2025)
+# NOTE: marker/nougat GPU pipeline unavailable in this env; this is a pdftotext -layout
+#       interim capture with a marker-style header. Full clean text also in work/*.txt
+
+                                                                Electrically Tunable Picosecond-scale Octupole Fluctuations in Chiral
+                                                                                          Antiferromagnets
+                                                                     Shiva T. Konakanchi,1, ∗ Sagnik Banerjee,2 Mohammad M. Rahman,3 Yuta Yamane,4, 5
+                                                                         Shun Kanai,4, 5, 6, 7, 8, 9 Shunsuke Fukami,4, 10, 7, 11, 12 and Pramey Upadhyaya2, †
+                                                                 1
+                                                                    Department of Physics and Astronomy, Purdue University, West Lafayette, Indiana 47907, USA
+                                                                                        2
+                                                                                          Elmore Family School of Electrical and Computer Engineering,
+                                                                                            Purdue University, West Lafayette, Indiana 47907, USA
+                                                             3
+                                                               Department of Chemistry and Biochemistry, University of Maryland, College Park, Maryland 20742, USA
+                                                                                     4
+                                                                                       Research Institute of Electrical Communication, Tohoku University,
+                                                                                                 2-1-1 Katahira, Aoba-ku, Sendai 980-8577 Japan
+arXiv:2501.18978v1 [cond-mat.mes-hall] 31 Jan 2025
+
+
+
+
+                                                                5
+                                                                  Frontier Research Institute for Interdisciplinary Sciences, Tohoku University, Sendai 980-8578, Japan
+                                                                                         6
+                                                                                           WPI-Advanced Institute for Materials Research (WPI-AIMR),
+                                                                                    Tohoku University, 2-1-1 Katahira, Aoba-ku, Sendai 980–8577, Japan
+                                                                                               7
+                                                                                                 Center for Science and Innovation in Spintronics,
+                                                                                    Tohoku University, 2-1-1 Katahira, Aoba-ku, Sendai 980–8577, Japan
+                                                                         8
+                                                                           PRESTO, Japan Science and Technology Agency (JST), Kawaguchi 332-0012, Japan
+                                                                            9
+                                                                              Division for the Establishment of Frontier Sciences of Organization for Advanced
+                                                                                Studies at Tohoku University, Tohoku University, Sendai 980-8577, Japan
+                                                                                    10
+                                                                                       WPI-Advanced Institute for Materials Research, Tohoku University,
+                                                                                                2-1-1 Katahira, Aoba-ku, Sendai 980–8577, Japan
+                                                                                 11
+                                                                                    Center for Innovative Integrated Electronic Systems, Tohoku University,
+                                                                                           468-1 Aramaki Aza Aoba, Aoba-ku, Sendai 980-0845, Japan
+                                                                                       12
+                                                                                          Inamori Research Institute for Science, Kyoto 600-8411, Japan
+                                                                                                            (Dated: February 3, 2025)
+                                                                    We present a theory for the relaxation time of the octupole order parameter in nanoscale chiral
+                                                                 antiferromagnets (AFMs) coupled to thermal baths and spin injection sources. Using stochastic
+                                                                 spin dynamics simulations, we demonstrate that the octupole moment relaxes through two distinct
+                                                                 mechanisms—escape over a barrier and precessional dephasing—as the barrier for octupole fluctu-
+                                                                 ations is lowered relative to the thermal energy. Notably, the octupole moment relaxes orders of
+                                                                 magnitude faster than the typical dipolar order parameters, reaching picosecond timescales. By
+                                                                 combining Langer’s theory with an effective low-energy description of octupole dynamics in chiral
+                                                                 AFMs, we derive analytical expressions for the relaxation times. We find that relaxation in chiral
+                                                                 AFMs parallels dipole relaxation in XY magnets, with exchange fields serving the role of the dipole
+                                                                 fields. Further, by drawing on the analogy between order parameter dynamics in XY magnets un-
+                                                                 der spin injection and current-biased Josephson junctions, we propose a new scheme for electrically
+                                                                 tuning the octupole relaxation times. Our work offers fundamental insights for the development of
+                                                                 next-generation spintronic devices that harness octupole order parameters for information encoding,
+                                                                 especially in octupole-based probabilistic computing.
+
+
+                                                       Introduction.—Spin-split antiferromagnets, which host        a particularly intriguing class of spin-split AFMs. In
+                                                     an order parameter yielding both a negligible net dipole       these materials, chiral magnetic order with a negligi-
+                                                     moment and a finite spin splitting of electronic bands at      ble dipole moment can be characterized by an octupole
+                                                     the Fermi level, have recently gained prominence in con-       moment [11, 12]. Experimental demonstrations of both
+                                                     densed matter and spintronics research [1–3]. Fundamen-        electrical readout—via the anomalous Hall effect [13–15]
+                                                     tally, these materials provide a model system for study-       and tunneling magnetoresistance (TMR) [16–18]—and
+                                                     ing topological phenomena and exploring novel magnetic         electrical manipulations of octupoles —via spin-orbit
+                                                     phases [4–6]. From an applied perspective, they com-           torque [19, 20]— has set the stage for constructing high-
+                                                     bine the advantages of efficient electrical readout, typi-     performance spintronic devices that encode information
+                                                     cal of ferromagnets, with the low stray-field interactions     within the octupole order parameter.
+                                                     and high-speed spin dynamics of traditional antiferro-
+                                                     magnets (AFMs). As a result, spin-split antiferromag-             A central question in octupole-moment-based spin-
+                                                     nets hold promise for the development of next-generation       tronics is how long the information encoded in octupole
+                                                     spintronic devices [7–10].                                     order remains correlated before being washed out by cou-
+                                                       The Mn3 X family of chiral antiferromagnets represents       pling to thermal baths. Addressing this question is cru-
+                                                                                                                    cial for applications ranging from nonvolatile memory
+                                                                                                                    [21–23] to probabilistic computing [24–26]. This ques-
+                                                                                                                    tion is especially relevant for the family of (anti) chiral
+                                                     ∗ skonakan@purdue.edu
+                                                                                                                    antiferromagnets (X = Sn, Ge, Ga, etc.), where the com-
+                                                     † prameyup@purdue.edu
+                                                                                                                    petition among magnetic interactions that produces the
+                                                                                                                                 2
+
+(anti) chiral order results in relatively low intrinsic energy
+barriers (compared to kT , where k is the Boltzmann con-
+stant and T is the bath temperature) [27]. However, to
+the best of our knowledge, a fundamental understand-
+ing of thermal relaxation of octupole order is currently
+lacking.
+   In this work, we theoretically investigate the mech-
+anisms and relaxation timescales of the octupole order
+parameter in nanomagnets of (anti)chiral AFMs coupled
+to thermal baths and spin injection sources. Using spin
+dynamics simulations, we show that depending on the en-
+ergy barrier encountered by thermal fluctuations in flip-        FIG. 1. (a) Schematic of the unit cell of Mn3 Sn strained
+ping the octupoles, the correlations decay via two dis-          along the y axis. The green octupole moment has an easy axis
+tinct mechanisms. In the high-barrier regime, thermal            perpendicular to the direction of strain. (b) Energy landscape
+                                                                 of a ∼ 105 nm3 cylindrical dot as a function of the azimuthal
+kicks from the bath cause relaxation through random
+                                                                 angle, depicting a six-fold ground state (ν = 0, scaled by 200)
+flips of the octupoles over the barrier, with the relax-         in bulk and a two-fold ground state in strained thin film limit
+ation timescale governed by the mean escape time over            (ν = 0.0006).
+the barrier. In contrast, in the low-barrier regime, re-
+laxation occurs via a precessional dephasing mechanism,
+where thermal fluctuations induce random precessions of          alignment among the sublattice spins within each kagome
+octupoles around exchange fields.                                plane, while the latter ensures that the Mn spins in one
+   Leveraging the hierarchy of energy scales inherent to         kagome plane are ferromagnetically aligned with their in-
+chiral AFMs, we construct an effective low-energy theory         verted neighbors in the adjacent plane (see Fig. 1(a)) [31].
+for fluctuating octupole dynamics, providing an analyt-          Here, we are interested in the stochastic spin dynamics of
+ical understanding of the octupole relaxation times in           single domain nanomagnets in the low-energy and long-
+both high- and low-barrier limits. We find that the oc-          time limit (as compared to the scales set by the exchange
+tupole relaxation in chiral AFMs can be mapped onto              interactions). To this end, we describe the spin state of
+the relaxation of dipoles in XY magnets (i.e. magnets            Mn3 X in the micromagnetic continuum limit using three
+with strong easy-plane anisotropy and only weak axial            classical magnetization vectors, M  ⃗ i = Ms m ⃗ i , each cor-
+anisotropy within the easy-plane). We show that the              responding to a pair of ferromagnetically locked sublat-
+exchange fields in chiral AFM play the role of dipolar           tice spins, with Ms being the saturation magnetization
+fields in the XY magnets. Due to the significantly larger        [32, 33] [34].
+strength of the exchange fields compared to the typical             The free energy density of an Mn3 X nanomagnet is
+dipole fields, octupole fluctuation rates are significantly      then expressed as [20, 35–37]:
+enhanced over their dipolar counterparts, with the relax-
+ation times reaching picosecond scales for the lowest bar-
+                                                                       X                                       X                   2
+                                                                 F=             ⃗i·m
+                                                                           [Jij m  ⃗ j + Dij ẑ · (m
+                                                                                                   ⃗i×m ⃗ j )]−    Ki (m⃗ i · ⃗ei ) .
+riers. Inspired by this mapping, and drawing an analogy               i̸=j                                        i
+between the spin dynamics in XY magnets under spin in-                                                                       (1)
+jection and the charge dynamics in Josephson junctions           Here, Jij > Dij ≫ Ki parameterize, respectively,
+under current bias, we additionally propose and demon-           the exchange, Dzyaloshinskii–Moriya (DM), and uniaxial
+strate a novel mechanism to electrically tune the octupole       anisotropy energies; ⃗ei is the unit vector oriented along
+relaxation times in chiral AFMs by orders of magnitude           the easy axis for m⃗ i [38]. For intrinsic single crystals, the
+via spin orbit torques.                                          hexagonal symmetry dictates that Jij = J, Dij = D, and
+   Besides revealing underlying relaxation mechanisms,           Ki = K, ∀ i, j. In thin films grown on a substrate, the
+our results offer insights into designing next generation        hexagonal symmetry can be broken, for e.g. via strain
+of spintronic devices that encode information in the oc-         due to lattice mismatch [35]. In the spirit of construct-
+tupole order parameter. Specifically, they suggest that          ing a minimal model that allows for such asymmetry, we
+nanoscale chiral AFMs are promising candidates for ap-           introduce a symmetry breaking parameter ν ≪ 1 such
+plications requiring fast and robust on-chip generation of       that J12 = J(1 − ν) [35, 39], while keeping all other in-
+electrically tunable random numbers, such as probabilis-         teractions to their intrinsic values.
+tic computing [28–30].                                              Fig. 1(a) shows one of the equilibrium magnetic config-
+   Model & numerics.— Mn3 X has a layered kagome spin            urations that minimizes F [35]: J prefers 1200 arrange-
+system. Two interpenetrating (0001) kagome planes (one           ment between the moments, while D enforces them to
+below the other) of Mn spins give rise to a unit cell con-       lie in the (easy) xy plane. Additionally, the sign of D
+sisting of six spins arranged in a star motif as shown           fixes the chirality of spin rotations around the unit cell.
+in Fig. 1(a). The intra- and interlayer exchanges be-            The case of anti-chiral magnet, i.e. D > 0, is shown.
+tween spins are the dominant interactions in the sys-            Weak perturbations due to ν and K, respectively, cre-
+tem’s Hamiltonian. The former favors a non-collinear             ate an effective uniaxial anisotropy (with the easy axis
+                                                                                                                         3
+
+orthogonal to the symmetry breaking direction) [35] and        regime. However, we find that while octupole fluc-
+slight distortions of the perfect net 1200 alignment [27].     tuations in the high-barrier limit are akin to random
+Despite having a negligible net dipole moment, such con-       telgraph noise (RTN), fluctuations in the low-barrier
+figurations have experimentally shown significant AHE          limit do not seem RTN-like. This fact is further high-
+and TMR effects as a result of the magnetic space group        lighted by plotting the octupole autocorrelation func-
+of Mn3 X allowing for spin split bands at the Fermi level      tions, C(t) = ⟨mx (0)mx (t)⟩, in the high and the low-
+[12, 27]. This splitting, and hence the associated elec-       barrier limits. Fig. 2(b) shows that the autocorrelation
+trical signatures, correspond to ferroic ordering of the       function of octupole fluctuations in the high-barrier limit
+so-called octupole moment [11]. For the case when m ⃗ i lie    decays: C(t) ∼ e−t/τ . On the other hand, Fig. 2(d)
+in the easy plane, the octupole moment orients along the       shows that the autocorrelation
+                                                                                        2 2
+                                                                                              function in the low-barrier
+unit vector:                                                   limit decays as ∼ e−t /τ . As the first main result of
+                                                               this section, this strongly suggests that different physi-
+                               ⃗ 1 + R2 m
+                                           
+           m⃗ = Mxz [ m⃗ 3 + Rm         ⃗ 2 /3],       (2)     cal mechanisms are responsible for relaxation in the two
+                                                               distinct barrier limits.
+where Mxz is a reflection operator in the xz plane and
+R represents anticlockwise rotation by 2π/3 around the
+z axis [40, 41]. This has raised the intriguing possibility       To quantify the fluctuation speeds, we define relaxation
+of constructing next generation antiferromagnetic spin-        time, τ , defined as the time taken for the autocorrela-
+tronics devices which store information in the octupole        tion function to fall to 1/e of its initial value. Fig. 2(e)
+moment.                                                        shows the relaxation times for a range of barriers and
+  Coupling Mn3 X nanomagnets (of volume V ) to a ther-         Gilbert damping constants, whose reported value in the
+mal bath erases the information encoded in the octupole        literature falls within the shaded region shown in the
+moments. Fig. 1(b) shows typical energy barriers (∆)           figure [19, 20, 36, 43, 44]. As a comparison, we also
+that thermal fluctuations must overcome to rotate the oc-      show on the same figure the relaxation times of dipole
+tupole moment within the easy plane for intrinsic (ν = 0)      fluctuations in ferromagnets used in present-day CoFeB-
+and symmetry broken (ν ̸= 0) case. In the intrinsic case,      based spintronic devices, i.e. magnets with perpendicular
+the competition between exchange, DMI and anisotropy           anisotropy (PMA) and biaxial anisotropy magnets with
+energies gives rise to ∆ ∼ V K 3 /J 2 ≪ kT for typical         strong XY-easy plane anisotropy and a weaker within
+nanomagnet volumes, effectively creating an XY magnet          XY-plane anisotropy (referred here as XY-FM) [42, 45–
+[27]. In thin films, the energy barriers are thus domi-        48]. As the second main result of this section, we note
+nated by extrinsic symmetry breaking, which favors oc-         that for all barriers studied here, octupole fluctuations in
+tupole moment to lie along the x-axis with ∆ ∼ 2νKV            chiral antiferromagnets are at least an order of magnitude
+[38, 39]. To address the key metric of interest to this        faster than dipole fluctuations in ferromagnets, reaching
+work—octupole relaxation times—we describe the fluc-           ∼ 10 picoseconds for sub-kT barriers. While this implies
+tuating spin dynamics of an Mn3 X nanomagnet coupled           a lower retention time for nonvolatile memory applica-
+to a thermal bath within the stochastic Landau Lifshitz        tions, as will be discussed later, the faster octupole fluc-
+Gilbert (s-LLG) phenomenology by [42]:                         tuations provides a distinct advantage for probabilistic
+                                                               computing applications.
+    ⃗ i = −γ m
+ ∂t m        ⃗ i × (−δMs m       ⃗ th
+                         ⃗ i F + Hi ) + α m
+                                          ⃗ i × ∂t m
+                                                   ⃗ i . (3)
+                                                                  Analytics.—We now turn towards gaining an analyt-
+Here, γ > 0 and α are the gyromagnetic ratio and the           ical understanding of the underlying relaxation mecha-
+Gilbert damping constant, respectively. H   ⃗ th are thermal   nisms and the enhanced rate of octupole fluctuations ob-
+                                              i
+fields that satisfy the fluctuation dissipation theorem [38,   served in the simulations. We first focus on the RTN
+42].                                                           behavior observed in the high-barrier limit. In this case,
+   We begin by studying the relaxation time of octupole        the simulations show that the octupole moment mostly
+fluctuations by numerically integrating Eq. (3) and ex-        precesses at small angles around its easy axis in one en-
+tracting the octupole moment’s dynamics of interest by         ergy minimum before a random thermal kick quickly ro-
+using Eq. (2). By varying the volume, we simulate ther-        tates it within the easy plane to the other minimum (see
+mal dynamics of the system in two distinct regimes:            Fig. 3(a)). Thus, the problem of finding the relaxation
+∆ ≪ kT (low-barrier limit) and ∆ > kT (high-barrier            time in the high-barrier limit reduces to calculating the
+limit). For numerical arguments throughout the paper,          mean escape time τesc for octupole rotations within the
+we use Mn3 Sn as a model anti-chiral candidate from the        xy plane. Kinetic rate theory based on Langer’s formal-
+Mn3 X family. Further details about the numerical sim-         ism [49] provides a powerful tool to calculate τesc between
+ulations and the parameters are provided in the supple-        two energy minima separated by a barrier by using free
+mentary information [38].                                      energy and the deterministic dissipative equations of mo-
+   Figs. 2(a) and 2(c) show time domain fluctuations           tion in the system’s multi-dimensional phase space. This
+of the octupole moment in the high-barrier and the             escape time is given by [49–52]: τesc = A−1 (δF/kT )τihd .
+low-barrier limits, respectively. As expected, the oc-         Note that the octupole relaxation time τ = 0.25τesc to
+tupole moment fluctuates much faster in the low-barrier        allow for the loss of correlations as the octupole escapes
+                                                                                                                             4
+
+
+
+
+FIG. 2. (a) Thermal fluctuations of Mn3 Sn octupole moment along its easy axis in the high-barrier limit of ∆ = 4.5 kT .
+The signal is RTN-like. (b) Autocorrelation function of the time signal from Fig. 2(a) showing a decaying exponential trend
+characteristic of RTN noise. (c) Fluctuations of the octupole moment in the low-barrier limit of ∆ = 0.05 kT . The fluctuations
+                                                                                                               2
+are not RTN-like. (d) Autocorrelation function of the low-barrier octupole fluctuations showing a ∼ e−t trend, further
+distinguishing it from the RTN-like signal. (e) Relaxation times for a range of Gilbert damping constants (reported in the
+literature) and thermal barriers. Solid markers show the results from the numerical simulations and the lines show fits from
+the analytical formulae derived in this paper. Relaxation times for typical CoFeB ferromagnets with perpendicular magnetic
+anisotropy (PMA) as well as biaxial anisotropy magnets with strong XY easy-plane and weaker within XY-plane anisotropy
+(XY-FM) are also shown for comparison.
+
+
+                                                                   back and forth over the barrier [52]. Here,
+                                                                                                      sQ
+                                                                            2π Vmin         Psp −Pmin      |ϵj,sp | ∆/kT
+                                                                     τihd =         (2πkT )      2      Qj         e       (4)
+                                                                            λ+ Vsp                         ϵ
+                                                                                                         j j,min
+
+                                                                   is the escape time in the so-called intermediate to
+                                                                   high damping regime, i.e. when the energy lost (δF)
+                                                                   due to dissipative coupling to the environment over an
+                                                                   equal energy contour containing the energy maxima is
+                                                                   larger
+                                                                       hR than the thermal energy kT [49, 50]. A(x)
+                                                                                                                    i    =
+                                                                          ∞                      2
+                                                                   exp   −∞
+                                                                             dy ln 1 − e−x(0.25+y ) /2π(0.25 + y 2 ) is the
+                                                                   dimensionless depopulation factor, which accounts for
+FIG. 3. (a) Schematic of the high-barrier limit mechanism of       increase in the escape time over τihd as the dissipative
+stochastic octupole dynamics. Within an energy minimum,            coupling to the bath is reduced [53]. ϵj,min (ϵj,sp ) is the
+thermal fields primarily induce small angle fluctuations of the    curvature obtained from harmonic approximation of sys-
+green octupole moment. Occasionally, the octupole moment           tem’s free energy F along the jth variable at the min-
+receives a thermal kick large enough to escape over the barrier    ima (saddle points). Psp (Pmin ) denotes the number of
+and precess into the adjacent minimum. (b) Schematic of the        Goldstone modes (i.e. the variables along which free en-
+low-barrier limit mechanism of octupole fluctuations. Ther-
+                                                                   ergy variation has a zero curvature) and Vsp (Vmin ) de-
+mal fields induce small excursions (mz ≪ 1) of the dipole
+moment out of the Kagome plane. For brevity, only a few
+                                                                   notes the phase space volume of the corresponding Gold-
+deviations above the plane are shown with their magnitude          stone modes at energy minima (saddle points). λ+ is the
+pictured by the color bar. These out-of-equilibrium moments        positive eigenvalue of the linearized equations of motion
+experience restoring fields (∝ mz ) towards the Kagome plane,      around the relevant first-order saddle point [54].
+about which they execute Larmor precessions of varying fre-          To make analytical progress for deriving τesc for oc-
+quencies. The octupole moments in the kagome plane lose            tupoles flipping via the path of easy-plane rotations ob-
+correlations as they dephase relative to each other due to these   served in spin dynamics simulations, we exploit the hi-
+precessions.                                                       erarchy of energy scales (J > D ≫ K) to reduce the 6-
+                                                                   dimensional chiral AFM system (Eq. (1)) into an effective
+                                                                                                                       5
+
+2-dimensional system. To this end, following Ref. [55], we    and the equations of motion (Eq. (6)) yields [38]:
+first perform a change of basis from m  ⃗ i to normal mode
+coordinates of the Mn3 X system in the exchange limit                    π exp(∆/kT ) · A−1 (V δFoct /kT )
+                                                                 τ=                                         ,        (7)
+(i.e. when D = K = ν = 0 in Eq. (1)) [38]. These modes
+                                                                          q
+                                                                                         2
+correspond to the canonically conjugate pairs of net spin             γHJ    (α(1 + hp )) + 4hp − α(1 − hp )
+canting (in the x, y or z directions) and the corresponding
+rigid rotations (in the yz, xz or xy planes, respectively)    where we define hp = HK /HJ as a dimensionless pa-
+of the Mn3 X spin motif. Note that since rigid rotations      rameter. For typical chiral AFM material parameters,
+in the exchange limit do not cost any energy, these modes     A−1 (V δFoct /kT ) = 1 (see supplementary for an analyt-
+are degenerate zero modes(see supplementary material).        ical expression).
+   The first advantage of this basis is that one of the          Eq. (7) is the first main result of this section and is
+normal modes — the mode with net spin canting along           plotted in Fig. 2(e), showing excellent agreement with
+z and spin rotations in the xy plane — directly corre-        numerical simulations across all studied parameters. Fur-
+sponds to the octupole dynamics of interest to this work,     thermore, it provides insight into why the octupole
+i.e. its rotation within the easy plane (referred here as     fluctuations are sped up over perpendicular anisotropy
+the xy-octupole mode). Secondly, when D, K and ν are          (PMA) and XY ferromagnets. Namely, in XY mag-
+turned on, we notice that the degeneracy of the normal        nets, it has recently been established that the presence
+modes p is lifted with the xy-octupole mode acquiring a       of additional internal easy-plane dipole fields enhances
+gap ∼ (JKν)pwhile the other two normal modes ac-              the dipole fluctuations over PMA [43, 56]. Since in chi-
+quire a gap ∼       (JD) [38]. Since Kν ≪ D, the xy-          ral AFM the strong easy plane character for octupoles
+octupole mode remains the lowest energy mode domi-            arises from the exchange energies that are at least an or-
+nating the long-time dynamics. An effective theory can        der of magnitude larger than the dipole fields in XY, the
+then be constructed for the octupole dynamics of inter-       fluctuation speeds are further enhanced.
+est by perturbatively expanding the free energy (Eq. (1))        Next, we turn to deriving analytical expression for the
+up to second order in the small normal mode coordinates       relaxation time in the low-barrier limit of ∆ ≪ kT . Here,
+and adiabatically eliminating the higher energy modes         octupole rotations in the easy plane encounter no sizable
+(i.e. setting them to their xy-octupole mode dependent        barrier. Hence, the escape over barrier mechanism and
+instantaneous equilibrium values). The details of the cal-    Langer’s theory for τ are not applicable. Instead, the loss
+culations are presented in the supplementary material         of correlations in this case can be understood through
+[38]. The reduced free energy and dissipative equations       a spin dephasing mechanism, in close analogy with that
+of motion governing the octupole dynamics obtained by         recently proposed for XY magnets [56]. To illustrate this,
+this procedure are given by [38]:                             we focus on the no-damping limit (which will be justified
+                                                              post priori) of octupole dynamics in the absence of a
+                                                              thermal barrier. The deterministic equations of motion
+                                                              (Eq. (6)) then simplify to:
+                     3
+          V Foct =     Ms HJ V m2z + ∆ sin2 ϕoct ,     (5)
+                     2                                                              ϕoct = γHJ mz t.                  (8)
+
+and                                                              Thermal fields induce random fluctuations (|mz | ≪ 1)
+                                                              of the dipole moment perpendicular to the Kagome plane,
+          ϕ̇oct − αṁz = γHJ mz ,                             which experiences a restoring exchange field, HJ mz , pro-
+                                                       (6)    portional to the deviation (see Fig. 3(b)). The octupole
+          ṁz + αϕ̇oct = −γHK sin ϕoct cos ϕoct .             moment then executes Larmor precessions around this
+                                                              restoring field according to Eq. (8). The range of mz
+                            √
+Here, ∆ = 2νKJV /(J√+ 3D) is the octupole energy              excited by the thermal fields is in turn governed by the
+barrier, HJ = (3J + 3D)/Ms is the strength of the             Boltzmann distribution. Fig. 3(b) shows how such ex-
+exchange field (note, J ≫ D), HK = 2∆/3Ms V is the            citations experience varying restoring fields and precess
+strength of the effective uniaxial anisotropy, mz = cos θ     at varying rates. As a result, the octupole loses its cor-
+is the z component of dipole moment and ϕoct is the az-       relation as the moments dephase relative to each other
+imuthal angle of the octupole moment. These equations         over time. The loss of octupole correlations due to this
+map on to the free energy and dynamics of an XY mag-          dephasing mechanism can be analytically quantified as
+net: exchange fields (∼ 100 T) in the chiral AFM play the     [42, 56, 57],
+role of the dipole fields (∼ 1 T) in XY magnet (forcing                  R1
+mz to 0 in equilibrium), and weak symmetry breaking                      −1
+                                                                              dmz cos(γHJ mz t) exp(−Foct V /kT )
+                                                                C(t) =          R1                                ,   (9)
+within the easy plane gives rise to a uniaxial anisotropy                           dmz exp(−Foct V /kT )
+                                                                                 −1
+in the plane.
+   Applying Langer’s theory (Eq. (4)) to the reduced 2D       where C(t) is the normalized autocorrelation function of
+subspace of octupole fluctuations using Foct (Eq. (5))        octupole fluctuations (see also Fig. 2(d)), which yields
+                                                                                                                               6
+                                    √
+C(t) ≈ exp(−ωJ2 t2 /2), with ωJ = γ HJ Hth and Hth =
+kT /Ms V [38]. This gives the low-barrier autocorrelation
+time,
+                           s
+                         1 2ln(2)
+                    τ=              .                (10)
+                         γ HJ Hth
+
+   Fig. 2(e) and Eq. (10) show excellent agreement be-
+tween numerical simulations and analytical estimations τ
+in the low-barrier limit. These asymptotes are the second
+main result of this section. In this limit, the relaxation
+time is independent of the choice of the Gilbert damp-
+ing constant α, which
+                    p     similar to the easy plane limit,
+is valid for α ≪ Hth /HJ [56]. Furthermore, similar
+to the high-barrier limit, the correlation time for chiral
+antiferromagnets is orders of magnitude lower than that
+estimated for XY ferromagnets due to the exchange-field
+enhanced ultrafast dynamics in antiferromagnets.
+   Electrical tunability.—Due to the similar mathemati-
+cal structure of the underlying order parameter and the
+symmetries of the Hamiltonian, spin dynamics in mag-
+nets with a strong XY character has long been known to
+closely resemble the order parameter dynamics in super-
+fluids [58]. More recently, the possibility of triggering this
+dynamics via spin current injection has led to the devel-
+opment of various superfluid-inspired spintronic devices         FIG. 4. (a) Schematic of the Mn3 X nanomagnet coupled to
+                                                                 thermal baths and spin injection sources. The nanomagnet
+[59–62]. Building on the XY character of chiral antifer-
+                                                                 is grown with its kagome plane perpendicular to the sub-
+romagnets and the experimentally demonstrated ability            strate. The heavy metal layer carrying charge currents be-
+to trigger octupole dynamics in Mn3 X through spin in-           low the magnet injects spin currents polarized orthogonal to
+jection [19, 20], we next propose and demonstrate a new          the kagome plane. (b) Analogy between chiral AFM and a
+scheme for electrically tuning the relaxation timescales of      current biased Josephson junction. (c) Numerical simulations
+chiral AFM. This approach is inspired by the analogy be-         (solid dots) and the analytical fit (dashed line) of thermal dy-
+tween chiral antiferromagnets subjected to spin currents         namics of a chiral AFM in the presence of spin currents. The
+and current-biased Josephson junctions (JJ).                     top inset shows the energy landscape of the chiral AFM in
+   The state of a JJ is described by the canonically conju-      the absence (solid line) and in the presence of spin currents
+gate pair variables: (δφ, ℏ/2e Q). Here, δφ and Q are the        (dashed line) depicting the so-called tilted washboard poten-
+difference of order parameter phases across the junction         tial. The bottom inset shows this energy barrier as a function
+                                                                 of the charge current in the heavy metal layer.
+and the (excess) charge on superfluid islands, respectively
+(see Fig. 4(b)); ℏ is the reduced Planck constant and e is
+the charge of the electron. JJ’s free energy can be written
+as the sum of charging and Josephson’s energies as [38]          work done by the spin torque ∂t m  ⃗ = −γHS (m ⃗ ×m ⃗ × ⃗z)
+FJJ0
+     = Q2 /2C + 2EJJ cos2 (δφ/2), with C and EJJ being           adds a −3Ms HS V ϕoct term to the free energy [38, 63, 64]
+the junction’s capacitance and the Josephson energy pa-          with HS = ℏθsh Ib /2e(3Ms )V [38] and θsh being the spin-
+rameter, respectively. By identifying the canonically con-       Hall angle. Crucially, this implies that the energy barrier
+jugate pair (−3Ms V mz /γ, ϕoct ) with (ℏQ/2e, δφ), the          for octupole rotations in the resultant tilted washboard
+first and second terms of the reduced octupole free en-          potential can be tuned from a finite value down to 0 as
+ergy in chiral antiferromagnets (Eq. (5)) can be viewed          the current is dialed from 0 to Ic = 2e∆/ℏθsh (see insets
+as analogs of the charging and the Josephson energy, re-         of Fig. 4(c)). Consequently, from Eq. (7), the octupole
+spectively. When the JJ is biased by a charge current Ib ,       relaxation times can be tuned by orders of magnitude by
+δφ evolves to a new value, which in turn induces a voltage       spin currents.
+via the Josephson relation δφ  ˙ = 2eV/ℏ with V = Q/C.              Mn3 X family offers practical advantages to realize the
+The electrical work done in this process adds a current-         scheme above. First, chiral AFMs can be grown with
+dependent term, ℏIb δφ/2e, to the junction’s free energy,        their Kagome planes oriented orthogonal to the film’s
+creating a tilted washboard potential energy for the “δφ-        growth direction [65]. This allows for the use of charge
+particle”: 2EJJ cos2 (δφ/2) + ℏIφ/2e [58]. An equivalent         currents flowing in conventional heavy metals (e.g. Pt,
+term can be generated for a chiral AFM when a spin cur-          W, Ta) integrated with the magnet to inject the desired
+rent polarized perpendicular to the easy plane is injected       spin current via the spin Hall effect [66]. Second, due
+into the magnet [38] (see Fig. 4(a)). In this case, the          to the weak in-plane anisotropy, the critical currents Ic
+                                                                                                                  7
+
+are small, implying an enhanced sensitivity of relaxation                    ACKNOWLEDGMENTS
+times to the current; indeed experiments have already
+demonstrated rotation of octupoles in thin films by spin           STK and PU would like to thank Supriyo Datta,
+injection [19, 20]. To test the proposed scheme, we show        Kerem Camsari, Jonathan Sun, Kirill Belashchenko and
+in Fig. 4(c) τ for an Mn3 Sn nanoparticle as a function         Zhihong Chen for helpful discussions. STK and PU ac-
+of biasing currents. This is obtained from (a) numeri-          knowledge support from the National Science Founda-
+cally integrating the stochastic LLG equations modified         tion (NSF) grants DMREF-2324203 and ECCS-2331109.
+to include the spin torque term, and (b) by applying the        YY acknowledges support from JSPS Kakenhi (Grant
+Langer formalism to the tilted washboard potential (see         Nos. 23H01828 and 22KK0072), and JST TI-FRIS.
+supplementary), which yields:                                   SK and SF acknowledge support from JSPS Kakenhi
+                                                                (Grant Nos. 24H00039 and 24H02235); MEXT X-NICS
+                    π   e∆↑↓ /kT e∆↓↑ /kT
+              τ=                             .          (11)    (Grant No. JPJ011438); JST-ASPIRE (Grant No. JPM-
+                   λ+ (e ↑↓ /kT + e∆↓↑ /kT )
+                        ∆
+                                                                JAP2322); and JST-CREST (Grant No. JPMJCR19K3).
+Here, the current dependence mainly arises from elec-
+trical
+    p tunability of−1the thermal barriers with ∆↑↓ =
+∆( 1 − β 2 + β sin (β) − πβ/2) and ∆↓↑ = ∆↑↓ + π∆β
+with β = Ib /Ic being the ratio of bias current to the criti-
+cal current. λ+ is the positive eigenvalue of the linearized
+equations of motion around the energy maximum of the
+tilted washboard potential (see the supplement for its an-
+alytical expression [38]). This is the main result of this
+section, showing excellent agreement between numerical
+simulations and our analytical calculations, corroborat-
+ing the current-biased JJ-inspired tuning of octupole re-
+laxation in chiral antiferromagnets.
+   Outlook.—In summary, we show that chiral antiferro-
+magnets host up to picosecond scale octupole fluctua-
+tions, with electrically tunable relaxation times. On the
+theoretical front, we have focused on temperature scales
+below the ordering temperature, thus neglecting longitu-
+dinal fluctuations of octupoles. It would also be interest-
+ing to explore them in a future work. On the applications
+front, recent demonstrations of octupole-driven TMR
+[16–18] combined with our results suggests that chiral
+antiferromagnets could contribute to the development of
+emerging technologies requiring the generation of on-chip
+tunable random numbers [25, 26]. For instance, when in-
+tegrated with transistors, stochastic chiral AFM-based
+magnetic tunnel junctions could form a probabilistic(p-)
+bit, the basic building block for the emerging paradigm of
+probabilistic computing [24, 26, 67–69]. Compared to the
+current dipole-order-based p-bits, octupole-based p-bits
+would offer faster fluctuation speeds for the same energy
+barrier (see Fig. 2), reducing time-to-solution [28–30].
+Nanodots of chiral AFM with energy barriers relevant for
+such p-bit applications have already been experimentally
+demonstrated [70]. Furthermore, due to the negligible
+dipole moment, octupole fluctuations are expected to be
+less sensitive to stray magnetic fields, making octupole-
+based p-bits more robust than their dipole-based coun-
+terparts. Additionally, the proposed tunability of corre-
+lation times via electric current could be used to dynam-
+ically correct for device-to-device variations. We hope
+that our results will thus inspire experiments to extend
+current demonstrations of octupole-based MTJs into the
+nanoscale fluctuating regime and with improved TMR
+values, aiming to enable faster and more robust proba-
+bilistic computing.
+                                                                                                                              8
+
+                                        Appendix A: Micromagnetic Simulations
+
+   The unit cell of the Mn3 X system consists of 6 Mn spins arranged in two stacked kagome planes (in a star motif) as
+highlighted in the main text. There, we focused on the dynamical modes where each Mn spin in one Kagome plane
+is ferromagnetically locked with its inverted neighbor in the adjacent kagome plane. Here, we justify our approach of
+neglecting the out-of-phase dynamics within such inter-plane pairs of Mn spins in the experimentally relevant time
+and energy scales. To this end, we study the stochastic dynamics of the Mn3 X system in the monodomain continuum
+limit for both 3-spin and 6-spin configurations. Such a monodomain limit is valid when the size of the system is
+smaller than the micromagnetic exchange length, which is the case for nanomagnets. Including strain, the free energy
+of the system in the three-spin limit is given by:
+           F = J (m
+                  ⃗1·m⃗2+m   ⃗2·m ⃗3+m    ⃗3·m  ⃗ 1 ) − Jν (m
+                                                            ⃗1·m⃗ 2 ) + D [ẑ · (m
+                                                                                 ⃗1×m  ⃗2×m
+                                                                                    ⃗2+m     ⃗3×m
+                                                                                          ⃗3+m  ⃗ 1 )]
+                    h                                         i
+                               2              2             2
+               − K (⃗e1 · m
+                          ⃗ 1 ) + (⃗e2 · m
+                                         ⃗ 2 ) + (⃗e3 · m
+                                                        ⃗ 3) .                                                            (A1)
+
+
+
+ Here, M ⃗ i = Ms m   ⃗ i represent three sublattice magnets of saturation magnetization Ms = 400 emu/cc.           Each sub-
+                                                                                                              √
+ lattice magnet
+           √         corresponds    to a pair of ferromagnetically   locked inter-plane  Mn  spins.  ⃗
+                                                                                                     e 1 = −    3/2 x̂ − 1/2 ŷ,
+⃗e2 = − 3/2 x̂ + 1/2 ŷ and ⃗e3 = ŷ are the uniaxial anisotropy directions for the three magnets [19, 20, 35]. In
+ the 6-spin configuration, we introduce three more sublattice magnets (the index i now runs to 6) and reduce each
+ sublattice saturation magnetization to Ms = 200 emu/cc to keep the same total saturation magnetization in both
+ cases. In the second kagome plane, the magnets m       ⃗ 4, m
+                                                             ⃗ 5 and m
+                                                                     ⃗ 6 have a free energy density analogous
+                                                                                                     P3       to Eq. A1, with
+⃗e4 = ⃗e1 , ⃗e5 = ⃗e2 and ⃗e6 = ⃗e3 being the respective easy axes. Additionally, we add the term i=1 −J m    ⃗i·m⃗ i+3 to the
+ total free energy to account for the net ferromagnetic coupling between the inter-plane spins [27].
+    For both 3-spin and 6-spin configurations, we study the thermal dynamics of the strained Mn3 X system by numer-
+ ically integrating the stochastic Landau–Lifshitz–Gilbert equation (sLLG):
+
+                                       ⃗ i = −γ m
+                                    ∂t m        ⃗ i × (−δMs m       ⃗ th
+                                                            ⃗ i F + Hi ) + α m
+                                                                             ⃗ i × ∂t m
+                                                                                      ⃗ i.                                (A2)
+                                                                  ⃗ th are thermal fields that satisfy the fluctuation
+Here, γ is the magnitude of the electron’s gyromagnetic ratio and H i
+dissipation theorem [42, 71] – ⟨Hi (t)⟩ = 0 and ⟨Hi (t)Hj (t )⟩ = σ 2 δij δ(t − t′ ) with σ 2 = 2αkT /γMs V , where
+                                  th                th      th ′
+
+δ is the Dirac delta function. The simulations are performed using a homegrown HSPICE based compact circuit
+models for the chiral AFM [72]. As a model candidate for the Mn3 X family with anti-chiral ground state, we perform
+all numerical analyses for Mn3 Sn with the parameters [19, 20, 27, 33, 35, 70, 73]: J = 59 × 106 J/m3 , D = 0.1J,
+K = 110 × 103 J/m3 and ν = 0.0006.
+
+
+
+
+FIG. 5. Autocorrelation function plots of the stochastic octupole moment in the strong easy-plane limit (along its easy axis)
+for 3-spin and 6-spin limits of the free energy. We compare the approaches for a range of thermal barriers from the low-barrier
+limit to the high-barrier limit. The dashed line shows 1/e value of the autocorrelation function.
+                                                                                                                        9
+
+  Fig. 5 shows a close agreement between the autocorrelation functions of the stochastic octupole moment in the
+3-spin and the 6-spin configurations. The difference in the relaxation times obtained from the two approaches is
+within the margin of error for a range of barriers from the low-barrier limit to the high-barrier limit. This indicates
+that the pairs of Mn spins on the opposite ends of the Mn3 X star motif are locked ferromagnetically within the time
+and energy scales of interest. So throughout the main text, we focus on the 3-spin configuration for its analytical and
+computational simplicity.
+
+
+                               Appendix B: Two Coordinate Effective Free Energy
+
+                                                   1.   Normal Modes
+
+   Having justified our approach of using the effective 3-spin free energy, we exploit the hierarchy of energy scales
+(J > D ≫ K) to further reduce this 6-dimensional free energy (Eq. A1) into an effective 2-dimensional free energy
+for the octupole dynamics of interest. To this end, following Ref. [55], we perform a change of basis from m          ⃗i =
+(sin θi cos ϕi , sin θi sin ϕi , cos θi ) to normal mode coordinates of the Mn3 X system in the exchange limit (i.e., when
+D = K = ν = 0). As shown in Fig. 6, these modes correspond to the canonically conjugate pairs of spin canting (αx ,
+αy and β0 ) and the corresponding rigid rotations (βx , βy and α0 ) of the Mn3 X spin motif about the x, y and z axes,
+respectively. Note that in the exchange limit, rigid rotations about all three axes are degenerate zero energy modes
+as highlighted in Fig. 6. The basis vectors of these normal modes can be related to (θi , ϕi ) as [55]:
+                                                             
+                                              ϕ1      2π/3       αx
+                                             ϕ2  = 4π/3 + L αy  ,                                              (B1)
+                                              ϕ3       0         α0
+
+                                                            
+                                              θ1      π/2       βx
+                                             θ2  = π/2 + L βy  ,                                               (B2)
+                                              θ3      π/2       β0
+
+  with
+                                                   √     √     √ 
+                                                  1/ √2 1/√6 1/√3
+                                            L = −1/ 2 1/ √6 1/√3 .                                                 (B3)
+                                                    0   −2/ 6 1/ 3
+
+Here, the columns of the orthogonal matrix L are obtained by applying a rigid rotation (Rx , Ry or Rz ) on the Mn3 X
+spin motif (see Fig. 6). The first advantage of this basis is that one of the modes (α0 , β0 ) directly corresponds to the
+octupole dynamics of interest. Secondly, when D, K and ν are turned on, p    we notice that the degeneracy of the normal
+modes is lifted, with
+                   p  the xy-octupole  mode  (α0 mode)  acquiring   a gap ∼   (JKν) while the other two normal modes
+acquire a gap ∼ (JD) [38]. Since Kν ≪ D, the xy-octupole mode remains the lowest energy mode dominating
+the long-time dynamics. Furthermore, note that αx , αy , βx , βy and β0 incur either exchange or DMI energy, while
+α0 incurs weaker anisotropy energy. An effective theory can thus be constructed for the octupole dynamics by
+perturbatively expanding the free energy (Eq. A1) up to second order in the small normal mode coordinates (αx , αy ,
+βx , βy and β0 ) and adiabatically eliminating the high energy modes.
+
+
+                                       2.   Second Order Perturbation Theory
+
+  In this subsection, we perturbatively expand our free energy in the small normal mode coordinates. In the strong
+easy-plane limit, as outlined in the main text, the octupole moment may be given as,
+
+                                                  1
+                                                               ⃗ 1 + R2 m
+                                                                          
+                                            m
+                                            ⃗ =     Mxz m
+                                                        ⃗ 3 + Rm        ⃗2 .                                         (B4)
+                                                  3
+
+Here R represents a 2π   3 rotation operation about the z-axis. Using Eqs. B1–B4, the octuple moment m
+                                                                                                     ⃗ = (sin θ cos ϕoct ,
+sin θ sin ϕoct , cos θ) can be further expressed in the normal mode coordinates as (note that the octupole moment
+                                                                                                                          10
+
+
+
+
+FIG. 6. Schematic representation of the normal modes of the Mn3 X system in the exchange limit [55]. In this case, the normal
+modes are the degenerate zero energy modes of rotations of the Mn3 X motif about the x, y and z axes. When D, K and ν are
+turned on, the normal modes acquire a gap as shown in the figure with the xy-octupole mode still being the lowest energy, and
+hence the most relevant mode for stochastic dynamics.
+
+
+transforms like a pseudovector under the mirror operator):
+                                                                     
+                                                                  α
+                                                   sin ϕoct = sin √0 ,
+                                                                    3
+                                                                                                                      (B5)
+                                                                  β0
+                                                   − cos θ = sin √      .
+                                                                    3
+Exchange Interaction (J): We employ a second-order perturbative approach [39] to expand F in terms of normal
+modes by substituting Eq. B1 and Eq. B2 and ignoring higher order terms. We start with the exchange energy term.
+
+                                    F = FJa + FJb + FJc
+                                                                                       
+                                      = J sin θ1 sin θ2 cos(ϕ1 − ϕ2 ) + cos θ1 cos θ2
+                                                                                       
+                                        + J sin θ2 sin θ3 cos(ϕ2 − ϕ3 ) + cos θ2 cos θ3
+                                                                                       
+                                        + J sin θ3 sin θ1 cos(ϕ3 − ϕ1 ) + cos θ3 cos θ1 .                               (B6)
+
+
+                                                                                          2π √
+                                                                                               
+                              π   βx  βy      β0          π    βx   βy      β0
+                FJa = J sin     +√ +√ +√            sin      −√ +√ +√             cos          + 2αx
+                              2     2   6       3         2      2    6       3            3
+                                                                             
+                              π   βx  βy      β0          π    βx   βy      β0
+                      + cos     +√ +√ +√           cos       −√ +√ +√               ,
+                              2    2    6      3          2      2    6       3
+                                                                                                
+                              π   βx  βy      β0          π 2βy      β0           2π      αx     3
+                FJb = J sin     −√ +√ +√            sin      − √ +√        cos         − √ + √ αy
+                              2     2   6       3         2      6     3           3         2    6
+                                                                                                                   (B7)
+                              π   βx  βy      β0          π 2βy     β0
+                      + cos     −√ +√ +√           cos       − √ +√         ,
+                              2    2    6      3          2      6    3
+                                                                                                
+                              π 2βy    β0          π     βx     βy   β0             4π       αx   3αy
+                FJc = J sin     − √ +√       sin      +√ +√ +√             cos −         −√ − √
+                              2     6    3         2       2      6    3              3        2    6
+                                                                      
+                              π 2βy   β0           π     βx    βy   β0
+                      + cos     − √ +√      cos       +√ +√ +√              .
+                              2     6   3          2       2     6    3
+  Expanding F up to second order in αx , αy , βx , βy and β0 , we get,
+
+                                                         β02
+                                                                          
+                                                 9               3 2     2
+                                                                           
+                                   FJ = J −          1−        +    α + αy .                                            (B8)
+                                                 2        3      4 x
+                                                                                                                     11
+
+
+Strain (ν): The strain term is given by Fν = −Jν (m
+                                                  ⃗1 · m
+                                                       ⃗ 2 ), with ν << 1. Expanding this term to second order
+gives,
+                                                       r
+                                                          3
+                                              Fν = Jν       αx .                                          (B9)
+                                                          2
+Dzyaloshinskii–Moriya Interaction (D): We similarly expand the DMI term up to second order.
+             FD = FDa + FDb + FDc
+                = D sin θ1 sin θ2 sin(ϕ2 − ϕ1 ) + D sin θ2 sin θ3 sin(ϕ3 − ϕ2 ) + D sin θ3 sin θ1 sin(ϕ1 − ϕ3 ).
+
+                                                                                     2π √
+                                                                                              
+                             π   βx  βy     β0          π    βx  βy     β0
+               FDa = D sin     +√ +√ +√           sin      −√ +√ +√           sin −       − 2αx ,
+                             2    2   6       3         2     2   6       3           3
+                                                                                            
+                             π   βx  βy     β0          π 2βy    β0            2π    αx     3αy
+               FDb = D sin     −√ +√ +√           sin      − √ +√      sin −       +√ − √           ,              (B10)
+                             2    2   6       3         2      6   3            3       2      6
+                                                                                          
+                             π 2βy   β0          π     βx    βy  β0          4π     αx     3αy
+               FDc = D sin     − √ +√      sin      +√ +√ +√           sin       +√ + √          .
+                             2     6   3         2       2     6   3          3      2       6
+                                    √                                      √
+                                                        β02
+                                                                     
+                                        3D                       2    2   3 3D 2
+                                                                               αx + αy2 .
+                                                                                       
+                             FD =                −3 1 −       + βx + βy +                                          (B11)
+                                        2                3                  4
+Uniaxial Anisotropy (K) We expand the uniaxial anisotropy up to second order in the normal modes as,
+                   FK = FKa + FKb + FKc
+                                         π                      π                                              (B12)
+                      = − K sin2 θ1 sin2    + ϕ1 − K sin2 θ2 cos2    − ϕ2 − K sin2 θ3 sin2 ϕ3 .
+                                          3                        3
+                                                                                   
+                                       π2  βy  βx     β0       2   5π      αx  αy  α0
+                      FKa = − K sin      +√ +√ +√           sin         +√ +√ +√        ,
+                                       2    2   6       3           3       2   6   3
+                                                                                    
+                                       π   βy  βx     β0             π     αx  αy  α0
+                      FKb = − K sin2     −√ +√ +√           sin2 − − √ + √ + √           ,                         (B13)
+                                       2    2   6       3             3      2   6   3
+                                                                        
+                                       π 2βx   β0             2αy       α0
+                      FKc = − K sin2     − √ +√      sin2 − √ + √            .
+                                       2     6   3               6       3
+                                           r                           
+                                            3          2α0             2α0
+                                    FK = K     αx cos √      + αy sin √       .                                    (B14)
+                                            2            3               3
+Total Free Energy: The total free energy then is, F = FJ + Fν + FD + FK .
+
+
+                                                   3.   Adiabatic Elimination
+
+  The hierarchy of energy scales J > D ≫ K ∼ Jν results in a separation of timescales with the high frequency
+modes (αx , αy , βx , βy ) reaching steady-state much faster than the slow modes (α0 and β0 ). This enables us to employ
+adiabatic elimination and obtain an effective one-mode Hamiltonian predominantly described in terms of α0 and β0 .
+
+                                 ∂F              ∂F
+                                              =               = 0 =⇒ βx,eq = βy,eq = 0                             (B15)
+                                ∂βx βx =βx,eq   ∂βy βy =βy,eq
+                                                                                    
+                                                                                 2α
+                                ∂F                             −Jν  −  K  cos    √0
+                                                                                   3
+                                              = 0 =⇒ αx,eq = q              √                                      (B16)
+                                ∂αx αx =αx,eq                       3
+                                                                    2 (J +     3D)
+                                                                              
+                                                                           2α
+                                ∂F                                K  sin   √0
+                                                                             3
+                                              = 0 =⇒ αy,eq = − q           √       .                               (B17)
+                                ∂αy αy =αy,eq                      3
+                                                                     (J + 3D)
+                                                                       2
+                                                                                                                       12
+
+   Substituting the magnitudes of αx,eq , αy,eq , βx,eq and βy,eq into F, we obtain the final free energy density in terms
+of the normal mode coordinates α0 and β0 as:
+                                      "          √           2                      #
+                                         9J + 3 3D β0                2JKν       2   α0
+                              Foct =                      √      +     √     sin √        .                          (B18)
+                                               2            3      J + 3D            3
+                                                                                     √
+   Substituting α0 and β0 from Eq. B5 in Eq. B18 and noting that mz = β0 / 3, we obtain the desired effective
+low-energy Hamiltonian,
+                                                     3
+                                          V Foct =     Ms HJ V m2z + ∆ sin2 ϕoct ,                                  (B19)
+                                                     2
+                          √                                               √
+where, ∆ = 2νKJV /(J + 3D) is the octupole energy barrier and HJ = (9J + 3 3D)/3Ms is the strength of the
+exchange field (note, J ≫ D).
+
+
+                                    Appendix C: Octupole Equations of Motion
+
+Conservative equation of motion: For an electron, the net angular momentum in the z direction is the generator
+of rotations, ϕe , in the xy plane. Thus, we identify −3V Ms mz,e /γ and ϕe as canonically conjugate variables obeying
+Hamilton’s equations of motion. Here, γ > 0 is the magnitude of the electron’s gyromagnetic ratio. For the free
+energy in Eq. B19, the conservative equations of motion are,
+
+                                            γ        √ 
+                                  ϕ˙e = −       9J + 3 3D mz,e = −γHJ mz,e ,
+                                          3Ms
+                                                                                                                   (C1)
+                                          γ     2JKν
+                                ṁz,e =            √     sin (2ϕe ) = γHK sin ϕe cos ϕe .
+                                        3Ms J + 3D
+Here, HK = 2∆/3Ms V . From Eq. B4, with the mirror operation on the Mn spins, the conservative equations of
+motion for the octupole can be written as,
+                                               ˙ = γHJ mz ,
+                                             ϕoct
+                                                                                                                     (C2)
+                                              ṁz = −γHK sin ϕoct cos ϕoct .
+Deterministic Dissipative Equations of motion: Including Gilbert damping, the linearized LLG equation for
+an electron is given by,
+                           γ
+                  θ˙e =        −HK sin θe sin ϕe cos ϕe + αHJ sin θe cos θe + αHK sin θe cos θe cos2 ϕe ,
+                                                                                                        
+                        1 + α2
+                           γ                                                                              (C3)
+                  ϕ˙e =        −HJ sin θe cos θe − HK sin θe cos θe cos2 ϕe − αHK sin θe sin ϕe cos ϕe .
+                                                                                                      
+                        1+α  2
+
+  Here too, the mirror operation in Eq. B4 changes the octupole equations of motion to
+
+                          γ
+                               −HK sin θ sin ϕoct cos ϕoct − αHJ sin θ cos θ − αHK sin θ cos θ cos2 ϕoct ,
+                                                                                                         
+                  θ̇ = −     2
+                         1+α
+                          γ                                                                                          (C4)
+                               −HJ sin θ cos θ − HK sin θ cos θ cos2 ϕoct + αHK sin θ sin ϕoct cos ϕoct .
+                                                                                                       
+               ϕ̇oct = −     2
+                         1+α
+
+
+                     Appendix D: Derivation of The Relaxation Time in High Barrier Limit
+
+   We employ Langer’s theory on the effective octupole free energy Foct to derive an analytical formula for the octupole
+relaxation time in the high barrier limit of ∆ > kT . As highlighted in the main text, thermal fields mostly induce
+small angle precessions of the octupole moment around its easy axis in an energy minimum. Once in a while, the
+octupole moment receives a large thermal kick that quickly rotates it within the easy plane to the adjacent minimum.
+Within Langer’s theory, the mean escape time from one well to the other is given by [49–51, 74],
+                                                                 
+                                                        −1   V δF
+                                               τesc = A             τihd .                                          (D1)
+                                                              kT
+                                                                                                                       13
+
+   In Langer’s theory, in the so-called intermediate to high damping (IHD) regime [49, 50, 75–78], a fluctuating particle
+in a metastable energy well is assumed to quickly attain and maintain a Maxwell-Boltzmann distribution of energies
+within the well [79]. A Gibbs ensemble of such particles allows for a small fraction of the particles near the saddle
+point energy, Esp , to escape quasi-statically over the barrier to the adjacent minimum [80]. This intermediate to high
+damping limit escape time is given by escape time is given by [49–51, 74]:
+                                                                      sQ
+                                            2π Vmin         Psp −Pmin      |ϵj,sp | ∆/kT
+                                     τihd =         (2πkT )      2     Qj          e     .                         (D2)
+                                            λ+ Vsp                         ϵ
+                                                                         j j,min
+
+In this formula, the eigenvalues ϵj,min and ϵj,sp are obtained from the harmonic approximation of the octupole free
+energy near the energy minima and the saddle points, respectively. λ+ is the positive eigenvalue of the linearized
+Landau-Lifshitz-Gilbert equation of motion around the saddle point. To account for Goldstone modes in our system,
+a factor of 2πkT is introduced; P denotes the number of Goldstone modes and V represents the phase-space volume
+corresponding to the Goldstone modes.
+   In the so-called very low damping (VLD) limit, i.e. when the energy lost (V δF) due to dissipative coupling to
+the environment over an equal energy contour containing the energy maxima is smaller than the thermal energy
+kT , the octupole energies within an energy minimum deviate from the Maxwell-Boltzmann distribution of the IHD
+limit. To account for these deviations and the reduced dissipative coupling to the thermal bath, a depopulation factor
+A(V δF/kT ) is added on to τihd [54, 75, 81] with
+                                                 Z ∞ h                              
+                                                1                      2
+                                                                         i 1
+                                                       ln 1 − e−x( 4 +y ) 1
+                                                                   1
+                                A(x) = exp                                      2
+                                                                                  dy   .                         (D3)
+                                               2π −∞                      4 +y
+
+   Therefore, the escape time τesc in the most general case is then given by Eq. D1. First, we note that the octupole
+relaxation time τ = 0.25τesc to allow for the loss of correlations as the octupole escapes back and forth over the barrier
+[52]. Second, as we shall see in the following subsections, the depopulation factor evaluates to unity for typical Mn3 Sn
+parameters, i.e. the magnet is in the IHD limit. However, with the very low Gilbert damping constants being reported
+more recently in some of the chiral AFMs in the Mn3 X family, the depopulation factor may deviate significantly from
+unity (note, A−1 (x) ≥ 1, ∀x).
+
+
+                        1.   Calculation of intermediate-to-high damping relaxation time
+
+Energy Minima and Saddle Point: At the minima, θ = π/2 and ϕoct = (0, π) such that Fmin = 0. Similarly, at
+                                                                   2JKνV
+the saddle point, θ = π/2 and ϕoct = (π/2, 3π/2) gives Fsp = ∆ = J+  √      .
+                                                                 (     3D )
+
+Calculation of Eigenvalues and Goldstone Modes: A Taylor series expansion around the minimum and saddle
+points helps us obtain the eigenvalues of the harmonic approximation of the Hamiltonian.
+
+                                                   ∂ 2 Foct
+                                       ϵ1,sp = V                                  = 3Ms HJ V,                        (D4)
+                                                    ∂m2z
+                                                              mz =0,ϕoct =π/2
+
+                                                   ∂ 2 Foct
+                                       ϵ2,sp = V                                  = −2∆,                             (D5)
+                                                    ∂ϕ2oct
+                                                              mz =0,ϕoct =π/2
+
+                                                   ∂ 2 Foct
+                                      ϵ1,min = V                                 = 3Ms HJ V,                         (D6)
+                                                    ∂m2z
+                                                              mz =0,ϕoct =π
+
+                                                   ∂ 2 Foct
+                                      ϵ2,min = V                                 = 2∆,                               (D7)
+                                                    ∂ϕ2oct
+                                                              mz =0,ϕoct =π
+
+                                                      sQ
+                                                               |ϵj,sp |
+                                                         Qj               = 1.                                       (D8)
+                                                              j ϵj,min
+
+We further have, Psp = Pmin = 0 [82] and
+                                               Vmin           Psp −Pmin
+                                                    (2πkB T )      2
+                                                                        = 1.                                         (D9)
+                                               Vsp
+                                                                                                                        14
+
+
+
+  λ+ is the positive eigenvalue of the linearized Landau–Lifshitz–Gilbert equation of motion around the saddle point
+(θ = π/2 and ϕoct = π/2). Now, linearizing the equations of motion (Eq. C4) at the saddle point gives,
+                                                                           
+                                         δ θ̇         γ        α hp        δθ
+                                           ˙    =−        HJ                      ,                           (D10)
+                                       δ ϕoct      1 + α2      1 −αhp     δϕoct
+Here, hp = HK /HJ is a dimensionless constant. The positive eigenvalue λ+ is then given by,
+                                                               q                     
+                                                                              2
+                                     γ            −α(1 − hp ) +  (α(1 + hp ))   + 4hp
+                           λ+ =            · HJ                                      .                            (D11)
+                                 (1 + α2 )                        2
+
+Finally, the Langer formula gives,
+                                                                                                     
+                                                         4π                                      ∆
+                               τihd =       q                                exp                        .         (D12)
+                                                          2                                      kT
+                                        γHJ   (α(1 + hp )) + 4hp − α(1 − hp )
+
+
+                                        2.    Calculation of Depopulation Factor (A)
+
+   To evaluate A−1 (V δFoct /kT ), we begin by evaluating V δFoct , the energy dissipated in a single precession of the
+octupole moment along an equal-energy contour containing the saddle points. The dissipated energy can be obtained
+from the damping term of the LLG-like equation for the octupole moment: ∂t m         ⃗ = −αm
+                                                                                           ⃗ × ∂t m.
+                                                                                                  ⃗ This gives,
+                                          Z t                                          
+                                               ∂Foct                ∂Foct
+                                  δFoct =            ṁz |diss dt +       ϕ̇oct |diss dt .                       (D13)
+                                           0    ∂m z                ∂ϕoct
+To evaluate ṁz |diss and ϕ̇oct |diss we can solve for,
+                                                                              
+                                                    dm
+                                                     ⃗                      dm
+                                                                             ⃗
+                                                                  = −α m⃗ ×      ,                                  (D14)
+                                                    dt                      dt
+                                                           diss
+                p                  p            
+     ⃗ = cos ϕoct 1 − m2z , sin ϕoct 1 − m2z , mz and
+with m
+                                             dm
+                                              ⃗                                        
+                                                = −ϕ̇oct sin ϕoct , ϕ̇oct cos ϕoct , ṁz .
+                                             dt
+This gives ṁz |diss = −αϕ̇oct and ϕ̇oct |diss = αṁz . Therefore, Eq. D13 can be re-written as,
+                                        Z                            Z         
+                                                  ∂Foct                     ∂Foct
+                               δFoct =                    (−α) dϕoct +              (α) dmz .                       (D15)
+                                           ϕoct   ∂mz                   mz  ∂ϕoct
+ Note that due to the coupled nature of these integrals, we need to obtain relationships between mz and ϕoct . Since
+the equal-energy contour must satisfy Foct = ∆, so we can use the following expression to perform the integrals over
+their respective variables.
+                                                             r
+                                                       2∆
+                                                    mz =      cos ϕoct .                                            (D16)
+                                                    3Ms HJ V
+  We evaluate the above integrals and via appropriate substitutions and algebra, we arrive at the following.
+                                                p                   √
+                                     V δFoct = α 6∆Ms HJ V ≈ 6α JKνV.                                               (D17)
+  Since x = V δF/kT , the depopulation factor A(x) could be obtained numerically from the following expression.
+                                                          Z ∞                             
+                                                       1        h             2
+                                                                                i 1
+                                                              ln 1 − e−x( 4 +y ) 1
+                                                                          1
+                                   A(x) = exp                                         2
+                                                                                        dy   ,                      (D18)
+                                                      2π   −∞                    4 +y
+Since arriving at an analytical solution for the above integral is difficult, a numerical approach is employed to calculate
+the depopulation factor A(x). However, we notice that for x ≫ 1, A(x) ≈ 1. In our case, for Mn3 Sn parameters
+considered in this work, A(x) indeed evaluates to unity.
+                                                                                                                        15
+
+            Appendix E: Spin Torque Driven Chiral AFM as a Current-Biased Josephson junction
+
+   In this section, we draw an analogy between a current-biased Josephson junction (JJ) and a spin-torque-driven
+chiral antiferromagnet (AFM) in the geometry where a spin current polarized perpendicular to the easy plane is
+injected into the chiral AFM. To establish this analogy, we first briefly review the free energy and the equations of
+motion for a current-biased JJ [83].
+   A Josephson Junction (JJ) is formed by interfacing two superconducting islands with a weak link (either a non or
+weakly superconducting region). The generalized coordinates describing the state of a JJ are given by the canonically
+conjugate variables: (δφ, ℏ/2e Q). Here, Q is the excess charge on the islands and δφ ≡ φ1 − φ2 , with φi being the
+phase of the condensed wave function (order parameter) describing Cooper pairs in the ith superconducting island.
+The free energy of JJ can be written as:
+                                              0
+                                             FJJ = Q2 /2C + 2EJJ cos2 δφ/2.                                           (E1)
+Here, the first term is the capacitive charging energy with C being the capacitance of the JJ. The second term is the
+Josephson energy, which arises from the coupling between the wave functions of the two islands, and is parameterized
+by the coupling parameter EJJ . The equations of motion for the JJ, as obtained by using the canonical conjugacy
+                                                           0                        0
+between n and δφ, can be written as: δ φ̇ = 2e/ℏ ∂Q FJJ      , and ℏ/2e Q̇ = − ∂δφ FJJ , which respectively yields the
+Josephson’s relations:
+
+                                                  ˙ = 2eV ; I = I JJ sin δφ.
+                                                 δφ                                                                   (E2)
+                                                                 c
+                                                       ℏ
+Here V = Q/C is the voltage across the islands and IcJJ = 2eEJJ /ℏ.
+                                                                                                        0
+  In the absence of an external current, the equilibrium state of the JJ, as obtained by minimizing FJJ   , is given by
+δφ = 0. When JJ is biased by an external current, Ib , δφ evolves to a new equilibrium value. During the transient, the
+change in δφ induces a voltage across the JJ according to the Josephson relations (Eq. E2).R The IV work done during
+the transient can be added as an additional contribution to the junction’s free energy: ℏ/2e Ib δφdt ˙    = ℏ/2e Ib δφ.
+The junction’s free energy in the presence of a current bias is thus given by:
+                                     FJJ = Q2 /2C + 2EJJ cos2 (δφ/2) + ℏ/2e Ib δφ.                                    (E3)
+The φ−dependent part of the above energy is the well-known tilted washboard potential [84]. The behavior of JJ
+under a current bias can be understood from this free energy as follows. As Ib is increased from zero, δφ evolves to a
+new equilibrium value, which is given by the local minimum of the titled washboard potential (see Fig. 4 in the main
+text). Additionally, the barrier between the minima is decreased with increasing Ib . Above a critical value Ib = IcJJ ,
+the barrier and the local minima disappear giving rise to the so-called dissipative voltage-state, with oscillating δφ
+and hence a finite voltage across the junction.
+   In direct analogy with above description of JJ we now proceed to write down the free energy and equation of
+motion of chiral AFM in the presence of spin currents. As highlighted above, the low-energy dynamics of chiral AFM
+is described by the easy-plane octupole order parameter. The state of chiral AFM is described by the canonically
+conjugate pair: (mz , ϕoct ), with the free energy in the absence of spin current given by Eq. B19. If we identify the
+canonically conjugate pair: (−3Ms V mz /γ, ϕoct ) with (ℏQ/2e, δφ), the first (second) term above can be thought of
+as the equivalent to the charging (Josephson) energy.
+   In the absence of spin current the equilibrium state of the chiral AFM is given by ϕoct = 0. When a spin current
+polarized orthogonal to the easy plane (i.e. along z) is injected into the chiral AFM, it applies a torque of the form
+   ⃗ i = −γHS /3 (m
+∂t m               ⃗i × m⃗ i × p⃗) on each of the three sublattice moments, with p⃗ being the direction of polarization of
+the spin current. Here, HS = ℏθsh Ib /2e(3Ms )V , θsh is the spin-Hall angle and Ib is the bias charge current in the heavy
+metal layers. The effective torque exerted on the octupole moment is then given by, ∂t m    ⃗ = −γHS (m  ⃗ ×m ⃗ × p⃗). This
+effective torque would evolve ϕoct to a new equilibrium (much like current bias changes δφ in JJ). The corresponding
+work done during the transient can be added as an additional free energy term, similar to the IV work for JJ. This
+term can be calculated as,
+                                         Z t                                       
+                                               ∂Foct              ∂Foct
+                                                     ṁz |ST dt +       ϕ̇oct |ST dt ,                                 (E4)
+                                          0    ∂mz                ∂ϕoct
+
+where, ṁz |ST and ϕ̇oct |ST are obtained from the octupole spin-torque term. The modified free energy for a chiral
+AFM in the presence of perpendicular spin injection thus maps onto that of a current biased JJ:
+                                             3
+                                  V Foct =     Ms HJ V m2z + ∆ sin2 ϕoct − 3Ms HS V ϕoct .                            (E5)
+                                             2
+                                                                                                                        16
+
+We highlight that the spin current gives rise to a tilted washboard potential for the xy-octupole mode (i.e. the
+ϕoct −dependent term above). Thus, much like the current bias for JJ, the spin current tunes the equilibrium ϕoct
+and the energy barrier for octupole to rotate within the easy plane. In particular, the latter forms the basis of the
+proposed scheme to electrically tune correlation times for octupole fluctuations, as presented in the main text. We
+also note in passing that above a critical spin current Ic (calculated in the next section), the barrier and local minima
+disappear. Consequently, in the absence of thermal fluctuations, a static solution for ϕoct does not exist for I > Ic ;
+instead ϕoct becomes oscillatory, analogous to the “voltage-state” for JJ. While this state is not useful for probabilistic
+computing (as it will start adding oscillatory long time correlations to bits), such phenomena can be used to create
+chiral AFM-based oscillators, as proposed in Ref. [33].
+
+
+                            Appendix F: Barrier Tunability via Spin Current Injection
+
+  To include the effect of spin currents in our Mn3 X system, we add the work done by the spin currents as an
+additional quasi-equilibrium term to the octupole free energy as described in Eq. E5 of the previous section with,
+                                                             ℏ Ib θsh
+                                                      HS =     ·      .                                               (F1)
+                                                             2e 3Ms V
+Here, ℏ is the Planck constant, Ib is the charge current in the heavy metal layer, θsh is the spin-Hall angle, and V
+is the volume of the chiral AFM. The addition of the work done by the spin currents to the free energy changes the
+octupole minima (ϕoct = 0, π) and saddle points (π/2, 3π/2) to
+
+                                                       1
+                                                  ϕ1 =   sin−1 β                                                      (F2)
+                                                       2
+                                                       π 1
+                                                  ϕ2 = − sin−1 β                                                      (F3)
+                                                       2    2
+                                                            1
+                                                  ϕ3 = π + sin−1 β                                                    (F4)
+                                                            2
+                                                       3π 1
+                                                  ϕ4 =     − sin−1 β                                                  (F5)
+                                                        2     2
+Here, β = 2HS /HK . Since the equations above do not have solutions if β > 1, the critical current for lowering the
+octupole thermal barrier to zero is given by,
+                                                         2JKν     V
+                                               Ic =        √             .                                            (F6)
+                                                      (J + 3D) (ℏ/2e)θsh
+Beyond this critical current, the spin currents induce coherent oscillations of the octupole moment. The energies of
+the new minima (E1 , E3 ) and the saddle points (E2 , E4 ) are given by,
+                                                  p                      !
+                                                     1 − β2    β    −1
+                                      E1 = ∆ −              − sin β ,                                          (F7)
+                                                       2       2
+                                                 p                           !
+                                                   1 − β2    β    −1      π
+                                      E2 = ∆              + sin β − β ,                                        (F8)
+                                                     2       2            2
+                                                  p                           !
+                                                     1 − β2    β    −1
+                                      E3 = ∆ −              − sin β − πβ ,                                     (F9)
+                                                       2       2
+                                                 p                            !
+                                                   1 − β2    β            3π
+                                      E4 = ∆              + sin−1 β −        β .                              (F10)
+                                                     2       2             2
+
+The new energy landscape results in the so-called tilted washboard potential as highlighted in the main text. We now
+identify two distinct barriers for the two different directions of rotation (clockwise, counterclockwise) of the octupole
+moment within the easy plane as,
+                                                         p                         π 
+                                 ∆↑↓ = (E2 − E1 ) = ∆        1 − β 2 + β sin−1 (β) − β ,                            (F11)
+                                                                                    2 
+                                                         p                         π
+                                 ∆↓↑ = (E2 − E3 ) = ∆        1 − β 2 + β sin−1 (β) + β .                            (F12)
+                                                                                    2
+                                                                                                                          17
+
+Due to the asymmetry in the energy barriers, the octupole moment escapes between the energy minima preferentially
+by crossing ∆↑↓ rather than by crossing ∆↓↑ . These two paths result in two different escape rates, with the net
+octupole moment relaxation rate being the sum of the two. Thus,
+                                                                
+                                               1    1    1    1
+                                                  =        +       ,                                       (F13)
+                                               τ    2 τ↑↓    τ↓↑
+
+where τ↑↓ (τ↓↑ ) is the escape time over the barrier ∆↑↓ (∆↓↑ ). Next, we use Langer’s theory to calculate these two
+escape times.
+Langer’s theory in the presence of spin currents:
+   Strictly speaking, as highlighted in the main text, Langer’s theory is only valid in the high-barrier limit. So, the
+following approach is valid when the applied spin current doesn’t reduce the barriers below the thermal energy, i.e.,
+(∆↑↓ , ∆↓↑ ) ≥ kT . Next, we must linearize the LLG around the saddle point and obtain the positive eigenvalue λ+ in
+the presence of spin currents. For simplicity, we define
+                                               αhp       p
+                                       a=α+        (1 − 1 − β 2 ),                                                     (F14)
+                                              p2
+                                       b = αhp 1 − β 2 ,                                                               (F15)
+                                                     
+                                                   hp p            p      
+                                       c = hp 1 +         1 − β2 1 − 1 − β2 ,                                          (F16)
+                                                    2
+
+and
+                                                                    p                   !
+                                             γ               a+b+       (a − b)2 + 4c
+                                     λ+ =        · HJ ·                                     .                          (F17)
+                                          1 + α2                         2
+
+This gives,
+                                                           2π ∆↓↑ /kT
+                                                     τ↑↓ =    e                                                        (F18)
+                                                           λ+
+                                                           2π ∆↑↓ /kT
+                                                     τ↓↑ =    e                                                        (F19)
+                                                           λ+
+
+Calculation of Depopulation Factor (A): As previously highlighted, depopulation factors Amin (x) and Amax (x)
+can be calculated numerically. For the Mn3 Sn parameters used in this text, even in the presence of the spin currents,
+Amin (x) ≈ 1.
+
+
+
+
+ [1] L. Šmejkal, J. Sinova, and T. Jungwirth, Phys. Rev. X 12, 040501 (2022).
+ [2] L. Šmejkal, J. Sinova, and T. Jungwirth, Phys. Rev. X 12, 031042 (2022).
+ [3] A. Dal Din, O. J. Amin, P. Wadley, and K. W. Edmonds, npj Spintronics 2, 25 (2024).
+ [4] L. Šmejkal, A. H. MacDonald, J. Sinova, S. Nakatsuji, and T. Jungwirth, Nat. Rev. Mat. 7, 482 (2022).
+ [5] A. K. C. Tan, H. Jani, M. Högen, L. Stefan, C. Castelnovo, D. Braund, A. Geim, A. Mechnich, M. S. G. Feuer, H. S.
+     Knowles, A. Ariando, P. G. Radaelli, and M. Atatüre, Nat. Mater. 23, 205 (2024).
+ [6] W. Legrand, D. Maccariello, F. Ajejas, S. Collin, A. Vecchiola, K. Bouzehouane, N. Reyren, V. Cros, and A. Fert, Nat.
+     Mater. 19, 34 (2020).
+ [7] M. Naka, S. Hayami, H. Kusunose, Y. Yanagi, Y. Motome, and H. Seo, Nat. Comm. 10, 4305 (2019).
+ [8] Z. Feng, X. Zhou, L. Šmejkal, L. Wu, Z. Zhu, H. Guo, R. González-Hernández, X. Wang, H. Yan, P. Qin, X. Zhang, H. Wu,
+     H. Chen, Z. Meng, L. Liu, Z. Xia, J. Sinova, T. Jungwirth, and Z. Liu, Nat. Electron. 5, 735 (2022).
+ [9] D.-F. Shao, S.-H. Zhang, M. Li, C.-B. Eom, and E. Y. Tsymbal, Nat. Comm. 12, 7061 (2021).
+[10] H.-Y. Ma, M. Hu, N. Li, J. Liu, W. Yao, J.-F. Jia, and J. Liu, Nat. Comm. 12, 2846 (2021).
+[11] M.-T. Suzuki, T. Koretsune, M. Ochi, and R. Arita, Phys. Rev. B. 95, 094406 (2017).
+[12] J. Dong, X. Li, G. Gurung, M. Zhu, P. Zhang, F. Zheng, E. Y. Tsymbal, and J. Zhang, Phys. Rev. Lett. 128, 197201
+     (2022).
+[13] S. Nakatsuji, N. Kiyohara, and T. Higo, Nature 527, 212 (2015).
+[14] A. K. Nayak, J. E. Fischer, Y. Sun, B. Yan, J. Karel, A. C. Komarek, C. Shekhar, N. Kumar, W. Schnelle, J. Kübler,
+     C. Felser, and S. S. P. Parkin, Sci. Adv. 2, e1501870 (2016).
+[15] N. Kiyohara, T. Tomita, and S. Nakatsuji, Phys. Rev. Appl. 5, 064009 (2016).
+                                                                                                                             18
+
+[16] X. Chen, T. Higo, K. Tanaka, T. Nomoto, H. Tsai, H. Idzuchi, M. Shiga, S. Sakamoto, R. Ando, H. Kosaki, T. Matsuo,
+     D. Nishio-Hamane, R. Arita, S. Miwa, and S. Nakatsuji, Nature 613, 490 (2023).
+[17] P. Qin, H. Yan, X. Wang, H. Chen, Z. Meng, J. Dong, M. Zhu, J. Cai, Z. Feng, X. Zhou, L. Liu, T. Zhang, Z. Zeng,
+     J. Zhang, C. Jiang, and Z. Liu, Nature 613, 485 (2023).
+[18] C.-T. Chou, S. Ghosh, B. C. McGoldrick, T. Nguyen, G. Gurung, E. Y. Tsymbal, M. Li, K. A. Mkhoyan, and L. Liu, Nat.
+     Comm. 15, 7840 (2024).
+[19] H. Tsai, T. Higo, K. Kondou, T. Nomoto, A. Sakai, A. Kobayashi, T. Nakano, K. Yakushiji, R. Arita, S. Miwa, Y. Otani,
+     and S. Nakatsuji, Nature 580, 608 (2020).
+[20] Y. Takeuchi, Y. Yamane, J.-Y. Yoon, R. Itoh, B. Jinnai, S. Kanai, J. Ieda, S. Fukami, and H. Ohno, Nat. Mater. 20, 1364
+     (2021).
+[21] H. Yang, S. O. Valenzuela, M. Chshiev, S. Couet, B. Dieny, B. Dlubak, A. Fert, K. Garello, M. Jamet, D.-E. Jeong, K. Lee,
+     T. Lee, M.-B. Martin, G. S. Kar, P. Sénéor, H.-J. Shin, and S. Roche, Nature 606, 663 (2022).
+[22] V. D. Nguyen, S. Rao, K. Wostyn, and S. Couet, npj Spintronics 2, 48 (2024).
+[23] Q. Shao, P. Li, L. Liu, H. Yang, S. Fukami, A. Razavi, H. Wu, K. Wang, F. Freimuth, Y. Mokrousov, M. D. Stiles,
+     S. Emori, A. Hoffmann, J. Åkerman, K. Roy, J.-P. Wang, S.-H. Yang, K. Garello, and W. Zhang, IEEE Trans. on Magn.
+     57, 1 (2021).
+[24] W. A. Borders, A. Z. Pervaiz, S. Fukami, K. Y. Camsari, H. Ohno, and S. Datta, Nature 573, 390 (2019).
+[25] J. Kaiser and S. Datta, Appl. Phys. Lett. 119, 150503 (2021).
+[26] S. Chowdhury, A. Grimaldi, N. A. Aadit, S. Niazi, M. Mohseni, S. Kanai, H. Ohno, S. Fukami, L. Theogarajan, G. Finoc-
+     chio, S. Datta, and K. Y. Camsari, IEEE J. Explor. Solid-State Comput. Devices Circuits. 9, 1 (2023).
+[27] J. Liu and L. Balents, Phys. Rev. Lett. 119, 087202 (2017).
+[28] K. Y. Camsari, S. Chowdhury, and S. Datta, Phys. Rev. Appl. 12, 034061 (2019).
+[29] N. A. Aadit, A. Grimaldi, M. Carpentieri, L. Theogarajan, J. M. Martinis, G. Finocchio, and K. Y. Camsari, Nat. Electron.
+     5, 460 (2022).
+[30] S. Chowdhury, K. Y. Camsari, and S. Datta, Comm. Phys. 6, 85 (2023).
+[31] S. Tomiyoshi and Y. Yamaguchi, J. Phys. Soc. Jpn. 51, 2478 (1982).
+[32] Y. Yamane, O. Gomonay, and J. Sinova, Phys. Rev. B. 100, 054415 (2019).
+[33] A. Shukla and S. Rakheja, Phys. Rev. Appl. 17, 034037 (2022).
+[34] We additionally verify the validity of the three spin model by numerically comparing it against the full six spin unit cell
+     thermal dynamics in the supplement [38].
+[35] T. Higo, K. Kondou, T. Nomoto, M. Shiga, S. Sakamoto, X. Chen, D. Nishio-Hamane, R. Arita, Y. Otani, S. Miwa, and
+     S. Nakatsuji, Nature 607, 474 (2022).
+[36] J.-Y. Yoon, P. Zhang, C.-T. Chou, Y. Takeuchi, T. Uchimura, J. T. Hou, J. Han, S. Kanai, H. Ohno, S. Fukami, and
+     L. Liu, Nat. Mater. 22, 1106 (2023).
+[37] S. Miwa, S. Iihama, T. Nomoto, T. Tomita, T. Higo, M. Ikhlas, S. Sakamoto, Y. Otani, S. Mizukami, R. Arita, and
+     S. Nakatsuji, Small Sci. 1, 2000062 (2021).
+[38] S. Konakanchi and et al., Supplementary Information (2024).
+[39] Z. He and L. Liu, J. Appl. Phys. 135, 093902 (2024).
+[40] D. Go, M. Sallermann, F. R. Lux, S. Blügel, O. Gomonay, and Y. Mokrousov, Phys. Rev. Lett. 129, 097204 (2022).
+[41] E. V. Gomonaj and V. A. L’vov, Phase Transit. 38, 15 (1992).
+[42] W. F. Brown, Phys. Rev. 130, 1677 (1963).
+[43] S. Kanai, K. Hayakawa, H. Ohno, and S. Fukami, Phys. Rev. B. 103, 094423 (2021).
+[44] Y. Zhang, Y. Sun, H. Yang, J. Železný, S. P. P. Parkin, C. Felser, and B. Yan, Phys. Rev. B. 95, 075128 (2017).
+[45] W. T. Coffey, D. S. F. Crothers, J. L. Dormann, Y. P. Kalmykov, E. C. Kennedy, and W. Wernsdorfer, Phys. Rev. Lett.
+     80, 5655 (1998).
+[46] W. Coffey, J. Mol. Struct. 479, 261 (1999).
+[47] H. Braun, J. Appl. Phys. 76, 6310 (1994).
+[48] W. T. Coffey, D. S. F. Crothers, Y. P. Kalmykov, and J. T. Waldron, Phys. Rev. B 51, 15947 (1995).
+[49] J. Langer, Ann. Phys. 54, 258 (1969).
+[50] H. Kramers, Physica 7, 284 (1940).
+[51] P. Hänggi, P. Talkner, and M. Borkovec, Rev. Mod. Phys. 62, 251 (1990).
+[52] W. T. Coffey and Y. P. Kalmykov, J. Appl. Phys. 112, 121301 (2012).
+[53] V. I. Mel’nikov and S. V. Meshkov, J. Chem. Phys. 85, 1018 (1986).
+[54] L. Rózsa, S. Selzer, T. Birk, U. Atxitia, and U. Nowak, Phys. Rev. B. 100, 064422 (2019).
+[55] S. Dasgupta and O. Tchernyshyov, Phys. Rev. B. 102, 144417 (2020).
+[56] J. Kaiser, A. Rustagi, K. Y. Camsari, J. Z. Sun, S. Datta, and P. Upadhyaya, Phys. Rev. Appl. 12, 054056 (2019).
+[57] E. T. Jaynes, Phys. Rev. 106, 620 (1957).
+[58] S. Takei and Y. Tserkovnyak, Phys. Rev. Lett. 112, 227201 (2014).
+[59] P. Upadhyaya, S. K. Kim, and Y. Tserkovnyak, Phys. Rev. Lett. 118, 097201 (2017).
+[60] H. Chen, A. D. Kent, A. H. MacDonald, and I. Sodemann, Phys. Rev. B 90, 220401 (2014).
+[61] S. Takei, Y. Tserkovnyak, and M. Mohseni, Phys. Rev. B 95, 144402 (2017).
+[62] Y. Liu, I. Barsukov, Y. Barlas, I. N. Krivorotov, and R. K. Lake, Appl. Phys. Lett. 116, 132409 (2020).
+[63] J. Slonczewski, J. Magn. Magn. Mater. 159, L1 (1996).
+[64] J. Z. Sun, Phys. Rev. B. 62, 570 (2000).
+                                                                                                                                 19
+
+[65] J. Yoon, Y. Takeuchi, R. Itoh, S. Kanai, S. Fukami, and H. Ohno, Applied Physics Express 13, 013001 (2019).
+[66] J. Sinova, S. O. Valenzuela, J. Wunderlich, C. H. Back, and T. Jungwirth, Rev. Mod. Phys. 87, 1213 (2015).
+[67] K. Y. Camsari, R. Faria, B. M. Sutton, and S. Datta, Phys. Rev. X 7, 031014 (2017).
+[68] S. Banerjee, Theory of Correlation Times in Chiral Antiferromagnets: Towards Ultra-fast Probabilistic Computation, Mas-
+     ter’s thesis, Purdue University (2024).
+[69] S. T. Konakanchi, Chiral Spin Textures for Unconventional Computing, Ph.D. thesis, Purdue University (2024).
+[70] Y. Sato, Y. Takeuchi, Y. Yamane, J.-Y. Yoon, S. Kanai, J. Ieda, H. Ohno, and S. Fukami, Appl. Phys. Lett. 122, 122404
+     (2023).
+[71] W. Brown, IEEE Trans. Magn. 15, 1196 (1979).
+[72] K. Y. Camsari, S. Ganguly, and S. Datta, Sci. Rep. 5, 10571 (2015).
+[73] Y. Yamane, O. Gomonay, and J. Sinova, Phys. Rev. B. 100, 054415 (2019).
+[74] W. T. Coffey and Y. P. Kalmykov, J. Appl. Phys. 112, 121301 (2012).
+[75] W. T. Coffey, D. A. Garanin, and D. J. McCarthy, in Adv. in Ch. Phys., edited by I. Prigogine and S. A. Rice (John Wiley
+     & Sons, 2001) pp. 483–765.
+[76] H.-B. Braun, Phys. Rev. B 50, 16501 (1994).
+[77] H. Kachkachi, J. Mol. Liq. 114, 113 (2004), diffusion and Relaxation in Disordered Fractal Systems. Proceedings from the
+     meeting on Diffusion and Relaxation in Disordered Fractal Systems.
+[78] Y. P. Kalmykov, W. T. Coffey, U. Atxitia, O. Chubykalo-Fesenko, P.-M. Déjardin, and R. W. Chantrell, Phys. Rev. B 82,
+     024412 (2010).
+[79] L. Desplat, Thermal stability of metastable magnetic skyrmions, PhD, Univ. Glasgow (2019).
+[80] G. Duff, Doctoral (2008).
+[81] V. I. Mel’nikov and S. V. Meshkov, J. Chem. Phys. 85, 1018 (1986).
+[82] P. F. Bessarab, G. P. Müller, I. S. Lobanov, F. N. Rybakov, N. S. Kiselev, H. Jónsson, V. M. Uzdin, S. Blügel, L. Bergqvist,
+     and A. Delin, Sci. Rep. 8, 3433 (2018).
+[83] P. Krantz, M. Kjaergaard, F. Yan, T. P. Orlando, S. Gustavsson, and W. D. Oliver, Appl. Phys. Rev. 6, 021318 (2019).
+[84] M. Tinkham, Introduction to superconductivity, Vol. 1 (Courier Corporation, 2004).
+

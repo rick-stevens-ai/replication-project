@@ -1,0 +1,423 @@
+# INTERIM: pdftotext fallback
+
+> Marker/Nougat not available in this environment; this is a pdftotext extraction of the front matter (pp.1-4) as an interim stand-in. Full paper text also available at work/textures-loop-current-gerguri2026.txt
+
+---
+
+Correlated charge order intertwined with time-reversal symmetry-breaking nodal
+superconductivity in the dual flat band kagome superconductor CeRu3 Si2
+O. Gerguri,1, 2, ∗ P. Kral,1, ∗ M. Spitaler,1 M. Salamin,3 J.N. Graham,1 A. Doll,1 I. Bialo,2 I. Plokhikh,4, 5 J.
+Krieger,1 T. J. Hicken,1 J. Oppliger,2 L. Martinelli,2 A. Steppke,1 N. Shepelin,1 R. Khasanov,1 M.v. Zimmermann,6
+B. Monserrat,7 H. Luetkens,1 J. Chang,2 F.O. von Rohr,3 Sun-Woo Kim,7, 8, † and Z. Guguchia1, ‡
+1
+PSI Center for Neutron and Muon Sciences, 5232 Villigen PSI, Switzerland
+Physik-Institut, Universität Zürich, Winterthurerstrasse 190, CH-8057 Zürich, Switzerland
+3
+Department of Quantum Matter Physics, University of Geneva, CH-1211 Geneva, Switzerland
+4
+TU Dortmund University, Department of Physics, Dortmund, 44227, Germany
+5
+Research Center Future Energy Materials and Systems (RC FEMS), Germany
+6
+Deutsches Elektronen-Synchrotron DESY, Hamburg, Germany
+7
+Department of Materials Science and Metallurgy, University of Cambridge, Cambridge, UK
+8
+Department of Physics, Hanyang University, Seoul 04763, Republic of Korea
+(Dated: March 31, 2026)
+
+arXiv:2603.27408v1 [cond-mat.supr-con] 28 Mar 2026
+
+2
+
+Kagome materials provide a powerful platform for exploring how flat electronic bands
+promote symmetry-breaking quantum states, yet studies have so far focused mainly on
+kagome-derived d-electron flat bands. In this paper, we introduce CeRu3 Si2 , a kagome
+superconductor in which our first-principles calculations show the coexistence of Ru
+d-orbital kagome flat bands and heavy-fermion flat bands derived from Ce4+ 4f -states.
+X-ray diffraction reveals a dominant 1/2 charge order with a much weaker 1/3 component persisting up to room temperature. Theoretical calculations further highlight the
+correlated nature of these charge-order states. Deep within the charge-ordered state,
+magnetoresistance emerges below 80 K and strengthens further below 30 K. Zero-field
+muon spin-rotation measurements show no time-reversal symmetry (TRS) breaking in
+the normal state, in contrast to LaRu3 Si2 and YRu3 Si2 . However, an applied magnetic field induces weak magnetism. Across the ARu3 Si2 family (A = La, Y, and
+Ce), the superconducting transition temperature Tc scales linearly with the onset temperature of normal-state TRS breaking TTRSB and the magnitude of the field-induced
+magnetic response, revealing a direct positive correlation between normal-state symmetry breaking and superconductivity. Furthermore, we identify that CeRu3 Si2 is the
+first 132-type kagome compound to host nodal superconductivity together with spontaneous internal magnetic fields, providing clear evidence for intrinsic TRS breaking
+in the superconducting state. These results establish CeRu3 Si2 as a unique platform
+where intertwined kagome d- and heavy fermion f -electron flat bands generate a rich
+hierarchy of electronic orders. More broadly, they introduce a new paradigm for engineering correlated states through the interaction of distinct flat-band systems, with
+implications extending beyond kagome superconductors.
+
+MAIN
+
+The interplay between crystal structure and electron
+correlations gives rise to a wide range of emergent electronic phases. Kagome lattices are a prime platform,
+hosting van Hove singularities [1–4], flat bands [5–10],
+Dirac fermions [9, 11], pair density waves [12], unconventional superconductivity [7, 13], and time-reversal symmetry breaking (TRSB) [7, 13–17]. A prominent example is the ternary kagome family ARu3 Si2 (A = La,
+Y). LaRu3 Si2 [6, 18–22] exhibits a dome-shaped superconducting phase diagram with one of the highest Tc
+values among kagome superconductors under low pressure, alongside multiple charge orders, field-induced magnetism below 80 K, and TRSB [16] below 35 K. Substituting Y for La introduces chemical pressure, lowering Tc to ∼3.4 K while strengthening charge order;
+YRu3 Si2 [23] also shows TRSB below 25 K and fieldinduced magnetism below 90 K. Despite differing energy
+
+scales, both compounds share nodeless superconductivity, high-temperature charge order, magnetoresistance,
+and normal-state TRSB. These phenomena arise from
+a common electronic structure with kagome-derived flat
+bands of Ru d-electrons, underscoring the central role of
+flat-band-driven correlations in shaping their phase diagrams.
+In the above-mentioned and other kagome materials,
+attention has so far focused almost exclusively on delectron flat bands. A fundamental open question is
+whether qualitatively new physics can arise when flat
+bands of distinct origin—such as kagome d-electron and
+heavy-fermion f -electron states—interact within a single system. To address this, we investigate the role of
+incorporating f -electron degrees of freedom by focusing
+on CeRu3 Si2 , in which the superconducting transition
+temperature is further reduced to Tc ∼ 1 K. Previous
+investigations [24–29] of CeRu3 Si2 have been largely restricted to bulk measurements, such as magnetic suscep-
+
+2
+b
+
+1 0 K
+
+a
+
+b
+
+3 0 K
+
+c
+
+5 0 K
+
+K in ( H , K , 8 ) [r .l.u ]
+
+B ra g g
+C O -II
+a *
+
+C O
+b *
+
+d
+
+g
+
+7 0 K
+
+g
+
+e
+
+9 0 K
+
+f
+
+3 0 0 K
+
+H in ( H , K , 8 ) [r .l.u ]
+
+FIG. 1. Synchrotron X-ray diffraction experiments on a single crystal of CeRu3 Si2 . (a-f) Reconstructed reciprocal
+space along the (0 0 1) direction at 8 r.l.u. (reciprocal lattice units), obtained at various temperatures between 10 K and 300
+K. The main reflections are split, due to the formation of orthorhombic domains. Arrows indicate the reciprocal lattice vectors.
+White, red and green circles mark the Bragg peak, primary charge order CO peak, and the secondary charge order CO-II peak,
+respectively.
+
+tibility and specific heat. As a result, the electronic structure, the contribution of Ce 4f electrons to the density
+of states, the superconducting gap symmetry, and the
+possible emergence of charge order or anomalous normalstate electronic responses have remained under-explored.
+Here, our central goal is to elucidate how the strong
+suppression of Tc correlates with changes in the normalstate properties, to determine whether Ce 4f electrons
+contribute magnetically or via electronic correlations related to flat-bands. This would help to establish whether
+a fundamental link exists between superconductivity and
+normal-state electronic responses across the kagome family ARu3 Si2 (A = La, Y, and Ce). In this work, we
+present a comprehensive study of CeRu3 Si2 over a wide
+temperature range, combining X-ray diffraction (XRD),
+magnetotransport, µSR, and first-principles calculations
+to uncover the rich landscape of electronic phases and
+
+to elucidate the influence of both heavy-fermion and
+kagome flat bands on the superconducting and normalstate properties.
+
+RESULTS AND DISCUSSION
+Correlated Charge Orders Revealed by X-ray
+Diffraction and DFT Calculations
+
+Firstly, to determine the presence of charge order, a
+synchrotron [30] X-ray diffraction (XRD) experiments on
+CeRu3 Si2 were conducted over a temperature range of
+10 K to 300 K. The reconstructed reciprocal patterns
+along (0 0 1) for L = 8 r.l.u, obtained at various temperatures are shown in Fig.1a-f. From 300 K down to
+10 K, 1/2 (q1 = (1/2, 0, 0), q2 = (1/2, 1/2, 0) and q3
+
+3
+b
+
+Parent structure (P6/mmm)
+
+Energy (eV)
+
+Ce
+Ru
+Si
+
+y
+x
+
+d
+
+CO structure (Pmma)
+
+2
+
+Ce-f
+
+Si
+
+x0.4
+
+0
+-1
+
+Г M K
+
+Г
+
+CO-II structure (Imma)
+
+A
+
+A0
+
+L H
+f
+
+Energy (eV)
+Energy
+
+g
+
+x
+
+x
+
+40
+20
+0
+
+Г
+
+Parent structure
+
+Ru-dxy /dx2-y2
+
+Ru-dxz /dyz
+
+M K
+
+Г
+
+CO-II
+
+Ru-dz2
+
+A
+
+L H
+
+CO
+
+A
+
+Ce-f
+
+0.8
+0.0
+-0.8
+
+y
+
+60
+
+20i
+
+14
+DOS (eV−1)
+
+1.6
+
+y
+
+c
+
+Ru-d
+Ce-f
+Si
+
+1
+
+-2
+e
+
+Ru-d
+
+Frequency (meV)
+
+a
+
+4 0
+
+0
+
+4 0
+DOS (eV−1 fu−1)
+
+Ce 4f as core
+no CO-II
+CO
+CO*
+
+2 0
+
+60
+
+Ce 4f as valence
+CO
+CO-II
+non-CO
+
+0
+
+6
+
+9
+
+U (eV)
+
+FIG. 2. Correlated charge-ordered states in CeRu3 Si2 . (a) Atomic structure of the parent phase (P 6/mmm). The
+dashed line indicates the primitive unit cell. (b) Orbital-projected band structure and density of states (DOS) of the parent
+structure. The sizes of the differently colored open circles overlaid on the band structure are proportional to the orbitalprojected weights of the corresponding band states. (c) Phonon dispersion of the parent structure. (d,e) Atomic structures
+of the CO (P mma) (d) and CO-II (Imma) (e) phases. (f) Orbital-projected DOS for the three structures. (g) Schematic
+energy diagram of the CO states obtained by treating the Ce 4f electrons as core (left) and valence (right). In the left panel,
+CO-II is not stabilized (relaxing into a different structure), and CO* denotes a charge order with q = 1/4. In the right panel,
+the energies are plotted as a function of the Hubbard U on the Ce 4f orbitals. Non-CO refers to a distorted structure with
+negligible Ru distortions.
+
+= (1/2, -1/2, 0)) and 1/3 (q1 = (1/3, 0, 0), q2 = (1/3,
+1/3, 0) and q3 = (1/3, -1/3, 0)) superstructure reflections emerge. The reciprocal vectors are given relative
+to the a×a×2c unit cell, according to the notation in
+Ref. [18]. This establishes the presence of various charge
+ordering within the orthorhombic phase in CeRu3 Si2 at
+least below 300 K. Although in the current work, we did
+not explore the temperature region above 300 K, the direct siblings of CeRu3 Si2 , the RRu3 Si2 phases, undergo
+a transformation from a high-temperature P 6/mmm to
+low-temperature orthorhombic phases at temperature as
+high as 600 K for R = La[16, 18], 760 K for R = Nd [31]
+and over 800 K for R = Y [23]. Hence, the observation of
+all three symmetry-related arms of charge-order vectors
+as well as pseudo-hexagonal symmetry of the diffraction
+pattern are due the formation of three symmetry related
+orthorhombic domains oriented according to C3 symmetry of the high-temperature P 6/mmm phase (a×a×c)
+rather then 3q order. Similar to YRu3 Si2 , the 1/2 order
+can be described within the P mma space group, while
+the 1/3 order, as in NdRu3 Si2 , corresponds to the Imma
+
+space group. The instability of the P 6/mmm phase and
+its tendency to transform into low-temperature, lowersymmetry (orthorhombic) structures is further supported
+by DFT calculations.
+To gain deeper insight into the charge-ordered states
+in CeRu3 Si2 , we performed first-principles DFT calculations (Fig. 2). These calculations reveal several key
+features of the electronic structure. In particular, they
+show the coexistence of Ru d-orbital kagome flat bands
+and heavy-fermion–like flat bands originating from the
+Ce4+ 4f states, with the Fermi level located between
+these two sets of bands (Fig. 2b). The f orbitals form
+flat bands situated above the Fermi level, consistent with
+a 4f 0 configuration. The corresponding phonon dispersion shows multiple imaginary modes in the qz = 1/2
+plane (Fig. 2c), which leads to two competing chargeorder patterns: a q=1/2 P mma charge order (CO) and
+a q=1/3 charge order with Imma symmetry (CO-II), as
+displayed in Figs. 2d,e. The CO structure exhibits a
+stripe-like pattern of in-plane Ru atoms while the CO-II
+structure shows a corner-sharing Star-of-David pattern.
+
+4
+These distortions are accompanied by a suppression of
+density of states near the Fermi level associated with the
+in-plane Ru dxy and dx2 −y2 orbitals that comprise the
+Ru-d flat bands (Fig. 2f). We also find that the Ce-f
+flat bands shift upward upon the formation of the charge
+ordered states, indicating that both the Ru-d and Ce-f
+flat bands are involved in the charge-ordering instability.
+Further analysis reveals that the Ce-4f states play a
+crucial role in determining the charge-ordered ground
+state of this compound (Fig. 2g), despite the f orbitals forming flat bands above the Fermi level. While
+the Hubbard interaction U on the Ce 4f orbitals has
+only a minor influence on the lattice parameters (less
+than 0.4% change from U = 0 to 9 eV), it strongly affects the relative energetics of the charge-ordered states,
+demonstrating the essential role of electronic correlations
+in stabilizing the charge order. Specifically, when the Ce
+4f states are excluded from the valence (i.e., treated as
+core electrons), the q=1/3 order is completely suppressed
+and the q=1/2 order is not stabilized as the lowest energy
+ground state, in contradiction with experimental observations. In contrast, when the Ce 4f electrons are included as valence states, the q=1/3 order is energetically
+favored over the q=1/2 order at U =0 eV. However, the
+ground state is still a different structure with negligible
+Ru distortions, which we classify as non-CO order. The
+two charge-ordered states become nearly degenerate at
+U =6 eV, and for U > 6 eV the q=1/2 order becomes the
+lowest-energy ground state, while the q=1/3 order remains very close in energy. These results suggest that a
+relatively large Hubbard interaction (U > 6 eV) for the
+Ce-f states is required to reproduce the experimental observations, highlighting the correlated nature of the dominant q=1/2 charge order together with a weaker q=1/3
+component observed experimentally.
+
+Magnetoresistance, Hall Reversal, and
+Superconducting Properties
+
+Having established the presence of correlated charge
+order and supported it by DFT calculations, we now examine the transport properties in both the normal and
+superconducting states. Figure 3a shows the temperature dependence of the electrical resistivity of CeRu3 Si2
+above Tc . In the charge-ordered phase, the resistivity
+remains metallic, consistent with behavior reported for
+LaRu3 Si2 [16], YRu3 Si2 [23], and the kagome superconductors AV3 Sb5 [32, 33]. This indicates that charge ordering in CeRu3 Si2 only induces a partial reconstruction of the Fermi surface, leaving a substantial fraction of itinerant carriers intact. Electrical transport is
+dominated by ungapped bands, resulting in metallic behavior upon cooling. This is typical of multiband or
+three-dimensional systems[34] and contrasts with quasione-dimensional Peierls systems, where charge order[35]
+
+opens a large gap and suppresses conductivity. The resistivity curve ρ(T ) (Fig. 3a) reveals two characteristic temperature scales governing the normal-state electronic properties. The first derivative of ρ(T ) (Fig. 3b)
+exhibits a weak anomaly at T1∗ ≃ 90 K, followed by a
+pronounced maximum at T2∗ ≃ 35 K. Motivated by these
+features, we carried out systematic measurements of the
+magnetoresistance (MR) (Fig. 3b and 3d) and Hall resistivity (Fig. 3c) over a broad range of temperatures
+and magnetic fields. The MR at 14 T becomes finite
+below ≃ 90 K and reaches values up to ≃ 18%, which
+is consistent with the positive MR expected in metallic
+systems[36]. Two clear slope changes can be discerned:
+an initial onset below T1∗ and a much steeper increase below T2∗ , closely tracking the anomalies in the resistivity
+derivative. Concurrently, the Hall resistivity undergoes
+a sign change across T1∗ . Taken together, these magnetotransport signatures point to a normal-state transition
+or crossover occurring between the onset of charge order
+and the emergence of superconductivity. Figure 3e shows
+the superconducting transitions under applied magnetic
+fields. For completeness, the data are also presented as
+a color map (Fig. 3f) with temperature on the horizontal axis and magnetic field on the vertical axis, where
+blue denotes the zero-resistance superconducting state
+and red the normal state. The superconducting state is
+expected to be progressively suppressed by a magnetic
+field as noted by the shift to lower transition temperatures (see Fig. 6e,f), yielding an estimated upper critical
+field Hc2 of 1 T at 0.6 K. The transition exhibits an onset at 2 K, while zero resistance is achieved only below
+0.9 K, resulting in an unusually broad temperature interval without zero resistance. X-ray diffraction confirms
+a homogeneous single phase, excluding sample inhomogeneity as the origin of this behavior. Moreover, as shown
+below in Fig. 6d, µSR detects the onset of superconductivity only below 0.9 K. Given its high sensitivity even
+to small superconducting volume fractions, this rules out
+a distribution of transition temperatures, which would
+otherwise produce a higher-temperature onset. Instead,
+the higher-temperature onset of the transition likely reflects two-dimensional superconductivity[37], with full
+three-dimensional phase coherence established only below 0.9 K. This scenario warrants further investigation
+in single crystals, once available.
+
+Nodal TRS-Breaking Superconductivity and
+SC–Normal-State Universal Scaling
+
+Next, we present µSR results probing the normal state
+of CeRu3 Si2 . A central question is whether magnetism
+is associated with the characteristic temperature scales
+T1∗ and T2∗ identified in transport, as previously observed in LaRu3 Si2 and YRu3 Si2 . To address this issue, we combine zero-field (ZF) and high transverse-field
+
+

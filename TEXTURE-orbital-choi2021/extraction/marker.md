@@ -1,0 +1,773 @@
+<!--
+ARTIFACT: extraction/marker.md
+SOURCE: textures-orbital-choi2021.pdf
+METHOD: pdftotext -layout (interim surrogate for marker; marker/nougat not installed on this host)
+NOTE: This is an INTERIM markdown extraction produced with pdftotext -layout and a
+hand-added header. A full marker run (deep-learning layout parser) was unavailable
+in this environment; the plain-text extraction below preserves reading order and
+is sufficient for the physics-claim extraction used in the replication.
+PAPER: Choi et al., "Observation of the orbital Hall effect in a light metal Ti"
+HEADLINE: fcc Ti sigma_OH ~ 3800 (hbar/e)(Ohm.cm)^-1, ~2 orders > sigma_SH = -40
+-->
+
+# Observation of the orbital Hall effect in a light metal Ti
+
+         Observation of the orbital Hall effect in a light metal Ti
+    
+              Young-Gwan Choi1†, Daegeun Jo2†, Kyung-Hun Ko1†, Dongwook Go3,4, Kyung-Han
+    
+        Kim2, Hee Gyum Park5, Changyoung Kim6,7, Byoung-Chul Min5, Gyung-Min Choi1,8★, and
+    
+                                            Hyun-Woo Lee2,9★
+    
+    
+    1
+        Department of Energy Science, Sungkyunkwan University, Suwon 16419, Korea
+    2
+        Department of Physics, Pohang University of Science and Technology, Pohang 37673,
+    Korea
+    3
+        Peter Grünberg Institut and Institute for Advanced Simulation, Forschungszentrum Jülich
+    and JARA, 52425 Jülich, Germany
+    4
+        Institute of Physics, Johannes Gutenberg University Mainz, 55099 Mainz, Germany
+    5
+        Center for Spintronics, Korea Institute of Science and Technology, Seoul 02972, Korea
+    6
+        Department of Physics and Astronomy, Seoul National University, Seoul 08826, Korea
+    7
+        Center for Correlated Electron Systems, Institute for Basic Science, Seoul 08826, Korea
+    8
+        Center for Integrated Nanostructure Physics, Institute for Basic Science, Suwon 16419,
+    Korea
+    9
+        Asia Pacific Center for Theoretical Physics, 77 Cheongam-ro, Pohang 37673, Korea
+    
+    
+    
+    †
+        These authors equally contributed to this work.
+    ★
+        Correspondence to: gmchoi@skku.edu (G.-M. Choi), hwl@postech.ac.kr (H.-W. Lee)
+    
+    
+    
+    
+            The orbital angular momentum is a core ingredient of orbital magnetism1, spin Hall
+    
+    effect2,3, giant Rashba spin splitting4,5, orbital Edelstein effect6, and spin-orbit torque7,8.
+    
+    However, its experimental detection is tricky. In particular, direct detection of the orbital
+    
+    Hall effect9 remains elusive10-13 despite its importance2,14 for electrical control of magnetic
+    
+                                                     1
+    nanodevices. Here we report the direct observation of the orbital Hall effect in a light
+    
+    metal Ti. The Kerr rotation by the accumulated orbital magnetic moment is measured at
+    
+    Ti surfaces, whose result agrees with theoretical calculations semiquantitatively and is
+    
+    supported by the orbital torque measurement15 in Ti-based magnetic heterostructures.
+    
+    The results confirm the electron orbital angular momentum as an essential dynamic
+    
+    degree of freedom9,16-20, which may provide a novel mechanism for the electric control of
+    
+    magnetism21,22. The results may also deepen the understanding of spin2,3,14, valley23,24,
+    
+    phonon25-27, and magnon28,29 dynamics coupled with orbital dynamics.
+    
+          Fast electrical control of magnetism can be achieved by injecting a spin current into
+    
+    nanomagnets8,30-32. The spin Hall effect (SHE)33-35 generates a spin current perpendicular to an
+    
+    external electric field by inducing spin-dependent transverse motion of electrons (Fig. 1a).
+    
+    Search for materials with stronger SHE is in progress to realize SHE-based nonvolatile memory
+    
+    devices32,35. Theoretical studies2,3,14 indicate that the SHE arises in 4d and 5d transition
+    
+    metals2,14 and possibly many other materials3,9,18,36 due to the orbital Hall effect (OHE)3,9,
+    
+    which induces orbital-angular-momentum-dependent transverse flows (Fig. 1b). The OHE-
+    
+    origin of the SHE explains2,14 the systematic variation of the spin Hall conductivity sign in 5d
+    
+    transition metals31,35,37. However, direct experimental evidence of the OHE is lacking10-13.
+    
+         The most direct observation of the OHE is arguably to measure orbital moments
+    
+    accumulated at surfaces of OHE-exhibiting materials. There are a few problems to overcome.
+    
+    Firstly, the OHE and the SHE usually go together, and distinguishing the resulting orbital and
+    
+    spin signals from each other is challenging since their properties are similar2,3. To overcome
+    
+    this problem, we utilize the fact that the spin-orbit coupling is compulsory for the SHE but not
+    
+    for the OHE3,36. Thus, in light metals with negligible spin-orbit coupling, the SHE becomes
+    
+                                                   2
+    negligible but the OHE can remain strong provided the orbital character of wave functions
+    
+    varies fast with crystal momentum (orbital texture3,36). We thus measure the orbital moment
+    
+    accumulation for the light metal Ti using the magneto-optical Kerr effect (MOKE). Our
+    
+    theoretical calculations (SI Sec. 1) verify that fcc Ti has pronounced orbital texture (Fig. 1c)
+    
+    and large orbital Berry curvature (Fig. 1d), which results in large orbital Hall conductivity 𝜎𝜎OH
+    
+    [3800 (ℏ/𝑒𝑒)(Ω ∙ cm)−1 ] that is two orders of magnitude larger than its spin Hall conductivity
+    
+    𝜎𝜎SH [-40 (ℏ/𝑒𝑒)(Ω ∙ cm)−1 ] (Fig. 1e). Another problem is the orbital quenching by the crystal
+    
+    field, which may severely suppress the orbital accumulation. Fortunately, the MOKE is two
+    
+    orders of magnitude more sensitive to the orbital magnetization than the spin magnetization in
+    
+    Ti (lower panel in Fig. 1e; see also SI Sec. 2) since the spin-orbit coupling, crucial for the
+    
+    sensitivity to the spin magnetization, is weak in Ti38. Thus, the MOKE signal of Ti is still
+    
+    dominated by the orbital accumulation even when the crystal field suppresses it. As an
+    
+    independent test, we also measure the orbital torque15 that arises when an OHE-induced orbital
+    
+    current is injected into an adjacent ferromagnet.
+    
+         Figure 2a shows the MOKE measurement geometry. When a charge current flows along
+    
+    the x-direction, the OHE results in the orbital accumulation at the top surface of Ti, whose
+    
+    magnetization is along the y-direction. To measure the y-magnetized orbitals, we use the
+    
+    longitudinal MOKE (LMOKE) geometry: a laser beam with s-polarization is incident at the
+    
+    center of the top surface with the incidence angle of φ = 25o in the yz-plane (Methods and SI
+    
+    Sec. 3). The measured Kerr rotation angle θK (Fig. 2b) for the beam reflected at the center of
+    
+    the Ti top surface (Ti thickness 90 nm) grows linearly with the charge current density jc and
+    
+    changes its sign for the opposite incidence angle of φ = −25o, which confirm that θK is not due
+    
+    to the Joule heating39 but instead originates from the y-polarized orbitals. For comparison, θK
+    
+                                                    3
+    is measured for a Pt control sample (Pt thickness 70 nm, SI Sec. 4). Interestingly, θK per jc is
+    
+    comparable for Ti and Pt; θK/jc≈−48.3±20.4 nrad/(107 A/cm2) for Ti and +24.3±4.0 nrad/(107
+    
+    A/cm2) for Pt (Fig. 2c). The latter value is comparable to the value +50 nrad/(107 A/cm2)
+    
+    obtained previously40 with a different laser frequency (Methods) and attributed to the SHE. In
+    
+    contrast, large θK for Ti cannot be attributed to the SHE since the SHE is quite weak and the
+    
+    MOKE is insensitive to the spin accumulation in Ti.
+    
+    
+         The Oersted field could generate θK linearly proportional to jc. To investigate this
+    
+    possibility, θK is scanned along the y-direction for φ = ±25o and decomposed into the LMOKE
+    
+    signal 𝜃𝜃𝐾𝐾𝐿𝐿 =[θK(φ=+25o)−θK(φ=−25o)]/2, which probes the y-component of magnetization, and
+    
+    the polar MOKE (PMOKE) signal 𝜃𝜃𝐾𝐾𝑃𝑃 =[θK(φ =+25o)+θK(φ=−25o)]/2, which probes the z-
+    
+    component of magnetization (SI Sec. 5). 𝜃𝜃𝐾𝐾𝐿𝐿 for Ti is essentially independent of y (black
+    
+    circles in Fig. 2d), which is the expected behavior for the current-induced orbital accumulation
+    
+    and similar to the SHE-driven 𝜃𝜃𝐾𝐾𝐿𝐿 for Pt (Fig. 2e). On the other hand, 𝜃𝜃𝐾𝐾𝑃𝑃 for Ti is
+    
+    antisymmetric in y and follows the spatial profile (solid red line in Fig. 2d) expected for the
+    
+    accumulation induced by the Oersted field z component (𝜃𝜃𝐾𝐾𝑃𝑃 for Pt is negligible, SI Sec. 6). To
+    
+    check if 𝜃𝜃𝐾𝐾𝑃𝑃 for Ti is due to the Oersted field, we calculate the Oersted-field-induced orbital
+    
+    magnetization (SI Sec. 6) and the resulting 𝜃𝜃𝐾𝐾𝑃𝑃 . It turns out that the computed peak values ±23
+    
+    nrad/(3×106 A/cm2) at the edges (y=±10 µm) are in reasonable agreement with the measured
+    
+    values 𝜃𝜃𝐾𝐾𝑃𝑃 = ±19 nrad/(3×106 A/cm2). On the other hand, a similar calculation (SI Sec. 6) of
+    
+    𝜃𝜃𝐾𝐾𝐿𝐿 originating from the Oersted-field-induced orbital magnetization turns out to be one order
+    
+    of magnitude smaller than the measured value. We thus conclude that 𝜃𝜃𝐾𝐾𝐿𝐿 is not due to the
+    
+    Oersted field whereas 𝜃𝜃𝐾𝐾𝑃𝑃 arises from the Oersted field in the Ti film (thickness 90 nm).
+    
+    
+                                                    4
+          To investigate the relationship between 𝜃𝜃𝐾𝐾𝐿𝐿 and the OHE, we measure both 𝜃𝜃𝐾𝐾𝐿𝐿 and the
+    
+    Kerr ellipticity 𝜀𝜀𝐾𝐾𝐿𝐿 as a function of the Ti film thickness t=9~90 nm (Fig. 2f). Interestingly,
+    
+    𝜃𝜃𝐾𝐾𝐿𝐿 changes its sign around t=45 nm, which is in clear contrast to the monotonic increase of
+    
+    𝜃𝜃𝐾𝐾𝐿𝐿 with t for Pt 40. On the other hand, 𝜀𝜀𝐾𝐾𝐿𝐿 for Ti increases monotonically with t. To understand
+    
+    the t-dependences (SI Secs.7-9), the complex Kerr rotation 𝜃𝜃�𝐾𝐾𝐿𝐿 = 𝜃𝜃𝐾𝐾𝐿𝐿 + 𝑖𝑖𝜀𝜀𝐾𝐾𝐿𝐿 is expressed as
+                            𝑡𝑡
+                         unit
+      𝜃𝜃�𝐾𝐾𝐿𝐿 ≈�𝜃𝜃�𝐾𝐾𝐿𝐿 �∞ � 𝑀𝑀𝑦𝑦 (𝑧𝑧)𝜅𝜅𝑒𝑒 −𝜅𝜅𝜅𝜅 𝑑𝑑𝑑𝑑,                                                   (1)
+                           0
+    
+                    unit
+    where �𝜃𝜃�𝐾𝐾𝐿𝐿 �∞ denotes the complex Kerr rotation per uniform orbital magnetization in bulk
+    
+    Ti (t=∞) in Fig. 1e, 𝑀𝑀𝑦𝑦 (𝑧𝑧) is the y-component of the magnetization at depth z of the film (z=0
+    
+    for the top surface and z=t for the bottom surface), and 𝜅𝜅= (0.58−i0.56)×108 m-1 is determined
+    
+    from the independently measured refractive index n (SI Sec. 11). For quantitative analysis, we
+    
+    use the orbital drift-diffusion equation and obtain the depth profile of magnetization (SI Sec.
+    
+    7),
+    
+                         sinh[(𝑧𝑧 − 𝑡𝑡/2)/𝑙𝑙𝐿𝐿 ]
+      𝑀𝑀𝑦𝑦 (𝑧𝑧) = 𝑀𝑀0                            ,                                                       (2)
+                            cosh(𝑡𝑡/2𝑙𝑙𝐿𝐿 )
+                          pr
+    with 𝑀𝑀0 = 𝛾𝛾𝐿𝐿 𝜎𝜎OH 𝑗𝑗𝑐𝑐 𝜌𝜌𝑙𝑙𝐿𝐿 /𝐷𝐷𝐿𝐿 . Here the electrical resistivity 𝜌𝜌 is measured independently (SI
+    
+    Sec. 11). Equation (2) and the expression for 𝑀𝑀0 are similar to the SHE-induced spin
+    
+    accumulation profile in Pt40 except for the trivial replacement of spin variables by the
+    
+    corresponding orbital variables such as the orbital relaxation length lL, the gyromagnetic ratio
+    
+    𝛾𝛾𝐿𝐿 for orbital, and the orbital diffusion constant 𝐷𝐷𝐿𝐿 . There is a nontrivial replacement,
+                                                             pr
+    however: the proper orbital Hall conductivity 𝜎𝜎OH appears in 𝑀𝑀0 instead of the conventional
+                                                    pr
+    orbital Hall conductivity 𝜎𝜎OH . 𝜎𝜎OH is the orbital version of the proper spin Hall conductivity41
+                                                    pr
+    and differs from 𝜎𝜎OH in that 𝜎𝜎OH takes account of the intrinsic orbital relaxation by the
+    
+    
+                                                         5
+    crystal field (SI Sec. 7).
+    
+          Equations (1) and (2) are used to fit the measured t-dependences of 𝜃𝜃𝐾𝐾𝐿𝐿 and 𝜀𝜀𝐾𝐾𝐿𝐿 . Since the
+    
+                                                         unit                      unit
+    fitting is sensitive to the phase angle of �𝜃𝜃�𝐾𝐾𝐿𝐿 �∞ , we use arg ��𝜃𝜃�𝐾𝐾𝐿𝐿 �∞ �, 𝑙𝑙𝐿𝐿 , and 𝑀𝑀0 as free
+    
+                                                               unit
+    parameters, whereas the independently evaluated ��𝜃𝜃�𝐾𝐾𝐿𝐿 �∞ � (SI Sec. 2) and 𝜅𝜅 remain fixed.
+    
+    Both 𝜃𝜃𝐾𝐾𝐿𝐿 and 𝜀𝜀𝐾𝐾𝐿𝐿 can be fitted excellently (solid lines in Fig.2f) for lL= 74 ± 24 nm,
+    
+                   unit
+    arg ��𝜃𝜃�𝐾𝐾𝐿𝐿 �∞ � = −0.95 ± 0.02 rad, and M0=(3.5 ± 0.7)×10-5 𝜇𝜇B /atom per jc of 107 A/cm2.
+    
+    The fitted value of 𝑙𝑙𝐿𝐿 agrees with the orbital relaxation length (61±18 nm) obtained from the
+    
+                                                                                                         unit
+    orbital torque measurement (Fig. 3f) presented below. The fitted value of arg ��𝜃𝜃�𝐾𝐾𝐿𝐿 �∞ �
+    
+    agrees reasonably well with the theoretical value arg[(−3.8+i7.3)×10−3 rad/(𝜇𝜇B /atom)]= −1.1
+    
+    rad for the orbital magnetization (lower panel in Fig. 1e). We then use the relation 𝑀𝑀0 =
+         pr                                                         pr
+    𝛾𝛾𝐿𝐿 𝜎𝜎OH 𝑗𝑗𝑐𝑐 𝜌𝜌𝑙𝑙𝐿𝐿 /𝐷𝐷𝐿𝐿 to convert the fitted value of 𝑀𝑀0 to 𝜎𝜎OH . DL is expected to be comparable to
+    
+    the charge diffusion constant D, but its precise value is unknown. Assuming that DL equals
+                              −1
+    𝐷𝐷 = �𝑒𝑒 2 𝜌𝜌𝜌𝜌(𝐸𝐸𝐹𝐹 )�        with the measured value of ρ and the calculated value of the density of
+    
+                                         pr
+    states 𝑁𝑁(𝐸𝐸𝐹𝐹 ), we obtain 𝜎𝜎OH = 36±7 (ℏ/𝑒𝑒)(Ω ∙ cm)−1 , which is about five times smaller
+                                                     pr
+    than the theoretically estimated value 𝜎𝜎OH = 200 (ℏ/𝑒𝑒)(Ω ∙ cm)−1 (SI Sec. 7). Considering
+    
+    the uncertainty in the ratio 𝐷𝐷𝐿𝐿 /𝐷𝐷, we argue that the fitted and the theoretically estimated values
+                                                          pr
+    are in reasonable agreement. Note that 𝜎𝜎OH is significantly smaller than the conventional
+    
+    orbital Hall conductivity 𝜎𝜎OH =3800 (ℏ/𝑒𝑒)(Ω ∙ cm)−1 , implying that the orbital quenching
+    
+    by the crystal field severely suppresses the orbital accumulation. By the way, if we assume that
+    
+    𝜃𝜃𝐾𝐾𝐿𝐿 and 𝜀𝜀𝐾𝐾𝐿𝐿 arise from the spin accumulation caused by the SHE in Ti, we obtain 𝑀𝑀0 =
+    
+    −2.8 × 10−3 𝜇𝜇B /atom per 107 A/cm2 and 𝜎𝜎SH = −1400 (ℏ/𝑒𝑒)(Ω ∙ cm)−1 , both of which
+    
+    are unrealistically large, implying that the SHE is not responsible for the measured Kerr signals.
+                                                               6
+    We thus conclude that the OHE is the more probable origin of the Kerr signals than the SHE
+    
+    (see SI Secs. 8 & 9 for other fitting methods).
+    
+            Next, we present experimental evidence of the orbital torque15 arising from an OHE-
+    
+    induced orbital current injected into a ferromagnet. We measure current-induced torque in Ti
+    
+    (t)/CoFeB (3 nm) bilayers (Fig. 3a) using the quadratic MOKE (QMOKE) in a polar geometry
+    
+    (φ=0) (SI Sec. 12). When the magnetization of CoFeB is tilted by the torque away from the
+    
+    equilibrium x-direction set by an external magnetic field, the resulting Kerr rotation by CoFeB
+    
+    is expressed42 as Δ𝜃𝜃𝐾𝐾 = 𝛼𝛼MO Δ𝑀𝑀𝑧𝑧 + 𝛽𝛽MO cos(2𝜓𝜓) Δ𝑀𝑀𝑦𝑦 , where 𝛼𝛼MO and 𝛽𝛽MO are,
+    
+    respectively, linear and quadratic MOKE coefficients of CoFeB, and ψ is the angle between
+    
+    light’s polarization and the magnetic field (Fig. 3a). 𝛼𝛼MO and 𝛽𝛽MO of each sample are
+    
+    determined from separate measurements (SI Secs. 13,14). The orbital torque from Ti induces
+    
+    the damping-like (hDL) and field-like (hFL) effective fields, which are responsible for ∆Mz and
+    
+    ∆My, respectively, and can be distinguished by their dependence on ψ (Fig. 3b). In addition to
+    
+    the orbital torque, the Oersted field also induces a torque on CoFeB. We predetermine the
+    
+    Oersted field from the spatial variation of ∆θK along the channel width (Fig. 3c). Then, from
+    
+    the magnetic field dependence of ∆My and ∆Mz, we find that the orbital torque induces a sizable
+    
+                                                                                                   𝑗𝑗
+    hFL but negligible hDL (Figs. 3d & 3e). Defining a normalized torque efficiency 𝜉𝜉DL/FL =
+    
+    2𝑒𝑒        ℎ
+          𝑀𝑀𝑠𝑠 𝑡𝑡𝐹𝐹 DL/FL , where 𝑀𝑀𝑠𝑠 is the saturation magnetization of CoFeB, 𝑡𝑡𝐹𝐹 is the thickness of
+    ℏ              𝑗𝑗𝑐𝑐
+    
+                                                                  𝑗𝑗                     𝑗𝑗
+    CoFeB, and 𝑗𝑗𝑐𝑐 is the current density in Ti, we obtain 𝜉𝜉FL = −0.32±0.06 and 𝜉𝜉DL = 0.01±0.01
+    
+    in the Ti (100 nm)/CoFeB (3 nm) sample.
+    
+                                             𝑗𝑗                                               𝑗𝑗
+            To investigate the origin of 𝜉𝜉FL/DL , the t (Ti thickness) dependences of 𝜉𝜉FL/DL are
+    
+                                     𝑗𝑗                                      𝑗𝑗
+    measured (Fig. 3f). While 𝜉𝜉DL stays negligible regardless of t, 𝜉𝜉FL increases with t, which
+    
+    implies that the field-like torque arises from the Ti bulk rather than the Ti/CoFeB interface. The
+                                                       7
+    measured field-like torque cannot be attributed to the bulk SHE in Ti since its 𝜎𝜎SH is tiny.
+    
+    Moreover, the spin current injection usually produces the damping-like torque dominantly
+    
+    instead of the field-like torque43. For the OHE, on the other hand, the resulting torque can be
+    
+    primarily damping-like or field-like depending on material details, according to the theoretical
+    
+    calculation (Fig. 4a vs. Fig. S2 in ref.44). The orbital torque calculation for a Ti/Co bilayer (SI
+    
+    Sec. 15) finds primarily field-like torque of negative sign, in agreement with the experimental
+    
+    result in Fig. 3f. We thus attribute the measured field-like torque to the bulk OHE in Ti. To
+    
+                                                                         𝑗𝑗
+    examine this interpretation further, we fit the t dependence of 𝜉𝜉FL by the expression,
+    
+           𝑗𝑗     FL
+                                 𝑡𝑡     𝑗𝑗
+         𝜉𝜉FL = 𝜃𝜃OH �1 − sech � �� + 𝜉𝜉int ,                                                       (3)
+                                𝑙𝑙𝐿𝐿
+    
+            FL                                                                        𝑗𝑗
+    where 𝜃𝜃OH is the effective orbital Hall angle for the field-like torque, and 𝜉𝜉int is the torque
+    
+                                                                                              FL
+    efficiency of interfacial origin. From the fitting (Fig. 3f), we obtain 𝑙𝑙𝐿𝐿 =61±18 nm, 𝜃𝜃OH =
+    
+                           𝑗𝑗
+    −0.36 ± 0.07, and 𝜉𝜉int = 0.04±0.03. 𝑙𝑙𝐿𝐿 matches excellently the value (74±24 nm) obtained
+    
+    from the orbital accumulation measurement (Fig. 2f), providing quantitative evidence that the
+    
+                                                                         FL
+    measured field-like torque arises from the OHE in Ti. The value of 𝜃𝜃OH is larger than the spin
+    
+    Hall angles of heavy metals such as Pt, Ta, and comparable to that of W [refs. 31,35,37]. From
+    
+      FL                                                                                    FL
+    𝜃𝜃OH , we evaluate the effective orbital Hall conductivity for the field-like torque, 𝜎𝜎OH =
+    
+      FL
+    𝜃𝜃OH /2𝜌𝜌 = 2000 (ℏ/𝑒𝑒)(Ω ∙ cm)−1 , which is in order of magnitude agreement with the
+    
+    theoretically calculated orbital Hall conductivity 𝜎𝜎OH [3800 (ℏ/𝑒𝑒)(Ω ∙ cm)−1 ] but one order
+                                                                        pr
+    of magnitude larger than the proper orbital Hall conductivity 𝜎𝜎OH [200 (ℏ/𝑒𝑒)(Ω ∙ cm)−1 ] that
+    
+    takes into account the orbital relaxation by the crystal field. This result implies that the crystal
+    
+    field severely suppresses only the orbital accumulation but not the orbital current. A similar
+    
+    result is obtained from the theoretical calculation (SI Sec. 15).
+    
+    
+                                                     8
+           Recent experiments13,21 suggested that an orbital-current-induced torque becomes more
+    
+    damping-like when a thin Pt layer is inserted in bilayer systems. We find a similar result for a
+    
+    Ti (100 nm)/Pt (3 nm)/CoFeB (3 nm) trilayer: The Pt layer insertion greatly enhances the
+    
+                                       𝑗𝑗
+    damping-like torque efficiency 𝜉𝜉DL from 0.01 to 0.13±0.03 (Fig. 3f). The enhanced value is
+    
+    significantly larger than the corresponding efficiency 0.065 for Pt(10 nm)/CoFeB(3 nm) (SI
+    
+    Sec. 14) and thus cannot be attributed to the SHE in Pt. Our torque calculation for a Ti/Pt/Co
+    
+    trilayer indicates that the enhanced damping-like torque originates from the OHE in Ti (SI Sec.
+    
+    15).
+    
+           Our experimental results confirm the OHE in a light metal Ti and hint at opportunities in
+    
+    the emerging field of orbitronics9,16,17. Recently reported large torques from the orbital
+    
+    current21,22,45 without any heavy metals widen material choice for the electrical control of
+    
+    magnetism. Sizable orbital relaxation length in Ti implies that the orbital may be used as an
+    
+    information carrier and explains why recent experiments46,47 on very thin Ti failed to observe
+    
+    the OHE. Our results also reveal interesting differences between the orbital and spin dynamics,
+    
+    which require an improved understanding of orbital dynamics48. The orbitronics also deepens
+    
+    understanding of other degrees of freedom since the orbital degree of freedom may play pivotal
+    
+    roles for the spin dynamics through the spin-orbit coupling2,3,14, the valley dynamics through
+    
+    the orbital dependence of valleys23,24, the phonon dynamics25 through the orbital-lattice
+    
+    deformation coupling26,49, and the magnon dynamics through the spin-orbit coupling28 or the
+    
+    scalar spin chirality29. More exotic opportunities may arise by linking the orbital and other
+    
+    dynamics.
+    
+    
+    
+    
+           Methods
+                                                    9
+    Device fabrication and characterization: Ti, Pt, and Ti/CoFeB samples are deposited onto
+    
+    sapphire substrates using the magnetron dc sputtering technique. The sputtering conditions are
+    
+    the base pressure of 10-8 Torr, process pressure of 5 mTorr of Ar, and substrate temperature of
+    
+    300 K. Deposition rates of Ti, Pt, and CoFeB are 0.039, 0.218, and 0.066 nm/s, respectively.
+    
+    To prevent the oxidation of deposited films, we deposit a 3-nm SiN layer on top of the metallic
+    
+    layers without breaking vacuum conditions. Devices are patterned by the photolithography
+    
+    method with bow-tie shape. The channel width at the center region is 20 μm for Ti and 10 μm
+    
+    for Pt. We check the fcc crystal structure of Ti by using X-ray diffraction (SI Sec. 10). We
+    
+    determine the refractive indices of Ti, Pt, and CoFeB in the wavelength range of 200~1000 nm
+    
+    using ellipsometry (SI Sec. 11). We measure the electrical resistivity of 9.0×10-7, 3.0×10-7, and
+    
+    12×10-7 Ohm·m of Ti, Pt, and CoFeB, respectively, by using the four-point probe method (SI
+    
+    Sec. 11).
+    
+    Detection of orbital accumulation using longitudinal-linear MOKE: By injecting an AC current
+    
+    on the Ti single layer, we induce the orbital accumulation on the top surface of Ti. To detect
+    
+    the orbital accumulation, a linearly polarized light with a wavelength of 780 nm is incident on
+    
+    the Ti surface with an oblique incident angle of ±25o (longitudinal geometry). The orbital
+    
+    accumulation results in the Kerr rotation of the reflected light, which is linearly proportional to
+    
+    the current density and changes its sign with the opposite incident angle. The magnitude of the
+    
+    Kerr rotation is determined by the linear magneto-optic constant and refractive index of Ti, the
+    
+    thickness profile of the orbital accumulation, and the incident angle of light (SI Sec. 5).
+    
+    Sensitive measurement of the Kerr rotation with a noisy level of <10 nrad is achieved by
+    
+    combining AC current source, lock-in amplifier, and balanced photodetector (SI Secs. 3 and 5).
+    
+    Detection of orbital torque using polar-quadratic MOKE: By injecting an AC current on the
+    
+                                                    10
+    Ti/CoFeB, Ti/Pt/CoFeB, or Pt/CoFeB heterostructures, we induce the orbital torque on the
+    
+    CoFeB magnetization. To detect the orbital torque, a linearly polarized light with a wavelength
+    
+    of 780 nm is incident on the CoFeB surface with an incident angle 0o (polar geometry) (SI Sec.
+    
+    12). The field-like torque, driven by the orbital current from Ti to CoFeB, tilts the CoFeB
+    
+    magnetization, resulting in the Kerr rotation of the reflected light. The magnitude of the Kerr
+    
+    rotation is determined by the quadratic magneto-optic constant of CoFeB, refractive indexes of
+    
+    Ti and CoFeB, initial polarization of light, and applied magnetic field (SI Secs. 13,14). With
+    
+    the same geometry, the Kerr rotation from the damping-like torque is determined by the linear
+    
+    magneto-optic constant of CoFeB and independent of the initial polarization of light and
+    
+    applied magnetic field (SI Sec. 14).
+    
+    
+    
+    
+    1      Lu, X. et al. Superconductors, orbital magnets and correlated states in magic-angle
+           bilayer graphene. Nature 574, 653-657 (2019).
+    2      Kontani, H., Tanaka, T., Hirashima, D. S., Yamada, K. & Inoue, J. Giant Orbital Hall
+           Effect in Transition Metals: Origin of Large Spin and Anomalous Hall Effects. Phys.
+           Rev. Lett. 102, 016601 (2009).
+    3      Go, D., Jo, D., Kim, C. & Lee, H. W. Intrinsic Spin and Orbital Hall Effects from Orbital
+           Texture. Phys. Rev. Lett. 121, 086602 (2018).
+    4      Sunko, V. et al. Maximal Rashba-like spin splitting via kinetic-energy-coupled
+           inversion-symmetry breaking. Nature 549, 492-496 (2017).
+    5      Park, S. R., Kim, C. H., Yu, J., Han, J. H. & Kim, C. Orbital-angular-momentum based
+           origin of Rashba-type surface band splitting. Phys. Rev. Lett. 107, 156803 (2011).
+    6      Johansson, A., Göbel, B., Henk, J., Bibes, M. & Mertig, I. Spin and orbital Edelstein
+           effects in a two-dimensional electron gas: Theory and application to SrTiO3 interfaces.
+           Phys. Rev. Res. 3, 013275 (2021).
+    7      Haney, P. M. & Stiles, M. D. Current-induced torques in the presence of spin-orbit
+           coupling. Phys. Rev. Lett. 105, 126602 (2010).
+    8      Manchon, A. et al. Current-induced spin-orbit torques in ferromagnetic and
+           antiferromagnetic systems. Rev. Mod. Phys. 91, 035004 (2019).
+    9      Bernevig, B. A., Hughes, T. L. & Zhang, S. C. Orbitronics: the intrinsic orbital current
+           in p-doped silicon. Phys. Rev. Lett. 95, 066601 (2005).
+    10     Xiao, J., Liu, Y. & Yan, B. Detection of the Orbital Hall Effect by the Orbital-Spin
+           Conversion. Preprint at https://arxiv.org/abs/2010.01970 (2020).
+    11     Zheng, Z. C. et al. Magnetization switching driven by current-induced torque from
+    
+                                                  11
+         weakly spin-orbit coupled Zr. Phys. Rev. Res. 2, 013127 (2020).
+    12   Lee, D. et al. Orbital torque in magnetic bilayers. Preprint at
+         https://www.researchsquare.com/article/rs-509141/v1 (2021).
+    13   Lee, S. et al. Efficient conversion of orbital Hall current to spin current for spin-orbit
+         torque switching. Preprint at https://arxiv.org/abs/2106.02286 (2021).
+    14   Tanaka, T. et al. Intrinsic spin Hall effect and orbital Hall effect in 4d and 5d transition
+         metals. Phys. Rev. B 77, 165117 (2008).
+    15   Go, D. & Lee, H. W. Orbital torque: Torque generation by orbital current injection. Phys.
+         Rev. Res. 2, 013177 (2020).
+    16   Ghosh, S. & Grytsiuk, S. Orbitronics with uniform and nonuniform magnetic structures.
+         Solid State Phys. 71, 1-38 (2020).
+    17   Go, D., Jo, D., Lee, H.-W., Klaui, M. & Mokrousov, Y. Orbitronics: Orbital currents in
+         solids. Europhys. Lett. (Perspective) in press https://doi.org/10.1209/0295-
+         5075/ac2653 (https://arxiv.org/abs/2107.08478).
+    18   Bhowal, S. & Satpathy, S. Intrinsic orbital moment and prediction of a large orbital Hall
+         effect in two-dimensional transition metal dichalcogenides. Phys. Rev. B 101, 121112(R)
+         (2020).
+    19   Phong, V. T. et al. Optically Controlled Orbitronics on a Triangular Lattice. Phys. Rev.
+         Lett. 123, 236403 (2019).
+    20   Tokatly, I. V. Orbital momentum Hall effect in p-doped graphane. Phys. Rev. B 82,
+         161404 (2010).
+    21   Ding, S. L. et al. Harnessing Orbital-to-Spin Conversion of Interfacial Orbital Currents
+         for Efficient Spin-Orbit Torques. Phys. Rev. Lett. 125, 177201 (2020).
+    22   Kim, J. et al. Nontrivial torque generation by orbital angular momentum injection in
+         ferromagnetic-metal/Cu/Al2O3 trilayers. Phys. Rev. B 103, L020407 (2021).
+    23   Bhowal, S. & Vignale, G. Orbital Hall effect as an alternative to valley Hall effect in
+         gapped graphene. Phys. Rev. B 103, 195309 (2021).
+    24   Cysne, T. P. et al. Disentangling Orbital and Valley Hall Effects in Bilayers of Transition
+         Metal Dichalcogenides. Phys. Rev. Lett. 126, 056601 (2021).
+    25   Zhang, L. F. & Niu, Q. Angular Momentum of Phonons and the Einstein-de Haas Effect.
+         Phys. Rev. Lett. 112, 085503 (2014).
+    26   Khomskii, D. I. & Streltsov, S. V. Orbital Effects in Solids: Basics, Recent Progress,
+         and Opportunities. Chem. Rev. 121, 2992-3030 (2021).
+    27   Ruckriegel, A. & Duine, R. A. Long-Range Phonon Spin Transport in Ferromagnet-
+         Nonmagnetic Insulator Heterostructures. Phys. Rev. Lett. 124, 117201 (2020).
+    28   Neumann, R. R., Mook, A., Henk, J. & Mertig, I. Orbital Magnetic Moment of Magnons.
+         Phys. Rev. Lett. 125, 117209 (2020).
+    29   Zhang, L. C. et al. Imprinting and driving electronic orbital magnetism using magnons.
+         Commun. Phys. 3, 227 (2020).
+    30   Miron, I. M. et al. Perpendicular switching of a single ferromagnetic layer induced by
+         in-plane current injection. Nature 476, 189-193 (2011).
+    31   Liu, L. Q. et al. Spin-Torque Switching with the Giant Spin Hall Effect of Tantalum.
+         Science 336, 555-558 (2012).
+    32   Bhatti, S. et al. Spintronics based random access memory: a review. Mater. Today 20,
+         530-548 (2017).
+    33   Kato, Y. K., Myers, R. C., Gossard, A. C. & Awschalom, D. D. Observation of the spin
+         hall effect in semiconductors. Science 306, 1910-1913 (2004).
+                                                 12
+    34     Wunderlich, J., Kaestner, B., Sinova, J. & Jungwirth, T. Experimental observation of
+           the spin-Hall effect in a two-dimensional spin-orbit coupled semiconductor system.
+           Phys. Rev. Lett. 94, 047204 (2005).
+    35     Sinova, J., Valenzuela, S. O., Wunderlich, J., Back, C. H. & Jungwirth, T. Spin Hall
+           effects. Rev. Mod. Phys. 87, 1213-1259 (2015).
+    36     Jo, D., Go, D. & Lee, H. W. Gigantic intrinsic orbital Hall effects in weakly spin-orbit
+           coupled metals. Phys. Rev. B 98, 214405 (2018).
+    37     Kimura, T., Otani, Y., Sato, T., Takahashi, S. & Maekawa, S. Room-temperature
+           reversible spin Hall effect. Phys. Rev. Lett. 98, 156601 (2007).
+    38     Ebert, H. Magneto-optical effects in transition metal systems. Rep. Prog. Phys. 59,
+           1665-1735 (1996).
+    39     Marui, Y., Kawaguchi, M. & Hayashi, M. Optical detection of spin-orbit torque and
+           current-induced heating. Appl. Phys. Express 11, 093001 (2018).
+    40     Stamm, C. et al. Magneto-Optical Detection of the Spin Hall Effect in Pt and W Thin
+           Films. Phys. Rev. Lett. 119, 087203 (2017).
+    41     Shi, J. R., Zhang, P., Xiao, D. & Niu, Q. Proper definition of spin current in spin-orbit
+           coupled systems. Phys. Rev. Lett. 96, 076604 (2006).
+    42     Fan, X. et al. All-optical vector measurement of spin-orbit-induced torques using both
+           polar and quadratic magneto-optic Kerr effects. Appl. Phys. Lett. 109, 122406 (2016).
+    43     Haney, P. M., Lee, H. W., Lee, K. J., Manchon, A. & Stiles, M. D. Current induced
+           torques and interfacial spin-orbit coupling: Semiclassical modeling. Phys. Rev. B 87,
+           174411 (2013).
+    44     Go, D. & Lee, H.-W. Orbital Torque: Torque Generation by Orbital Current Injection.
+           Preprint at https://arxiv.org/abs/1903.01085 (2019).
+    45     Tazaki, Y. et al. Current-induced torque originating from orbital current. Preprint at
+           https://arxiv.org/abs/2004.09165 (2020).
+    46     Zhu, L. J. & Buhrman, R. A. Absence of Significant Spin-Current Generation in Ti/Fe-
+           Co-B Bilayers with Strong Interfacial Spin-Orbit Coupling. Phys. Rev. Applied 15,
+           L031001 (2021).
+    47     Stamm, C. et al. X-ray spectroscopy of current-induced spin-orbit torques and spin
+           accumulation in Pt/3d-transition-metal bilayers. Phys. Rev. B 100, 024426 (2019).
+    48     Go, D. et al. Long-Range Orbital Transport in Ferromagnets. Preprint at
+           https://arxiv.org/abs/2106.07928 (2021).
+    49     Saitoh, E. et al. Observation of orbital waves as elementary excitations in a solid. Nature
+           410, 180-183 (2001).
+    
+    
+    
+    Acknowledgments
+    
+    D.J. was supported by the Global Ph.D. Fellowship Program by National Research Foundation
+    
+    of Korea (Grant No. 2018H1A2A1060270). D.J., K.-H.K., and H.-W.L. were supported by the
+    
+    Samsung Science and Technology Foundation (BA-1501-51). G.-M.C was supported by the
+    
+    
+                                                   13
+    National Foundation of Korea (2019R1C1C1009199). H.G.P and B.-C.M were supported by
+    
+    the KIST institutional program and the National Research Foundation of Korea (NRF)
+    
+    programs (2019M3F3A1A02071509 and 2020M3F3A2A01081635).
+    
+    
+    
+    
+    Author contributions
+    
+    Y.-G.C., D.J., and K.-H.K equally contributed to this work. C.K. initiated the project, and H.-
+    
+    W.L and G.-M.C. supervised the study. Y.-G.C. performed the measurement and analysis for
+    
+    the orbital accumulation in Ti and Pt films. K.-H.K performed the measurement and analysis
+    
+    for the orbital torque in Ti/CoFeB, Ti/Pt/CoFeB, and Pt/CoFeB heterostructures. D.J. and D.G.
+    
+    prepared theoretical formulation of the MOKE analysis. D.J. carried out the tight-binding
+    
+    calculations of the spin and orbital Hall conductivities of bulk Ti, analyzed the MOKE signals
+    
+    theoretically, and calculated the current-induced torque in Ti/Co bilayers. K.-H.K. calculated
+    
+    the proper orbital Hall conductivity of Ti. K.-H.K, Y.-G.C., H.G.P., and B.-C.M fabricated
+    
+    samples and characterized the optical, electrical, and magnetic properties.
+    
+    
+    
+    
+    Competing interests
+    
+    The authors declare that they have no competing interests.
+    
+    
+    
+    
+                                                  14
+    Figure 1. Schematic illustrations of spin Hall effect (SHE), orbital Hall effect (OHE), and its simulations
+    for Ti. a,b, When electrons flow due to an electric bias field, there occurs spin-dependent deflection motion
+    making a spin current along transverse direction inducing the accumulation of spin angular momentum 𝑺𝑺                   � at
+                                                                                            �
+    boundaries (SHE). For the OHE, electrons with orbital angular momentum 𝑳𝑳 can exhibit deflection motion even
+    without spin-orbit coupling, thereby inducing the accumulation of orbital angular momentum at boundaries. c,
+    The orbital texture on the inner Fermi surface of fcc Ti from the realistic tight-binding calculations (SI Sec. 1 for
+    calculation details and results on the outer Fermi surface). The color implies whether the wave function is more
+    like 𝒅𝒅𝒛𝒛𝟐𝟐 −𝒙𝒙𝟐𝟐 than 𝒅𝒅𝒛𝒛𝒛𝒛 (pink) or vice versa (green) for each crystal momentum k. d, k-resolved orbital Hall
+    conductivity under an electric field along the x-direction. The orbital Hall conductivity is large where the orbital
+    texture is strong. The black and white points denote two particular k points with the same 𝒅𝒅𝒛𝒛𝟐𝟐 −𝒙𝒙𝟐𝟐 character but
+    with opposite signs of kz. They evolve to the finite orbital angular momentum states �𝑳𝑳𝒚𝒚 = ±𝟐𝟐ℏ� ∝ �𝒅𝒅𝒛𝒛𝟐𝟐 −𝒙𝒙𝟐𝟐 � ±
+    𝒊𝒊|𝒅𝒅𝒛𝒛𝒛𝒛 ⟩, which give rise to the positive orbital current ∼ 𝒌𝒌𝒛𝒛 𝑳𝑳𝒚𝒚 . e, The orbital and spin Hall conductivities (upper
+    panel) of fcc Ti and the longitudinal complex Kerr angle (lower panel) from the uniform orbital or spin
+    magnetization (real and imaginary parts of the complex Kerr angle plotted separately). The quantities for orbital
+    are about two orders of magnitude larger than those for spin.
+    
+    
+    
+    
+                                                                15
+    Figure 2. Measurement of orbital accumulation. a, Schematic illustration of longitudinal MOKE experiment
+    (upper panel) and an optical image of a bow-tie shaped device (lower panel) for Ti film. 𝑬𝑬 is an electric field, 𝑳𝑳�
+    is the orbital angular momentum, 𝑴𝑴    � is the orbital magnetization, 𝝓𝝓 is a light incidence angle, and 𝜽𝜽  � 𝑲𝑲 is the
+    complex Kerr rotation. b,c, MOKE signal for Ti with thickness 90 nm (b) and Pt with thickness 70 nm (c) as a
+    function of current density, 𝒋𝒋𝒄𝒄 . The magnitude of MOKE signals is linearly proportional to 𝒋𝒋𝒄𝒄 . To remove the
+    Joule heating effect, all data points are collected by subtracting signals measured with opposite polarities of 𝒋𝒋𝒄𝒄 .
+    The left side of the origin corresponds to the negative incidence angle of the probing light. d, Spatial scanning
+    data of MOKE signal of the Ti 90 nm along the y-axis with jc of 3×106 A cm-2. Black and red data are longitudinal
+    and polar components of Kerr angle, 𝜽𝜽𝑳𝑳𝑲𝑲 and 𝜽𝜽𝑷𝑷𝑲𝑲 , respectively. e, Spatial scanning data of MOKE signal of the
+    Pt with thickness 70 nm along the y-axis with jc of 4.6×106 A cm-2. R is the reflected intensity of light. f, Thickness
+    dependence of the MOKE signal of the Ti thin films. Black and red circles are the real and imaginary parts of the
+    Kerr rotation. Error bars denote the confidence level of repeated measurements. Solid lines are fitting curves based
+    on the theoretically calculated orbital contributions for MOKE signal with lL of 74 nm. Dashed lines are fitting
+    curves of the spin contributions calculated by the predetermined parameters (SI Sec. 8). The inset shows an
+    example of a depth profile of the orbital angular momentum accumulation (black solid line) and attenuating light
+    profile (green dashed line). This propagating light into the Ti thin film can contribute to the complicated thickness-
+    dependent MOKE signals.
+    
+    
+    
+    
+                                                               16
+    Figure 3. Measurement of orbital torque a, Schematic illustration of the magnetization tilt of CoFeB due to the
+    orbital current injected from Ti in the Ti/CoFeB heterostructure. ψ is light polarization angle, 𝐸𝐸 is an electric
+                                              � is the magnetization of CoFeB, ℎ
+    field, 𝐵𝐵 is an external magnetic field, 𝑀𝑀                                 �⃗Oe is the Oersted field, and ℎ
+                                                                                                               �⃗DL/FL
+    is the effective field for the damping-like/field-like component of the orbital torque. b, ψ dependence of ∆𝜃𝜃𝐾𝐾 for
+    Ti (100 nm)/CoFeB (3 nm). Quadratic MOKE signal, driven by ℎ               �⃗FL + ℎ
+                                                                                      �⃗ 𝑦𝑦 , has a cos(2ψ) dependence, and linear
+                                                                                        Oe
+    MOKE signal, driven by ℎ        �⃗DL + ℎ�⃗Oe
+                                              𝑧𝑧
+                                                 , is independent of ψ. c, Spatial profile of ∆𝜃𝜃𝐾𝐾 of Ti (100 nm)/CoFeB (3 nm)
+    along the y-direction at ψ = 0o. Red squares are magnetization tilt due to the z-component Oersted field (ℎ               �⃗Oe
+                                                                                                                                 𝑧𝑧
+                                                                                                                                     )
+    obtained by symmetric components under magnetization reversal, (∆𝜃𝜃𝐾𝐾 (+𝑀𝑀) + ∆𝜃𝜃𝐾𝐾 (−𝑀𝑀))/2. The solid red line
+    is a fit of ℎ �⃗Oe
+                    𝑧𝑧
+                       . Black circles are magnetization tilt due to the orbital torque and y-component Oersted field (ℎ    �⃗DL +
+    �⃗FL + ℎ
+    ℎ        �⃗ ) obtained by asymmetric components under magnetization reversal, (∆𝜃𝜃𝐾𝐾 (+𝑀𝑀) − ∆𝜃𝜃𝐾𝐾 (−𝑀𝑀))/2.
+               𝑦𝑦
+               Oe
+    The magnetic field is fixed to 0.006 T for b and 0.053 T for c. d, Magnetic field dependence of ∆𝜃𝜃𝐾𝐾 (experimental,
+    black circles; fit, black solid line) of the Ti (100 nm)/CoFeB (3 nm) at ψ = 0o. The black line is a fit of ℎ      �⃗FL + ℎ�⃗ 𝑦𝑦 ,
+                                                                                                                                  Oe
+                                      �⃗ 𝑦𝑦
+    and the red line is a fit of ℎ . e, Magnetic field dependence of ∆𝜃𝜃𝐾𝐾 of the Ti (100 nm)/CoFeB (3 nm)/SiN (5
+                                    Oe
+    nm) (black circles) and Ti (100 nm)/Pt (3 nm)/CoFeB (3 nm)/SiN (5 nm) (red squares) at ψ = 45o. Lines are fits
+    of ℎ�⃗DL . All data of b, c, d, and e are obtained with a charge current of 30 mA. f, Ti thickness dependence of the
+    torque efficiency of the Ti (t nm)/CoFeB (3 nm) (filled symbols) and Ti (100 nm)/Pt (3 nm)/CoFeB (3 nm) (empty
+    symbols) structures. Circle and triangle points correspond to field-like and damping-like torque efficiency
+    (𝜉𝜉DL/FL ), respectively. The solid line is the fit of Eq. (3) with the orbital diffusion length lL=61 nm.
+    
+    
+    
+    
+                                                                   17
+    

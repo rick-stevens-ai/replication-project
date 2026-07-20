@@ -1,0 +1,368 @@
+<!-- EXTRACTION ARTIFACT: marker.md -->
+<!-- NOTE: marker (VikParuchuri/marker) not available in this environment.
+     This is an INTERIM extraction produced with pdftotext -layout as a stand-in.
+     Source PDF: textures-loop-current-feng2021.pdf
+     Paper: Feng, Jiang, Wang, Hu, "Chiral flux phase in the Kagome superconductor AV3Sb5", arXiv:2103.07097 (2021) -->
+
+# Chiral flux phase in the Kagome superconductor AV3Sb5
+
+Xilin Feng, Kun Jiang, Ziqiang Wang, Jiangping Hu — arXiv:2103.07097v2 (2021)
+
+---
+
+                                                                                       Chiral flux phase in the Kagome superconductor AV3 Sb5
+                                                                                         Xilin Feng,1, 2 Kun Jiang,1, ∗ Ziqiang Wang,3 and Jiangping Hu1, 4, †
+                                                        1
+                                                            Beijing National Laboratory for Condensed Matter Physics and Institute of Physics, Chinese Academy of Sciences, Beijing 100190, China
+                                                                               2
+                                                                                 School of Physical Sciences, University of Chinese Academy of Sciences, Beijing 100190, China
+                                                                                             3
+                                                                                               Department of Physics, Boston College, Chestnut Hill, MA 02467, USA
+                                                                          4
+                                                                            Kavli Institute of Theoretical Sciences, University of Chinese Academy of Sciences, Beijing 100190, China
+                                                                                                                       (Dated: May 7, 2021)
+arXiv:2103.07097v2 [cond-mat.supr-con] 6 May 2021
+
+
+
+
+                                                                           We argue that the topological charge density wave phase in the quasi-2D Kagome superconductor AV3 Sb5 is
+                                                                        a chiral flux phase. Considering the symmetry of the Kagome lattice, we show that the chiral flux phase has the
+                                                                        lowest energy among those states which exhibit 2 × 2 charge orders observed experimentally. This state breaks
+                                                                        the time-reversal symmetry and displays anomalous Hall effect. The explicit pattern of the density of this state in
+                                                                        real space is calculated. These results are supported by recent experiments and suggest that these materials are a
+                                                                        new platform to investigate the interplay between topology, superconductivity and electron-electron correlations.
+
+
+                                                                               I.   INTRODUCTION                                       (a)                                                   (b)
+                                                                                                                                              a2
+                                                                                                                                                      a1 1          2                    K           M              Qa
+                                                                                                                                                                                1
+                                                       Owing to its special geometry, materials with a Kagome lat-                                                                                          G
+                                                                                                                                                                                                      Qa           Qb
+                                                    tice structure have become very attractive systems to investi-
+                                                    gate many-body correlation physics. For example, the geom-                                                                            Qb
+                                                                                                                                                  3           4         3
+                                                                                                                                                                                                     Γ Qc
+                                                    etry frustration in Kagome magnetism is one of the promis-                                                                                                     Qc
+                                                                                                                                                                                                                Sb pz
+                                                    ing routes towards the quantum spin liquid [1–3]. The elec-                        C
+                                                    tronic structure of the Kagome lattice also hosts Dirac cones                     A
+                                                                                                                                          1
+                                                                                                                                              B
+                                                                                                                                                         2          1
+                                                                                                                                                                                                                   Vd
+                                                    and flat bands, which gives rise to many intriguing quantum
+                                                    phenomena including nontrivial flat-band responses, tunable
+                                                    Dirac cone etc. [4–9]. Additionally, those Kagome materials                     (c)                                                  (d) 2
+                                                                                                                                     State         Time      Rotation   Translation
+                                                    also exhibit rich topological physics including anomalous and                                                         T(a1,a2)
+                                                                                                                                                                                                 0
+                                                                                                                                    Normal          √          D6h
+
+
+
+
+                                                                                                                                                                                          E(k)
+                                                    quantum anomalous Hall, Z2 topological insulator, etc [10–                      vCDW            √          C3h          T(2a1,2a2)       -2
+                                                    12]. All these fantastic quantum properties make the Kagome                      CBO            √          D3h          T(2a1,2a2)
+                                                                                                                                                                                             -4
+                                                    lattice being an important platform to explore novel physics.                    CFP            ×          D*6h         T(2a1,2a2)
+                                                                                                                                                                                                     Γ      K     M      Γ
+                                                      Recently, the newly discovered quasi-2 dimensional (2D)
+                                                    superconductors AV3 Sb5 (A=K,Rb,Cs) may become a very                           FIG. 1: (a) The Kagome lattice and its translation vector a1 and a2 .
+                                                    unique system to study the Kagome physics [13–19]. Up to                        In each unit cell, the sublattice is labeled as A,B,C. The dashed blue
+                                                    date, the superconductivity of AV3 Sb5 shows nodal features                     lattice is the triangular lattice formed by the unit cell. And the 2 × 2
+                                                    [17, 20, 21]. The study of Josephson junction also provides                     unit cell is also plotted. The sub-unit cell for the 2 × 2 CDW order
+                                                    evidence for possible spin-triplet supercurrent [22]. Besides                   is also labeled as 1, 2, 3, 4. (b) The BZ for Kagome lattice. There is
+                                                                                                                                    one Sb pz FS (grey circle) around the Γ point and the V d FS (blue
+                                                    the superconducting ground state, a topological 2 × 2 charge
+                                                                                                                                    triangles) around the M point. The M point FS is around the 1/4 zone
+                                                    density wave state (CDW) was also observed in KV3 Sb5 by                        filling. The inter-scattering vectors between M points are indicated
+                                                    scanning tunneling microscopy (STM) under magnetic field                        by Qa ,Qb ,Qc . (c) Table for symmetry properties for the normal state
+                                                    [23], which may hold the key to explain the observed anoma-                     and three 2 × 2 symmetry breaking states, including time reversal
+                                                    lous Hall effect [24, 25] and topological edge state [22].                      symmetry T , point group and translation group. The effective point
+                                                                                                                                    group D∗6h is equal to {C6h , C2′ T C6h }. (d) The band structure for the
+                                                       These experimental results suggest that AV3 Sb5 are intrigu-                 nearest neighbor Kagome lattice at 5/4 filling.
+                                                    ing Kagome materials. However, these experimental findings
+                                                    still lack theoretical understanding. In this work, we will fo-
+                                                    cus on the CDW order observed in the normal state. We show                                               II.   TIGHT-BINDING MODEL
+                                                    that a chiral flux phase (CFP), which provides a 2 × 2 topo-
+                                                    logical CDW order, is a natural candidate to explain observed
+                                                                                                                                       As illustrated in Fig. 1a, each unit cell of Kagome lat-
+                                                    experimental results. The phase is the lowest energy state that
+                                                                                                                                    tice contains three sublattices, labeled as A, B, C. And the
+                                                    satisfies the symmetry constraints of the Kagome lattice. The
+                                                                                                                                    unit cell forms a triangular     lattice with translation vector
+                                                    CFP phase breaks the time reversal symmetry T and gives rise                                              1
+                                                                                                                                                                 √
+                                                                                                                                                                   3
+                                                    to the quantum anomalous Hall response.                                         a1 = (1, 0) and a2 = ( 2 , 2 ). This translation group is la-
+                                                                                                                                    beled as T (a1 , a2 ). And the point group for the Kagome lat-
+                                                                                                                                    tice is D6h , as summarized in Fig. 1c. The 2 × 2 CDW or-
+                                                                                                                                    der quadruply enlarges the unit cell, as indicated by the blue
+                                                    ∗
+                                                        Electronic address: jiangkun@iphy.ac.cn                                     dash lattice in Fig. 1a. Each unit cell inside the quadruple
+                                                    † Electronic address: jphu@iphy.ac.cn                                           order is also labeled as 1, 2, 3, 4. The density functional
+                                                                                                                                                  2
+
+
+        (a)                                        (b)                                           (c)
+                          1          2         1                       1           2         1                      1          2             1
+
+
+                     3          4         3                      3           4           3                     3          4         3
+
+
+                 1         2         1                     1           2           1                      1          2         1
+
+                                          vCDW                                           CBO                                            CFP
+        2
+
+        0
+ E(k)
+
+
+
+
+                                                                                                                                                 0
+                                                                                                                                        2        -1
+     -2
+                                                                                                                                        -1
+                                                                                                                                                 1
+     -4
+                vCDW                          (d)         CBO                                (e)        CFP                                  (f)
+            Γ             K         M              ΓΓ                  K           M             ΓΓ                  K         M                 Γ
+FIG. 2: Three charge orders and their corresponding band structures. (a) the charge configuration for chiral charge density wave (cCDW). (b)
+the real bond order configuration for charge bond order (CBO). (c) the hopping flux configuration for chiral flux phase (CFP). (d) the band
+structures for cCDW with λ = 0.3. (e) the band structures for CBO with λ = 0.3. (f) the band structures for CFP with λ = 0.3. All the occupied
+bands are highlight by red for (d), (e), (f). The Chern number for the occupied bands of CFP is also shown in (f).
+
+
+theory (DFT) calculation shows the normal state of Kagome                  shown in Fig. 1d and the electron filling is tuned to the 5/4
+AV3 Sb5 is a quasi-2D metal, which is excellently captured                 VH filling. The corresponding FS agrees with the FS plotted
+by the angle-resolved photoemission spectroscopy (ARPES)                   in Fig. 1b.
+measurements [14]. Therefore, the AV3 Sb5 lies in a weak
+correlation regime and can be effectively described by a 2D
+model. Based on DFT and ARPES results, we find that the                          III.   3Q INSTABILITY AND CHIRAL FLUX PHASE
+in-plane Sb pz orbital forms one electron pocket around the
+Γ point and the V d orbitals form multiple FSs around the M                   As described above, the 2 × 2 CDW in AV3 Sb5 is widely
+points, as illustrated in Fig. 1b. Importantly, the V d band               believed to stem from the multiple Q scatterings between the
+FSs touch the van Hove (vH) M points. The inter-scatterings                Kagome VH points, which breaks the translation group down
+between three vH points give us three important wave vectors               to T (2a1 , 2a2). Actually, these multiple Q FS instability at 3/4
+Qa = {0, √2π3 }, Qb = {−π, − √π3 } and Qc = {π, − √π3 }, which is          or 1/4 zone filling for hexagonal lattices stems from the sem-
+widely believed to be the reason for CDW in AV3 Sb5 . Hence,               inar discussion in triangular lattice [26], where the 3Q non-
+this 2×2 order is also called the 3Q quadruple order. The STM              coplanar chiral spin density wave (SDW) order is found to
+quasiparticle interference (QPI) results also show the 3Q scat-            be the leading instability in the Kondo lattice model and the
+tering between M points in addition to the Γ point intra-FS                Hubbard model. The chiral SDW order parameter S(r) can be
+scattering [20, 21]. Therefore, to capture the main physics                written as
+of the topological CDW in AV3 Sb5 , we can use a minimum
+single orbital model to study the electronic physics.                               S(r) = S (cos(Qa · r), cos(Qb · r), cos(Qc · r))             (2)
+   The nearest neighbor tight-binding model for Kagome lat-
+tice in the basis of ck = (ck,A , ck,B , ck,C ) can be written as          where the spin vector is defined as (s x , sy , sz ) in the three di-
+                                                                           rections. The four spin vectors of this quadrupled SDW order
+H0 = k c†k Hk ck , where
+      P
+                                                                           form a tetrahedron AFM at the triangular lattice. Because of
+                     −µ        −2t cos(k1 /2) −2t cos(k2 /2)             the non-zero spin chirality S1 · (S2 × S3 ), this quadruple or-
+                                                              
+             
+    Hk = −2t cos(k1 /2)        −µ        −2t cos(k3 /2)           der breaks the time-reversal symmetry and causes a quantum
+                                                               
+                                                                 (1)
+                −2t cos(k2 /2) −2t cos(k3 /2)      −µ                      anomalous Hall effect [26]. Besides this chiral SDW order,
+                                                               
+                               √                           √               various FS instabilities, such as d + id superconductivity, have
+and k1 = k x , k2 = 21 k x + 23 ky , and k3 = − 21 k x + 23 ky . µ         been widely studied in the honeycomb and Kagome lattices by
+is the chemical potential and the hopping t is chosen to be 1              mean-field theory [27–30], renormalization group (RG) [31],
+as the energy unit. The band structure for Kagome model is                 functional RG [32–35], and density matrix RG [36] , etc.
+                                                                                                                                                3
+
+   For AV3 Sb5 , the neutron scattering and the muon spin spec-                                                         0.8
+troscopy find little evidence for local magnetic moments or                  (a)                                              (b)          1A
+                                                                                                                                           2A
+long-range magnetic orders [13, 37]. Therefore, we will only
+
+
+
+
+                                                                                                              dI/dV (a.u.)
+                                                                                   1         2          1
+consider the spontaneous symmetric breaking in the charge
+channel. In order to construct a 2 × 2 order, the order pa-                                                             0.4
+rameter must utilize all the three Q scattering vectors, which                3         4          3
+implies the order parameter must contain three components in
+analogy to the spin (s x , sy , sz ). The key idea for 2 × 2 charge
+order is finding this three-component vector. Fortunately, the           1         2         1
+Kagome lattice still has the sublattice degree of freedom be-                                                                0
+                                                                                                                              -0.4 -0.2 0 0.2 0.4
+side the spin space. We can use the three sublattices A, B, C                                                                          E
+to form a three-component vector.
+   Obviously, the first choice is the charge density for each
+                                                                      FIG. 3: (a) The relative charge configuration for CFP. The charge
+sublattice                                                            density for the anti-clockwise flux triangular sites is larger than the
+                                                                      charge density for the clockwise flux hexagonal sites. (b) The tun-
+                     n̂(R) = (n̂A , n̂B, n̂C )                 (3)    neling density of states for site 1A and site 2A.
+
+where the R is the coordinate for the unit cell formed by the
+sublattices A, B, C. We name this charge order as the vector          As the current must conserve at each lattice site without
+charge density wave (vCDW). The order parameter for this              charge accumulation, we can determine the chiral flux phase,
+vector can be written as                                              as shown in Fig. 2c. Adding this order parameter and the re-
+                                                                      maining terms due to current constraint, the band structure for
+  ∆vCDW (R) = λ(cos(Qa · R), cos(Qb · R), cos(Qc · R))         (4)    CFP Hamiltonian is obtained in Fig. 2f. The CFP also opens
+                                                                      gap on the FSs at the M point and lifts most of the degener-
+where the λ is the coupling strength. Then, the charge order          acy below the Fermi level. More importantly, the ground state
+Hamiltonian can be written as                                         energy for CFP is 0.195t lower than the CBO per unit cell
+                         X                                            and 0.435t lower than the CDW per unit cell. Therefore, the
+               H = H0 −      ∆vCDW · n̂(R)               (5)          CFP is the most promising ground state for 5/4 filled Kagome
+                               R                                      lattice.
+                                                                         Besides the ground state energy comparison, the most un-
+The charge density for this vCDW order is illustrated in Fig.         conventional behavior for CDW state in AV3 Sb5 is the chi-
+2a. The corresponding band structures are also plotted in Fig.        ral anisotropy found by STM measurements under magnetic
+2d. From the band structures in Fig. 2d, we find the vCDW             field [12]. In addition, the anomalous Hall measurements also
+order can not lift the M point degeneracy from the 3Q folding         point out the CDW should break the time-reversal symmetry
+at λ = 0.3. Hence, this state can not be the ground state.            [24, 25]. These results support the CFP as the ground state
+   Besides the charge density n̂(R), the hopping bonds inside         compared to the other two time-reversal conserved charge or-
+each unit cell can also form a vector                                 ders. To confirm this, we calculate the intrinsic Hall responses
+                                                                      using the Kubo formula [38–40], which is directly related to
+                 Ô(R) = (c†A cB , c†B cC , cC† cA )           (6)    the Chern number for each band
+                                                                                                                     nm mn
+More specifically, there are two choices for the hopping bond                         e2 X [ f (ǫnk ) − f (ǫmk )]Im(v x vy )
+order parameters, real or imaginary. If the order parameter is                 σ xy =                                             (10)
+                                                                                       ~ k,n,m         (ǫnk − ǫmk )2
+real, a charge bond order (CBO) is formed, as illustrated in
+Fig. 2b. The order parameter for this order can be written as         where the f (x) is the Fermi distribution function and vnm    x/y =
+                                                                      hnk|v̂ x/y |mki is the matrix element of the velocity operator. The
+   ∆CBO (R) = λ(cos(Qa · R), cos(Qb · R), cos(Qc · R))         (7)
+                                                                      Chern number for each occupied CFP band is listed in Fig.
+Then, the charge order Hamiltonian can be written as                  2f. The CFP is also an QAH insulator with C = 1 for each
+                                                                                                                            2
+                                                                      spin sector. The total Hall response is σ xy = 2 e~ for the CFP
+                                                                      charge order. However, it is important to note that the AV3 Sb5
+                         X
+               H = H0 −     ∆CBO · Ô(R)                       (8)
+                               R
+                                                                      is a multi-orbital system, there are Fermi surfaces that are not
+                                                                      captured in our simple one-orbital model and can not be fully
+The band structure for CBO at λ = 0.3 is shown in Fig. 2b.            gapped out by the CFP order. Therefore, the Hall conductance
+The CBO opens a large gap at the M point becoming a possi-            should not be quantized.
+ble charge order solution. And this CBO is similar to the CBO            The charge density distribution for the CFP state at each
+proposed in Ref. [35].                                                site is plotted in Fig. 3a. We find that there are two types of
+  On the other hand, if the order parameter is imaginary, a           charge sites and two special flux loops. As shown in Fig. 3a,
+chiral flux phase is formed, which can be written as                  the two anti-clockwise triangle current flux loops (red circles)
+                                                                      form a honeycomb lattice and the clockwise hexagonal current
+   ∆CFP (R) = iλ(cos(Qa · R), cos(Qb · R), cos(Qc · R))        (9)    flux (blue circle) forms a triangular lattice. The charge density
+                                                                                                                                          4
+
+for each site at the anti-clockwise flux triangular is relatively     formed in neighboring Cu square plaquettes for the d-density
+larger than the charge density at the hexagonal current flux, as      wave state. Such a loop current or d-density wave can lead to
+indicated in Fig. 3a. This charge distribution clearly gives rise     an unusual magnetic order as measured by polarized neutron
+to a 2 × 2 charge order. Choosing two representative charge           diffractions [42, 45, 46]. Thus, we believe that the polarized
+sites, we also calculate the tunneling density of states at sites     neutron diffraction may find a similar signal for the CFP or-
+1A and 2A. They also show distinct features, as plotted in Fig.       der in AV3 Sb5 . This signal is related to the orbital magnetism
+3b.                                                                   associated with the chiral flux, which is found to be around
+                                                                            e
+   From the symmetry breaking point of view, the normal state         0.01 2~ ta2 [39, 47], where a is the lattice constant and e is the
+of Kagome lattice contains the symmetry D6h × T in addition           electron charge.
+to the translation group T (a1 , a2 ). The D6h is generated by           In summary, we discuss the possible 2 × 2 charge order
+the C6 rotation along the z axis, C2′ along y axis and inver-         states in AV3 Sb5 , including vCDW, CBO and CFP. We find
+sion symmetry I. As summarized in Fig. 1c, the vCDW and               the CFP state is the lowest energy state, which naturally gives
+CBO break the C6 rotation down to the C3h × T and D3h × T             rise to the time-reversal symmetry breaking and anomalous
+respectively. Interestingly, although CFP breaks the T sym-           Hall effect. Our findings will provide a new understanding for
+metry, there is still one effective point group symmetry D∗6h         the topological CDW state of the Kagome material AV3 Sb5 .
+generated by the C6 , I and C2′ T . Hence, the CFP keeps                 Conflict of interest
+all the point group symmetry of the normal state by doubling             The authors declare that they have no conflict of interest.
+the translation vectors. All these symmetry properties can be            Acknowledgments
+further examined by symmetry-selective measurements, like                We thank Jiaxin Yin, Zhenyu Wang, Jinguang Cheng,
+the Kerr effect. In addition, the coupling between the super-         and Geng Li for useful discussions. This work was sup-
+conductivity and the CFP is highly confined by their symme-           ported by the National Basic Research Program of China
+try characters. It is an intriguing problem to investigate how        (2017YFA0303100), the Ministry of Science and Technology
+this T breaking symmetry phase correlated with the super-             of China (2016YFA0302400), the National Natural Science
+conductivity in AV3 Sb5 in the future. And microscopically,           Foundation of China (NSFC-11888101, NSFC-11674370 and
+an extended Hubbard model with on-site Hubbard interaction            NSFC-11674278), Beijing Municipal Science and Technol-
+U and the nearest-neighbor Coulomb interaction V is needed            ogy Commission Project (Z181100004218001), the Strategic
+to stabilize this CFP solution, which will be considered in our       Priority Research Program of Chinese Academy of Sciences
+following works.                                                      (XDB28000000 and XDB33000000), and the Information
+                                                                      Program of the Chinese Academy of Sciences (XXH13506-
+                                                                      202). K.J. acknowledges support from the start-up grant
+             IV. DISCUSSION AND SUMMARY                               of IOP-CAS. Z.W. is supported by the U.S. Department
+                                                                      of Energy, Basic Energy Sciences Grant No. DE-FG02-
+   The CFP resembles the loop-current order and the d-density         99ER45747.
+wave state for the pseudogap phases in cuprates superconduc-             Author contributions
+tors proposed by C. Varma and S. Chakravarty et al. respec-              Xilin Feng, Kun Jiang, Ziqiang Wang and Jiangping Hu
+tively [41–44]. For loop current order, a current loop is formed      jointly identified the problem, performed the calculations and
+inside one Cu and two O triangle while staggered fluxes are           analysis, and wrote the paper.
+
+
+
+
+ [1] Zhou Y, Kanoda K, Ng TK. Quantum spin liquid states. Rev              ferromagnetic kagome metal. Nature 2018;555:638.
+     Mod Phys 2017;89:025003.                                          [9] Yin JX, Zhang SS, Li H, et al. Giant and anisotropic many-
+ [2] Ran Y, Hermele M, Lee PA, et al. Projected-wave-function              body spinorbit tunability in a strongly correlated kagome mag-
+     study of the spin- 12 heisenberg model on the Kagome lattice.         net. Nature 2018;562:91.
+     Phys Rev Lett 2007;98:117205.                                    [10] Ohgushi K, Murakami S, Nagaosa N. Spin anisotropy and quan-
+ [3] Helton JS, Matan K, Shores MP et al., Spin dynamics of the            tum Hall effect in the kagome lattice: chiral spin state based on
+     spin- 12 Kagome lattice antiferromagnet ZnCu3 (OH)6 Cl2 . Phys        a ferromagnet. Phys Rev B 2000;62:R6065(R).
+     Rev Lett 2007;98:107204.                                         [11] Guo HM, Franz M. Topological insulator on the kagome lattice.
+ [4] Lin ZY, Choi JH, Zhang Q, et al. Flatbands and emergent fer-          Phys Rev B 2009;80:113102.
+     romagnetic ordering in Fe3 Sn2 Kagome lattices. Phys Rev Lett    [12] Yin JX, Ma WL, Cochran TA et al. Quantum-limit Chern topo-
+     2008;121:096401.                                                      logical magnetism in TbMn6 Sn6 . Nature 2020;583:533.
+ [5] Yin JX, Zhang SS, Chang GQ, et al. Negative flat band mag-       [13] Ortiz BR, Gomes LC, Morey JR, et al. New kagome prototype
+     netism in a spinorbit-coupled correlated kagome magnet. Nat           materials: discovery of KV3 Sb5 , RbV3 Sb5 , and CsV3 Sb5 . Phys
+     Phys 2019;15:443.                                                     Rev Mater 2019;3:094407.
+ [6] Kang MG, Ye LD, Fang SA, et al. Dirac fermions and flat bands    [14] Ortiz BR, Teicher SML, Hu Y, et al. CsV3 Sb5 : a Z2 topological
+     in the ideal kagome metal FeSn. Nat Mater 2020;19:163.                Kagome metal with a superconducting ground state. Phys Rev
+ [7] Tang E, Mei JW, Wen XG. High-temperature fractional quan-             Lett 2020;125:247002.
+     tum Hall states. Phys Rev Lett 2011;106:236802.                  [15] Ortiz BR, Sarte PM, Kenney EM, et al. Superconductivity in
+ [8] Ye L, Kang MG, Liu JW, et al. Massive Dirac fermions in a             the Z2 kagome metal KV3 Sb5 . Phys Rev Mater 2021;5:034801.
+                                                                                                                                         5
+
+[16] Yin QW, Tu ZJ, Gong CS, et al. Superconductivity and normal-           tivity from repulsive interactions in doped graphene, Nat Phys
+     state properties of Kagome metal RbV3 Sb5 single crystals. Chin        2012;8:158.
+     Phys Lett 2021;38:037403.                                         [32] Wang WS, Xiang YY, Wang QH, et al. Functional renormal-
+[17] Zhao CC, Wang LS, Xia W, et al. Nodal superconductivity                ization group and variational Monte Carlo studies of the elec-
+     and superconducting domes in the topological Kagome metal              tronic instabilities in graphene near 41 doping. Phys Rev B
+     CsV3 Sb5 . arXiv:2102.08356, 2021.                                     2012;85:035414.
+[18] Du F, Luo SS, Ortiz BR, et al. Pressure-tuned interplay be-       [33] Kiesel ML, Platt C, Hanke W, et al. Competing many-body in-
+     tween charge order and superconductivity in the kagome metal           stabilities and unconventional superconductivity in graphene.
+     KV3 Sb5 , arXiv:2102.10959, 2021.                                      Phys Rev B 2012;86:020507(R).
+[19] Chen KY, Wang NN, Yin QW, et al. Double superconducting           [34] Wang WS, Li ZZ, Xiang YY, et al. Competing electronic
+     dome and triple enhancement of T c in the kagome supercon-             orders on kagome lattices at van Hove filling. Phys Rev B
+     ductor CsV3 Sb5 under high pressure. arXiv:2102.09328,2021.            2013;87:115135.
+[20] Liang ZW, Hou XY, Ma WR et al. Three-dimensional charge           [35] Kiesel ML, Platt C, Thomale R. Unconventional fermi sur-
+     density wave and robust zero-bias conductance peak inside              faceinstabilities in the Kagome hubbard model. Phys Rev Lett
+     the superconducting vortex core of a kagome superconductor             2013;110:126405.
+     CsV3 Sb5 . arXiv:2103.04760, 2021.                                [36] Jiang SH, Mesaros A, Ran Y. Chiral spin-density wave, spin-
+[21] Zhao H, Li H, Ortiz BR et al. Cascade of corre-                        charge-chern liquid, and d + id superconductivity in 1/4-doped
+     lated electron states in a kagome superconductor CsV3 Sb5 ,            correlated electronic systems on the honeycomb lattice. Phys
+     arXiv:2103.03118, 2021.                                                Rev X 2014;4:031040.
+[22] Wang Y, Yang SY, Sivakumar PK, et al. Proximity-induced           [37] Kenney EM, Ortiz BR, Wang C, et al. Absence of local mo-
+     spin-triplet superconductivity and edge supercurrent in the            ments in the kagome metal KV3 Sb5 as determined by muon
+     topological Kagome metal. K1x V3 Sb5 , arXiv:2012.05898,               spin spectroscopy. arXiv:2012.04737, 2020.
+     2020.                                                             [38] Thouless DJ, Kohmoto M, Nightingale MP, et al. Quantized
+[23] Jiang YX, Yin JX, Denner MM, et al. Discovery of uncon-                Hall conductance in a two-dimensional periodic potential. Phys
+     ventional charge order in kagome superconductor KV3 Sb5 .              Rev Lett 1982;49:405.
+     arXiv:2012.15709, 2020.                                           [39] Xiao D, Chang MC, Niu Q. Berry phase effects on electronic
+[24] Yang SY, Wang YJ, Ortiz BR, et al. Giant, unconventional               properties. Rev Mod Phys 2010;82:1959.
+     anomalous Hall effect in the metallic frustrated magnet candi-    [40] Fukui T, Hatsugai Y, Suzuki H. Chern numbers in discretized
+     date, KV3 Sb5 . Sci Adv 2020;6:eabb6003.                               Brillouin zone: efficient method of computing (spin) Hall con-
+[25] Yu FH, Wu T, Wang ZY, et al. Concurrence of anomalous Hall             ductances. J Phys Soc Jpn 2005;74:1674.
+     effect and charge density wave in a superconducting topological   [41] Chakravarty S, Laughlin RB, Morr DK, et al. Hidden order in
+     kagome metal. arXiv:2102.10987, 2021.                                  the cuprates. Phys Rev B 2001;63:094503.
+[26] Martin I, Batista CD. Itinerant electron-driven chiral magnetic   [42] Varma CM. Pseudogap in cuprates in the loop-current ordered
+     ordering and spontaneous quantum Hall effect in triangular lat-        state. J Phys Condens Matter 2014;26:505701.
+     tice models. Phys Rev Lett 2008;101:156402 (2008).                [43] Varma CM. Non-Fermi-liquid states and pairing instability
+[27] Tao Li, Spontaneous quantum Hall effect in quarter-doped Hub-          of a general model of copper oxide metals. Phys Rev B
+     bard model on honeycomb lattice and its possible realization in        1997;55:14554.
+     doped graphene system, EPL 97 37001.                              [44] Varma CM. Theory of the pseudogap state of the cuprates. Phys
+[28] Hayami S, Motome Y. Multiple-Q instability by (d − 2)-                 Rev B 2006;73:155113.
+     dimensional connections of Fermi surfaces. Phys Rev B             [45] Fauque B, Sidis Y, Hinkov V, et al. Magnetic order in the pseu-
+     2014;90:060402.                                                        dogap phase of high-T c superconductors. Phys Rev Lett 96,
+[29] Jiang K, Zhang Y, Zhou S, et al. Chiral spin density wave order        197001 (2006).
+     on the frustrated honeycomb and bilayer triangle lattice Hub-     [46] Li Y, Baledent V, Barisic N, et al. Unusual magnetic order in
+     bard model at Half-filling. Phys Rev Lett 2015;114:216402.             the pseudogap region of the superconductor HgBa2 CuO4 + δ.
+[30] Yu SL, Li JX. Chiral superconducting phase and chiral spin-            Nature 2008;455:372.
+     density-wave phase in a Hubbard model on the kagome lattice.      [47] Thonhauser T. Theory of orbital magnetization in solids. Int J
+     Phys Rev B 2012;85:144402.                                             Mod Phys B 2011;25:1429.
+[31] Nandkishore R, Levitov L, Chubukov A. Chiral superconduc-
+

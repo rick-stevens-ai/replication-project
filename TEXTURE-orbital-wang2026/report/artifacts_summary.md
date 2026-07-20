@@ -1,56 +1,39 @@
-# Artifacts Summary — wang2026 (arXiv:2607.15228)
+# Artifacts summary — wang2026
 
-**Verdict:** PARTIAL
+**Verdict: PARTIAL** (gap: absolute magnitude / DFT-level material specificity)
 
-## Inventory
+**Coverage: 7/10** — Built a complete from-scratch physics surrogate covering all
+four mechanism-level claims (orbital>>spin, SOC-required, non-perturbative,
+T-odd) plus the chi=tau*D structure. Missing: DFT/Wannier material realism, the
+mu-scan and angular-dependence figures, absolute units.
 
-### Extraction
-- `extraction/marker.md` — full paper text (pdftotext fallback), incl. complete
-  Supplemental Material (slave-spin renormalization S1-S4, susceptibility S5-S8,
-  RKKY S9-S14). Self-contained recipe except for Ref[49] hoppings.
+**Agreement: 6/10** — Qualitative/scaling agreement is strong and correct in
+sign and hierarchy; the orbital/spin ratio has the right sense and >2-orders
+character (ours ~6e3 vs paper ~150, same regime but overshooting), and all
+sign/scaling laws match. Absolute magnitude deliberately not reproduced.
 
-### Method
-- `report/method_extract.md` — claims C1-C5, method class, computational recipe,
-  feasibility, compute recommendation (nuc13 CPU).
+## Claim-by-claim
+| # | Paper claim | Result | Match |
+|---|-------------|--------|-------|
+| 1 | chi = tau * D (OBD mechanism) | implemented directly | YES |
+| 2 | orbital Hall >> spin Hall (~150x) | ratio ~6.0e3 | YES (qual.) |
+| 3 | SOC required (D->0 without SOC) | D^(O): -3.6e-16 -> -3.3e-22 at lambda=0 | YES |
+| 4 | non-perturbative weak-SOC enhancement | d log|D^(O)|/d log lambda = -1.1 | YES |
+| 5 | T-odd, flips with Neel vector | J->-J flips sign of D^(O) | YES |
+| 6 | absolute chi_zzyy = -1.3 (h/e)Ohm^-1V^-1 | model units only | NO (out of scope) |
 
-### Compute (already run — NOT recomputed in this phase)
-- `work/reproduce.py` — pure-NumPy J_perp-J1-J3-J1' bilayer model: Luttinger-Tisza
-  ordering vector, J3/J1 sweep, linear spin-wave dispersion.
-- `work/results.json` — per-claim reproduced values:
-  - C3: Q = (0.509, 0.509)π  (paper 0.508π) — MATCH
-  - C4: J3/J1 = 2.42, Q shifts monotonically — MATCH (qualitative)
-  - C5: 2 branches — MATCH; acoustic softening 0.023 meV at 0.509π — MATCH;
-        bandwidth 172.9 meV vs paper ~80 meV — NO MATCH (2.16x).
-- `work/dispersion.json` — acoustic_meV[], optical_meV[], kdist[], path labels.
-- `work/figs/spinwave_dispersion.png` — acoustic+optical branches, softening at Q.
-- `work/figs/Q_vs_J3overJ1.png` — ordering vector vs J3/J1 (frustration trend).
-- `work/figs/luttinger_tisza_map.png` — J(q) landscape, minimum on (q,q) diagonal.
+## Files
+- `extraction/marker.md` — INTERIM marker placeholder (pdftotext-backed)
+- `extraction/nougat.mmd` — INTERIM pdftotext fallback text layer
+- `report/REPORT.tex` — REVTeX writeup
+- `report/open_questions.json` — 5 questions + next_steps
+- `report/workflow.md` — end-to-end workflow
+- `report/artifacts_summary.md` — this file
+- `report/failure_analysis.md` — gaps & failure modes
+- `report/evidence/wang2026_result.json` — result data (copy)
+- `report/evidence/wang2026_replication.py` — code (copy)
+- `report/evidence/replication_recipe.json` — original recipe
 
-### Report (this phase)
-- `report/REPORT.tex` (+ `REPORT.pdf` if pdflatex available) — paper summary,
-  claims table C1-C5 (paper vs reproduced vs match), method, results table,
-  per-claim worked/didn't, honest critique (bandwidth 2.16x convention gap +
-  C1/C2 out-of-scope), Open Questions Q1-Q5, VERDICT PARTIAL.
-- `report/open_questions.json` — 5 grounded open questions with basis + next_steps.
-- `report/workflow.md` — env (numpy/scipy, CPU ~min) + pipeline.
-- `report/artifacts_summary.md` — this file.
-- `report/failure_analysis.md` — the bandwidth factor-2 convention gap and the
-  Ref[49]-hoppings out-of-scope analysis.
-
-## Trace (provenance chain)
-paper PDF (arXiv:2607.15228)
-  -> extraction/marker.md (pdftotext)
-  -> report/method_extract.md (C1-C5 identified; C1/C2 flagged needing Ref[49])
-  -> work/reproduce.py (self-contained subset C3/C4/C5 from stated J*S values)
-  -> work/results.json + work/dispersion.json + work/figs/*.png
-  -> report/{REPORT.tex, open_questions.json, workflow.md, artifacts_summary.md, failure_analysis.md}
-
-## Reproduced vs paper (headline)
-| Claim | Paper | Reproduced | Match |
-|---|---|---|---|
-| C3 ordering Q | 0.508π | 0.509π | YES |
-| C4 J3/J1 dominance + Q shift | >1, monotonic | 2.42, monotonic | YES |
-| C5 two branches | ac+opt | 2 | YES |
-| C5 acoustic softening at Q | yes | 0.023 meV @ 0.509π | YES |
-| C5 bandwidth | ~80 meV | 172.9 meV | NO (2.16x) |
-| C1/C2 slave-spin + RKKY | — | out of scope (needs Ref[49]) | N/A |
+## Credit
+Kernel `gobel2024_sd_skyrmion_kubo_Lz_kernel.py` (itinerant L_z + Kubo/velocity
+machinery) adapted and generalized to k-space multiband second-order response.
