@@ -23,7 +23,18 @@
 6. **Compare.** φ=0 → gap≈0, C=0 (TRS, no chiral order). Finite φ → gap opens,
    C=+1, σ_xy^s = 1/2, spontaneous loop current. Matches headline exactly on
    the topological invariant.
-7. **Report / package.** 8 artifacts (below) + evidence copies.
+7. **Explicit (2π,π/2,π/2) flux (COVERAGE-FLIP extension).**
+   `work/run_kumar2015_explicit_flux.py` builds the paper's actual XY-limit
+   chiral state (Eqs. 4.20–4.22) on the **doubled 6-site magnetic unit cell**:
+   enumerate 6 sites / 12 NN bonds / 4 triangle + 2 hexagon plaquettes; solve a
+   linear system for directed Peierls bond phases hitting flux = π/2 per
+   triangle and 2π (≡0) per hexagon; **numerically verify every plaquette
+   flux**; diagonalize the 6×6 Bloch H; compute per-band FHS Chern AND the
+   gauge-robust **non-Abelian occupied bottom-3 Chern**. Result: gap = 1.464 t
+   (open), occupied Chern = **+1**, σ_xy^s = **1/2** — matching the paper's
+   Eq. 4.20 occupied-Chern +1. SAVE-EARLY → merged into
+   `work/kumar2015_result.json` (`explicit_flux` section) before packaging.
+8. **Report / package.** 8 artifacts (below) + evidence copies.
 
 ## Tools / runners
 - Physics runner: `/home/stevens/comfyui-env/bin/python` (numpy 2.3.5, scipy 1.17.0).
@@ -35,10 +46,12 @@
 - `report/REPORT.tex`, `report/open_questions.json`, `report/workflow.md`,
   `report/artifacts_summary.md`, `report/failure_analysis.md`
 - `report/evidence/`: `kumar2015_result.json`, `run_kumar2015.py`,
-  `loop_current_kagome_kernel.py`, `replication_recipe.json`
+  `run_kumar2015_explicit_flux.py`, `loop_current_kagome_kernel.py`,
+  `replication_recipe.json`
 
 ## Reproduce
 ```bash
 cd /home/stevens/textures-100/corpus/textures-loop-current-kumar2015/work
-/home/stevens/comfyui-env/bin/python run_kumar2015.py
+/home/stevens/comfyui-env/bin/python run_kumar2015.py                # uniform-flux sweep
+/home/stevens/comfyui-env/bin/python run_kumar2015_explicit_flux.py  # explicit (2pi,pi/2,pi/2)
 ```

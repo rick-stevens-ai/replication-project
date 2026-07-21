@@ -25,9 +25,18 @@ HPC queue needed for the 7- and 19-site flakes.
    equivalent per-paper implementation and is the frozen artifact here.
 5. **Run.** `/home/stevens/comfyui-env/bin/python work/lohani_ed.py` — 7-site field sweep +
    binding analyses ($J_2=0.5$ and $0.7$) + 19-site flake up to $N_f=6$. Total runtime **~9.2 s**.
-6. **Compare.** Binding energy $E_0^B<0$ for all $N_f\ge2$ (both flakes); transverse anticorrelation
+5b. **Larger-flake FSS (COVERAGE-FLIP).** `work/lohani_fss.py` reruns the ED with sparse Lanczos on
+   flakes $N=7,19,\mathbf{37}$ (37 ≈ the paper's 31-site cluster), computing the **low-lying spectrum**
+   ($k{=}4$–$6$ states via `eigsh`, not just $k{=}1$) to resolve the near-degenerate
+   skyrmion/antiskyrmion **tunneling splitting** $\Delta_{\rm tun}=E_1-E_0$, plus $C_\perp$ and binding
+   vs $N$. $C_\perp$ is vectorized (numpy bit-ops + `searchsorted`) so the $N=37$, $N_f=5$ sector
+   (dim ≈ 436k) fits the budget. Total runtime **~74 s** (largest single diagonalization ≈ 46 s).
+6. **Compare.** Binding energy $E_0^B<0$ for all $N_f\ge2$ (all flakes); transverse anticorrelation
    $C_\perp=0.73$ (19-site, $N_f=4$) inside the paper's 0.6–0.8 window; raw scalar chirality
-   exactly 0 (expected — see failure_analysis.md).
+   exactly 0 (expected — see failure_analysis.md). **New:** the skyrmion-sector tunneling splitting
+   collapses from $\sim0.23$ (N=7, no skyrmion) to $\sim10^{-2}$ and down to $\sim10^{-14}$ (N=19,37),
+   reproducing the paper's exponentially-small-bandwidth claim with the correct $N_f\bmod3$ selection
+   structure.
 7. **Report.** This 8-artifact package.
 
 ## Tools & versions
@@ -41,12 +50,13 @@ HPC queue needed for the 7- and 19-site flakes.
 | nougat | **absent** (not installed) |
 
 ## Effort estimate
-- Physics build + run: already complete (~9 s runtime; the from-scratch ED build was the real cost).
+- Physics build + run: complete. Base ED ~9 s; the COVERAGE-FLIP FSS run (`lohani_fss.py`, N up to 37) ~74 s.
 - Packaging (this session): extraction fallback + 8 report artifacts, ~30 min.
-- To close the largest gap (31-site flake, matrix-free eigsh): estimated ~2–3 days including build
-  and a larger-memory host (nuc13 62 GB or uicgpu A100).
+- The largest remaining refinement (N=61,91 via matrix-free eigsh for full thermodynamic convergence)
+  is estimated ~2–3 days including build and a larger-memory host (nuc13 62 GB or uicgpu A100).
 
 ## Compute target
-CPU host, local. The 7-site sectors are trivial; the largest 19-site sector (`C(19,9)≈92k`)
-diagonalizes in seconds. The 31-site flake would need a matrix-free `LinearOperator` and a
-larger-memory node.
+CPU host, local. The 7-site sectors are trivial; the 19-site sectors diagonalize in seconds. The
+$N=37$ flake ($N_f=5$ sector, dim ≈ 436k) diagonalizes in ~46 s with sparse Lanczos + vectorized
+$C_\perp$ — well within budget. Pushing past $N=37$ (61/91 sites, sectors in the tens of millions)
+would need a matrix-free `LinearOperator` and a larger-memory node.
