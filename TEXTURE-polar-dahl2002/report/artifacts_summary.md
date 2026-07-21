@@ -1,33 +1,48 @@
-# Artifacts Summary — TEXTURE-polar-dahl2002
+# Artifacts summary — textures-polar-dahl2002
 
-## The 8-artifact bar
-| # | Artifact | Path | Status |
-|---|----------|------|--------|
-| 1 | Model code | `code/ssflc_model.py` | ✅ 5 checks, runs clean |
-| 2 | Supporting code | `code/verify_C2_prefactor.py` | ✅ analytic C2 cross-check |
-| 3 | Run outputs | `work/results.json`, `work/run.log`, `work/C2_prefactor.log` | ✅ real output |
-| 4 | REPORT | `report/REPORT.tex` | ✅ verdict + 5 claims |
-| 5 | Open questions | `report/open_questions.json` | ✅ 5 NEW |
-| 6 | Workflow | `report/workflow.md` | ✅ |
-| 7 | Artifacts summary | `report/artifacts_summary.md` | ✅ this file |
-| 8 | Failure analysis | `report/failure_analysis.md` | ✅ |
+**Paper:** Ingolf Dahl, "Ferroelectricity, SSFLC, bistability and all that", arXiv:cond-mat/0211693
+**Class:** polar / ferroelectric bistability
+**Verdict (judge, argo:claude-opus-4.5, njudges=1):** PARTIAL — Coverage=3, Agreement=8.
+Rationale: the from-scratch 0D LGD/TDGL model confirms Dahl's testable diagnostic
+quantitatively (double-well loop width frequency-independent, slope −0.02;
+single-well lossy width ∝ frequency, slope +1.06), but this is one narrow
+diagnostic — the paper's central SSFLC surface-stabilization thesis (needing
+spatial P(z) + anchoring) is out of scope, limiting coverage.
 
-## Claims & results
-| ID | Claim | Result | Verdict |
-|----|-------|--------|---------|
-| C1 | Switch rotates optic axis by 2θ | 45.00° vs 45.0° (err 7e-15°) | PASS (exact) |
-| C2 | τ = γ/(Ps·E) switching law | τ∝1/E, R²=0.9999; prefactor analytic | PASS (scaling) |
-| C3 | Helix-unwinding ~indep. of elastic stiffness (Dahl) | criterion K-invariant | PASS |
-| C4 | Bistability = double-well | 2 minima ±90°, 0 without anchoring | PASS |
-| C5 | Static-friction bistability (Dahl, novel) | memory + threshold switch | PASS |
+## Artifact inventory
+| # | Artifact | Path |
+|---|----------|------|
+| 1 | Marker extraction (interim) | `extraction/marker.md` |
+| 2 | Nougat extraction (interim) | `extraction/nougat.mmd` |
+| 3 | Report (LaTeX) | `report/REPORT.tex` |
+| 4 | Open questions (5 + next_steps) | `report/open_questions.json` |
+| 5 | Workflow | `report/workflow.md` |
+| 6 | Artifacts summary | `report/artifacts_summary.md` |
+| 7 | Failure analysis | `report/failure_analysis.md` |
+| 8 | Evidence (result + code + figure + recipe) | `report/evidence/` |
 
-## Verdict
-- **Coverage: 6/10** — source is a non-quantitative polemic (no dataset/figure/number); we replicate domain physics + Dahl's 2 original proposals, but nothing the paper itself computes (it computes nothing).
-- **Agreement: 8/10** — every checkable statement reproduces; C1 exact, C2 scaling exact (prefactor explained), C3–C5 self-consistent.
-- **Overall: REPRODUCED (domain-physics level).** Paper correctly flagged non-replicable as a primary paper; its physics is sound.
+## Supporting files
+- Physics runner: `code/dahl2002_lgd_tdgl.py` (also copied to `report/evidence/`)
+- Raw result: `work/dahl2002_result.json` (SAVE-EARLY) + copy in `report/evidence/`
+- Parsed text: `work/textures-polar-dahl2002.txt` (1317 lines)
+- Recipe: `report/evidence/replication_recipe.json`
+- Figure: `report/evidence/dahl2002_hysteresis_diagnostic.png`
+- Source PDF: `dahl2002.pdf` (327 KB, %PDF-1.2)
 
-## Key parameters (SSFLC, DOBAMBC/HOBACPC-like)
-K=5 pN, Ps=40 nC/cm², θ=22.5° (2θ=45°), Δε=1, W_s=1e-4 J/m², γ=0.1 Pa·s, d=1.5 µm, pitch=3 µm.
+## Physics summary (3 lines)
+Built a from-scratch 0D Landau–Ginzburg–Devonshire polarization model
+(F=½aP²+¼bP⁴+⅙cP⁶−EP) driven by AC field under overdamped TDGL dynamics,
+comparing a double-well (bistable) vs. a single-well nonlinear-lossy potential.
+Dahl's diagnostic is reproduced quantitatively: the double-well hysteresis-loop
+width is frequency-independent (log-log slope −0.02) while the lossy single-well
+width is proportional to frequency (slope +1.06), with the double well retaining
+a finite coercive field (~0.42) as ω→0 versus ~0.009 for the lossy case.
 
-## Compute
-Local Python 3 / numpy 2.4.3 / scipy 1.18.0. No network, no paid endpoints. Deterministic.
+## Provenance / credit
+LGD free-energy + Landau–Khalatnikov TDGL update adapted from
+`ollie_tdgl_phasefield_polar_skyrmion_kernel.py` (author: Ollie), reduced to the
+0D scalar polarization needed for the loop-width-vs-frequency diagnostic.
+
+## Judge
+Re-judged with `judge_verdict.py --model argo:claude-opus-4.5 --njudges 1`
+(verdict recorded at pipeline end).

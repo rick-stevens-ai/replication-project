@@ -1,59 +1,38 @@
-# Failure Analysis — TEXTURE-polar-dahl2002
+# Failure analysis — textures-polar-dahl2002
 
-## Overarching: the paper is non-replicable *as posed*
-The single biggest "failure" is inherent to the target: it is a **book-review /
-terminology-and-priority polemic**, not a primary research paper. It has no
-model, no dataset, no reproducible figure, and no headline number. The scaffold's
-method extract correctly recommended DROP. We did not fabricate a nonexistent
-result; instead we replicated the **domain physics the paper argues about** and
-Dahl's own qualitative alternative-view proposals. Coverage is therefore
-intrinsically capped (6/10) — you cannot reproduce numbers a paper never reports.
+## What could have gone wrong, and what did
+- **Old-style arXiv id**: `cond-mat/0211693` needs the bare-id PDF URL
+  (`/pdf/cond-mat/0211693`). Worked first try (327 KB, %PDF-1.2). The `v1`
+  fallback was not needed.
+- **Paper has no simulation**: it is a polemical review of Lagerwall's book.
+  Risk = nothing quantitative to replicate. Mitigated by extracting Dahl's own
+  operational, falsifiable diagnostic (loop width vs. drive frequency) rather
+  than inventing a numeric result.
 
-## What genuinely limited the replication
+## Genuine physics subtlety encountered (not a failure — a feature)
+At high drive frequency (ω ≥ 0.5) the double-well model **stopped switching**
+(coercive field → 0, loop collapses to a thin minor loop). Naively fitting the
+loop-area-vs-ω slope over ALL frequencies gave slope = −0.73 for the double
+well, which looked like a partial contradiction. This is not lossy behaviour: it
+is the barrier-limited regime — the field reverses before the polarization can
+climb over the barrier, so the loop never reaches ±P0. This is itself a
+signature of TRUE bistability (a lossy monostable material has no barrier and
+keeps a loop at all ω). Dahl's claim is explicitly about the low-frequency limit
+("width ... independent of the frequency" for the switching loop). Restricting
+the slope fit to the switching window (ω ≤ 0.2, where both potentials form a
+P=0-crossing loop) gives the clean result: DW slope −0.02, SW slope +1.06.
 
-### F1. PDF tool blocked by write-scope policy
-`pdf` tool refused `~/Dropbox/...` ("not under an allowed directory"). Worked
-around by using the pre-extracted `extraction/marker.md` (pdftotext, complete)
-via grep/sed. No information loss — the marker text is the full paper — but figure
-*images* (e.g. the disputed early-experiment photos) were not visually inspected;
-they are not quantitative anyway.
+## Limitations of the replication
+- **0D reduction**: uniform monodomain, scalar P. Does not test Dahl's central
+  thesis that SSFLC bistability is SURFACE-stabilized (needs spatial P(z) +
+  anchoring). We proved the diagnostic distinguishes double-well vs. lossy; we
+  did not prove which one real SSFLC cells are.
+- **Idealized loss model**: TDGL overdamped relaxation is the only dissipation;
+  the exact lossy exponent (+1.06 vs. Dahl's "approx. proportional") depends on
+  the loss mechanism.
+- **No experimental data**: comparison is model-internal (double-well vs.
+  single-well), matching Dahl's qualitative prediction, not measured FLC loops.
 
-### F2. C2 absolute prefactor is not in the paper (partial)
-The quoted law τ = γ/(Ps·E) is stated by Lagerwall (quoted by Dahl) as a
-*scaling*, with no numerical prefactor and no definition of "switching time"
-(10-90%? 1/e? full swing?). Our 10-90% time is 3.5× γ/(Ps·E). Root cause: the
-prefactor is the definitional integral ∫sec φ dφ over the 10-90% window, which is
-field-independent (verified numerically AND analytically, agreement <3%). So the
-*scaling* is exact; only an undefined constant differs. Marked PASS(scaling), not
-PASS(exact), to stay honest — we cannot match a number the paper never gives.
-
-### F3. Model is qualitative (matching a qualitative source)
-The uniform-director / rigid-cone reduction omits: spatial φ(z) domain-wall
-structure, tilt-magnitude relaxation θ(z) at surfaces, chevron layer geometry,
-and full disclination-line energetics. These are all out-of-scope for a minimal
-tractable model and are logged as open questions (Q2, Q3, Q5), NOT faked.
-
-### F4. Static-friction model (C5) is a reduced 1-DOF caricature
-Dahl's static-friction bistability is real physics but our C5 implements it as a
-threshold comparison (|driving| vs F_static), not a full multi-DOF dissipative
-integration with a disclination-passage energy landscape (which Dahl describes
-qualitatively, p.34). The reduced model demonstrates *self-consistency* of the
-mechanism (memory + threshold) but does not derive F_static from surface
-chemistry — flagged as open question Q1. This is a scope boundary, marked as such.
-
-## No fabrication statement
-Every number in `work/results.json` came from actually running
-`code/ssflc_model.py`. The C2 prefactor discrepancy was investigated (not hidden)
-with `verify_C2_prefactor.py`. Out-of-scope items (full DFT, domain-wall solver,
-chevron energetics, surface-chemistry F_static) are explicitly marked out-of-scope
-in open_questions.json, not simulated or asserted.
-
-## Lessons
-1. For review/opinion "papers," pivot to replicating the *domain physics under
-   discussion* + any *original claims the author advances* (here Dahl's C3, C5),
-   rather than forcing a nonexistent numerical reproduction.
-2. When a quoted law lacks a prefactor definition, verify the *scaling* and
-   explain the constant analytically rather than declaring pass/fail on an
-   undefined absolute value.
-3. Dropbox paths are outside the `pdf` tool's allowlist — use the pre-extracted
-   marker text.
+## Nothing fabricated
+All numbers come from the actual run in `work/dahl2002_result.json`
+(runtime 1.7 s). Marker/Nougat outputs are honestly labeled pdftotext interims.
