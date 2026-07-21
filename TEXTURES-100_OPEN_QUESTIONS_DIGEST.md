@@ -1,0 +1,2468 @@
+# TEXTURES-100 — Open Questions Digest
+
+**578 open research questions** harvested from 115 replicated papers (5 per paper, a few at 6).
+Each question is grounded in what the replication actually observed — paper-vs-result gaps, unspecified methods, sensitivity/scaling follow-ons — with a basis and a concrete next step.
+
+Generated 2026-07-20. Source: report/open_questions.json across all TEXTURE-* dirs (rick-stevens-ai/replication-project).
+
+## Contents
+- **loop-current** — 22 papers, 110 questions
+- **multipolar** — 19 papers, 96 questions
+- **orbital** — 23 papers, 115 questions
+- **polar** — 27 papers, 136 questions
+- **spin** — 24 papers, 121 questions
+
+
+## Recurring themes (across all 578)
+
+Cross-cutting patterns in what the replications flagged as open — useful for spotting where compute would move the needle:
+
+- **Experimental validation (17%)** — predictions awaiting measurement / comparison to samples.
+- **Absolute scale & scaling (13%)** — trends reproduced but absolute magnitudes/prefactors calibration- or DFT-bound (a recurring PARTIAL cause).
+- **Temperature / thermal (9%)** — finite-T behavior beyond the T=0 or mean-field core.
+- **DFT / ab-initio (8%)** — material-specific first-principles needed for quantitative closure.
+- **Convergence / grid / finite-size (7%)** — coarse-grid or small-lattice limits worth a convergence sweep (cheap wins).
+- **Self-consistent / RPA / interaction (7%)** — closing the loop on interaction strength / self-consistency.
+- **Spin-orbit (5%)**, **beyond-mean-field/fluctuations (2%)**, **disorder/defects (2%)**.
+
+**Quick-win signal:** the *convergence/grid (7%)* and *self-consistent (7%)* buckets are where modest free-endpoint/uicgpu compute could flip a PARTIAL → REPLICATED without new physics — those are the first candidates for a prioritized compute pass.
+
+---
+
+# LOOP-CURRENT
+
+### carvalho2015  (5 Q)
+
+**Q1.** Do the paper's full Appendix-B/C closed forms D_l^(m)(i eps_n, k) yield the SAME competition trends and critical ratio as our minimal anticommuting-gap reduction, and would they fix the absolute R_II, b magnitudes to the paper's O(1)-O(10) scale?
+  - *Basis:* The extracted PDF text references Appendices B and C for the explicit D_l^(m) polynomials but does not print them in full; our replication reproduces the trends, the ratio (0.171 vs 0.2), and M_LC (0.162 vs 0.19 muB) but absolute magnitudes remain calibration-dependent.
+  - *Next step:* Obtain the published PRB 92 075123 appendices (or the arXiv source .tex), implement the exact D_l^(m)(i eps_n, k) and the Matsubara sums (Eqs. 31, 33), and re-solve the coupled self-consistency to check both the trends AND the absolute scale of R_II^c, V_pd^c.
+
+**Q2.** Is the narrow coexistence window (both R_II and b finite) that the paper reports for 'moderate' V_pd and lambda reproduced, and how fine-tuned is it?
+  - *Basis:* Our sweeps show a sharp handoff (b -> 0 by V_pd ~ 12; R_II -> suppressed above lambda ~ 22) with only 1-2 grid points showing both nonzero, consistent with the paper's statement of a very narrow fine-tuned window, but we did not map the 2D (V_pd, lambda) coexistence boundary.
+  - *Next step:* Run a dense 2D scan over (V_pd, lambda), classify each point as pure-LC / pure-QDW / coexistence, and measure the width (in coupling space) of the coexistence sliver to quantify the fine-tuning.
+
+**Q3.** How sensitive are the critical interactions lambda_c and V_pd_c to the spin-wave mass m_a and the orbital-energy transfer (eps_d - eps_p), as the paper claims both critical values INCREASE when m_a grows or (eps_d - eps_p) -> 0?
+  - *Basis:* The paper (end of III) states lambda_c and V_pd_c both increase with larger m_a and with smaller (eps_d - eps_p); our model carries m_a only through the QDW stiffness <D_eff^-1> and does not yet expose (eps_d - eps_p) in the hot-spot gaps, so this claim was not tested.
+  - *Next step:* Add explicit m_a and (eps_d - eps_p) dependence into the gap form factors and the stiffness, then sweep to check whether the LC/QDW onset couplings shift in the directions the paper reports.
+
+**Q4.** Does the ThetaII loop-current phase (imaginary bond order) truly break time-reversal AND parity while preserving their product, as claimed, when computed as an explicit order-parameter symmetry analysis rather than assumed?
+  - *Basis:* We encoded R_II as the TRS-odd (imaginary) channel per Varma / the kernel's real-imag split, but did not independently verify the T, P, and TP transformation properties of the constructed order parameter.
+  - *Next step:* Construct the real-space ThetaII current pattern from the A^(3),A^(4) operators (Eqs. 5-6), apply T, P, and TP symmetry operations explicitly, and confirm T-odd, P-odd, TP-even.
+
+**Q5.** Is the M_LC ~ 0.19 muB estimate robust when computed from the actual loop-current bond expectation values (Ref. 48 mapping) instead of the paper's stated linear ratio proxy?
+  - *Basis:* We reproduced 0.162 muB by pushing our critical ratio through the paper's own linear map M_LC proportional to R_II^c/V_pd^c; the underlying Ref.48 current-to-moment conversion (bond currents -> orbital magnetization) was not implemented.
+  - *Next step:* Implement the Ref. 48 bond-current-to-orbital-moment mapping directly from the self-consistent A^(3) expectation values and compare the resulting moment to both 0.19 muB and the neutron estimate 0.05-0.1 muB.
+
+### chatterjee2017  (5 Q)
+
+**Q1.** Does the self-consistent square-lattice SDW mean-field with full tp (p=1..4) plus free (h, theta, K) minimization reproduce the paper's Fig. 3 phase diagram in the (U, n) plane, including the exact D0/A0/B0/C0/F0 boundaries and the reported first- vs second-order character?
+  - *Basis:* We verified the ingredients (2-band spectrum Eq. B6, self-consistent gap, Neel ground state at n=1, hole-side incommensurability, collinear->zero current) but did NOT perform the full simultaneous (h,theta,K) minimization across a dense (U,n) grid, so the actual phase-boundary loci and their order (solid/dashed in Fig. 3) are unconfirmed against the paper.
+  - *Next step:* Extend run_checks.py with a Nelder-Mead / grid minimization of free_energy over (h in [0,hmax], theta in [0,pi/2], Kx,Ky in BZ) at each (U,n), classify with classify_phase(), and overlay the resulting boundaries on a digitized Fig. 3; detect transition order from continuity of the order parameters.
+
+**Q2.** What hopping ratios (t2/t1, t3/t1, t4/t1) does the paper actually use for Fig. 2d-f / Fig. 3, and does the multicritical meeting point of A0,B0,C0,D0 emerge at the claimed location with those values?
+  - *Basis:* The paper states tp for p=1..4 are non-zero but the PDF text (Appendix B) does not tabulate the numeric values used; we chose cuprate-like t'/t=-0.3, t''/t=0.15 as a stand-in, which is a modelling assumption, not the paper's exact set.
+  - *Next step:* Search the paper's SI / cited refs [48,49] and the arXiv source (if TeX available) for the explicit tp table; re-run the phase scan with the paper's values and test whether the four phases meet at a single multicritical point as in Fig. 2a.
+
+**Q3.** Is the loop current J_ij computed here from the EFFECTIVE CHARGON Hamiltonian (Eq. 9, with the Zij hopping renormalization and self-consistent Uij) quantitatively equal to that from the bare-electron SDW mean-field, as the paper argues (App. C, 'directly transfer the results')?
+  - *Basis:* We computed J_ij from the bare 2-band SDW mean-field and confirmed the qualitative statement (collinear->0, non-collinear->finite), but did not implement the chargon Zij/self-consistent-Uij loop, so the claimed one-to-one transfer of current patterns is only partially tested.
+  - *Next step:* Implement the chargon Hamiltonian Hpsi (Eq. 9) with an iterative self-consistent Uij and Zij, recompute J_ij for the staggered-conical-spiral configs (E)^{(eta_x,eta_y)} of Fig. 4, and compare the current-pattern topology (which bonds carry current, signs) against Fig. 1b/Fig. 4.
+
+**Q4.** Do the residual-symmetry generators in Table II (e.g. C-phase has Theta*C2 but not Theta or C2 alone -> current-loop / TRS+mirror breaking) follow from an explicit symmetry-operator check on the chargon Hamiltonian, rather than from our energetic/current proxy?
+  - *Basis:* Our C5 check verifies the physical consequence (collinear order carries no bond current; non-collinear does) but does not construct the SU(2) gauge matrices Gi(g) of Eq. C11 to directly certify the Table II residual groups for phases A, B, C.
+  - *Next step:* Build the lattice symmetry operators (Tmu, C4, Ix, Theta) and their gauge partners Gi(g) for each Higgs config Eq. 8, test invariance of Hpsi under Eq. C11, and reproduce Table II generator-by-generator; then confirm phase C breaks Theta and mirror individually but preserves their product.
+
+**Q5.** Does the electron-doped side genuinely remain COPLANAR (theta=0) as the paper claims ('electron-doped side has coplanar magnetic order even at larger dopings'), given our C4 scan found a mild incommensurability on BOTH sides?
+  - *Basis:* C4 confirmed the hole-side incommensurate spiral (the paper's main particle-hole-asymmetry claim) but our fixed-h, single-cut (Kx, pi) scan also returned a slightly incommensurate best-K on the electron side, which may be an artifact of not co-optimizing theta and the full 2D K, or of our stand-in hopping set.
+  - *Next step:* Redo C4 with full 2D K=(Kx,Ky) and simultaneous theta minimization at self-consistent h for a ladder of electron dopings n=1.05..1.3; verify theta stays ~0 (coplanar) and quantify any residual electron-side incommensurability against the paper's statement.
+
+### christensen2022  (5 Q)
+
+**Q1.** Which of the seven symmetry-distinct iCDW orders (mM2+, mM3+, mM4+ across occupied/unoccupied vHs) is actually realized in CsV3Sb5?
+  - *Basis:* The subsidiary uniform magnetic order (ferro vs octupolar vs toroidal vs monopolar) and the observable magneto-electric/striction signatures depend entirely on which iCDW irrep condenses.
+  - *Next step:* Compute the DFT VHS orbital/sublattice content at M and evaluate which iCDW channel has the most attractive interaction; cross-check against measured Kerr/muSR TRS-breaking onset.
+
+**Q2.** Does the coupled theory select 3Q-3Q or 2Q-1Q for realistic AV3Sb5 coefficient values?
+  - *Basis:* 3Q-3Q preserves C3 (magnetic orders) while 2Q-1Q is orthorhombic; experiments report nematicity, so the sign/magnitude of the biquadratic and quadrilinear coefficients is decisive.
+  - *Next step:* Fit lambda_ir(1), kappa_ir, u_i, u_r from a microscopic mean-field VHS model rather than treating them as free, then locate the physical point on our phase diagram.
+
+**Q3.** How does the arbitrary-sign trilinear gamma_ir (origin-dependent) affect the physical distinction between star-of-David and tri-hexagonal bond order?
+  - *Basis:* The sign of N1 N2 N3 distinguishes SoD vs tri-hexagonal (Ref. 54); the theory says loop-current config is insensitive to sign(Phi1 Phi2 Phi3) but the rCDW config is not.
+  - *Next step:* Extend the minimizer to track sign(N1 N2 N3) and map which bond-order pattern accompanies each mixed phase across the diagram.
+
+**Q4.** What is the effect of the out-of-plane (kz) modulation and interlayer coupling on the mixed phase selection?
+  - *Basis:* The paper notes 2x2x2 vs 2x2x4 stacking; interlayer terms could stabilize different mixed states than the single-layer analysis.
+  - *Next step:* Add a bilayer order-parameter doubling (above/below plane fields) and the symmetry-allowed interlayer couplings to the free energy and re-minimize.
+
+**Q5.** Does the SOC-induced SDW that necessarily accompanies iCDW change the energetics enough to shift the 3Q-3Q vs 2Q-1Q boundary?
+  - *Basis:* The paper states iCDW triggers an SDW at the same wavevector under SOC; back-reaction of the SDW free energy could move the phase boundary.
+  - *Next step:* Add an SDW order parameter M_i coupled biquadratically to Phi_i and quantify the shift of the phase boundary.
+
+### chung2009  (5 Q)
+
+**Q1.** Can the projection operator P = prod_i (1+D_i)/2 be applied directly to re-derive that the (-1,-1) global-flux sector carries ODD fermion parity in the non-Abelian phase (g<sqrt3), rather than importing that parity result from the paper/Yao-Kivelson?
+  - *Basis:* The <Phi_x>=1/3 headline hinges entirely on exactly ONE of the four sectors being projected out. Our replication reproduces the counting GIVEN that parity fact but takes it from the paper. A first-principles re-derivation of the sector parity from P would make the replication fully self-contained and would test the claim's most subtle step.
+  - *Next step:* Compute the many-body fermion parity Pf = prod_{x',y',z'-links} i c_i c_j of the free-fermion ground state in each of the four (Phi_x,Phi_y) sectors on a finite torus, as a function of g, and confirm it flips to odd only for (-1,-1) at g<sqrt3.
+
+**Q2.** What is the exact Chern number / chiral central charge of the occupied Majorana bands in the Yao-Kivelson convention, and why does our FHS calculation report C=+3 deep in the nA phase instead of |C|=1?
+  - *Basis:* The non-Abelian phase is characterized by a single chiral Majorana edge mode (c=1/2). Our raw 3-occupied-band FHS sum gives +3, which is convention/gauge dependent (multi-band, doubled-Majorana counting). Pinning the physical invariant confirms the non-Abelian TQFT class (Ising anyons).
+  - *Next step:* Compute the Chern number band-by-band with a fixed smooth gauge, and cross-check against an open-cylinder edge-spectrum calculation counting chiral Majorana branches crossing zero energy.
+
+**Q3.** Does the crossover temperature T*(g) obey T* ~ Delta(g)/ln N (Eq.9), and is it non-vanishing at g_c while the fermion gap vanishes?
+  - *Basis:* This is the paper's second, more subtle claim: a finite-T signature of topological order whose size scaling is logarithmically slow. It is the bridge from the T=0 degeneracy to a finite-T observable and the paper's main conceptual contribution.
+  - *Next step:* Evaluate <Phi_x>(T) from Eq.13 for a sequence of torus sizes N (e.g. 20x20, 40x40, 60x40), extract T*(g) from Z^{(-1,-1)}/Z^{(1,1)}=e^{-1}, and fit T* vs Delta(g)/ln N across g including g=g_c.
+
+**Q4.** Can the log-2 excess entanglement entropy from a vortex pair (Fig.5, the non-Abelian Majorana zero-mode signature) be reproduced on a finite Kagome/star torus?
+  - *Basis:* This is the third independent diagnostic in the paper and directly probes the non-Abelian statistics (Majorana core states). It is qualitatively distinct from the flux/degeneracy counting and would strengthen the replication from 'degeneracy' to 'anyonic content'.
+  - *Next step:* Build the free-fermion correlation matrix in a two-vortex background, compute the entanglement entropy across a bipartition via the correlation-matrix eigenvalue formula, and track the delta-S vs g toward the ln2 nA-phase value.
+
+**Q5.** Is the residual ~0.03 minimum bulk gap at g=1.725 purely a finite-k-grid artifact, or does the simplified single-unit-cell gauge shift the true critical point away from exactly sqrt3?
+  - *Basis:* We locate g_c to 0.4%, but the gap does not fully close on our grid. Distinguishing grid discretization from a genuine model-convention shift determines whether the replication of g_c is exact or approximate.
+  - *Next step:* Locate the critical BZ momentum analytically (where det h(k;g)=0), then evaluate the gap on a k-grid refined around that point and confirm Delta->0 exactly at g=sqrt3 in the continuum limit.
+
+### dong2022  (5 Q)
+
+**Q1.** Does implementing the paper's symmetric-correction subtraction scheme (removing all C6-invariant real bond corrections so the vH singularity at M is preserved) turn the loop-current states into self-consistent ground states, reproducing the ISD->LC2 first-order transition at V2~1.81 for V1=1.75?
+  - *Basis:* Our plain Fock decoupling collapses to the real ISD state for all (V1,V2) (loop_flux ~0.003 everywhere; no transition). The paper (Sec. IV.A) explicitly subtracts symmetry-invariant real corrections, citing LDA+U+V and TBG Hartree-Fock precedent, precisely to keep the vH singularity that stabilizes the marginal imaginary/LC channel.
+  - *Next step:* Add the subtraction: at each iteration project out the fully symmetric (uniform, real) component of the nn/nnn bond corrections before rebuilding H_MF, keeping only spontaneous symmetry-breaking. Re-run the V1=1.75 V2-scan and locate the level crossing; compare transition V2 to 1.81 and the LC2 bond values to Table I.
+
+**Q2.** With the exact Fig.2 C6 bond labeling (chi1 inner hexagon, chi2 outer triangles, chi3 the 12 star bonds; per-class current direction fixed by C6 + charge-continuity), do all four imposed-Table-I LC states reproduce N = {1,-1,0,-1} and does the imposed ISD become a gapped trivial insulator?
+  - *Basis:* Our approximate bond-class rule (class = sublattice pair, sign = up/down triangle) already gives LC2=-1 and LC3=0 exactly, but LC1=0 (vs 1), LC4=+2 (vs -1), and a gapless ISD. This isolates the error to the geometric bond assignment, not the topology.
+  - *Next step:* Enumerate the 24 nn and 24 nnn bonds of the 2x2 cell, tag each by its position relative to the star-of-David motif to assign chi1/2/3 and chi'1/2/3 exactly as in Fig. 2, apply the continuity-consistent current directions for LC1..4, then recompute Fukui-Hatsugai Chern and the ISD gap.
+
+**Q3.** What is the exact critical ratio V2/V1 for the real->imaginary CDW boundary when the per-bond susceptibilities Pi'_nn, Pi''_nn, Pi'_nnn, Pi''_nnn at M are computed with the paper's normalization, and does it match 2.36?
+  - *Basis:* The paper's 2.36 comes from four specific susceptibility values (1.47, 0.96, 0.99, 0.77). Our aggregate channel susceptibilities give a proxy ratio of 0.082, not comparable, because our bond-operator normalization and momentum sum differ from the paper's Pi definitions (Eq. 4, 15-19).
+  - *Next step:* Implement Pi_O(q=M) exactly per Eq. 4 with the antisymmetric breathing bond operators of Eq. 1/5, at kBT=0.005t, extract the four M-point values, and evaluate (Pi'_nn - Pi''_nn)/(Pi''_nnn - Pi'_nnn); compare to 2.36 and to the red slope-2.36 line in Fig. 3.
+
+**Q4.** Away from vH filling at n = 5.064/12, do the imposed LC states become LC Chern metals with Chern Fermi pockets carrying concentrated Berry curvature around the M' points (as claimed for the most experimentally relevant LC2 state)?
+  - *Basis:* The paper's Sec. IV.D and Fig. 6 predict that electron doping turns the orbital Chern insulators into metals with small Fermi pockets and large Berry curvature; our replication only tested the vH-filling insulators (C4) and did not scan filling.
+  - *Next step:* Reuse imposed_chern.py with filling=5.064/12, compute the reconstructed Fermi surface (Fermi pockets around high-symmetry points) and the k-resolved Berry curvature of the band crossing E_F; check for curvature hot-spots near the folded-zone M' points.
+
+**Q5.** Is the net (uniform) orbital magnetization of each LC state zero (orbital antiferromagnet, staggered flux summing to zero per plaquette) as the paper states, and does the shared kernel's multipole classifier correctly label LC1..4 as AF vs the ferro case?
+  - *Basis:* The paper states the sum of staggered flux around each irreducible plaquette in the 2x2 cell is strictly zero (orbital AF). Our triangle_flux uses mean|Im| per plaquette (nonzero) but did not separately verify the SIGNED per-plaquette sum, and the kernel's triangle_flux_from_config multipole classifier was not exercised on the converged LC textures.
+  - *Next step:* Compute the signed flux per irreducible plaquette of the 2x2 cell for each imposed LC state and verify the cell sum ~0; then feed the (Phi1,Phi2,Phi3) M-point components into loop_current_kagome_kernel.triangle_flux_from_config and check the dipole (FM) vs octupole (AF) classification against the paper's orbital-AF statement.
+
+### feng2021  (5 Q)
+
+**Q1.** Why are our CFP-vs-CBO/vCDW energy splittings (~0.013 t, 0.007 t) ~15x smaller than the paper's (0.195 t, 0.435 t)?
+  - *Basis:* The magnitude of the energy gain is what makes CFP a robust ground state rather than a marginal winner; a 15x discrepancy means we reproduce the ordering but not the energetics, so the strength of the claim is only partially validated.
+  - *Next step:* Re-derive the exact CFP construction including the current-conservation-restoring diagonal/second-neighbor terms the paper adds, and match the chemical-potential normalization at 5/4 filling; recompute splittings and compare.
+
+**Q2.** Why does our vCDW come out slightly below CBO, opposite to the paper's ordering (CBO below vCDW)?
+  - *Basis:* The paper's headline states E_CFP is 0.195 t below CBO and 0.435 t below vCDW, implying CBO < vCDW. Our sub-ordering is reversed, indicating our vCDW or CBO amplitude convention differs from theirs.
+  - *Next step:* Verify the relative normalization of the onsite vCDW modulation (Eq.4) vs the bond CBO modulation (Eq.7); the paper may scale bond vs onsite lambda differently, or fold the M-point degeneracy differently.
+
+**Q3.** Does the CFP occupied-band Chern number equal C=1 per spin (sigma_xy = 2 e^2/h) in our from-scratch supercell?
+  - *Basis:* The anomalous Hall / QAH signature is the second half of the paper's claim; energy-ordering alone does not establish the topological character.
+  - *Next step:* Fold the 2x2 CFP order into a k-space 12x12 Bloch Hamiltonian and apply the Fukui-Hatsugai-Suzuki Chern routine from loop_current_kagome_kernel.py to the occupied bands.
+
+**Q4.** Is the winning phase stable to the exact placement of the 2x2 modulation origin (gauge/phase convention of cos(Q.R))?
+  - *Basis:* The bond-midpoint reference we use to evaluate cos(Q.r_ij) is a modeling choice; a different origin could shift the CBO/CFP balance and even the winner near lambda~0.1.
+  - *Next step:* Sweep the phase origin of each Q-component and confirm the CFP energy (and winner) is invariant, as it must be for a physical order parameter.
+
+**Q5.** How large does lambda need to be for CFP to overtake vCDW, and does a self-consistent U-V Hubbard treatment select lambda~0.3?
+  - *Basis:* The paper imposes lambda by hand and defers the microscopic (extended-Hubbard) stabilization to future work; the physical relevance of lambda=0.3 is unestablished within this model.
+  - *Next step:* Add on-site U and NN V, decouple in the three channels self-consistently, and check whether the CFP saddle-point amplitude lands near lambda=0.3 at 5/4 filling.
+
+### fernandes2025  (5 Q)
+
+**Q1.** The paper states loop-current order 'quite often' generates hopping phases of exactly +-pi/2. Our minimal Chern insulator uses phi=pi/4 (uniform, Ohgushi-Murakami-Nagaosa). Does the pi/2 value carry a distinguished (e.g. maximally gapped or symmetry-enforced) role for the M-point iCDW irreps mMa+, or is it merely a common outcome of the microscopic mean-field?
+  - *Basis:* Box 1 Eq. 5 and surrounding text assert +-pi/2 phases 'quite often' but give no derivation; our gap(phi) scan peaks near phi=pi/4-pi/3 for the uniform pattern, not pi/2.
+  - *Next step:* Extend the kernel to solve the LC mean-field self-consistently for an extended-Hubbard/patch interaction on the kagome lattice and read off the equilibrium hopping phase; compare to pi/2. Map gap and Chern vs phi for each of the eight Ma+/- irrep flux textures.
+
+**Q2.** For the true M-point (translation-symmetry-breaking) loop-current order the magnetic unit cell is a 2x2 (12-site) enlargement, not the 3-site cell we used for the single-cell Chern demonstration. Do the 3Q / 2Q-1Q / 2Q-3Q textures give the FM / AFM / ferro-octupolar moments of Table I when computed as real orbital magnetization on the enlarged lattice, matching our symmetry-invariant proxy?
+  - *Basis:* Table I and Fig. 2 describe M-point multi-Q textures on a 2x2 supercell; our CL3-net used a symmetry invariant (Phi1*Phi2*Phi3) rather than a direct lattice magnetization sum.
+  - *Next step:* Build the 12-site M-point supercell Hamiltonian in the kernel, assign the three-component Phi texture to the bond phases, and compute the net orbital magnetization M = -dE/dB and the octupole moment directly; confirm dipole(3Q)!=0, dipole(2Q-1Q)=0, octupole(2Q-3Q)!=0.
+
+**Q3.** The paper emphasizes the anharmonic third-order coupling W_{i1} ~ Phi_{i2} Phi_{i3}: condensing LC at two M points necessarily triggers a CDW at the third. Can this be demonstrated numerically as an induced bond-amplitude modulation when two flux components are imposed?
+  - *Basis:* Main text (anharmonic coupling) and Table I entries where 2Q LC is accompanied by 1Q or 3Q CDW; we verified only the channel/multipole bookkeeping, not the induced amplitude.
+  - *Next step:* In the 2x2 supercell, impose Phi at M1 and M2 (pure imaginary hopping phases), self-consistently relax the bond amplitudes, and measure the induced real bond-charge modulation W3 at M3; check the ratio W3/(Phi1 Phi2) and its C3-symmetry origin.
+
+**Q4.** Our patch-model check (CL5) reproduced the stated leading-instability rule (g1<0,g2>0,g3>0 -> iCDW) symbolically. Does an actual weak-coupling RG integration of the four flowing couplings reproduce the same fixed-point selection, including the competing d+id superconducting channel mentioned in Box 2?
+  - *Basis:* Box 2 states the couplings are 'flowing interactions in the RG sense' and lists an unconventional d+id SC channel, neither of which we integrated.
+  - *Next step:* Implement the parquet/one-loop RG flow for the kagome M-point patch model (following Park-Ye-Balents PRB 104 035142) and map the phase diagram in the (g1,g2,g3,g4) space; verify the iCDW basin and the SC boundary.
+
+**Q5.** The paper contrasts LC (kinetic-energy / imaginary bond) with SDW (Zeeman / spin) and notes that with SOC an iCDW and an rSDW become symmetry-equivalent. Does adding a minimal SOC term to the kernel make the loop-current gap and Berry curvature quantitatively map onto a spin-current (iSDW) configuration?
+  - *Basis:* Phenomenology section + Box 2: 'In the presence of SOC, iCDW and rSDW are symmetry-equivalent, as are iSDW and rCDW'; our spinless kernel cannot test this equivalence.
+  - *Next step:* Add spin and an atomic SOC (lambda L.S) to the kernel, construct the rSDW (staggered spin) and iCDW (loop current) states at the same wavevector, and verify their spectra/Berry curvatures coincide as lambda is tuned, quantifying the crossover.
+
+### friedlan2025  (5 Q)
+
+**Q1.** Where exactly (in mu, V, lambda) does the NLCBO pocket open in the effective-model phase diagram (Figs. 2-3), and how wide is it?
+  - *Basis:* We reproduced the perturbative mechanism (NLCBO's anomalous k_x dispersion is most negative, condition iii) but NOT the self-consistent simulated-annealing free-energy minimization on the ~500-point k-grid at T=90 K that locates the pocket. Our full-fill integral gives LCBO+ lowest (matching the paper's own fully-occupied statement), so the pocket lives in a partial-fill window we did not scan self-consistently.
+  - *Next step:* Implement the free-energy F(Delta_ab; mu,V,T) with the mean-field decoupling constant 2Nc|Delta|^2/V (Eq. 14 analog) and a Fermi-Dirac-weighted band sum; run simulated annealing over the 6D complex order-parameter space at fixed (mu,V,lambda,T=90K) to map the CBO+/CBO-/LCBO+/NLCBO regions and confirm the NLCBO pocket between vH1 and vH2.
+
+**Q2.** Does the equal-amplitude assumption (Delta = Delta') materially change the NLCBO stabilization window, given the paper reports Delta' > Delta for the true minimum?
+  - *Basis:* Our checks fix a single magnitude per config to isolate the phase structure (as the paper does in Sec. III B), but Sec. IV and Fig. 3 show the true NLCBO minimum has unequal amplitudes (Delta' > Delta). We did not optimize amplitudes.
+  - *Next step:* Extend delta_E / free-energy minimization to independent |Delta_AB|, |Delta_BC|, |Delta_CA| and quantify how much the amplitude asymmetry (Delta' > Delta) enlarges the NLCBO region beyond the pure-phase-frustration estimate.
+
+**Q3.** How sensitive is the NLCBO stabilization to the vH1-vH2 separation 2*epsilon and to the material-dependent (s1,s2) set for K vs Rb vs Cs?
+  - *Basis:* We used the single Cs-derived set (epsilon=0.12, s1=-1.62, s2=0.5). The paper states s1,s2 depend on the alkali and that 2*epsilon governs the anomalous-dispersion strength, but gives no K/Rb values.
+  - *Next step:* Scan epsilon in [0.05,0.25] eV and (s1,s2) consistent with |s1|=2|b'|^2, s2=2|b|^2 for plausible b,b' ranges; map where 1/DE2 stays negative and where NLCBO remains the most-negative k_x-dispersing phase, giving a material-tunability chart (pressure/strain/doping route).
+
+**Q4.** Does the nematic order survive the full-BZ 9-band tight-binding model with the predetermined lambda ~= 0.35 eV*a, and does the NLCBO pocket move above vH2 as the paper reports (Fig. 7)?
+  - *Basis:* The 9-band model needs DFT-derived hoppings/on-site potentials from Ref. [74] that are not printed in the PDF; we could not build the 9x9 (or 36x36 with 3Q coupling) Hamiltonian. The paper reports the effective-model pocket sits between vH1 and vH2 but the TB pocket sits above vH2.
+  - *Next step:* Obtain the Ref. [74] Wannier/DFT hopping parameters (or a published tabulated 9-band model), assemble the 9x9 H(k), add the NN mean-field decoupling Eq. (14), diagonalize the 36x36 folded Hamiltonian on a 30x30 grid, and check NLCBO survival + pocket location relative to vH2.
+
+**Q5.** Is the identification of the free-energy minimum at permutations of (0, pi/2, pi/2) robust once the full anharmonic LC-CBO coupling and finite temperature are included, versus being an O(lambda^2) perturbative artifact?
+  - *Basis:* Our C4/C5 rest on second-order-in-lambda perturbation theory (Eqs. 10-12), which the paper explicitly flags as intuition only ('higher order contributions are neglected'). We verified the O(lambda^2) structure but not the full non-perturbative minimum.
+  - *Next step:* Diagonalize the full 6x6 H(k) with finite lambda (no perturbative expansion), compute the T=90 K free energy F = -T sum_k ln(1+e^{-(E-mu)/T}) + 2Nc|Delta|^2/V for a 2D grid of (phi1,phi2) at fixed Phi=pi, and confirm the minima sit at permutations of (0,pi/2,pi/2) as in the paper's Fig. 8 landscape.
+
+### gerguri2026  (5 Q)
+
+**Q1.** Run genuine DFT+U (VASP/QE) total-energy comparisons of the relaxed Pmma (q=1/2), Imma (q=1/3), and q=1/4 supercells with Ce-4f as valence, sweeping U=0-9 eV to obtain the true crossover.
+
+**Q2.** Compute the actual kagome+f tight-binding parameters (t, tf, eps_f, filling) by Wannierizing the DFT band structure instead of using surrogate values.
+
+**Q3.** Add self-consistent Hartree/Hartree-Fock CDW order parameters (not fixed-delta Landau curvature) to capture first-order competition and coexistence.
+
+**Q4.** Include the phonon-mediated channel: the paper attributes the instability to imaginary phonon modes in the qz=1/2 plane, which the electronic-only surrogate omits.
+
+**Q5.** Extend the surrogate to 3D (a x a x 2c cell) and add the loop-current/iCDW imaginary order parameter to test the paper's TRS-breaking superconductivity link.
+
+### isobe2018  (5 Q)
+
+**Q1.** The paper reports critical scales up to g0*yc <= 15 to draw Fig. 4 phase boundaries. Our divergence detector uses the leading-order estimate 1 + V_eta(y)*d_as*y = 0 with running V_eta; does this reproduce the paper's exact phase-boundary curves (d1-,d2-) and (d1-,d3-) quantitatively, not just the SC->DW ordering?
+  - *Basis:* Fig. 4(a),(b) show phase boundaries obtained in the range g0*yc <= 15; our leading_instability() detects first crossing but we did not overlay the full 2D boundary against the published figure.
+  - *Next step:* Grid-scan (d1-,d2-) and (d1-,d3-) on a 50x50 mesh, extract the CDW-/SDW- vs d/p-SC boundary contour, and digitize Fig. 4(a),(b) to compute boundary RMS distance.
+
+**Q2.** How sensitive is the SC<->density-wave crossover d1-* to the initial coupling magnitude g0 and to including nonzero exchange (g11,g31,g41) vs the pure density-density case we tested?
+  - *Basis:* We used g0=0.5 and exchange=0 for the crossover claim; Fig. 5 shows exchange lifts degeneracies and can flip d-SC<->p-SC and CDW-<->SDW-.
+  - *Next step:* Sweep g0 in [0.1,1.0] and exchange in [-0.2,0.2]; map the leading channel to confirm the paper's rule 'repulsive exchange prefers d-SC and SDW-, attractive prefers p-SC and CDW-'.
+
+**Q3.** The paper treats d_as as approximately constant within the nested window 0<=y<y0. How much does allowing y-dependent d_as(y) (its true definition Eq. 8) change the RG trajectories and the winning instability?
+  - *Basis:* Sec III A states d_as depends on y in general except for BCS-like channels; we froze d1-,d2-,d3- constant as the paper does for its main analysis.
+  - *Next step:* Model d_a+(y) ~ y^{-1} decay (Appendix B) and re-integrate the generalized RG (Appendix F) to check the neglect of da+ is quantitatively safe.
+
+**Q4.** Does the CDW- state actually open a full gap at n=2 for Delta >= Delta_c as claimed (Sec V), and what is Delta_c relative to bandwidth for the imperfectly-nested Fermi surface?
+  - *Basis:* Sec V states a full gap appears for Delta >~ Delta_c due to imperfect nesting; this requires the reconstructed mean-field band structure we did not build (it needs the actual Fermi-surface dispersion, outside the patch-RG core).
+  - *Next step:* Implement the reduced-BZ CDW- mean-field Hamiltonian with the nested dispersion and compute the n=2 gap vs Delta to locate Delta_c.
+
+**Q5.** Our RG integration terminates when |g| exceeds 50 (strong-coupling breakdown). Is the detected instability channel robust to this cutoff, i.e., is the first-diverging channel always identified before the perturbative RG loses validity?
+  - *Basis:* solve_ivp event stops the flow at |g|=50; the paper notes perturbative RG is only legitimate for weak coupling and instabilities occur within that regime.
+  - *Next step:* Vary the blowup threshold (20,50,100) and rtol; confirm the winning channel and y_c ordering are invariant, quantifying the sensitivity of yc to the cutoff.
+
+### jiang2023  (5 Q)
+
+**Q1.** The paper reports a quasi-flat-band wavefunction overlap with DFT of 97% (H1) and 85% (H2). Our independent code confirms the flat-band MECHANISM and counting, but cannot reproduce these overlap numbers without the authors' DFT bands and MLWFs. Do the stated overlaps hold under an independent Wannierization?
+  - *Basis:* Overlaps quoted in §II A/B require the DFT wavefunctions and the fitted TB eigenvectors; only the paper's own fits give the 97%/85% figures. Our C1–C4 verify the flat-band structure but not the DFT projection.
+  - *Next step:* Obtain the FeGe DFT band + MLWF Hamiltonian (e.g. via the authors' Ref. 140 supplement or an independent VASP+Wannier90 run) and compute |<psi_DFT|psi_TB>|^2 on the quasi-flat band across the BZ.
+
+**Q2.** Is the 'hidden O_h symmetry' of the cRPA interaction matrix (Table I) exact or approximate, and how much does the approximation error affect the Hartree-Fock AFM moment?
+  - *Basis:* Table I lists U_ij, J_ij with an approximate spherical/O_h structure (U1=1.41, U2=1.22 eV) but the paper explicitly calls it 'approximate'. The mean-field moment depends on these values; our replication does not include cRPA.
+  - *Next step:* Decompose the tabulated U_ij/J_ij into O_h irreps, quantify the residual anisotropy, and run the HF mean field with exact-O_h vs measured-anisotropy interactions to bound the moment sensitivity.
+
+**Q3.** The general BCL theorem (App. D) states flat-band count = N_L + N_Ltilde - 2*rank(S_k) ASSUMING rank(S_k) is BZ-constant. In FeGe do the physical S-matrices ever drop rank at special k-points (e.g. K or M), creating extra fragile flat modes not captured by the generic count?
+  - *Basis:* Our numeric check found rank(S) generically 2 but dropping at isolated mesh points; the theorem uses the generic rank. Rank drops at symmetry points could add band touchings the counting formula misses.
+  - *Next step:* Sample S_{ptxy,d1}(k) densely near K and M with analytic rank tests; classify any rank-drop loci and check whether they seed the Dirac points the paper reports near E_F.
+
+**Q4.** How faithfully does the 'doubling + Mg perturbation' construction map FeGe -> MgFe6Ge6 quantitatively (band energies at HSPs), beyond the qualitative folding argument?
+  - *Basis:* §VII claims the 1:6:6 model is the k3-folded FeGe model plus an s-orbital Mg perturbation, reproducing DFT 'remarkably well', but gives no quantitative HSP-energy error budget in the main text.
+  - *Next step:* Build the explicit folded 16-band Hamiltonian from the FeGe blocks in Appendix VII, add the Mg s-orbital coupling, and tabulate band-energy deviations vs the MgFe6Ge6 DFT at Gamma/K/M/A/L.
+
+**Q5.** For the 1:3:5 extension (CsV3Sb5, CsCr3Sb5, CsTi3Bi5), does the same three-group d-orbital decomposition survive the change of transition metal and valence-electron count, or does inter-group coupling become non-negligible?
+  - *Basis:* §VIII asserts broad applicability across Cr/V/Ti but notes 'distinct low-energy physics'; the decoupling that works for Fe-d may not hold when the vHS filling and SOC change.
+  - *Next step:* Compute the inter-group off-diagonal S-matrix norms for each 1:3:5 member relative to the intra-group scale and test whether second-order perturbative decoupling stays controlled.
+
+### kumar2015  (5 Q)
+
+**Q1.** Does the C=+1 / sigma_xy^s=1/2 chiral band survive in the paper's specific (2pi, pi/2, pi/2) staggered flux assignment rather than the simple uniform-flux parametrization used here?
+  - *Basis:* Our uniform-flux kernel reproduces the C=+1 gap for small chirality flux, but the paper's XY limit is a specific staggered flux pattern. Confirming C=+1 for that exact pattern removes the parametrization ambiguity seen at larger phi.
+  - *Next step:* Extend loop_current_kagome_kernel with the explicit (2pi, pi/2, pi/2) per-triangle flux (tuple flux_pattern) and recompute the Chern number and gap at half filling.
+
+**Q2.** How does the chiral gap and Chern number evolve across the XY-to-Ising crossover (anisotropy lambda) at fixed chirality h?
+  - *Basis:* The paper claims the CSL is an XY-regime phenomenon and that in the Ising regime a strong chirality is needed to close the anisotropy gap first. A lambda sweep would test that competition quantitatively.
+  - *Next step:* Add an XXZ anisotropy term (sublattice-dependent onsite / bond anisotropy) to the mean-field hopping and sweep lambda while monitoring gap closure and Chern jumps.
+
+**Q3.** Is the self-consistent chirality-induced flux (via phi=arctan[(h/J)(1/2-n)]) actually realized, i.e. does a self-consistent mean-field loop determine n^(a) rather than us imposing the flux by hand?
+  - *Basis:* We imposed the Peierls flux; the paper derives it self-consistently from the flux-attachment constraint n=theta*B. A self-consistent solution would confirm the flux is spontaneously selected, not assumed.
+  - *Next step:* Iterate density n^(a) <-> flux phi^(a) to self-consistency at fixed h/J and check the fixed point lands on the (2pi, pi/2, pi/2) state.
+
+**Q4.** Does the additional plateau structure (m=1/3, 2/3, 5/9) appear at finite external field with the same chiral signature?
+  - *Basis:* The paper connects the zero-field CSL to the finite-field magnetization plateaus (Jain/Laughlin states). Reproducing sigma_xy^s at those fillings would validate the broader claim beyond h_ext=0.
+  - *Next step:* Rerun the Chern computation at fillings 1/3 and 2/3 (fillings=(1,) vs partial band fillings) under the appropriate flux and compare sigma_xy^s to 1/2 and 2/3.
+
+**Q5.** How robust is the C=+1 assignment to finite-size / k-grid convergence and to the DM-term variant?
+  - *Basis:* FHS Chern numbers can be grid-sensitive near gap-closing points, and the paper also claims a DM-driven CSL. Convergence and a DM cross-check would strengthen the verdict.
+  - *Next step:* Converge chern_number over nk in {24,42,64,96} and add a DM Peierls-phase channel to test the 'not too strong DM' CSL window.
+
+### li2023  (5 Q)
+
+**Q1.** Does the absolute magnitude of the full-diagonalization free-energy difference converge to the closed-form Eq.(4) once the exact SM patch measure and band-projection normalization are used?
+  - *Basis:* Our replication matches Eq.(4) in sign, lambda^2 scaling, and the instability boundary, but not in absolute prefactor. Closing this gap would upgrade the verdict from PARTIAL to fully quantitative and validate the degenerate-perturbation-theory derivation, not just its qualitative structure.
+  - *Next step:* Reconstruct SM Sec.II-IV: implement the explicit degenerate perturbation theory on E1..E3 with the paper's k-cutoff regularization and 1/A normalization, then compare prefactors term-by-term at fixed |Delta|, lambda, delta_eps.
+
+**Q2.** How robust is the LCBO ground state when the additional band eps3 below vH1 and the full 9-band tight-binding model are included (Fig.5a,b), rather than the 6x6 patch truncation?
+  - *Basis:* The paper claims LCBO survives near vH2 with all bands and the cutoff removed. Independent confirmation would rule out that LCBO is an artifact of the two-vHS patch truncation.
+  - *Next step:* Extend the model to the 9x9 patch (add eps3 block) and then build the full 9-band H_TB(k) from the DFT-fitted hoppings of Ref.[68]; minimize free energy over Delta on a BZ grid and map the LCBO region.
+
+**Q3.** What are the actual DFT-fitted 9-band tight-binding hopping parameters (Ref.[68]) that yield vH1, vH2 with the stated b=0.52, b'=0.96 weights and lambda=0.35 eV*a?
+  - *Basis:* The quantitative application to AV3Sb5 (Fig.3, Fig.4 parameters) depends on these; without them the material-specific phase diagram cannot be independently regenerated, only the effective-model mechanism.
+  - *Next step:* Obtain/fit the 9-band Wannier model to the DFT bands (or retrieve Ref.[68] supplementary tables), verify the vHS energies and mirror eigenvalues, and derive b, b', lambda from wavefunction overlaps.
+
+**Q4.** Is the LCBO state genuinely inaccessible to a Ginzburg-Landau expansion of Delta at all finite orders, as the paper asserts?
+  - *Basis:* This is a strong non-perturbative claim distinguishing this mechanism from conventional GL-based CDW selection. If false, the mechanism could be captured by simpler order-parameter theory.
+  - *Next step:* Expand f(Delta) computed here in powers of |Delta| and the phase arg(Delta), fit GL coefficients up to 6th order, and test whether the LCBO minimum at pi/3 can ever be produced by any truncation.
+
+**Q5.** How does finite temperature and the position of mu between eps1 and eps2 shape the CBO+/CBO-/LCBO phase boundaries (full Fig.4a phase diagram)?
+  - *Basis:* We fixed mu=eps2 and T=90K and self-consistently chose |Delta|; reproducing the full (V, mu) phase diagram would test the mechanism's parameter sensitivity and the claim that LCBO is 'more pronounced near vH2'.
+  - *Next step:* Add a self-consistent gap equation dF/dDelta=0 solver, sweep (V, mu) on a grid at T=90K, classify each minimum (PM/CBO+/CBO-/LCBO), and compare the boundary shapes to Fig.4a.
+
+### nakazawa2024  (5 Q)
+
+**Q1.** Why is R qualitatively insensitive to eta in the paper, while our open-flake itinerant-Lz model shows R decreasing strongly with eta?
+  - *Basis:* The eta-insensitivity is the paper's key surprise (it defeats the naive R ~ pi*xi_J^2 picture and is the evidence for a nonlocal itinerant origin). Failing to reproduce it means our model is missing the nonlocal channel that dominates the paper's supercell BZ calculation.
+  - *Next step:* Move from an open real-space flake to the paper's periodic 12-site 2x2 supercell with a folded-BZ k-mesh (>=64x64) and the full k-space bulk+edge M_orb formula (Eq. 4), which retains the long-range circulation the finite flake truncates.
+
+**Q2.** Does the clean-limit M_orb ~ eta^3 scaling emerge only with the correct third-nearest t' and precise VHS filling n=2.55, mu=0?
+  - *Basis:* We got an exponent ~0.3, not 3. The eta^3 law is a symmetry statement (b100=b010=b001=0 by momentum conservation) that only holds with the exact triple-Q pattern and filling; getting it wrong signals the cLC bond-sign pattern or filling is not faithful.
+  - *Next step:* Explicitly build the paper's Fig-2 triple-Q sign pattern on the 12-site cell (geometric up/down-triangle discrimination) and pin filling by a finite-T Fermi function at T=0.01 eV, mu=0, then refit log M0 vs log eta.
+
+**Q3.** How much does the two-impurity (Imp1 triangular vs Imp2 hexagonal) averaging change R, and is the 50%-per-1% number an average or an Imp1-only value?
+  - *Basis:* The paper says a random impurity is 50/50 Imp1/Imp2; our averaged R and per-site R differ substantially (e.g. size scan shows sign flips). The headline number's definition affects the pass/fail threshold.
+  - *Next step:* Report R separately for Imp1 and Imp2 across sizes and take the paper's stated 50/50 average; verify against Fig. 5(c) values at n_eff=2.48,2.52,2.56.
+
+**Q4.** Is linear extrapolation from a single impurity (nimp = 1/N) to 1% valid, or does R saturate/curve at finite density?
+  - *Basis:* We rescale single-impurity R by 0.01/nimp assuming dM ~ nimp linearity. The paper itself linearly extrapolates 0->0.33%->1%, but if multi-impurity interference matters the extrapolation over/under-states R.
+  - *Next step:* Place 2-3 impurities in a larger supercell (N~300) and check whether the total suppression is additive (linear) before trusting the 1% number.
+
+**Q5.** Does including the b2g (mixed-type) orbital sector, neglected here and in the paper, change R materially?
+  - *Basis:* The paper explicitly defers b2g and notes it is 'qualitatively important for understanding large M_orb'. R could be quantitatively different in the real material.
+  - *Next step:* Add the b2g orbital manifold as a second kagome layer with its own t,t' and inter-orbital coupling; recompute M_orb and R (a genuine extension beyond both this replication and the paper).
+
+### tazai2022  (5 Q)
+
+**Q1.** Does the cLC order actually EMERGE spontaneously from BO fluctuations via the linearized DW (Maki-Thompson) equation lambda_q f = (T/N) sum I_q {-GG} f with max_q lambda_q = 1, rather than being imposed by hand?
+  - *Basis:* The paper's central mechanistic claim is beyond-mean-field: HF of the BO interaction does NOT give cLC (Supp Note 3); the cLC arises only from the MT vertex-correction kernel I_q ~ -chi_g(k-p). Our replication IMPOSES an imaginary odd-parity dt^c and verifies its consequences (bond currents, alternation, AHE, gap), but does not solve the self-consistent DW eigenvalue problem that would show lambda_q crossing 1 at q=q_n. So we confirmed the ORDER PARAMETER's properties, not its self-generation.
+  - *Next step:* Implement the DW kernel: compute chi0_g(q) on the full k-mesh (we already have a Lindhard proxy for C4), form chi_g = chi0/(1-v*chi0), build I_q^{L,M}(k,p) ~ -chi_g(k-p), and power-iterate the linearized DW equation to extract lambda_q. Verify lambda_q peaks at q_n and that lambda->1 defines T_cLC. Compare T_cLC(v) vs T_BO(v) crossover near v*~0.55 (y=0.5) / v*~1.03 (y=1).
+
+**Q2.** Is the anomalous Hall conductivity magnitude quantitatively sigma_H ~ 1 (e^2/h units) -> ~10^2 Ohm^-1 cm^-1 for the paper's |dt^c|=0.025 and damping gamma~0.03, and does it follow the sigma_H ~ const (gamma << Delta) to sigma_H ~ gamma^-2 (gamma >> Delta) crossover?
+  - *Basis:* Our real-space Kubo on a 6x6 cluster reproduces the two QUALITATIVE signatures the paper asserts (sigma_xy = 0 without cLC by TRS; nonzero and TRS-odd with cLC), but the magnitude (~1e-4 arb.) and the damping-dependent intrinsic-Hall crossover (Fig 6a) are not captured: our finite cluster uses a broadening eta as a proxy, not a proper gamma-dependent Green-function Kubo, and the staggered texture partly cancels on the small torus.
+  - *Next step:* Move to a momentum-space Kubo with the two-particle Green-function form sigma_munu = (e^2/hbar)(1/pi N) sum_k Tr[v_mu G(i*gamma) v_nu G(-i*gamma)] on the folded 3Q BO+cLC band structure, sweep gamma over 0.001-1, and confirm the plateau -> gamma^-2 rolloff and the |dt^c|-linear scaling in the clean limit. Convert to Ohm^-1 cm^-1 with 0.6 nm interlayer spacing to hit the ~10^2 target.
+
+**Q3.** Does the coexisting 3Q BO+cLC state genuinely realize Z3 nematicity (C6 -> C2 symmetry lowering) selected by the third-order GL free energy F^(3) ~ phi1 phi2 phi3 with the b1, b2 coefficients of Supp Eqs. (35)-(38)?
+  - *Basis:* The Z3-nematic result is a headline claim tied to the sign structure of the 3rd-order GL coefficients (b1 b2 < 0) and the relative magnitude of |eta| (cLC) vs |phi| (BO). We did not evaluate the GL free energy or its minima; our checks are single-order-parameter (impose one 3Q texture) and do not resolve which of the C6 / C2 coexisting states wins as a function of T_cLC/T_BO.
+  - *Next step:* Compute the diagrammatic GL coefficients b1 = 3(I^ggg_123 + I^ggg_132), b2 = 3(I^gff_123 + I^gff_132) from the trace formulas (Supp Eq. 37-38), then minimize F = F^(2) + F^(3) under |eta|, |phi| constraints to map the C6/C2 selection and reproduce the phase diagram of Fig 4f.
+
+**Q4.** How sensitive is the BO/cLC susceptibility peak location to the actual van-Hove filling n_vHS = 0.917 and to t' (FS shaping), i.e. is the M-point nesting robust or fine-tuned?
+  - *Basis:* We reproduced chi0(q) peaking at M vs Gamma (C4) using a Lindhard proxy at approximately van-Hove filling with a small t' warp, but we did not scan filling around 0.917 nor confirm the paper's statement that 'numerical results are insensitive to t''. The precise nesting strength (peak height, sharpness) controls the Stoner factor alpha_BO and thus the whole cascade.
+  - *Next step:* Sweep filling n in [0.85, 0.98] and t' in [0, 0.2] rel units; track chi0 peak position and height, and alpha_BO = max_q v*chi0(q). Confirm peak stays pinned at M across the range (robust nesting) and locate the exact n where the peak is maximal (van-Hove condition).
+
+**Q5.** Is the pure-imaginary, odd-parity nature of dt^c (dt^c_ij = -dt^c_ji, Hermitian => imaginary) a NECESSARY consequence of the DW-equation eigenfunction symmetry f_q^{lm}(k-q/2) = -f_q^{ml}(-k-q/2), or merely one admissible solution branch?
+  - *Basis:* We verified that IF dt^c is imaginary/odd-parity THEN real bond currents and TRSB follow (C1). The paper derives the odd-parity/imaginary property from the eigenfunction of the maximum-lambda DW solution. Whether the maximum eigenvalue always lands on the odd-parity (cLC) branch vs the even-parity (BO) branch depends on v, y, T and is exactly the competition the paper resolves via the MT enhancement of v'' ~ 0.3 y v.
+  - *Next step:* In the DW solver (Q1), classify each eigenvector by parity (even=BO/g-channel, odd=cLC/f-channel) and track which branch has the larger lambda_q as a function of v and y. Confirm the odd-parity branch wins (lambda->1 first) in the parameter window the paper claims (weak coupling v<v*, y~0.5-1), establishing that imaginary dt^c is the selected, not merely admissible, solution.
+
+### tazai2023  (5 Q)
+
+**Q1.** Why does our band-theory M_orb(eta) scale as ~eta^1.3 rather than the paper's clean eta^3 for the current-only 3Q state?
+  - *Basis:* The eta^3 law is the paper's proof that M_orb arises purely from the fully-symmetric b111 anharmonic invariant (q1+q2+q3=0). A slope near 1 suggests a spurious lower-order contribution is leaking in (e.g. residual net flux from an imperfect 1Q/2Q cancellation in our form factors, or coarse-grid k-noise) rather than the genuine trilinear term.
+  - *Next step:* Refine on a denser (>=48x48) mesh AND verify the exact TYK form factors f_ij (signs on sites 1,2,4,5 vs 7,8,10,11) so that 1Q/2Q M_orb vanish to machine precision; re-fit the slope over a wider, better-resolved eta range.
+
+**Q2.** Why does the coexisting 3Q bond order SUPPRESS M_orb (x0.5) in our calculation instead of strongly ENHANCING it (linear, GL coefficient m1) as in TYK Fig. 2(d)?
+  - *Basis:* The m1*phi*eta trilinear enhancement is the paper's central novelty and the origin of the -3 m1 hz eta.phi field coupling; getting the sign/magnitude of m1 wrong undermines the quantitative field-switching story.
+  - *Next step:* Implement the exact even-parity bond form factors g_ij from Fig. 1(a) (star-of-David pattern) with correct relative phase to the current form factors, evaluate at n=2.47 (the paper's value for Fig 2d, not 2.55), and extract m1 by fitting M_orb = m1 phi eta + m2 eta^3.
+
+**Q3.** Is the single-orbital effective model sufficient, or do the GL coefficients m_n require the realistic multi-orbital (dXZ,dYZ,dX2-Y2,d3Z2) first-principles kagome model?
+  - *Basis:* TYK compute m_n from realistic multiorbital models and note m_n is large only when FS reconstruction happens near the vHS points; the single-b3g-orbital toy may systematically under- or mis-estimate the magnitudes that make ~1 T sufficient.
+  - *Next step:* Extend the kernel to a multi-orbital vHS-nested FS or, minimally, sweep filling across 2.47-2.63 to confirm the vHS resonance enhancement of M_orb reported in Fig. 2(a) before trusting absolute magnitudes.
+
+**Q4.** What is the actual domain-wall / condensation energy scale that h_z must overcome, so we can quantitatively confirm '~1 T is enough' rather than only matching the paper's dimensionless h_z=1e-4?
+  - *Basis:* Our C4 check confirms the -3 hz M_orb coupling form and the 1e-4<->1T identification, but 'a tiny field switches the domain' is only physically demonstrated if the field energy gain exceeds the current-order domain pinning/anisotropy energy.
+  - *Next step:* Compute the free-energy difference between + and - chirality domains as a function of hz and locate the switching field where dF_switch equals a realistic domain-pinning barrier; compare that field (in Tesla) to the ~1 T claim.
+
+**Q5.** How sensitive is M_orb to the modern-theory formula variant (TYK Eq. 3 finite-T vs Eq. 6 T=0 interband) and to the mu-dependent (e_a+e_b-2mu) weighting on a coarse mesh?
+  - *Basis:* M_orb here is ~1e-4 and the odd-in-eta residual is ~1e-4 (same order), i.e. numerical noise is comparable to signal; the choice of formula and chemical-potential accuracy could flip conclusions about small quantitative claims.
+  - *Next step:* Cross-check M_orb from Eq. 6 against a direct finite-T Eq. 3 evaluation and against a Berry-curvature circular-integral method; converge mu to <1e-6 and quantify the mesh-convergence error bar on M_orb.
+
+### tazai2025  (5 Q)
+
+**Q1.** Does chiral d-wave truly overtake s-wave as the global leading SC instability under pure LC at eta=0.014, or only within a restricted low-T / small-g window?
+  - *Basis:* The paper's central claim is that LC order makes chiral d-wave THE instability. Our minimal kernel keeps lam_s > lam_d, so the crossover is not fully reproduced; this is the make-or-break physics.
+  - *Next step:* Implement the exact LC/BO form factors f_ij, g_ij on the 12-site cell (paper Fig.1b,c) and enforce the sublattice-interference hierarchy Gamma_mm >> |Gamma_ml|; rescan lam_d vs lam_s vs T,g.
+
+**Q2.** What is the precise real-space chiral pattern Delta_mu, and does the mu-dependence produce the ~5% 2x2 PDW component reported?
+  - *Basis:* The PDW component (~5%) is a key experimentally-comparable prediction distinguishing chiral d-wave from plain s-wave in kagome SC.
+  - *Next step:* Resolve the full 12-component eigenvector on a fine k-mesh, decompose into uniform + 2x2 (M-point) Fourier components, and quantify the PDW fraction.
+
+**Q3.** How sensitive is the eta=0.014 resonant peak in lam_d to the chemical potential / filling n=11 and the shallow LC-induced Fermi pocket?
+  - *Basis:* The paper attributes the enhancement to a shallow high-DOS Fermi pocket formed by LC-induced vHS hybridization at Gamma; if the peak is filling-fragile the mechanism claim weakens.
+  - *Next step:* Sweep filling n in [10.5,11.5] and track the DOS at mu and the lam_d peak location vs eta; verify the pocket forms at Gamma.
+
+**Q4.** Is the winding number w=2 of the chiral d-wave gap on each Fermi pocket reproducible from the computed Delta_k?
+  - *Basis:* Winding number is the topological fingerprint of the chiral d-wave state (Fig.2d); it determines edge modes and the thermal/SC-diode Hall responses the paper highlights.
+  - *Next step:* Construct Delta_k = sum_m w_km Delta_m on the Fermi surface, form n=(Re,Im,mu-eps)/|.|, and compute w = (1/4pi) integral of the skyrmion density.
+
+**Q5.** How does adding finite BO (phi != 0) alter the balance, producing the nematic chiral SC (mixed s + chiral-d) state the paper predicts?
+  - *Basis:* The full paper prediction is a nematic chiral SC in the coexisting LC+BO phase; the pure-LC case is the base limit. Confirming the BO-driven nematic mixing tests the broader mechanism.
+  - *Next step:* Turn on phi with the staggered g_ij form factor out-of-phase with f_ij (C6-breaking), and track the s/chiral-d admixture and nematic director vs phi.
+
+### wessely2005  (5 Q)
+
+**Q1.** Does the paper's crude analytic rotation-frequency estimate (P q A)/(4 J e) genuinely land a factor ~4 above the microscopic C-matrix result, or is the 4x coincidental to Er's specific band structure?
+  - *Basis:* Our minimal spin-spiral tight-binding model reproduces a same-order crude-vs-microscopic comparison but with ratio ~0.15 (crude UNDER-estimates), not ~4. The prefactor in the adiabatic estimate is model-specific: it depends on the FS-averaged velocity, the parallel polarization distribution, and how many bands cross the FS. The paper's 4x is stated as order-of-magnitude ('catches the order of the effect'), so a different lattice model need not reproduce the numeric factor.
+  - *Next step:* Re-derive the paper's crude estimate keeping the exact same FS-average weighting as the microscopic Q-tensor (same |grad eps| Jacobian, same band count), then test whether the crude/micro ratio converges toward the paper's 4x when the number of FS-crossing bands and their P-distribution match Er. Alternatively, run the crude estimate on a multi-band model tuned to Er's nesting FS.
+
+**Q2.** Is the absolute 0.07 GHz at 1e7 A/cm2 reproducible without full FP-APW+lo DFT, e.g. from a Wannier/tight-binding fit to Er's conduction bands?
+  - *Basis:* The 0.07 GHz and C_23 = 0.5 hbar Ang^2 come from a specific DFT calculation (LSDA, 4f-in-core, 41^3 k-mesh, generalized Bloch theorem, Eq. 8 spin-flux at augmentation spheres). We deliberately did not run DFT (free-endpoints/offline scope) and only verified structural/scaling claims.
+  - *Next step:* Build a Wannier tight-binding model of Er's conduction bands (from a public DFT band structure or an EMTO/FP-LMTO reference), impose the q=0.20*2pi/c spiral via the generalized Bloch theorem, and evaluate the same FS torque-current integral (Eqs. 3-6) to see if C_23 -> ~0.5 hbar Ang^2 and 0.07 GHz emerge.
+
+**Q3.** How sensitive is the induced rotation frequency to the exchange splitting Delta and chemical potential (band filling), i.e. is the effect robust across the RE series as the paper implies via alloying?
+  - *Basis:* In our TB model the rotate-spiral component of C depends on where the FS sits relative to the spin-split bands (mu) and on Delta. The paper claims the anisotropy (hence critical current) can be tuned by RE alloying while keeping the helical order, implying tunability, but does not scan Delta/filling.
+  - *Next step:* Sweep (Delta, mu) in the TB model and map C_rotate and the FS-averaged polarization P; identify regimes where P and C are maximized, and compare qualitatively to known RE helical-SDW ordering vectors (Tb, Dy, Ho, Er).
+
+**Q4.** Does the out-of-plane spin-flux channel remain exactly zero for a CONICAL spiral (nonzero tilt of moments out of plane), which the paper says the formalism supports but does not compute?
+  - *Basis:* For the planar spiral our model gives Sz (out-of-plane spin flux) = 0 to machine precision, matching the single-nonzero-component C. A conical spiral adds a fixed z-magnetization component, which could open a second nonzero tensor element and change the dynamics from pure rotation to rotation+precession.
+  - *Next step:* Extend HelicalSDW to a conical spiral (add a canting angle theta_c so m_hat = (sin theta_c cos(qz), sin theta_c sin(qz), cos theta_c)), recompute the full 3x3 C, and check for a newly nonzero out-of-plane element and its scaling with theta_c.
+
+**Q5.** Is the experimentally proposed oscillating-conductivity readout (Fig. 3 nano-pillar) quantitatively detectable at the predicted ~0.07 GHz for realistic currents, given the critical current set by magnetic anisotropy?
+  - *Basis:* The paper proposes a SDW/non-magnetic/ferromagnet pillar whose perpendicular conductance oscillates at the spiral rotation frequency (GMR/TMR-like), but gives no anisotropy-limited critical current for Er and no signal-amplitude estimate.
+  - *Next step:* Estimate Er's magnetocrystalline + shape anisotropy energy barrier, convert to a critical current via the linear f-vs-j relation, and compute the expected GMR conductance modulation depth for a realistic pillar to assess detectability at ~0.07 GHz.
+
+### xie2025  (5 Q)
+
+**Q1.** What sets the magnitude of the NV-detectable stray field and the resulting T1 relaxation time (Eqs. 13-15), which we did not attempt?
+  - *Basis:* The whole experimental proposal hinges on whether the phason-driven dynamic flux produces magnetic noise above the NV sensitivity floor; the theory paper gives only a qualitative Fermi-golden-rule estimate.
+  - *Next step:* Compute delta-Phi from the excited A1 phason amplitude, propagate the Biot-Savart stray field to a realistic NV standoff (10-100 nm), and evaluate S_B(omega0) and T1 for AV3Sb5 loop-current magnitudes from DFT/experiment.
+
+**Q2.** How does the mode-mixing signature evolve at finite q (dispersion), beyond the q=0 M-point result we reproduced?
+  - *Basis:* Real spectroscopy (IXS, Raman, pump-probe) probes finite-q; the kappa1 q^2 gradient terms shift the mixed-mode dispersions and could change the mode ordering shown schematically in Fig. 3(b).
+  - *Next step:* Diagonalize the full q-dependent Eq.(10) matrix over the folded BZ using a fitted kappa1, and map the avoided-crossing / mixing strength as a function of q.
+
+**Q3.** Does the mode mixing survive coupling to itinerant electrons (Landau damping) near the Van Hove filling?
+  - *Basis:* The paper's modes are from a phenomenological Lagrangian; at the VHS the CDW couples strongly to particle-hole continua, which can damp/broaden the Higgs and shift the phason gap.
+  - *Next step:* Compute the electronic polarization bubble Pi(q,omega) at 5/12 filling on the kagome lattice and dress the fluctuation propagator (RPA) to check whether the A-channel mixing peak remains a sharp resonance.
+
+**Q4.** How robust is the iCDW-vs-rCDW selection (sign of b) to the third-order lambda3 term we set to zero (following ref. 13)?
+  - *Basis:* The lambda3 cos(theta1)cos(theta2)cos(theta3) term, dropped by convention, can compete with lambda2 and alter the phase selection and hence whether sin(3 theta0) is nonzero.
+  - *Next step:* Reintroduce lambda3 and re-minimize F over the full (theta1,theta2,theta3) space (no C3 assumption) to map the phase boundary and confirm iCDW stability window.
+
+**Q5.** Can the microscopic kernel be made self-consistent so the loop-current order emerges spontaneously rather than as a linear response to an imposed flux?
+  - *Basis:* Our cross-check imposes an external Peierls flux; a genuine iCDW requires the loop current to be self-generated by interactions, tying the phenomenological |Delta_Q| to a microscopic order parameter.
+  - *Next step:* Add a mean-field imaginary bond order decoupling (V * <i c_i^dag c_j>) to the kagome kernel and iterate to self-consistency at VHS filling to obtain a spontaneous loop-current solution.
+
+### xu2023  (5 Q)
+
+**Q1.** Does the paper's headline topological spin liquid host a single chiral SU(3)_1 WZW edge mode (CSL) or two counter-propagating modes (double Chern-Simons)? The authors explicitly leave this unresolved.
+  - *Basis:* Sec. III D / IV: ED+MPS entanglement spectra point to a single chiral mode (CSL), while the optimized PESS ansatz shows both left- and right-movers consistent with a doubled Chern-Simons TFT. Our replication cannot arbitrate this: it requires SU(3)-symmetric tensor-network entanglement-spectrum computations far beyond the single-magnon analytical core we reproduced.
+  - *Next step:* Build (or reuse) an SU(3)-symmetric iPEPS/iMPS with QSpace; extract the entanglement spectrum on a long cylinder at KR/J~0.6, KI/J~0.45 and count/velocity-resolve the chiral branches against the SU(3)_1 WZW tower.
+
+**Q2.** Where exactly does the TSL lobe terminate in the (theta,phi) plane, and is the region genuinely gapped in the thermodynamic limit (21-site shows a gap that the 27-site cluster partially fills in near the pole)?
+  - *Basis:* Sec. IV notes the 27-site torus reveals low-energy non-singlet excitations near the pole absent on 21 sites, i.e. a possible finite-size artifact in the gap. Our magnon calculation only bounds the FERROMAGNETIC phase boundary, not the TSL extent.
+  - *Next step:* Finite-size scaling of the ED singlet-triplet gap on 21/27/36-site tori plus iMPS correlation-length scaling vs bond dimension to test for a true gap.
+
+**Q3.** Is the two-magnon instability line truly coincident with the onset of the trimer phase, or does an intermediate bound-state region intervene (as hinted at J=0, KR=-1, KI=sqrt3 where the (N-3,0) antisymmetric sector wins)?
+  - *Basis:* Sec. III E + Appendix A 4: numerically the two-magnon instability 'approximately' marks the trimer instability, and a distinct (N-3,0) bound-state region appears at one special point. We reproduced only the ONE-magnon line (Eq. 3); the two-magnon calculation was not implemented.
+  - *Next step:* Implement the symmetrized/antisymmetrized two-magnon Hilbert space (dim N(N-1)) with Casimir separation of (N-4,2) vs (N-3,0) sectors and reproduce Fig. 13 boundaries for N=27..81.
+
+**Q4.** In the SU(3)-broken magnetic region, does the ground state spontaneously break translation symmetry (the modulated C3-2 sqrt3xsqrt3 canted ferromagnet) or remain a uniform partially-magnetized ferromagnet?
+  - *Basis:* Sec. III F / IV B: unconstrained 1-triangle iPEPS gives a uniform collinear partially-magnetized state with LOWER energy than the modulated 9-site C3-2 iPESS, but the two are close. This is a variational-energy comparison our single-magnon code cannot access.
+  - *Next step:* Converge D>=8 iPEPS (1-triangle) vs C3-2 iPESS at matched bond dimension along the phi in (pi/4,3pi/4) magnetic arc and compare energy densities extrapolated in D.
+
+**Q5.** The magnetization is reported to JUMP at the boundary to the fully-polarized ferromagnet (infinite compressibility). Is this first-order jump robust, and what sets its magnitude?
+  - *Basis:* Sec. III F: the one-magnon calculation predicts infinite compressibility at the transition (flat 0-energy band, which we DID reproduce to <1e-14), and iPEPS numerics show a magnetization jump. We confirmed the flat-band precursor but not the many-body magnetization jump itself.
+  - *Next step:* Compute m(theta) across the boundary with the C3-2 and uniform iPEPS ansaetze and check for a discontinuity; relate the jump size to the flat-band degeneracy (hexagon localized modes) we found on the Eq.3 line.
+
+### yang2022  (5 Q)
+
+**Q1.** Does the full 2x2-folded (12-band-per-spin) chiral flux band structure reproduce the same total Chern numbers and edge-mode counts as the single-M closed-form kernel used here?
+  - *Basis:* The paper's Table 1 and Fig. 3 edge spectra are computed in the extended 2x2 unit cell; the single-cell kernel confirms |C|=1 and the TRS-breaking gap but cannot directly render the folded bands or the zero-energy edge modes that physically manifest the Chern number.
+  - *Next step:* Build the 3Q-iCDW Hamiltonian in a real-space 2x2x(open-y) kagome supercell with per-bond Peierls phases matching Fig. 2, diagonalize, and count chiral edge modes per spin for all 4 cases.
+
+**Q2.** Do the LG quartic coefficients u1 ~= (0.003/tT^2) log(t Lambda^2/T) and u2 ~= 0.006/(tT^2) with u1 >> u2 actually select the 3Q-iCDW over 1Q/2Q as claimed?
+  - *Basis:* The paper's assertion that 3Q order minimizes the free energy rests on the sign and hierarchy of u1, u2 from integrating out the patch fermions; this is the quantitative backbone of the whole classification but was not recomputed here.
+  - *Next step:* Evaluate the one-loop particle-hole bubbles at the three vHS patches numerically, extract u1(T), u2(T), and verify u1 > u2 > 0 across the low-T regime T << t Lambda^2.
+
+**Q3.** How does each of the 4 iCDW patterns select its partner superconducting order parameter through the u4 CDW&SC coupling (Fig. 4)?
+  - *Basis:* The paper's headline application is inferring the SC order from the identified orbital-current order (and vice versa); the topological classification is only half the story.
+  - *Next step:* Derive the bilinear iCDW-SC coupling term in the LG functional and enumerate which singlet SC channel (s, d+-id, etc.) is favored for each of cases (i)-(iv).
+
+**Q4.** Is the sign of C_down at the balanced (2-of-3, e.g. (-i,i,i)) configuration robustly resolvable by a gauge-fixed numerical Chern calculation rather than by symmetry alone?
+  - *Basis:* Our direct FHS index was ambiguous at the gapless balanced staggered config, forcing reliance on Eq. (4); an independent numerical sign would upgrade the agreement from symmetry-derived to fully numerical.
+  - *Next step:* Add a small symmetry-allowed gap-opening perturbation (or use the extended cell) so the balanced configs are gapped, then compute the FHS Chern sign directly and compare to the symmetry prediction.
+
+**Q5.** How stable is the classification against deviations from equal iCDW amplitudes |Phi_1|=|Phi_2|=|Phi_3| and from mu=0?
+  - *Basis:* Real AV3Sb5 need not sit exactly at the vHS filling or have perfectly equal 3Q amplitudes; the topological labels could change if bands cross the Fermi level.
+  - *Next step:* Sweep unequal amplitudes and mu in the tight-binding model, tracking gap closings and Chern-number jumps to map the stability region of each pattern.
+
+### zhan2025  (5 Q)
+
+**Q1.** Does an actual truncated-unity FRG calculation reproduce the (V1,V2) phase diagram of Fig 2 — in particular the LCO wedge at intermediate V2 with strong V2 relative to V1?
+  - *Basis:* We replicated only the downstream single-particle electronic model; the FRG phase boundaries, critical scales Lambda_c, and channel-flow competition (nCDW/LCO/CBO/f-SC) were out of scope (need a full FRG code + HPC).
+  - *Next step:* Port or interface a truncated-unity FRG package (e.g. divERGe) for the spinless kagome model at p-type VHS; sweep V1,V2 and locate the leading divergent vertex eigenvector; compare the LCO domain to Fig 2.
+
+**Q2.** Is the exact 3Q imaginary-bond texture from diagonalizing the renormalized susceptibility (mixed 1nn+2nn, weights per Fig 3b) topologically identical to our geometric current-sense assignment, and does it yield C=1 uniquely at the p-type-VHS filling?
+  - *Basis:* Our FoldedKagomeLCO reproduces the headline full gap and total C=1 at gapped fillings 4-5/12, but the current-sense assignment is geometric, not the paper's susceptibility eigenvector; other fillings show C=2 or -1.
+  - *Next step:* Construct the mean-field LCO order parameter directly from the paper's Delta_1nn/Delta_2nn ratio along V1+V2=1.2t (Fig 3b) and recompute Chern vs filling to confirm C=1 is pinned at the VHS filling.
+
+**Q3.** What are the microscopic values of the Landau coefficients Z1, Z2 (and the sign/size of Z1-Z2) predicted by the FRG for this model, beyond the qualitative Z1-Z2>0 that we assumed?
+  - *Basis:* Claim D used representative Z1=1, Z2=0.4 to demonstrate 3Q selection; the paper states Z1-Z2>0 but the actual magnitudes come from the SM Ginzburg-Landau expansion we did not derive.
+  - *Next step:* Derive f^(4) coefficients from the second-order-in-GL particle-hole hopping fluctuation analysis (SM Sec III) and check whether the 3Q remains the minimum across the LCO domain.
+
+**Q4.** Does the 2x2 LCO generate the reported ~0.03 muB/site orbital magnetic moment when the current pattern and bond weights are set to the FeGe-relevant regime?
+  - *Basis:* We verified only that the 3Q (1,1,1) config carries a nonzero net magnetic dipole (ferromagnetic), not the absolute moment magnitude, which depends on real hopping/bond weights and lattice constant.
+  - *Next step:* Compute the orbital magnetization M_orb = (e/2c) sum <r x j> for the self-consistent LCO ground state with FeGe parameters and compare to 0.03 muB/site.
+
+**Q5.** Does the reentrant twofold nCDW (E2g of D6h) at lower interaction scale, and the f->p SC transition with increasing V1, appear in a mean-field or RPA treatment of the same model?
+  - *Basis:* These are FRG-flow features (Fig 2, Fig 4) beyond the tight-binding scope of this replication; we did not model the SC channel or the reentrant nematic transition.
+  - *Next step:* Add an RPA/mean-field decoupling in the SC and nematic channels to the tight-binding model and scan the interaction scale to test for the reentrant nCDW and the f->p pairing crossover.
+
+
+---
+
+# MULTIPOLAR
+
+### banerjee2026  (5 Q)
+
+**Q1.** Does the induced anisotropy Gamma^(3)/J_eff actually reach order-1 (comparable to J_eff) as Fig.3(a) shows, or does the minimal analytic evaluation cap it at ~10^-3?
+  - *Basis:* The paper's central physics (opening the enlarged Kitaev-like multipolar liquid regime) requires the bond anisotropy to become strong enough to compete with the leading exchange. Our evaluation gives Gamma^(3)/J_eff ~ 2.7e-3 at zeta=4, three orders below the ~O(1) suggested by Fig.3(a).
+  - *Next step:* Recompute with the paper's exact geometry (psi_0, r_pd/r_dd from Slater-Koster edge-sharing geometry) and confirm whether A0=E0*r_dd/Omega vs A=E0*r_pd/Omega ratio and the J^(4) t_pd^4 term amplify anisotropy at large zeta; cross-check Appendix B/C definitions of U-tilde.
+
+**Q2.** What is the precise definition of the effective interaction scale U-tilde in terms of U, J_H, and lambda (Appendix A/C)?
+  - *Basis:* U-tilde sets the virtual-denominator resonances (U-tilde - m*Omega) that control the entire Floquet sum magnitude; we used the representative U-tilde=3.0 eV but its microscopic composition changes coupling ratios and resonance placement.
+  - *Next step:* Extract Appendix A/C from the full PDF (pages beyond the provided excerpt) and substitute the exact U-tilde(U,J_H,lambda) expression, re-evaluating Eqs.6a-6f.
+
+**Q3.** Does the many-body ED phase diagram (AFO, FO, PPFQ, IO, ML) emerge from Heff over the (Gamma^(3)/J_eff, h_m/J_eff) plane?
+  - *Basis:* The paper's Fig.8 phase diagram is the physical payoff of the induced couplings; we replicated the couplings but not the phases, so the claim that only AFO survives without CPL is unverified here.
+  - *Next step:* Build the honeycomb-cluster pseudospin Hamiltonian Eq.(4) and run exact diagonalization (e.g. 24-site cluster) scanning Gamma^(3) and h_m; identify order parameters <sigma^y> (FO/AFO octupole), quadrupolar, and entanglement signatures of the liquid.
+
+**Q4.** Is the h_m proportional-to-Gamma^(3) constraint (ratio 9/8) an exact analytic identity or an artifact of the single-t2 minimal model?
+  - *Basis:* The paper states the proportionality is a consequence of the minimal model (single t_2) and can be lifted by an external [111] field; understanding this distinguishes a robust prediction from a model simplification.
+  - *Next step:* Add a second TM-TM hopping channel or a weak static B[111] to the coupling formulas and verify the ratio h_m/Gamma^(3) departs from 9/8, matching the paper's claim that the constraint relaxes.
+
+**Q5.** How large is the prethermal lifetime tau* in physical units, and does it exceed pump-probe timescales for the stated Omega ~ 100 THz and Lambda ~ meV?
+  - *Basis:* The entire effective-Hamiltonian description (Eq.4) is valid only in the prethermal window; if tau* is too short the induced OIFE field is not observable, undermining the experimental proposal.
+  - *Next step:* Evaluate Eq.(5) tau* ~ (hbar/Lambda) exp(alpha*hbar*Omega/Lambda) with Lambda=max local scale from our computed couplings (~1.5e-2 eV) and alpha~1; confirm the several-picosecond estimate quoted in the paper.
+
+### bhowal2022  (5 Q)
+
+**Q1.** Do the DFT-computed atomic-site magnetic octupole magnitudes (O32- ~ few x10^-3 to 10^-2 muB in Fig. 2) and their linear dependence on the SOC scaling lambda_r reproduce, given that the quadrupoles Q20/Q22- are lambda_r-independent (structural) while the octupoles are not?
+  - *Basis:* Fig. 2(a,c) of the paper plots O32-, O30, Q20, Q22- vs lambda_r from an Elk tensor-moment decomposition of rho_{lm,l'm'}. Our TB replication reproduces the octupole-driven NRSS but never computes the octupole magnitude itself (it has no wavefunction/density-matrix content), so the muB-scale numbers and the lambda_r slope are untested.
+  - *Next step:* Run Elk LDA+SOC+U (Ueff=5 eV, lmax=8, 5x5x7 k-mesh, MT radii 2.4/2.0 a.u.) with the multipole-decomposition extension (Spaldin et al. PRB 88, 094429), scaling lambda_r in {0,0.5,1,1.5,2}; extract O32-, O30, Q20, Q22- at the Mn site and compare magnitude and lambda_r dependence to Fig. 2.
+
+**Q2.** Is the magnetic Compton profile (MCP) of MnF2 actually non-zero, symmetric in p, ~1 order of magnitude larger than in ferroelectrics (PbTiO3/GeTe), and sign-reversing under [110]->[1-10]?
+  - *Basis:* Section IV.B and Fig. 5 report the first predicted AFM MCP, computed with the Elk momentum-density/Compton extension (Ernsting et al.). This is the paper's proposed experimental smoking gun. Our TB model has no real-space wavefunctions, so it cannot produce a momentum-space spin density or an MCP.
+  - *Next step:* Use the Elk magnetic-Compton module to compute J_mag(p) = int (rho_up - rho_dn) dpx dpy along [110],[1-10],[111]; verify zero integral, symmetric profile, sign reversal, and the ~10x amplitude ratio to the published ferroelectric baselines.
+
+**Q3.** Does the predicted anti-piezomagnetic effect (antiparallel Mn spin components ~ up to 3x10^-4 muB along x/y under shear sigma_xz/sigma_yz, from the antiferro O30 octupole) appear in DFT, and is it linear and SOC-enhanced (larger at lambda_r=2)?
+  - *Basis:* Fig. 4(b,d) shows a tiny, linear, antiparallel local-moment response predicted from the O30/t_z^(tau) antiferro multipole -- a genuinely NEW prediction of the paper. Our symmetry check (claim 10) only confirms the tensor STRUCTURE (which shear couples to which spin axis), not the magnitude or its SOC dependence.
+  - *Next step:* Perform DFT shear-strain relaxations (fix strained lattice, relax internal coords to <0.01 eV/A) at sigma_xz, sigma_yz in {0..0.08} for lambda_r=1,2; record net M and site-resolved m to test linearity, antiparallelism, and SOC enhancement against Fig. 4.
+
+**Q4.** Do the NMTO-downfolded TB parameters (Table I) actually derive from the MnF2 DFT band structure, i.e. does an independent Wannier/NMTO downfolding of the dxz/dyz manifold along Gamma->M return t1..t4, e1, e2 close to the published Ry values?
+  - *Basis:* Table I lists specific NMTO hoppings but we took them as given inputs. Their provenance (the downfolding of F-p orbitals from the DFT bands of Fig. 6) is a computational step we did not reproduce; a different downfolding window could shift the numbers and hence the 41 meV peak.
+  - *Next step:* Compute the nonmagnetic MnF2 band structure (VASP/Elk), build maximally-localized Wannier functions (Wannier90) or NMTO for the top dxz/dyz valence pair, and compare the extracted hoppings/onsite energies (in Ry) to Table I; propagate any differences into Delta E_s.
+
+**Q5.** For higher-symmetry NRSS antiferromagnets (e.g. hematite Fe2O3 with g-wave splitting), is the correct ferroic order parameter a rank-5 magnetic triakontadipole rather than the rank-3 octupole, and does an analogous minimal TB model reproduce g-wave (l=4/higher) k-space form factors?
+  - *Basis:* The Discussion (Sec. V) explicitly raises Fe2O3 g-wave NRSS as allowing a magnetic triakontadipole beyond the octupole, and flags this as future work. Our replication only treats the d-wave (octupole) MnF2 case.
+  - *Next step:* Construct the minimal multi-sublattice TB model for a g-wave altermagnet (Fe2O3 low-T phase), derive its k-space spin-splitting form factor, and test whether it matches an l=4/rank-5 (triakontadipole) angular pattern with the correct nodal structure and C-rotation sign changes.
+
+### chandra2014  (5 Q)
+
+**Q1.** Does the full two-channel Anderson-lattice mean field actually reproduce the observed g(theta), chi_xy, and condensation entropy (Figs. 3 and 7) rather than just being consistent with the analytic bounds we checked?
+  - *Basis:* We reproduced the analytic bounds (C1-C3) and Landau structure (C4-C5), but the microscopic consistency curves in Figs. 3/7 require solving the two-channel Anderson lattice (Eqs. 20-24) self-consistently, which we did not implement.
+  - *Next step:* Implement the mean-field decoupling of Eq. 22-24 on a tetragonal lattice with Gamma6/Gamma7 form factors, solve the gap equations for <Psi_sigma>, then compute the FS-averaged g(theta) and chi_xy and overlay on the paper's Figs. 3/7.
+
+**Q2.** The Onsager ladder predicts 17 half-integer crossings but 16 spin zeros are observed. Is the off-by-one from the FS-averaged g*m* differing slightly from the nominal 2.6 x 13, or from the n=0 zero being experimentally inaccessible?
+  - *Basis:* Our C1 gives alpha_0 = g* m*/2m_e = 16.9, yielding 17 half-integer crossings in [0,90deg]; the paper reports 16 observed zeros for the alpha orbit.
+  - *Next step:* Compute the true FS-averaged product <g(k) m*(k)> over the alpha pocket instead of using nominal g*=2.6, m*=13; check whether the highest-index (near-basal-plane) zero falls outside the measured angular window.
+
+**Q3.** How robust is the sqrt(T-Tc) soft-mode gap once Gaussian fluctuations of the spinor and the four-state-clock (vs XY) anisotropy are included, given the paper flags this as an open discrete-vs-continuous question?
+  - *Basis:* Our C4 recovers the mean-field sqrt law exactly (slope 0.5), but the paper's Discussion notes the transverse hastatic vector may cross over from a four-state clock to XY order at long distances, which would change the soft-mode spectrum.
+  - *Next step:* Add a clock/XY anisotropy term to f[Psi], compute the Gaussian-fluctuation-corrected longitudinal mode, and test whether the sqrt exponent survives or renormalizes near the first-order line.
+
+**Q4.** Can the predicted chi3 anisotropy cos^4(theta) be distinguished experimentally from a multipolar (non-hastatic) scenario, i.e., is cos^4(theta) unique to the Ising non-Kramers doublet?
+  - *Basis:* C5 derives cos^4(theta) purely from an Ising two-level system coupling to Bz=B cos(theta); a staggered multipole with a different single-ion anisotropy could in principle give a different angular law.
+  - *Next step:* Derive chi3(theta) for representative multipolar order parameters (e.g. E-type quadrupole, dotriacontapole) and compare their angular signatures against the hastatic cos^4(theta) to identify a discriminating measurement.
+
+**Q5.** Why is the transverse (basal-plane) moment predicted at ~0.01 muB but bounded experimentally below 0.0011 muB, and does reducing the assumed 20% mixed valence toward integral valence reconcile it without breaking the other fits?
+  - *Basis:* The paper predicts a basal moment ~TK/D ~ 0.01 muB (20% mixed valence) yet neutron bounds give <0.0011 muB; this tension is stated but unresolved in the text.
+  - *Next step:* Parametrize the transverse moment vs 5f mixed-valence fraction in the mean-field model, find the valence at which mu_perp < 0.0011 muB, and check whether that valence still reproduces the g-factor and entropy constraints.
+
+### chen2022  (5 Q)
+
+**Q1.** What are the exact phase boundaries in the (Jperp~/Jx~, J2xz/Jx~) plane from the full self-consistent gMFT (chi1, chi2, I1, I2)?
+  - *Basis:* Our replication scans an effective inter-sublattice hop t2 rather than the two microscopic couplings; the true 2D boundary and the location of the U(1)-QSL/AF*/fragmented-AFM triple region cannot be quantitatively pinned without the coupled self-consistency.
+  - *Next step:* Implement the full self-consistent loop solving chi1=<s~+ s~->, chi2=<s~+ s~x>, I1=I2=<Phi† Phi'> jointly with lambda, then re-scan the true 2D parameter plane.
+
+**Q2.** Is the AF*→fragmented-AFM transition continuous (spinon condensation at Gamma) as claimed, and 3D-Ising at finite T?
+  - *Basis:* The paper asserts a continuous Anderson-Higgs boundary and a finite-T 3D Ising transition for the AAO order; our T=0 gap-closure is consistent but does not test the universality class.
+  - *Next step:* Add the Gamma-point condensate order parameter and a finite-T treatment (or Monte Carlo of the effective Ising AAO field) to check continuity and 3D-Ising exponents.
+
+**Q3.** What is the absolute magnitude of the T^3 specific-heat coefficient in physical units for Nd2Sn2O7?
+  - *Basis:* The 'anomalously large' claim is the key experimental fingerprint; a material-specific number would enable direct comparison with heat-capacity data.
+  - *Next step:* Fit the emergent photon velocity from ring-exchange g ~ 12 Jperp^3/Jx^2 using reported Nd2Sn2O7 exchange scales and convert to J/mol/K^4.
+
+**Q4.** Does the two-spinon continuum (Eq. 16-17) reproduce the paper's Fig. 2 spectral envelope along high-symmetry lines?
+  - *Basis:* The broad INS spinon continuum is the dynamical smoking gun distinguishing AF* from a conventional magnon spectrum.
+  - *Next step:* Compute Omega(q)=w_mu(k1)+w_nu(q-k1) min/max envelopes on a fine grid along Gamma-X-W-L and overlay on the paper's Fig. 2 (t1=0.025, t2=0.02).
+
+**Q5.** How robust is the AF* state to the neglected '...' terms (dipolar S^z-S^z, further-neighbor superexchange)?
+  - *Basis:* The minimal model drops terms that could shift or destroy the AF* window; robustness determines material realizability.
+  - *Next step:* Add a tunable second-neighbor Jzz and dipolar tail, re-solve gMFT, and map the shrink/growth of the AF* region.
+
+### das2014  (5 Q)
+
+**Q1.** Does using the realistic WIEN2k DFT Fermi surface (rather than a single nested tight-binding pocket) recover the ~40% FS spectral-weight loss and ~24% R ln2 entropy release?
+  - *Basis:* These integrated quantities are the extensive thermodynamic fingerprints of the HO transition and are the main under-reproduced numbers in this model replication (we get ~6% and ~0.006 k_B ln2). They test whether the gap phenomenology is quantitatively, not just qualitatively, an SODW.
+  - *Next step:* Downfold DFT bands for URu2Si2 near E_F onto the two spin-orbit-split 5f orbitals, identify the (110)/(100) hot-spot nesting at Q=0.5(pi,pi,0), and re-run the same self-consistent gap equation over the realistic multi-sheet FS.
+
+**Q2.** Why is the model 2*Delta0/k_B*Th ratio (~8) far above the BCS value 3.53, and is the real SODW strong-coupling?
+  - *Basis:* The gap-to-Tc ratio diagnoses coupling strength and the shape of Delta(T). A ratio of ~8 signals the self-consistency in this flat-nested band is strongly non-BCS, which affects the predicted specific-heat jump at Th.
+  - *Next step:* Compute Delta(T) with finer T resolution near Th and fit the mean-field order-parameter exponent; compare the specific-heat jump Delta C/C to the measured 24% entropy discontinuity.
+
+**Q3.** Can the naive Zeeman estimate B_c = 2*Delta0/(g*muB) (~106 T here) be reconciled with the experimental ~35 T once the field dependence of Delta and the anisotropic g-factor are included?
+  - *Basis:* The predicted quantum critical field near 35 T is a headline falsifiable prediction of the SODW theory; our static gap-closing estimate overshoots by ~3x.
+  - *Next step:* Add a Zeeman term to H_k, recompute the self-consistent Delta(B) until it vanishes, and use the momentum-dependent g-factor from quantum-oscillation data rather than g=2.
+
+**Q4.** How does the competition/coexistence with the LMAF (SDW) order parameter (Das Eqs. 11-12, GL functional) shift the SODW gap and Th?
+  - *Basis:* The HO->LMAF first-order transition under pressure/field is a defining feature of URu2Si2; the pure-SODW mean field here ignores the gamma|Delta_sodw|^2|Delta_sdw|^2 cross-coupling.
+  - *Next step:* Implement the two-field Ginzburg-Landau free energy F[Delta_sodw, Delta_sdw] with the alpha, beta, gamma coefficients of Eq. 12 and map the phase boundary in the (U/V, lambda/W) plane of Fig. 4.
+
+**Q5.** Is the SODW gap really time-reversal invariant (zero net moment) in the model, as Das proves analytically (Eq. 9)?
+  - *Basis:* The absence of an ordered magnetic moment is what makes the order 'hidden'; verifying it numerically in the model validates that our construction is a genuine SODW and not a disguised SDW.
+  - *Next step:* Evaluate the spin expectation S = (1/N) sum_k <c^dag_{k+Q} sigma c_k> in the self-consistent SODW ground state and confirm it vanishes for all V, as Eq. 9 predicts.
+
+### hotta2006  (5 Q)
+
+**Q1.** Does a full NRG solution of the multiorbital Anderson model reproduce the reported dominant-multipole crossover (2u octupole -> mixed 4u+5u) once dynamical Jahn-Teller phonons are switched on?
+  - *Basis:* The 2u-vs-mixed conclusion (Figs 2c,3d) is the paper's headline result but depends entirely on NRG with Nph=20 phonon basis and Lambda=5, which we did not implement; our exact-diagonalization covers only the local operator/CEF building blocks.
+  - *Next step:* Implement or adopt an NRG impurity solver (e.g. TRIQS/NRG Ljubljana) with the au conduction bath + Eg phonon coupling; evaluate the maximized susceptibility matrix chi_{gg'}(T) and confirm the leading eigenvector switches symmetry when alpha>0, beta<0.
+
+**Q2.** Are the reported mixing coefficients (pa,qa,ra)=(0.761,0.428,-0.488) recoverable as the dominant eigenvector of the maximized susceptibility matrix at the stated low-T point?
+  - *Basis:* We verified the coefficients are unit-normalized (norm^2=1.000) but could not derive them, because they emerge from diagonalizing the NRG-evaluated chi matrix at a specific temperature, which is beyond the exact-diag scope.
+  - *Next step:* Build the 6x6 (or larger) multipole susceptibility matrix from NRG-renormalized states at T~1e-8, restrict to the 4u/5u/3g block, and check the max-eigenvalue eigenvector against the reported (p,q,r).
+
+**Q3.** How close is the many-body n=2 CEF excitation from the effective model Heff to the ~1 meV (Gamma1 -> Gamma4) value quoted for PrOs4Sb12 in Fig 1(a)?
+  - *Basis:* Our single-electron (n=1) CEF splitting is 8.3 meV; the paper's n=2 value (~1 meV) requires the many-body Heff with Racah Coulomb (E0,E1,E2), which we did not diagonalize.
+  - *Next step:* Construct the n=2 many-body basis in the j=5/2 sextet, add B~ (eq 11) and I~ (eq 12) with the Racah relations (eq 13), diagonalize, and compare the Gamma1-Gamma4 gap vs x to Fig 1(a).
+
+**Q4.** Is the CEF phase-diagram boundary in the (lambda,U) plane for n=5 (Fig 1e) reproduced, i.e. does Gamma67 win for large lambda/small U and Gamma5 for small lambda/large U?
+  - *Basis:* Our sign-of-x flip is the correct one-body mechanism, but the U- and lambda-driven crossover in Fig 1(e) is an intrinsic many-body (LS<->jj) effect requiring the full Coulomb-inclusive diagonalization we did not perform.
+  - *Next step:* Scan (lambda,U) for n=5 with the full H_loc = H_so + H_int + H_CEF (14-orbital, 5-electron many-body ED), extract the ground multiplet, and map the Gamma5/Gamma67 boundary against Fig 1(e).
+
+**Q5.** Does the entropy-release sequence (log6 -> log4 -> log2 -> 0) and the associated specific-heat peaks (Figs 2b,d,3b,e) follow from the model's thermodynamics?
+  - *Basis:* These are NRG thermodynamic outputs (Simp = -dF/dT, Cimp = -T d2F/dT2 from eq 28) that we did not compute; we only verified the ground-multiplet degeneracies (2 and 4) that set the plateau values log2 and log4.
+  - *Next step:* From an NRG run, accumulate the free energy via eq (28) across shells, differentiate to get S(T) and C(T), and confirm the plateau heights and the quasi-Kondo log2 release peak near T~1e-6.
+
+### kang2018  (5 Q)
+
+**Q1.** The paper's headline advantage is that the many-body order parameter faithfully tracks the physical quadrupole/corner charge even in strongly-correlated (interacting) systems where the nested Wilson loop (a free-fermion quantity) is undefined. Our replication is purely non-interacting (Slater determinant). Does the determinant identity <exp(i sum phi n)> = det(P^dag e^{i phi} P) generalization survive, and does Q_xy still equal q_c, once a Hubbard-U or a bosonic interaction is switched on?
+  - *Basis:* Main text explicitly motivates the order parameter as valid 'beyond free-fermion limits, e.g. strongly-correlated systems and bosonic models' and Eq. (4) is stated for a general many-body ground state; the numerical proof, however, is only shown for the non-interacting BBH model. Our code inherits that limitation exactly.
+  - *Next step:* Build a small interacting quadrupole model (e.g. 2x2 or 3x3 cells of the BBH lattice with nearest-neighbor V or on-site U) via exact diagonalization (QuSpin), compute <U_2> directly from the full many-body ground state, and check Q_xy vs the exactly-computed corner charge as U is ramped.
+
+**Q2.** We reproduce the quantized quadrupole (0 vs 1/2) and the sharp transition, but only after referencing Q_xy to the deep atomic-trivial limit (lambda -> 0) to fix the coordinate origin. Is this atomic-reference subtraction equivalent to the paper's coordinate parametrization / gauge choice, or does it hide a genuine ambiguity in the absolute value of Q_xy at finite size?
+  - *Basis:* The paper devotes supplemental material to 'the effect of other coordinate parametrization' and states the moments are ambiguous 'mod 1'. Our raw <U_2> phase depended on the intra-cell orbital-offset convention (s), and only the DIFFERENCE between phases was convention-independent (a robust 1/2). The absolute origin required a reference.
+  - *Next step:* Reproduce the supplement's coordinate-parametrization analysis: recompute Q_xy with the exact orbital positions the authors use, compare against the atomic-reference scheme, and confirm both give the identical mod-1 answer at several system sizes.
+
+**Q3.** The paper's most striking claim (Fig 1d) is that the many-body order parameter succeeds for the 'anomalous topological quadrupole insulator' where the naive nested Wilson loop fails entirely, with a transition at V_2z/sqrt(Delta^2 + mu'^2) = 1. We did NOT implement this anomalous model (its Hamiltonian and parameter values live only in the supplemental material, which our text extraction did not fully resolve). Does <U_2> reproduce that transition quantitatively?
+  - *Basis:* Fig 1d and the surrounding text assert the anomalous-model result but the model definition and numerical parameter values are deferred to the supplement ('See the supplemental material for details on the model and the numerical values of the parameters'). This is out-of-scope for the present minimal replication.
+  - *Next step:* Extract the anomalous-insulator Hamiltonian (line ~945 of the layout text references Gamma'_i = sigma3 (x) Gamma_i etc.), implement the doubled model, and sweep V_2z to test the predicted transition at V_2z/sqrt(Delta^2+mu'^2)=1 against <U_2>.
+
+**Q4.** Our finite-size |<U_2>| is very small in the topological phase (1e-5 to 1e-4 at L=8-12) and shrinks with L. The paper states |<U_2>| vanishes exactly only at the phase boundary. Is the tiny bulk-phase magnitude a genuine finite-size decay (orthogonality-catastrophe-like suppression of a single-determinant overlap) or a numerical artifact, and does it threaten the Im-ln phase extraction at larger L?
+  - *Basis:* The magnitude |<U_2>| decreased monotonically with L in every phase (e.g. trivial 0.178 -> 0.049 for L=6->12), while the PHASE stayed pinned at 0 or 1/2. The paper discusses |<U_2>| only qualitatively (vanishing at the boundary) and does not report its scaling.
+  - *Next step:* Study |<U_2>|(L) scaling analytically for the decoupled (lambda=0) limit where the determinant factorizes, characterize the decay law, and confirm the phase remains numerically well-resolved (double precision) up to L~20-30 or switch to a log-domain determinant.
+
+**Q5.** The paper introduces generalized partial-region operators V_1(l), V_2(l) (Eqs. 6-7) and shows (Fig 3) they work 'as good as' the full-torus formula for the SSH chain and the BBH model even with symmetry-breaking delta != 0. We implemented only the full-torus U_1, U_2. Do the partial-region operators reproduce the same corner charge, and how does the answer converge with the region size l?
+  - *Basis:* Section '-Generalizations' and Fig 3 present V_1(l)/V_2(l) as a key demonstration that the measure is robust and locally definable, tested against SSH and BBH with delta != 0. Our replication covers the full-region operators only.
+  - *Next step:* Implement V_2(l) by restricting the phase field to r in (0,l]x(0,l] with phi = (2/l^2) x y there and 0 outside, sweep l for the BBH model at delta != 0, and reproduce Fig 3's convergence of Im ln<V_2(l)>/2pi to the corner charge.
+
+### konakanchi2025  (5 Q)
+
+**Q1.** What is the exact origin of the ~2x dimensionless prefactor difference between our self-consistent low-barrier 1/e time (sqrt(2)/omega_J with omega_J=gamma*sqrt(H_J*H_th/3)) and the paper's published Eq. 10 constant (sqrt(2*ln2)/(gamma*sqrt(H_J*H_th)))?
+  - *Basis:* It determines whether the replication is quantitatively exact or only scale-accurate. The physical picosecond scale and all qualitative conclusions are unaffected, but a factor ~2 matters for device retention-time engineering.
+  - *Next step:* Rederive the mz-mode normalization from the full three-sublattice free energy (the factor-3 in stiffness 3/2 Ms H_J V) and confirm whether the paper defines tau at C=1/e or C=1/2; check the SI Eq. 9->10 reduction line-by-line against a symbolic (sympy) Gaussian-integral derivation.
+
+**Q2.** Does the full six-spin (or three-magnetization) stochastic-LLG simulation with explicit J, D, K, nu reproduce the same tau as the reduced (mz, phi_oct) effective theory across the crossover region Delta ~ kT?
+  - *Basis:* The paper's headline rests on the reduced effective theory; the crossover (Delta ~ kT), where neither Langer nor pure dephasing is exact, is the least-validated regime and is exactly the device operating point for probabilistic computing.
+  - *Next step:* Implement the full 3-vector s-LLG (Eq. 3) with Heun/Stratonovich integration and FDT thermal fields, sweep V so Delta/kT spans 0.05-8, and overlay measured C(t) tau against both analytic asymptotes.
+
+**Q3.** What Mn3Sn material parameters (J, D, K, Ms, nu, V) reproduce BOTH the ~100 T exchange field AND the specific ~10 ps quoted for the lowest barrier simultaneously and self-consistently?
+  - *Basis:* We adopted H_J=100 T and literature Ms directly; a first-principles-consistent parameter set would turn a scale-match into a parameter-free quantitative match and enable predictive material design.
+  - *Next step:* Extract J, D, K for Mn3Sn from Refs. [27,35,44] cited in the paper, compute H_J=(9J+3sqrt3 D)/3Ms and Delta=2nuKJV/(J+sqrt3 D) from those, and verify the ps scale emerges without free tuning.
+
+**Q4.** How accurately does the depopulation factor A(V*deltaF/kT) stay at unity for the very-low-damping (alpha ~ 1e-3) chiral AFMs now being reported, where the paper warns A may deviate significantly?
+  - *Basis:* In the VLD limit the IHD Langer escape time is an underestimate; if A deviates from 1 the high-barrier retention times (and thus memory viability) change substantially.
+  - *Next step:* Numerically evaluate the depopulation integral A(x) (paper Eq. D18) for the actual V*deltaF/kT = 6*alpha*sqrt(J K nu V)/kT at alpha=1e-3 and confirm/correct the A~1 assumption.
+
+**Q5.** Can the proposed spin-orbit-torque (Josephson-junction analogy) electrical tuning of tau by 'orders of magnitude' be reproduced quantitatively, including the tilted-washboard critical current I_c?
+  - *Basis:* The electrical-tunability claim is the applied payoff of the paper (probabilistic computing, tunable RNG); it was not exercised in this replication and is central to device relevance.
+  - *Next step:* Add the spin-current term H_S=(hbar/2e)(theta_sh I_b)/(3 Ms V) to the effective free energy (Eq. E5), recompute asymmetric barriers Delta_up-down/Delta_down-up (Eqs. F11-F12) and the two-path relaxation rate (Eq. F13) vs I_b/I_c, and verify orders-of-magnitude tuning.
+
+### kotetes2010  (6 Q)
+
+**Q1.** Does the strict field-induced character of the dxy component (Delta1=0 at B=0) survive in a microscopic multi-Fermi-line model, rather than only in the Landau reduction?
+  - *Basis:* The paper's central claim of a *field-induced* chirality rests on alpha1 > 0 so that dxy only appears through the orbital coupling g*Delta1*Delta2*B. Our simplified single-band model has V''>V', which lets dxy condense on its own at B=0 — the opposite of the paper. Whether the field-only behavior is generic or an artifact of the reduced model bears directly on the falsifiability of the chiral-HO proposal.
+  - *Next step:* Implement the four-Fermi-line nesting geometry at Q1=(1+/-0.4,0,0) (paper Appendix A footnote) and re-solve C2; check the sign of the bare dxy quadratic coefficient.
+
+**Q2.** Can the double-step metamagnetism (first-order jumps at Bc1=33.5 T and Bc2=41 T) be reproduced from the band-crossing mechanism (Eq. B3) with the stated parameters?
+  - *Basis:* The metamagnetic double-step is one of the two headline experimental puzzles the paper claims to unify. It is a first-order (band-crossing) effect not captured by our smooth free-energy topology, so its absolute field scale is an independent, strong test of the model.
+  - *Next step:* Compute M_z(B) = -dF/dB from the 4-band spectrum including the orbital term (Eqs. E1-E2) on a fine k-grid and locate the field values where an energy branch crosses E_F.
+
+**Q3.** What sets the absolute field scale Bc1 ~ 33.5 T — is it the Zeeman energy muB*Bc1 ~ 1.94 meV matching Delta2(0), or the orbital coupling?
+  - *Basis:* muB*33.5 T = 1.94 meV is remarkably close to Delta2(0)=1.55-1.87 meV, suggesting the gap-closing (Pauli-limit-like) scale controls the MCEP. Distinguishing Zeeman vs orbital origin determines which experimental knob (field angle, g-factor) would shift Bc1.
+  - *Next step:* Run the microscopic solver over B with orbital coupling ORB set to 0 vs finite, and track where Delta2 collapses; compare the collapse field to muB-only prediction.
+
+**Q4.** Does the model reproduce the quadratic field-suppression law Delta2(B)/Delta2(0) ~ 1-(B/Bc1)^2 above the MCEP?
+  - *Basis:* This specific law is claimed to be verified in magnetoresistance experiments [47] and is a clean, parameter-light prediction. Our low-T field sweep currently shows Delta2 *rising* with B (single-band artifact), so this is an open discrepancy to resolve.
+  - *Next step:* In the corrected multi-band model, restrict to T just above the MCEP temperature (~3-5 K) and fit Delta2(B)/Delta2(0) to a + b*(B/Bc)^2.
+
+**Q5.** Is the giant 'tilted-hill' Nernst signal (~30 uV/K near 12 T, 3-4 K) a genuine topological (Berry-curvature) effect of magnitude set by the chiral gap, or dominated by quasiparticle contributions?
+  - *Basis:* The paper attributes the giant Nernst to the topological robustness of the chiral condensate (Ref. [46]), computing it ~1 order larger than experiment. Separating topological vs quasiparticle alpha_xy tests the chiral interpretation against conventional semimetal explanations.
+  - *Next step:* Implement alpha_xy^top from Berry curvature (Eqs. E, sum of nF*Omega) and alpha_xy^qp from the quasiparticle expressions, then form nu=N/Bz and reproduce the T-peak at 3-4 K.
+
+**Q6.** 
+
+### lai2018  (5 Q)
+
+**Q1.** Does the full DMRG (Ly up to 8, 4000 SU(2) states) confirm that m_S^2 -> 0 while m_Q^2 stays finite in the thermodynamic limit, as claimed by the finite-size scaling in Fig. 1?
+  - *Basis:* Our laptop ED only reaches N=8 sites (2x4). At that size m_S^2(pi,0)=0.49 is NOT small relative to m_Q^2(pi,pi)=1.26; the true vanishing of the dipole order parameter is a thermodynamic-limit statement requiring DMRG the paper had but we cannot run.
+  - *Next step:* Run ITensor/TeNPy DMRG on Ly=4,6,8 cylinders at J1=1,K1=1.2,K2=-0.3, extract m_S^2(q),m_Q^2(q) vs 1/N, and reproduce the finite-size scaling extrapolation of Fig. 1 (bottom right).
+
+**Q2.** Over what exact range of K2/J1 does the (pi,pi)-AFQ phase persist, and where are its boundaries (the phase diagram of Fig. 1 top panel)?
+  - *Basis:* We only tested the single illustrative point K2/J1 = -0.3. The paper shows a phase-diagram sweep with a quantum-disordered phase at one end; we did not map the transition points.
+  - *Next step:* Sweep K2/J1 in ED/DMRG, track the (pi,pi) quad peak and gap closing, and compare the AFQ-to-disordered boundary against the paper's stability conditions K1>0, K2<0, K1-J1>=0, J2-K2>0, J1+J2-K2>0, K1+2K2-4J2>=0.
+
+**Q3.** Is the Kondo coupling scaling S_K/S_c ~ sqrt(Lambda/K_F) at d=2 (Eq. 14) reproducible by an explicit one-loop momentum-shell RG calculation of the boson-fermion vertex?
+  - *Basis:* We verified the SU(3) Gell-Mann flat-direction structure that underlies the marginality claim, but did NOT independently perform the momentum-shell integral that yields the sqrt(Lambda/K_F) suppression; we quoted the paper's analytic result.
+  - *Next step:* Symbolically/numerically evaluate the tree-level and one-loop Kondo vertex integrals near a spherical Fermi surface with the NLsM propagators from Eq. 8, and confirm the positive power of sqrt(Lambda/K_F) and exact marginality.
+
+**Q4.** Does the predicted small-to-large Fermi-surface jump (Kondo destruction) at the AFQ-to-paramagnet transition survive when the SU(3)-breaking term H' (Jn' != 0) is treated non-perturbatively rather than perturbatively?
+  - *Basis:* The paper explicitly assumes H' can be treated perturbatively and 'does not affect our results in any significant manner'; this assumption is untested here and is the main theoretical caveat.
+  - *Next step:* Extend the ED/DMRG to measure conduction-electron Fermi-surface volume proxies (or use a slave-boson/large-N treatment) across the transition with finite Jn', checking whether the marginality/relevance crossover of the Kondo coupling is robust.
+
+**Q5.** Do the candidate materials (Ce3Pd20Si6, CeB6, CeTe, CeCoSi) actually realize the spin-1 (S=1) quadrupolar manifold assumed here, given their Gamma8 quartet CEF ground states?
+  - *Basis:* The paper maps real Ce compounds onto a spin-1 model with 5-component quadrupoles; whether the Gamma8 quartet reduces to exactly this S=1 bilinear-biquadratic manifold is a materials-specific modeling assumption not checkable from the theory alone.
+  - *Next step:* Compare the paper's S=1 quadrupole operator set against the Gamma8-projected multipole operators (Stevens operators) for cubic Ce3+; assess which quadrupolar components (Ox2-y2, O3z2-r2, Oxy...) are active and whether the two-sublattice (pi,pi) order matches the experimentally determined AFQ ordering vectors.
+
+### li2016  (5 Q)
+
+**Q1.** Do the exact Supplementary-Information definitions of the rotated couplings (Jx,Jy,Jz) in Eq. 4 modify the FO transition temperature away from the clean 1.5|Jx|?
+  - *Basis:* Our exact match To=1.5|Jx| relies on interpreting the reduced-model Jx as the bare octupolar coupling. If the SI rotation mixes Jyz into the effective couplings, To could shift, changing the quantitative (not qualitative) agreement.
+  - *Next step:* Obtain the SI, implement the full theta-rotation from Eq. 3 including Jyz, and re-derive the effective Jx,Jy,Jz as functions of (bare couplings, theta).
+
+**Q2.** Does a fully self-consistent 3-sublattice mean-field solver reproduce the complete Ox-surface phase diagram (Fig. 2) with correct first- vs continuous-order boundaries?
+  - *Basis:* We reconstructed only a coarse Ix-surface slice via classical minimization. The rich AFO-FDy/AFO-FDz/supersolid structure on the Ox surface is the paper's other major result and is untested here.
+  - *Next step:* Implement HMF (Eq. 6) with iterative self-consistency for mA,mB,mC on a (Jy/Jx, Jz/Jx) grid at Jx=+1 and classify phases and transition orders.
+
+**Q3.** Is chi_zz non-divergence robust to a quantum (rather than single-site mean-field) treatment near To?
+  - *Basis:* The 'hidden order invisible to magnetization' claim is the paper's headline experimental prediction. Single-site MF gaps the transverse channel by construction; a fluctuation-corrected treatment could reveal a subleading anomaly.
+  - *Next step:* Compute chi_zz(T) via linear spin-wave / RPA on top of the FO mean field and check for any cusp or shoulder at To.
+
+**Q4.** What is the full octupolar-wave dispersion along the complete BZ path, and does its gap scale as predicted with Jy, Jz?
+  - *Basis:* The gapped octupolar wave is the proposed inelastic-neutron signature of hidden FO order; the gap magnitude and dispersion shape are what an experiment would compare against.
+  - *Next step:* Sweep Jy, Jz and record the minimum gap min_k omega_k from Eq. 5; verify gap -> 0 only in the isotropic Jy=Jz=Jx limit.
+
+**Q5.** Does the quantum mutual modulation between ferro-dipolar and antiferro-octupolar orders (a stated quantum effect absent classically) appear in exact diagonalization of a small triangular cluster?
+  - *Basis:* The paper explicitly states this modulation cannot occur in a classical spin system; our classical minimizer therefore cannot capture it, bounding the scope of a purely classical replication.
+  - *Next step:* Run ED on a 12- or 18-site triangular cluster in the AFO-FDy regime and measure the 3-sublattice modulation of <T^y> induced by octupolar order.
+
+### patri2018  (5 Q)
+
+**Q1.** What microscopic value of the octupole-strain coupling g_O follows from second/third-order perturbation theory in h.J for PrV2Al20's actual CEF gaps Delta(Gamma4), Delta(Gamma5)?
+  - *Basis:* The linear-in-h magnetostriction coefficient equals (1/sqrt3)(g_O/c44)m; only g_O carries the material-specific magnitude. Without it the replication confirms scaling but not absolute size.
+  - *Next step:* Diagonalize the full J=4 CEF Hamiltonian with published PrV2Al20 B_lm parameters, project h.J onto the Gamma3 doublet at 2nd/3rd order, and read off g_O and gamma_0.
+
+**Q2.** Does the fully coupled minimization of F[phi,phi-tilde,m] reproduce the renormalized octupolar transition T_O ~ 0.65 K and the kink in AFQ at T_O?
+  - *Basis:* The paper's phase diagram (Fig.1) hinges on the uphi-m and uphi-tilde-m couplings shifting T_O from its bare value; our part-C uses an isolated FO potential and cannot verify T_O.
+  - *Next step:* Implement the full free energy Eqs.7-11 with the clock terms (w_phi-tilde, v_phi) and minimize over |phi|,|phi-tilde|,m,alpha,alpha-tilde vs T to trace the coupled phase diagram.
+
+**Q3.** What is the true shape and width of the field-hysteresis loop in m(h) once the cubic-in-h drive competes with the quadrupolar background, rather than in an isolated double well?
+  - *Basis:* Our loop width (=1 in units of spontaneous m) is a demonstrator; the experimentally relevant coercive field and loop area depend on the full landscape and on b's microscopic value.
+  - *Next step:* Add the AFQ/FQ sectors and the h^2 mass renormalizations (s_H, s-tilde_H) to the octupole potential and recompute the loop at finite T just below T_O.
+
+**Q4.** Do the [100] and [110] field-direction predictions in Table 2 (quadrupolar-order signatures) reproduce with the same from-scratch machinery?
+  - *Basis:* The paper claims magnetostriction along other directions probes quadrupolar (not octupolar) order; replicating those cross-checks that [111] uniquely isolates the octupole.
+  - *Next step:* Repeat the strain minimization with psi_H couplings for n=[100] (theta_H=-pi/6) and [110] (theta_H=-pi/2) and extract the field-scaling of each (dL/L) component.
+
+**Q5.** How robust is the linear-in-h octupole result to a small residual dipolar admixture (finite Gamma3-Gamma4 mixing) that would add a competing linear magnetic response?
+  - *Basis:* The paper's clean probe relies on the doublet carrying NO dipole moment; real materials have finite CEF gaps, so a subleading dipole channel could contaminate the magnetostriction.
+  - *Next step:* Introduce a controlled dipole leakage via finite Delta(Gamma4) in the projected model and quantify the h-power and amplitude of the spurious contribution relative to the octupolar term.
+
+### pourovskii2020  (5 Q)
+
+**Q1.** Does the paper's DFT+HI Gamma6 doublet really sit above 300 meV, and how much of the gap between our single-multiplet LLW value (126 meV) and >300 meV is due to J-mixing (J=11/2, 13/2 admixture) versus the extended-Wannier hybridization contribution to the CF?
+  - *Basis:* Our pure J=9/2 LLW model reproduces the Gamma8-Gamma8-Gamma6 ORDERING and the 68 meV excited-Gamma8 scale, but puts Gamma6 at 126 meV whereas the paper states >300 meV. The paper explicitly notes admixture of excited J=11/2,13/2 multiplets into the Gamma8 wavefunctions.
+  - *Next step:* Diagonalize the cubic CF in the full LS-coupled or intermediate-coupling f^3 basis (all J of the 4I term, or full 5f^3 with spin-orbit lambda=0.27 eV) using the paper's A_k^q<r^k> coefficients directly, and check whether J-mixing pushes Gamma6 from ~126 to >300 meV. Compare wavefunction J-admixture to Supplementary Table I.
+
+**Q2.** Is the exact parameter-free ratio E(upper singlet)/E(doublet)=2.00 for the 3k Gamma5-triakontadipole splitting a robust prediction of the full 15x15 SEI matrix, or an accident of the diagonal-uniform (Santini-2006) approximation we used?
+  - *Basis:* We reproduced 12.2/6.1=2.00 exactly using a DIAGONAL UNIFORM Gamma5 SEI (the semi-empirical form the paper attributes to ref 24). The paper's own ab initio Hamiltonian has large off-diagonal DO and OO couplings that could shift this ratio.
+  - *Next step:* Add representative off-diagonal DD/DO/OO couplings (magnitudes 1.6/0.95/-1.5 meV from the text) to the single-site mean-field Hamiltonian and recompute the singlet-doublet-singlet spacing to see how far the ratio drifts from 2.00.
+
+**Q3.** Does the physical J=9/2 dipole moment cancel EXACTLY once the Jeff=3/2 pseudo-dipole and pseudo-octupole orders are upfolded, for our reproduced order parameters?
+  - *Basis:* The paper's central 'purely multipolar order' claim is that <Ox>,<Oy> pseudo-dipole contributions are exactly canceled by <Tx>,<Ty> pseudo-octupole contributions in the J=9/2 space. We did not implement the Jeff=3/2 -> J=9/2 upfolding (rho_a(J)=|Gamma8> rho_a(Jeff) <Gamma8|).
+  - *Next step:* Construct the Gamma8 wavefunctions in the J=9/2 basis (from the fitted CF), build the upfolding projector, apply it to our mean-field Jeff density matrix, and evaluate the physical dipole operator expectation to test exact cancellation.
+
+**Q4.** What is the correct absolute magnitude of the effective 3k Gamma5 SEI, and does the ab initio DD x-x = 1.6 meV coupling reproduce the mean-field T0 = 38 K without additional tuning?
+  - *Basis:* We fixed our effective Jex = 6.44 meV by matching T0 = 38 K, i.e. T0 was an input not an output. The paper obtains T0 as an OUTPUT of the ab initio SEI matrix.
+  - *Next step:* Build the full NN fcc mean-field problem with the reported SEI magnitudes (DD 1.6, DO 0.95, OO -1.5 meV) on 4 sublattices and solve for T0 as an output; compare to 38 K to test whether the quoted matrix elements alone reproduce the ordering temperature.
+
+**Q5.** Is the exchange-striction slope dominated by the time-odd (primary) SEIs as claimed, i.e. does suppressing the QQ block change the striction by only ~5% and leave the xi_pr^2(T) temperature shape intact?
+  - *Basis:* The paper reports that removing the quadrupole-quadrupole SE changes the striction slope by only ~5% and that the anomaly tracks xi_pr^2(T) (primary), not xi_sec^2(T). Our minimal model has only the primary Gamma5 order, so it cannot test the 5% decomposition.
+  - *Next step:* Extend mft_striction.py to include a secondary quadrupole order parameter with its own K_SEI^sec slope, compute E_order = K_pr xi_pr^2 + K_sec xi_sec^2, and verify that zeroing K_sec changes the total striction by only a few percent while xi_pr^2(T) sets the T-dependence.
+
+### sim2019  (5 Q)
+
+**Q1.** What is the sign of the Ginzburg-Landau quartic invariant q2 for the eg doublet in the exact one-loop / two-band-projected-gap treatment, and why does a single-gap BdG condensation-energy proxy give the opposite sign?
+  - *Basis:* q2>0 is the entire content of the headline claim (TR-breaking (1,i) selected). Our proxy gives q2<0. Nailing the sign from the correct microscopic quartic coefficient is the difference between confirming and contradicting the paper's central result.
+  - *Next step:* Derive q2 analytically via the one-loop particle-particle bubble with the eg vertices M1,M2 projected onto the two active Luttinger bands at E_F (Boettcher-Herbut PRL 120,057002 SI method), and compare to a fully self-consistent multi-gap BdG free-energy minimization rather than a fixed-Delta condensation energy.
+
+**Q2.** Does the self-consistently determined gap magnitude Delta_a(k) (solving the full nonlinear gap equation) change the state ordering relative to the fixed-Delta condensation-energy comparison used here?
+  - *Basis:* The TR-breaking state may have a larger self-consistent Delta (it fully gaps most of the FS) that overcompensates the pocket cost. A fixed-Delta comparison cannot see this; only a self-consistent solve can.
+  - *Next step:* Implement the coupled self-consistency Delta_a = g <psi^T gamma45 gamma_a psi> at each temperature, iterate to convergence per candidate state, and compare converged free energies F[Delta_a*].
+
+**Q3.** Do the 16 Bogoliubov Fermi-surface pockets of the (1,i) state carry Chern numbers +/-2 as claimed (Class D + inversion, 2Z classification)?
+  - *Basis:* This is the topological headline that makes the state a topological superconductor; it is an independent, falsifiable prediction not touched by the energetics.
+  - *Next step:* For the (1,i) BdG Hamiltonian, locate the gapless pockets, wrap a small BZ sphere around each, and compute the Chern number by the standard Fukui-Hatsugai-Suzuki lattice-plaquette Berry-flux method.
+
+**Q4.** How does the ferro-quadrupolar order <O20> reshape the phase diagram (Fig.1) — specifically the transition from eg (1,i) to the t2g dyz+idzx (1,i) state via Fermi-surface distortion c3=c4=(-1-J_K<O20>)?
+  - *Basis:* The paper's central novelty is that multipolar order tunes the SC channel and thus the topology. Reproducing the phase boundary would validate the quadrupolar-Kondo mechanism, not just the cubic column.
+  - *Next step:* Scan J_K<O20> in [0,1.5] and g, recomputing Part A/B with the distorted c_eta, and map which channel (eg vs eta=(d3,d4)) has the leading instability at each point.
+
+**Q5.** Is the microscopic projected Kondo coupling (Eq.7) correctly derived from the orbital form factors Gamma^a_{1,ij}, Gamma^a_{2,ij}, and does it reproduce the stated c3=c4!=c5 anisotropy quantitatively?
+  - *Basis:* Eq.7 is the bridge from the localized Pr quadrupoles to the itinerant Fermi-surface distortion; the whole quadrupolar-Kondo story rests on it. We assumed the renormalized c-coefficients rather than deriving them.
+  - *Next step:* Reconstruct the two-FCC-sublattice tight-binding form factors from SI Sec.II, apply the j=3/2 projector P, and verify the resulting H_K(k) matches Eq.7 term-by-term.
+
+### tazai2019  (5 Q)
+
+**Q1.** Does assembling the full 16x16 AL1+AL2 three-point vertices with the exact Slater-Condon Coulomb tensor actually push alpha^{Gamma4}_{Oxy} to the reported 0.94, making chi_Oxy the largest susceptibility?
+  - *Basis:* We reproduced the RPA baseline (chi_Jz ~40x chi_Oxy) and the analytic AL>>MT scaling (X_AL ~ xi^{4-d}) that the paper says drives the enhancement, but the two-loop vertex machinery (Eqs. 7,8,S8,S9) and the full U^0 tensor were out-of-scope, so the final enhanced number (Fig. 3) is untested.
+  - *Next step:* Build U^0 from the reported F^k = (5.3, 9.09, 6.927, 4.756) eV Slater integrals + Gamma8 Clebsch machinery (Ref [2]); implement Lambda^{EF}_{ABCD}(q,p) as k-summed products of bare Green functions; evaluate X^{AL} at q=Q,0 and re-solve the eigen equation (Eq. 4) for the Gamma4 channel; compare alpha^{Gamma4}_{Oxy} to 0.94.
+
+**Q2.** Why does our filling partition (nf~0.99, ns~0.19) disagree with the paper's (nf=0.58, ns=0.69) even though the total is within ~7%?
+  - *Basis:* The SM permits replacing the realistic 5d conduction band (Ref [1]) with an s-band; we did so. Our conduction dispersion sits entirely above mu, so ns comes only from hybridization mixing, giving a very different c/f partition. The counting normalization for 'f(s)-electron number' in a multiorbital PAM is convention-dependent.
+  - *Next step:* Implement the exact Ref [1] 5d tight-binding conduction band and Ref [2] counting convention; recompute nf/ns with the same operator-trace normalization the authors use; verify whether the 5d band (vs s-band proxy) restores the 0.58/0.69 partition.
+
+**Q3.** Does using the full 5d conduction band relocate the RPA susceptibility peaks from our diagonal (0.5,0.5)pi position to the paper's clean q=0 and q=Q=(pi,pi) double-peak structure (Fig. 2)?
+  - *Basis:* Our s-band proxy reproduces magnetic dominance and peaks along Gamma-M, but the exact peak positions (FM at q=0 + AFM at q=(pi,pi)) reported from neutron scattering did not land exactly; the Fermi-surface nesting depends on the true conduction dispersion.
+  - *Next step:* Recompute the Fermi surface and bare bubble with the Ref [1] conduction band; map chi0 over the full BZ; check whether nesting vectors align with (pi,pi) and (0,0) as in Fig. 1(b)/Fig. 2.
+
+**Q4.** Is the channel-diagonal RPA (using only diagonal U0Q) an adequate approximation, or does the off-diagonal U0^{Jmu,Tmu^alpha}=0.58 coupling materially change the magnetic Stoner factor?
+  - *Basis:* We approximated the RPA as channel-diagonal per operator, which gave alpha_mag=1.02 at u=1.08 vs the paper's 0.9 (within 13%). TABLE II reports one nonzero off-diagonal element (0.58) that mixes dipole Jmu with octupole Tmu^alpha within the same IR, which we neglected.
+  - *Next step:* Form the block-RPA within each IR including the 0.58 off-diagonal coupling; re-diagonalize u*U0*chi0 in the (Jmu,Tmu^alpha) 2x2 block; quantify the shift in alpha_mag and test whether it moves toward 0.9.
+
+**Q5.** Does the field-induced Gamma4 = {Oxy, Txyz} mixing produce the reported linear-in-hz growth of Z^{Txyz} and the increase of alpha^{Gamma4} with field (Fig. 5)?
+  - *Basis:* The paper's field-induced-octupole result relies on the Zeeman term H_Z = hz*Jz mixing Oxy and Txyz (same IR under field) via the AL three-point vertex Lambda^{Txyz,Tx,Ty}. This is downstream of the full VC machinery we marked out-of-scope, so it was not tested.
+  - *Next step:* Add the Zeeman term to H_full, recompute the bare Green functions under hz, evaluate the cross susceptibility chi_{Oxy,Txyz}(q,0) and solve the eigen equation (Eq. 4) for Gamma4; check for Z^{Txyz} ~ hz and dalpha^{Gamma4}/dhz > 0.
+
+### vedmedenko2008  (5 Q)
+
+**Q1.** Does true long-range orientational order remain absent at the full paper scale (up to 1000 sites, square/rectangular AND circular patches)?
+  - *Basis:* Our 151-site circular patch already shows decaying correlations, but finite-size effects can mask weak LRO; the paper's key claim is scale-robust absence of LRO.
+  - *Next step:* Regenerate patches of N=300,600,1000 in multiple shapes and check that C(r) and the orientation structure factor do not sharpen with N.
+
+**Q2.** Do the odd-parity ground states quantitatively reproduce the decagonal HBS tiling geometry (hexagon+boat+star decomposition), not just its statistical fingerprints?
+  - *Basis:* The paper's central visual is the HBS superstructure outlined by thin-rhombus short-diagonal pairs/triplets; matching it geometrically is stronger evidence than histograms.
+  - *Next step:* Identify thin-rhombus short diagonals from the pentagrid tiles, tag pair/triplet chains, and overlay the HBS decomposition on the relaxed configuration.
+
+**Q3.** Is the observed lack of LRO purely a frustration effect of the interaction Hamiltonian, or partly geometric to the tiling?
+  - *Basis:* The paper notes an ordered arrow arrangement DOES exist geometrically (Lifshitz; Cockayne-Widom edge model); disentangling energetic vs geometric frustration guides Hamiltonian design for order.
+  - *Next step:* Compare our vertex-based rotor ground state against the Cockayne-Widom edge-arrow model energy on the same tiling to see which Hamiltonian admits LRO.
+
+**Q4.** How does the critical interparticle separation R_c (maximal short-range order) emerge when dipolar and octopolar contributions are combined with realistic 1s-2s ratios?
+  - *Basis:* The paper predicts an optimal R_c ~ 1s-2s where SRO is maximal; this controls real nanomagnet/adsorbate design.
+  - *Next step:* Add mixed l=1+l=3 couplings with a tunable size parameter s and scan R_c by locating the peak of the nearest-neighbour correlation.
+
+**Q5.** Do the even-parity multipoles (l=2 quadrupole, l=4 hexadecapole) show the predicted 90-degree / 72-degree local alignment and weaker, harder-to-quantify SRO?
+  - *Basis:* Completes the parity dichotomy that is the paper's organizing theme; even-parity is the harder analysis case.
+  - *Next step:* Extend the rotor kernel with even-parity angular potentials (double-headed arrows, head-to-center attraction) and measure nearest-neighbour angle histograms.
+
+### watanabe2025  (5 Q)
+
+**Q1.** Does a fully first-principles (DFPT + Wannier) pyrite calculation reproduce the CC_chi ~ several tens of percent at the Eg1,2 modes (delta-omega ~ 322-332 cm-1), and how does it compare to the experimental value in Ref [78]?
+  - *Basis:* The paper's quantitative headline rests on the pyrite DFT (Fig 4), which we could NOT reproduce (no DFT pipeline, free endpoints only). We only verified the symmetry/effective-model structure it instantiates; the absolute magnitude and phonon energies are unverified here.
+  - *Next step:* Run VASP/QE + phonopy/DFPT for FeS2 (Pa-3), extract Eg1,2 eigenvectors, compute the nonlinear Raman susceptibilities on a Wannier t2g model, and compare CC_chi(omega) magnitude and the 322-332 cm-1 peak against Fig 4 and the cited experiment.
+
+**Q2.** In a genuinely microscopic tight-binding model with the full multipole-basis Hax of Ref [65], is CC_chi exactly odd in t_ax while remaining exactly zero at t_ax=0, without any ad hoc baseline inter-orbital hopping?
+  - *Basis:* Our diagonal-H0 TB gives CC_chi=0 at t_ax=0 (Claim C1, exact) but an even-in-t_ax response; adding a baseline t_beta restored odd behavior but broke the t_ax=0 null. The odd+null combination requires the documented Fig-2 interference t'_alpha propto sign(t_ax)*t_beta, which needs the full supplement Hamiltonian.
+  - *Next step:* Implement the multipole-basis Hax from Ref [65] supplement (correct Slater-Koster inter-orbital baseline that vanishes in the ROA channel at t_ax=0), and verify CC_chi(t_ax) is simultaneously null at zero and odd under inversion.
+
+**Q3.** How robust is the theta-parity Stokes/anti-Stokes discriminator (symmetric for A2g+ vs antisymmetric for A2g-) to finite temperature, phonon linewidth, and the |delta-omega| << |omega| approximation?
+  - *Basis:* We reproduced the discriminator at the idealized resonance level (Claim D). The paper argues it via Bose factors and the delta-omega prefactor of Eq 10, but real measurements have overlapping broadened modes and thermal population that could wash out the sign contrast.
+  - *Next step:* Sweep temperature and phonon width in roa_stokes.py with realistic Bose factors and Lorentzian overlap; quantify the minimum eta_ax splitting (dOmega) needed for a measurable antisymmetry given experimental linewidths.
+
+**Q4.** Does the parallel-circular ROA (U_PC = I_LL - I_RR) provide independent or complementary information to the cross-circular U_CC for identifying axial octupolar order?
+  - *Basis:* The paper defines U_PC but focuses on U_CC; we implemented only U_CC. The two dual-circular channels may have different selection rules and sensitivities to the multipolar irrep.
+  - *Next step:* Extend roa_symmetry.py to evaluate I_LL, I_RR for the Eg tensors and general incidence, derive the U_PC facet selection rule, and check whether it is forbidden/allowed under the same m_perp condition as U_CC.
+
+**Q5.** Which real materials beyond pyrite host the m-3m1' -> m-3m' (theta-odd) or m-3m1' -> m-31' (theta-even) axial octupolar transition with an experimentally accessible dual-circular ROA?
+  - *Basis:* The paper suggests candidates (pyrochlore all-in-all-out magnets, rare-earth garnets, 5d2 double perovskites, R2O3, double perovskites under pressure) but notes NO experimental report exists yet for the theta-even octupolar ordering; material realization is an explicit open direction.
+  - *Next step:* Screen materials databases (Materials Project, MAGNDATA) for cubic m-3m parent structures with candidate A2g+ / A2g- order parameters, cross-check point-group reduction, and rank by predicted Eg-mode Raman activity and expected CC_chi magnitude.
+
+### you2021  (5 Q)
+
+**Q1.** What is the absolute critical current density J_crit in physical (A/cm^2) units, and does a parameterized LLG with real Ms, Hk, thickness reproduce the reported ~9e6 A/cm^2?
+  - *Basis:* The headline device metric is J_crit; a reduced-unit macrospin shows a threshold exists but cannot confirm the magnitude, which determines device viability.
+  - *Next step:* Rebuild LLG in SI units with Co/Pd Ms~1.4e6 A/m, Hk from the RAHE-H loop, t=3.6 nm, and theta_AD,z=0.003 to convert current density to torque amplitude and locate J_crit.
+
+**Q2.** The paper measures theta_FL,z (0.053) >> theta_AD,z (0.003). Does the large field-like sigma_z term help, hinder, or not affect deterministic switching?
+  - *Basis:* Determinism is usually attributed to antidamping; a dominant field-like term is unusual and may modify the switching phase diagram / incubation.
+  - *Next step:* Sweep tau_FL/tau_DL ratio in the macrospin model and map switching probability & threshold vs ratio.
+
+**Q3.** How does the 35-degree angle between J and T (for J along [001]) quantitatively set the sigma_z magnitude via sigma_z ~ Hso x T?
+  - *Basis:* The symmetry rule is binary in the paper (present/absent) but sigma_z should scale continuously with the J-T angle; this governs orientation engineering.
+  - *Next step:* Add explicit angle dependence p_z = sin(angle) to the polarization vector and compute threshold current vs J-T angle from 0 to 90 deg.
+
+**Q4.** Does thermal (Langevin) noise at 300 K preserve the deterministic switching, or does it introduce stochasticity near threshold?
+  - *Basis:* Real devices operate at finite T; determinism claims must survive thermal fluctuations to be technologically meaningful.
+  - *Next step:* Add a stochastic thermal field term to the LLG and compute switching probability vs current over many realizations at 300 K.
+
+**Q5.** Is the ~60% switched volume (RAHE-I vs RAHE-H) consistent with a macrospin, or does it require domain/multidomain (micromagnetic) modeling?
+  - *Basis:* Macrospin assumes coherent rotation; partial switching suggests domain nucleation in the current channel, changing the physics of J_crit.
+  - *Next step:* Run a 1D/2D micromagnetic (e.g. mumax3-style) chain with the sigma_z torque to test domain-wall vs coherent switching.
+
+### zhang2008  (5 Q)
+
+**Q1.** Does the full self-consistent spin self-energy Sigma^(s)(k,omega) (Eq. 6, double momentum sum) actually pin the B=0 resonance to the commensurate point Q, and quantitatively yield delta_r(B) with critical fields Bc1~4T and Bc2~10T?
+  - *Basis:* Our minimal denominator-form model reproduces the commensurate->IC transition and a critical field ~6.2T only via an analytic Eq.9 isolation whose threshold is set by an assumed intrinsic linewidth GAMMA_W. The two paper critical fields (Bc1, Bc2) and the exact delta_r(B) curve of Fig.3 depend on the full k,omega-dependent ReSigma/ImSigma, which we did not compute.
+  - *Next step:* Implement the self-consistent gap equations (7a,7b) for Z_hF and Delta_bar_h plus the full Eq.6 double-sum on a discretized BZ (e.g. 32x32 with adaptive omega grid), then extract delta_r(B) and locate Bc1, Bc2 directly; compare to Fig.3.
+
+**Q2.** Why does the paper's stated field<->energy conversion (1.2 meV <-> 20 Tesla) imply a g-factor of ~1.04 rather than the ~2.0-2.2 expected for Cu2+ spins?
+  - *Basis:* eps_B = g mu_B B with mu_B = 0.05788 meV/T and eps_B=1.2 meV at B=20 T gives g = 1.04. The three anchor points (4T, 10T, 20T) are internally consistent (single linear slope), so this is not a typo across points but a systematic ~2x scale choice.
+  - *Next step:* Check whether the paper (or its Ref. 16 companion) defines eps_B = (1/2) g mu_B B or uses a reduced effective moment; recompute B<->eps_B with g=2 to see if the Tesla labels in Figs.1-4 shift by ~2x, which would change the 'much less than upper critical field' argument only mildly.
+
+**Q3.** Is the hourglass-breakdown scale omega < 0.16J really set by the fractional Zeeman shift 2eps_B/omega crossing ~0.125, or is it an independent feature of the low-energy self-energy structure?
+  - *Basis:* Our scaling argument reproduces the 0.16J breakdown scale exactly when 2eps_B/omega = 0.125 at eps_B=0.01J, which is suggestive but relies only on the (omega-2eps_B) shift, not on any low-energy Sigma structure. The paper attributes the breakdown to 2eps_B being comparable to the incoming neutron energy at low omega.
+  - *Next step:* Vary eps_B (e.g. 0.005J, 0.02J) in the full model and test whether the breakdown scale tracks eps_B linearly (scaling-argument prediction) or stays fixed (Sigma-structure prediction).
+
+**Q4.** Does the high-energy IC scattering (omega ~ 0.7J) remain quantitatively unchanged under field, i.e. is the small-parameter approximation (omega-2eps_B)^2 ~ omega^2 accurate to the ~3% level the fractional-shift estimate predicts?
+  - *Basis:* We computed frac_shift = 2eps_B/omega = 2.9% at omega=0.7J vs 6.5% at 0.31J vs 20% at 0.1J, consistent with the paper's claim of robustness at high energy and sensitivity at low/intermediate energy. But we did not compute the actual peak-intensity or peak-position change of S(k,omega) at 0.7J.
+  - *Next step:* In the full model, compute the fractional change in high-energy IC peak position and integrated intensity between B=0 and B~20T and verify it is <~5%.
+
+**Q5.** How sensitive is the field-induced splitting to doping x and to the ratio t/J, given that all results were shown only at x=0.15, t/J=2.5, t'/t=0.3?
+  - *Basis:* The paper reports a single doping/parameter set. The resonance energy scale and the MF spin excitation depend on the self-consistent order parameters, which vary strongly with x (underdoped vs overdoped) in this kinetic-energy-driven framework (Ref.16).
+  - *Next step:* Repeat the self-consistent calculation at x=0.09 (underdoped) and x=0.22 (overdoped) and map delta_r(B) and the critical fields vs doping; test whether the commensurate->IC transition persists across the SC dome.
+
+
+---
+
+# ORBITAL
+
+### choi2021  (5 Q)
+
+**Q1.** Why does the surrogate d-orbital TB give sigma_OH ~ 10^2-10^3 (peak ~775) rather than the exact 3800?
+  - *Basis:* The factor ~5 gap separates 'correct order of magnitude / correct mechanism' from a quantitative DFT-level match; knowing its origin tells us whether the physics or just the parameters are missing.
+  - *Next step:* Add s and p orbitals (spd hybridization) and fit Slater-Koster parameters to a real fcc-Ti DFT band structure (e.g. Wannier90), then recompute sigma_OH at the true E_F.
+
+**Q2.** How sensitive is sigma_OH to the exact position of E_F within the Ti d-manifold?
+  - *Basis:* The fine E_F sweep shows sigma_OH changing sign and magnitude sharply (peaks near band near-degeneracies), so the reported 3800 may sit on a steep feature; small E_F errors could swing the answer a lot.
+  - *Next step:* Compute sigma_OH(E_F) on a denser k-grid with adaptive refinement near the orbital-Berry-curvature hot spots and locate Ti's actual E_F from electron count (d^2 s^2).
+
+**Q3.** Does including SOC actually produce the small sigma_SH = -40 observed, alongside the large OHE?
+  - *Basis:* The paper's headline is the two-orders-of-magnitude OHE/SHE ratio; our model sets SOC=0 so sigma_SH is identically 0. Adding weak SOC would test whether the ratio ~-95 emerges naturally.
+  - *Next step:* Add an on-site lambda L.S term (lambda ~ 20-30 meV for Ti), recompute both sigma_OH and sigma_SH via the same Kubo machinery, and compare the ratio to ~-95.
+
+**Q4.** Is the coarse-k convergence trustworthy given the sign flip between nk=12 and nk=16?
+  - *Basis:* Orbital Berry curvature has sharp k-space hot spots; a coarse grid can under- or mis-sample them, so the reported converged value carries real grid uncertainty.
+  - *Next step:* Run nk=24,32 (and a tetrahedron or adaptive integration) to establish a converged sigma_OH and error bar before quantitative comparison.
+
+**Q5.** How does the intrinsic (bulk) sigma_OH connect to the experimentally measured surface orbital accumulation / Kerr signal?
+  - *Basis:* The paper measures a MOKE Kerr rotation from surface-accumulated orbital moments, not sigma_OH directly; the link requires orbital drift-diffusion (orbital relaxation length lL ~ 74 nm) and magneto-optics.
+  - *Next step:* Couple the computed bulk sigma_OH to a 1D orbital drift-diffusion model with the paper's kappa and lL, then to a magneto-optical Kerr model to predict theta_K/j_c.
+
+### coh2010  (5 Q)
+
+**Q1.** Can a gauge-invariant discretized formula for the Chern-Simons 3-form (Eq. 22) be constructed on a finite k-mesh, analogous to the King-Smith-Vanderbilt determinant formula (Eq. 23) for polarization, so that theta=pi is recovered without building maximally-localized Wannier functions?
+  - *Basis:* Our smooth-gauge parallel-transport integration of Eq. (22) returned theta~0 for the TI phase because the Z2 obstruction hides theta=pi in a boundary term. The paper itself states (Sec. V) it is 'aware of no counterpart' to Eq. (23) for the CSOMP and calls this a 'serious problem'.
+  - *Next step:* Test the Fukui-Hatsugai-Suzuki-style plaquette product extended to the non-Abelian 3-form; benchmark against the parity oracle on this exact Wilson-Dirac model where the answer (theta=pi for 1<|m0|<3) is known analytically.
+
+**Q2.** For a PT-symmetric Kramers-degenerate 3D TI, what is the minimal gauge-fixing that makes the hybrid-Wannier-center partner-switching count converge, given that Wilson-loop eigenvectors are arbitrary within the degenerate subspace at every k?
+  - *Basis:* Our HWCC flow (Wilson-loop spectrum vs ky) was too noisy to give a clean crossing parity for this model, even though the endpoints show the pair regroups; the parity theorem was needed instead.
+  - *Next step:* Impose a small symmetry-breaking bz to split the doublet, track the individual (now non-degenerate) HWCC continuously, then extrapolate bz->0; compare the crossing count to the parity Z2 as a function of bz and k-mesh.
+
+**Q3.** Between theta=pi and the metallic transition at b_z=1, what is the continuous unquantized theta(b_z) curve for the toy Wilson-Dirac model, and does it match the paper's linear Fig-8 slope (Delta-theta ~ 0.55 per 0.27 mu_B) after nondimensionalization?
+  - *Basis:* We reproduced the gap collapse and metallization at b_z=1 (paper's Fig-8 statement) but did not extract the continuous theta value in the intermediate window; that requires boundary-aware CS integration we did not implement.
+  - *Next step:* Implement the ETMV per-band A.Omega integral with a properly twisted (non-periodic-but-continuous) gauge in the T-broken (non-degenerate, obstruction-free) window; fit theta(b_z) to a line and compare slope.
+
+**Q4.** After the gap reopens at b_z>1 (a second gapped phase), what topological class does the Wilson-Dirac model occupy, and does theta jump by an integer multiple of pi across the b_z=1 metallization?
+  - *Basis:* Our C4 scan found the gap reopening to ~0.46 at b_z=1.5 after closing at b_z=1.0, indicating a distinct phase, but its invariant was not computed (parity oracle is invalid once inversion is broken by bz).
+  - *Next step:* Build a symmetry-indicator or Wilson-loop Chern-number diagnostic valid without inversion; map the b_z-m0 phase diagram and locate theta jumps at each gap closure.
+
+**Q5.** How large a k-mesh (and Wannier spread control) is actually needed for the direct Eq.(27) Wannier-based theta to recover 90% of theta=pi, given the paper reports only ~30% recovery at 11x11x11 for Bi2Se3 with slow O(dk^2) convergence?
+  - *Basis:* The paper flags disappointingly slow convergence and proposes real-space supercell evaluation of <0m|r|Rn> for exponential convergence (Sec. V), but does not quantify the crossover mesh.
+  - *Next step:* Port the Wannier Eq.(27) evaluation to the toy TB model (where MLWFs are cheap), sweep k-mesh density, and measure the convergence exponent for both the O(dk^2) k-space method and the real-space-supercell method.
+
+### comtesse2014  (5 Q)
+
+**Q1.** Does an explicitly nucleated, coupled BEG+Potts+magnetoelastic MC (single simulation with dynamic sigma) reproduce Tm and the hysteresis, rather than the two-branch free-energy-crossover surrogate used here?
+  - *Basis:* The paper emphasizes a first-order martensitic transition WITH thermal hysteresis (inset of Fig. 3b). Our coarse retry sidesteps the nucleation barrier by running fixed-phase branches and merging at the free-energy crossover; it therefore reproduces Tm and dM but not the hysteresis loop width.
+  - *Next step:* Run the fully coupled dynamic-sigma MC with cluster/Wolff or parallel-tempering moves and heating+cooling sweeps to recover the hysteresis and confirm Tm is identical to the branch-crossover value.
+
+**Q2.** How sensitive is dT_ad to the specific-heat model? We used a per-atom Dulong-Petit C ~ 386 J/kgK; the paper uses a full Debye lattice term plus the field-dependent magnetic C(T,H).
+  - *Basis:* Our dT_ad = -10.8 K overshoots the paper's -6 K by ~1.8x, and dT_ad is inversely proportional to C. A more realistic (temperature- and field-resolved) C near Tm could bring dT_ad into closer agreement.
+  - *Next step:* Implement a proper Debye C(T) with the alloy's Debye temperature and add the MC-derived magnetic C(T,H) at both fields; recompute dT_ad and RCP with the field-integrated Eq. 5 as a cross-check.
+
+**Q3.** Are the effective lattice exchange constants (J_YY, J_ZA, J_ZM) quantitatively consistent with the paper's KKR-CPA orbital-resolved Jij (Fig. 1), or merely qualitatively FM/AFM-competing?
+  - *Basis:* We tuned three effective bond energies to place Tm ~ 300 K and reproduce dM; the paper derives Jij ab initio with t2g (FM) / eg (AFM) decomposition. Quantitative fidelity of the driving mechanism hinges on matching those magnitudes.
+  - *Next step:* Digitize Fig. 1 (Ni50Mn30Ga20 austenite/martensite Jij vs distance), map the dominant MnY-MnY / MnY-MnZ constants onto nearest-neighbor lattice bonds, and re-run without free tuning.
+
+**Q4.** Does the RCP proxy (dS x 20 K FWHM) explain the 2x overshoot vs the paper's -132 J/kg, or is the entropy-change width itself different?
+  - *Basis:* RCP is a key figure of merit. Our -281 J/kg uses a crude fixed 20 K width; the paper integrates the actual dS(T) peak. The dS magnitude matches, so the discrepancy is likely in the assumed peak width.
+  - *Next step:* Compute the full dS_mag(T) curve at 2 T from MC (Eq. 5 Maxwell relation away from Tm plus Eq. 6 at Tm), integrate RCP = int dS dT over the FWHM directly.
+
+**Q5.** How do finite-size (L=12) and Monte-Carlo-sampling (60/40 sweeps) errors bound the reported dM(Tm) and dS_mag?
+  - *Basis:* The coarse, performance-bounded retry uses a small lattice and short sampling for a <4 min budget. Statistical/finite-size drift in dM directly propagates (linearly) into dS_mag, dT_ad and the verdict margin.
+  - *Next step:* Run an L in {8,12,16,20} finite-size scan with 5 RNG seeds each, extrapolate dM(Tm) to the thermodynamic limit, and report error bars on dS_mag and dT_ad.
+
+### cullen2025  (5 Q)
+
+**Q1.** Build the dominant quantum correction Delta j1 (interband-polarization / dipole-rotation term of Eq. 6) and check whether it alone lifts the conventional ~49 toward the ~10^3 headline.
+  - *Basis:* The paper's whole thesis is that quantum corrections DOMINATE the OHE; Delta j1 (and Delta j2) are named as the two largest contributions (Fig. 2, lines 590-591). Without them the ~20x gap to the headline cannot close, and 'orbitronic promise of Ge' rests entirely on this unbuilt physics. This is the single most important missing piece.
+  - *Next step:* Implement the covariant-derivative form of the interband OAM current from the modern theory of orbital magnetisation (Eq. 6 first term, all velocity + off-diagonal OAM elements). Reuse the existing spherical eigenbasis kernel in work/ohe_spherical.py; add the interband-dipole matrix elements. Validate order-of-magnitude against paper Fig. 2 sigma-component curves.
+
+**Q2.** Build Delta j2 (interband OAM matrix elements / time-fluctuating OAM) and Delta j3 ([r,v] non-commutativity, opposite sign) and reconstruct the full signed sum sigma_L + sigma_conv + Delta sigma_1,2,3.
+  - *Basis:* Delta j3 has OPPOSITE sign to all other contributions (line 522), so the total is a signed cancellation, not a simple sum. Getting the net ~10^3 requires all terms with correct relative signs; a partial build could give a spuriously wrong magnitude. Tests whether our conventional piece has the right sign relative to the corrections.
+  - *Next step:* Extend the kernel with the L-operator interband matrix elements and the position-velocity commutator term; assemble the signed total and compare each component's magnitude/sign to Fig. 2 (sigma_L, sigma_conv, Delta sigma_1, Delta sigma_2, Delta sigma_3 curves for Ge).
+
+**Q3.** Does the full (non-spherical) 4x4 and the 6x6 LKBP Hamiltonian change the Ge number materially, and is it required for the other four semiconductors (Si especially)?
+  - *Basis:* The paper uses the spherical 4x4 only for analytic insight and switches to full 4x4 / 6x6 for numerical accuracy; Si REQUIRES 6x6 (small delta_so ~40 meV, large gamma2-gamma3 difference). Our spherical Ge number cannot be extended to Si without the 6x6, and cubic anisotropy (gamma2 != gamma3) may shift even the Ge value.
+  - *Next step:* Implement Eq. (1) full 6x6 with material-specific gamma1,gamma2,gamma3,delta_so from the paper's Table I; rerun the Kubo integration for Ge (check vs spherical) then Si/GaAs/InAs/InSb.
+
+**Q4.** Is the community-standard Go-et-al conventional-Kubo convention we used numerically identical to the paper's 'proper' current (Eq. 7 analogue with the tilde/check non-degenerate/degenerate matrix-element split)?
+  - *Basis:* For spin-3/2 holes the OAM is not conserved, so the proper vs conventional current distinction (which the paper stresses for the SHE, lines 555-558) can differ by O(1) factors or more. If our sigma_conv ~49 is computed in a slightly different convention than the paper's sigma_conv curve, even the 'conventional agreement' claim needs a convention audit.
+  - *Next step:* Derive the proper orbital current from Eq. (7) with L replacing s, implement the degenerate-manifold (check) vs non-degenerate (tilde) Berry-connection split explicitly, and compare to our braced-anticommutator conventional form at identical params.
+
+**Q5.** How do the OHE (and the dominant quantum corrections) scale with Fermi energy / hole density, and does the predicted ~10^3 survive at experimentally accessible densities?
+  - *Basis:* Our conventional piece already drops from 49 (EF=10 meV) to 34 (EF=5 meV) -- a strong density dependence. The paper's orbitronic proposal for Ge is only useful if the large OHE persists at realistic p-type doping; the EF-dependence of the DOMINANT quantum-correction terms is the experimentally decisive curve.
+  - *Next step:* Once Delta j1,2,3 are built, sweep EF (or hole density n) across the paper's stated range (up to ~10 meV) and reproduce the total sigma_OHE(EF) trend; compare to the paper's density-dependence figure and to the YIG/W/Ge, YIG/Pt/Ge experimental order of magnitude (Ref. 62).
+
+### dar2026  (5 Q)
+
+**Q1.** Why is the fourfold angular modulation of the triplet intensity essentially identical in the AM (rho_z=0.1) and AFM (rho_z=0) runs, when the paper's Fig. 4(a,b) shows it is unique to the altermagnet and vanishes at rho_z=0?
+  - *Basis:* This is the paper's single most falsifiable claim and the physical signature that distinguishes an altermagnet from an antiferromagnet in this setup. If it cannot be resolved, the replication cannot confirm the headline. Our result suggests the emergent SOC alpha ~ r_hat (present in both limits) dominates the on-wall angular structure while the AM-only V_z ~ cos(2*chi) contributes only <=3%.
+  - *Next step:* Increase rho_z toward the paper's exchange-dominated regime and sweep rho_z in {0, 0.05, 0.1, 0.2, 0.3} to test whether the l=4 FFT power grows monotonically and separates from the AFM baseline; if it does, the null result is a small-rho_z / weak-anisotropy artifact, not a physics disagreement.
+
+**Q2.** Is the triplet-to-singlet ratio of ~0.4% intrinsic, or an artifact of the semiclassical, non-self-consistent fixed Delta_0 and the coarse 1.6 nm grid?
+  - *Basis:* At 0.4% the AM-vs-AFM triplet contrast is a difference of small numbers (replication-skill pitfall 8), so no quantitative AM signature can be trusted until the triplet channel is resolved with enough dynamic range.
+  - *Next step:* Re-run with a self-consistent Delta(r) = V_sc <c_up c_dn> iteration (recipe step 5) and a finer grid (a<=0.8 nm, N>=88), and confirm the singlet suppression near the wall predicted by the altermagnet lifting Kramers degeneracy; compare triplet/singlet ratio vs grid to check convergence.
+
+**Q3.** Does a properly Wigner-transformed, momentum-resolved triplet correlator F_sigma-sigma(R,p) (paper Eq. 15) reproduce the rotating p_R=0 nodes and the spin-dependent elliptical node condition, which our on-site bond-correlator proxy for Eq. 16 cannot directly show?
+  - *Basis:* The paper's mechanism for the hotspots is the d-wave form factor deforming a circular node (AFM) into a spin-dependent ellipse (AM). Our real-space bond intensity integrates over p and loses the node structure that actually carries the fourfold pattern.
+  - *Next step:* Compute F_sigma-sigma(R,p) on a local k-grid at several wall positions R, extract the node loci, and verify the circle->ellipse deformation and the pi/2 rotation of nodes around the wall (paper Fig. 3), then integrate Eq. 16 exactly rather than via the nearest-neighbor bond proxy.
+
+**Q4.** What is the supercurrent-induced quadrupolar torque tau_quad(R) (Sec. VII), and does it inherit the fourfold symmetry of the altermagnetic order parameter?
+  - *Basis:* This is the paper's second headline (the reciprocal effect) and was entirely scoped out of the present replication; without it, coverage of the paper's results is capped near half.
+  - *Next step:* Extend the BdG solver to the finite-Cooper-pair-momentum form (Eq. 17, Delta -> exp(iQ.R)Delta), compute the quasiparticle contribution to the torque via tau = <dH/dn(R)>.J_s, and test the Q-linear quadrupolar (fourfold) angular pattern near the wall.
+
+**Q5.** Do the local BdG spectra exhibit the paper's position-dependent nodal-to-fully-gapped transitions around the wall, and how does the minimum gap vary with chi?
+  - *Basis:* The paper claims the local spectrum is fully gapped or point-nodal depending on wall position, tied to both the wall and the altermagnetic order; our single global min|E_BdG|=5.1e-4 does not resolve this angular gap structure.
+  - *Next step:* Compute the angle-resolved local density of states / minimum quasiparticle gap as a function of chi along the wall annulus, and map where the spectrum closes (nodes) vs stays gapped, comparing to the paper's node conditions (sigma*xi - b_z = 0).
+
+### ding2026  (5 Q)
+
+**Q1.** Is the checkerboard altermagnetic order actually the ground state at 0.25 hole/Fe, or merely a low-lying metastable configuration?
+  - *Basis:* The paper's own discussion warns that imposing a checkerboard config and observing splitting does NOT prove it is the true ground state. Only a full 8-configuration total-energy comparison (which our TB surrogate cannot do) settles this.
+  - *Next step:* Run spin-polarized DFT (or a Heisenberg-plus-doping model) enumerating all 8 magnetic configs vs. doping to confirm the dimer->checkerboard transition and its critical doping.
+
+**Q2.** What sets the absolute 620 meV scale microscopically — is delta (ligand hopping anisotropy) really ~0.09 eV for Cl on FeSe?
+  - *Basis:* Our surrogate reproduces 620-720 meV only after tuning delta; the value is not derived from first principles. The magnitude claim rests on the true Cl-induced anisotropy.
+  - *Next step:* Wannier-downfold the DFT bands of Fe2Se2Cl to extract the real Fe-Fe hopping anisotropy and on-site exchange, then feed them into this TB model unmodified.
+
+**Q3.** How does SOC modify the splitting and open the reported anti-crossings (Weyl gapping along X-M vs M-Y)?
+  - *Basis:* The paper reports Neel-vector-dependent Weyl gapping ([100] vs [110]) that our spin-conserving no-SOC model cannot capture, but which is central to the spintronic/topological pitch.
+  - *Next step:* Add a Rashba/atomic SOC term lambda (L.S) to the 4x4 (spinful, 2-sublattice) Hamiltonian and track anti-crossing gaps vs Neel-vector orientation.
+
+**Q4.** Does the altermagnetism truly survive in the 10-layer slab / bulk limit as claimed?
+  - *Basis:* The robustness-to-bulk claim is a key novelty (surface-driven, decoupled from nonmagnetic bulk). A 2D monolayer TB cannot test interlayer hybridization.
+  - *Next step:* Extend the TB model to a multilayer stack with interlayer hopping t_perp and a nonmagnetic underlayer; check whether the top-layer d-wave splitting persists.
+
+**Q5.** Would the lifted spin degeneracy actually bias equal-spin triplet pairing as the paper speculates?
+  - *Basis:* The headline application (Majorana / topological quantum computing) hinges on triplet SC emerging from the altermagnetic normal state.
+  - *Next step:* Add an attractive interaction to the TB model and solve the linearized gap equation to see whether Delta_up-up / Delta_dn-dn channels are favored over singlet.
+
+### durnev2023  (5 Q)
+
+**Q1.** Does the full Eq (20)+(22) angular-sum conductivity reproduce the same spectral lineshape off-resonance as the near-resonance closed forms Eq (25)/(26) used here?
+  - *Basis:* The closed forms assume Omega*tau0 >> 1 and omega ~ Omega. Off-resonance the full angular-harmonic sum could diverge from the Lorentzian approximation, affecting the wings of the Faraday spectrum in Fig. 2/3.
+
+**Q2.** Do the parabolic-dispersion (bilayer/2DEG) formulas Eq (21)/(23)/(24) yield the same order-of-magnitude 0.1 deg / 0.1 T as the graphene case?
+  - *Basis:* The paper claims generality across linear and parabolic spectra; only the linear/graphene branch was coded here, leaving half the paper's headline scope unverified.
+
+**Q3.** Is theta_K approx -theta_F an adequate substitute for the independent Kerr evaluation via Eq (6) at the n1=1, n2=3 dielectric contrast?
+  - *Basis:* The Kerr angle carries the reflection Fresnel factors; at finite (not infinite) contrast theta_K may deviate from -theta_F by a non-negligible factor, changing the Kerr headline number.
+
+**Q4.** How sensitive is the peak Faraday angle to the choice tau0/tau1 ratio, and does the paper's Fig. 3 assume tau0 = 5 ps or 10 ps?
+  - *Basis:* theta_F and B_syn scale with tau0; the 2x ambiguity (5 vs 10 ps) between Fig. 3 params and the paper's explicit B_syn estimate propagates directly into the headline agreement (0.044 vs 0.1 deg).
+
+**Q5.** Does a pixel-level digitization of Figs. 2-4 confirm the resonance peak position and width predicted by Eq (26)?
+  - *Basis:* Cross-checks match the paper's stated scalar numbers, but no figure-level curve comparison was done; the resonance width (set by tau0) is untested against the plotted lineshape.
+
+### ederer2005  (5 Q)
+
+**Q1.** The polarization-quantum residual (178.3 vs 185.6 uC/cm^2) was attributed to LSDA volume under-estimation. Does using the exact Neaton et al. (2005, PRB 71 014113) LSDA+U-relaxed R3c cell volume close the gap to <1%?
+  - *Basis:* Our C1 back-calculation found V_prim=119.7 A^3 reproduces 185.6 exactly, ~4% below the Kubel-Schmid experimental 124.6 A^3. LSDA under-estimation has the right sign but the magnitude was assumed, not verified.
+  - *Next step:* Extract the LSDA+U cell parameters from Ref.[19]/Ref.[7] supplementary or re-run a light LSDA+U relaxation; recompute eR/V; confirm the volume and residual quantitatively.
+
+**Q2.** In the Rice-Mele Berry-phase model the 'spontaneous P' along the switching path was only 0.030 e/cell for the chosen (t1,t2,Dmax). What (t1,t2,D) regime maps onto BiFeO3's actual ~95 uC/cm^2 (~half a quantum, i.e. near-topological)?
+  - *Basis:* C2 reproduced quantization and oddness exactly but the path amplitude is model-parameter dependent; BiFeO3's real P is a large fraction of the quantum, implying a near-band-inversion regime not sampled here.
+  - *Next step:* Scan the Rice-Mele (t1/t2, D) plane; identify the locus giving P ~ 0.5*quantum along a gap-preserving path; compare to a 3-band p-d tight-binding fit of BiFeO3.
+
+**Q3.** The d0-rule vibronic model shows d1/d2 kill the double well entirely. Real magnetic ferroelectrics (BiFeO3, YMnO3) ARE ferroelectric with partly-filled d via lone-pair or geometric mechanisms. Can the same 2-level model, augmented with a Bi-6s2 lone-pair channel, restore a double well at d5?
+  - *Basis:* The review explicitly says BiFeO3's ferroelectricity comes from the Bi lone pair, NOT the d0 mechanism. Our model only encodes the d0 route; the lone-pair route is unmodelled.
+  - *Next step:* Add a second (A-site 6s-6p) hybridization channel to the vibronic Hamiltonian; check a double well survives for a d5 B-cation when the A-site lone-pair coupling is on.
+
+**Q4.** The improper-FE Landau model used a lambda*Q^2*P coupling. For the actual P63/mmc -> P63cm irreps of YMnO3, is the symmetry-allowed lowest coupling really Q_K3^2 * P, or a trilinear Q_K3 * Q' * P involving a third mode?
+  - *Basis:* C4 assumed the biquadratic-in-K3 coupling; Fennie-Rabe's analysis (Ref.38) involves specific irrep products that may require a third mode for the trilinear term, changing the P(Q) scaling exponent.
+  - *Next step:* Do the ISOTROPY/invariant-theory group-theory analysis for K3 x Gamma2- in P63/mmc; determine the true lowest invariant; re-fit the P-vs-Q exponent.
+
+**Q5.** C5 fixed D/J=0.02 to hit 0.1 uB/cell. Is that ratio consistent with independently estimated BiFeO3 exchange (J ~ tens of meV) and DM (D ~ meV) constants from the literature, or was the ratio merely fit to the target?
+  - *Basis:* The canting model reproduces the magnitude by construction once D/J is tuned; the physical validity hinges on whether D/J=0.02 matches real first-principles/neutron values for BiFeO3.
+  - *Next step:* Collect published BiFeO3 J and D (e.g. from spin-wave / DFT+U mapping); compute D/J directly; verify it predicts ~0.1 uB without tuning.
+
+### fang2015  (5 Q)
+
+**Q1.** The paper states the BTO double well vanishes at a ~2 eV OSEP up-shift of Ti-3d, but reports no absolute well depth or |Q*| in meV/Angstrom. What are the actual DFT double-well depth and off-center displacement for BTO, and does the 2 eV quench survive when depth is fixed to the true DFT value rather than model-calibrated?
+  - *Basis:* Our surrogate calibrates depth (10.5 meV) to fix s_crit=2 eV; the paper gives only the shift, so depth is unconstrained. C2 pass depends on this calibration.
+  - *Next step:* Run a plane-wave DFT (e.g. VASP/QE, PBEsol) frozen-A2u-mode scan for cubic BTO to extract the true double-well depth and |Q*|, then re-derive whether an orbital-selective Ti-3d up-shift of 2 eV quenches THAT well without free parameters.
+
+**Q2.** Is the OSEP quench threshold a sharp function of the LDA+U / functional choice? The 3d-2p gap Delta (which sets s_crit=4g^2/k - Delta) is notoriously functional-dependent for transition-metal oxides.
+  - *Basis:* Our s_crit scales linearly with Delta; LDA underestimates gaps, GGA/hybrid shift them. The paper does not state which functional produced the ~2 eV figure.
+  - *Next step:* Repeat the OSEP scan under LDA, PBE, PBE+U (varying U on Ti-3d), and a hybrid (HSE) functional; tabulate s_crit vs the computed 3d-2p separation to test the predicted linear s_crit(Delta) relation.
+
+**Q3.** Does the second-order Jahn-Teller two-level reduction quantitatively hold, or do multiple Ti-3d sub-orbitals (t2g/eg splitting) and the full O-2p manifold change the effective coupling and the quench threshold?
+  - *Basis:* We collapse the whole 3d/2p manifold to one bonding channel with a single effective g; real BTO has orbital multiplicity and directional bonds along the A2u mode.
+  - *Next step:* Extend the model to a multi-orbital tight-binding cluster (Ti eg + three O-2p sigma along the polar axis) with Slater-Koster hoppings; check whether the single-channel s_crit is recovered or renormalized.
+
+**Q4.** For PTO the paper says Pb-6s 'up' and Ti-3d 'down' both deepen the well with Pb weaker; is the Pb-6s lone-pair contribution additive/independent of the Ti-3d channel, or is there cross-coupling (6s-6p-O2p) that the two-channel additive model misses?
+  - *Basis:* Our PTO model treats Ti-3d and Pb-6s as independent additive channels; the real lone-pair activity involves 6s-6p mixing mediated by O-2p (a coupled three-level problem).
+  - *Next step:* Build a coupled 3-level (Pb-6s, O-2p, Pb-6p) block for the lone pair and re-measure the Pb-6s deepening with and without 6p mixing to quantify the additive-approximation error.
+
+**Q5.** Does the OSEP-quench picture predict a measurable, distinct signature (e.g., soft-mode frequency vs an experimentally accessible orbital-energy tuning knob like chemical pressure or B-site substitution) that could validate the mechanism beyond DFT self-consistency?
+  - *Basis:* OSEP is a theoretical potential; the paper notes 'such potential could exist in nature' but gives no experimental discriminant. A replication that only reproduces DFT-to-DFT is not falsifiable.
+  - *Next step:* Map the OSEP Ti-3d shift onto a physical proxy (e.g., isovalent B-site alloying Ti->Zr/Sn that raises effective d-level, or hydrostatic pressure) and compare predicted soft-mode-frequency vs composition/pressure trends to published Raman/neutron soft-mode data for BaTi(1-x)ZrxO3.
+
+### feng2026  (5 Q)
+
+**Q1.** What is the correct Fermi-surface-weighted / nonlinear form of the paper's Eq.9 MOHE Kubo formula that yields a finite sigma^{Lz}_xy for the (partially) filled d-wave altermagnet bands, given that a naive T=0 intraband Drude-like sum (sum over occupied bands of <j^{Lz}_x>_n <v_y>_n) cancels to numerical zero (~1e-22)?
+  - *Basis:* Our reproduction reproduced the d-wave spin-split band symmetry cleanly (0.365 eV on axis, 0.0 on diagonal) but our linear intraband MOHE implementation returned ~1e-22 for both mu=-0.04 and mu=0.06, indicating the response requires either a df0/dk Fermi-surface weighting or the 2nd-order/nonlinear structure of Eq.9, not a naive filled-band sum.
+  - *Next step:* Implement Eq.9 exactly as a nonlinear/second-order magneto-response with the ieh^2/4mu_B interband orbital-moment normalization and a proper partial-occupation (finite-T or Fermi-surface) weighting; verify sigma^{Lz}_xy becomes finite and matches the paper's scaling vs mu.
+
+**Q2.** Does the interband orbital-moment normalization (the ieh^2/4mu_B form stated in the paper) change the sign and magnitude of sigma^{Lz} relative to the position-operator itinerant L_z = 1/2(X v_y - Y v_x) construction used successfully for the quantized germanene case (wang2024)?
+  - *Basis:* wang2024 gave a clean quantized OHC plateau with the position-based itinerant L_z, but feng2026 uses the modern-theory-of-orbital-magnetization interband L_z form; the two constructions may differ by a normalization/sign for a metallic (non-quantized) altermagnet.
+  - *Next step:* Compute sigma^{Lz} for the feng2026 model with BOTH L_z definitions on the same k-mesh and compare; reconcile against the paper's reported values.
+
+**Q3.** Which exact sigma^{La}_bc tensor components does the spin-Laue group 2 4/1m2m1m (the paper's altermagnet symmetry) allow to be nonzero, and can this be demonstrated numerically rather than only from spin-group tables?
+  - *Basis:* C3 (symmetry-allowed component set) could not be numerically resolved here because both the allowed (xy) and forbidden (xx) components came out near numerical zero under the linear implementation; the allowed set is clear analytically from the spin-Laue group but was not confirmed numerically.
+  - *Next step:* Once a finite MOHE implementation exists, sweep all (a,b,c) index combinations and tabulate which are nonzero; compare the numerical nonzero-set against the spin-Laue-group prediction.
+
+**Q4.** How does the MOHE magnitude scale with the spin-conserving SOC (lambda_c) versus the spin-flip SOC (lambda_f), i.e. which SOC channel dominates the orbital Hall response in a d-wave altermagnet?
+  - *Basis:* The model has two independent SOC terms (Eq.7 spin-conserving H^c and Eq.8 spin-flip H^f), both set to 0.1*t1 in the paper; their separate contributions to sigma^{Lz} were not disentangled.
+  - *Next step:* With a working MOHE routine, sweep lambda_c and lambda_f independently (holding the other at zero) to extract each channel's contribution and any interference.
+
+**Q5.** Do the first-principles CrSb and FeSb2 calculations confirm that the minimal 4-band model captures the correct MOHE tensor structure, and how sensitive is the material-specific magnitude to the Supplemental-Material DFT parameters (plane-wave cutoff, U, k-mesh, relaxation time tau)?
+  - *Basis:* C4-C6 (material DFT claims) were out of scope here: the Ref[50] Supplemental-Material DFT parameters are not in the extracted text and no VASP/QE/Wannier90 stack was available, so the model-to-material bridge is untested.
+  - *Next step:* Obtain Ref[50] SM parameters; run VASP/QE SCF+SOC for CrSb (P6_3/mmc) and FeSb2 (Pnnm), Wannier90 downfold, and compute the T-dependent MOHE with experimental tau (CrSb 15 fs, FeSb2 2.5 fs); compare tensor structure to the model.
+
+### gmitra2013  (5 Q)
+
+**Q1.** Do the higher-order momentum coefficients (mu_n^(1), mu_n^(2), eta_n^(1), eta_n^(2) in Eq. 2) also carry a cos(2 theta) magnetization dependence, or is the magnetic control confined to the linear (alpha_n^(0), beta_n^(0)) terms?
+  - *Basis:* The paper states linear terms dominate up to ~5% of the BZ and that higher coefficients are 'about two orders smaller' for the angular dependence of alpha,beta, but it does not report the theta-dependence of the k^2 coefficients that actually shape the large-k 'butterflies' in Fig. 2b,c.
+  - *Next step:* Extend sof_model to include mu^(1),mu^(2),eta^(1),eta^(2) and fit their theta-dependence to a DFT contour scan at k=pi/8d,pi/5d; test whether the butterfly-axis flip persists when only linear terms are magnetization-dependent.
+
+**Q2.** How linear is the electric-field response of alpha_2, beta_2 across a wider bias range, and is there a field value at which alpha_2*beta_2 also flips sign (a field analog of the TAMR inversion)?
+  - *Basis:* Fig. 3 shows E = -1, 0, +1 V/nm and the text says band 2 is E-sensitive while band 1 is not, consistent with bias-induced TAMR inversion, but only three field points are given and no explicit field-driven product-sign-flip is quantified.
+  - *Next step:* Add a linear (and quadratic) E-dependence to the Table-I coefficients, sweep E in [-3,3] V/nm, and locate any zero-crossing of alpha_2(E)*beta_2(E); compare the predicted crossing field to the experimental TAMR sign-inversion bias.
+
+**Q3.** Does the L'Hopital limit of the extraction formulas (Eqs. 4-5) at theta=0 and theta=pi/2 numerically agree with the finite-theta extraction, i.e. is the method free of a removable-singularity artifact exactly on the crystallographic axes?
+  - *Basis:* The paper notes the numerators/denominators of Eqs. 4-5 vanish at theta=0,pi/2 and prescribes L'Hopital's rule, but does not show that the two evaluations converge continuously; our round-trip test deliberately avoided those angles.
+  - *Next step:* Implement the analytic L'Hopital limit in extract_wxy/extract_alpha_beta and verify continuity by taking theta -> 0 and theta -> pi/2 from both sides; quantify the residual at the axis.
+
+**Q4.** For the out-of-plane magnetization case, does the perturbative relation <s_x>=w_x/Delta_xc, <s_y>=w_y/Delta_xc (Eq. 12) reproduce the same C2v texture symmetry as the in-plane extraction, and what Delta_xc value best matches the two?
+  - *Basis:* The paper switches methodology for M perpendicular to the plane (Eq. 12) and states it recovers the pattern but not the magnitude; the consistency of the pattern between the in-plane (Eqs. 4-9) and out-of-plane (Eq. 12) routes is asserted, not demonstrated numerically.
+  - *Next step:* Simulate a spin-texture <s_x>(k),<s_y>(k) from the model, divide by a trial Delta_xc, and compare the resulting w-pattern symmetry and nodal structure to the in-plane w(k); fit Delta_xc to align magnitudes.
+
+**Q5.** Do the As-surface bands n=3,4 (with an order-of-magnitude larger SOC, A~600-700 meV.A) show a qualitatively different butterfly topology (e.g. more nodes / higher winding) than the interface bands n=1,2 on the same contours?
+  - *Basis:* Table I includes n=3,4 with much larger coefficients and the text calls their SOFs 'stronger' due to their surface nature, but Fig. 2 only shows band n=1; the k-space topology of the surface-band SOF is unexplored.
+  - *Next step:* Generate the butterfly vector fields and winding number of w(k) for n=3,4 at the three contours using the existing sof_model coefficients; compare node count and symmetry-axis orientation against n=1,2.
+
+### göbel2024  (5 Q)
+
+**Q1.** Does replacing the simplified 1/2(r×v) center-of-mass orbital operator with the modern orbital-magnetization (Berry-phase) operator recover the σ^Lz ∝ area^2 (quadratic) law while leaving σ^Sz and σ_xy ∝ area^1 (linear)?
+  - *Basis:* This run reproduced the orbital≫spin ordering and the linear-in-area growth of ⟨L_z⟩ (slope ~1.44 vs λ), but σ^Lz scaled ~linearly in λ (not quadratically) and σ^Sz scaled ~λ^2.4 — the opposite exponent ordering vs the paper's Fig S2. The simplified operator under-weights the extra area factor.
+  - *Next step:* Implement the paper's Eq.(5) modern orbital-magnetization operator (off-diagonal, corrected imaginary unit) and/or the anticommutator orbital current j^{Lz}_x = 1/2{v_x, L_z}; re-run the λ sweep at fixed filling; fit log(σ^Lz) vs log(area) and compare the exponent to 2.0.
+
+**Q2.** Does a skyrmion-crystal supercell (magnetic unit cell = skyrmion) open a global charge gap and restore integer charge-Chern (TKNN) quantization, as in the paper's Fig 3b?
+  - *Basis:* The charge Hall came out ≈0 (10^-12) at all λ because a single skyrmion in a finite periodic cell has no global charge gap to quantize on. C3's charge-quantization sub-point could not be tested with the current geometry.
+  - *Next step:* Tile the skyrmion to build a magnetic supercell (λ/a)×(λ/a); do Bloch-space k-integration over the magnetic BZ (Fukui–Hatsugai or Kubo); verify σ_xy lands on integer Chern plateaus inside the gaps and that σ^Lz remains large and non-integer.
+
+**Q3.** For an antiferromagnetic skyrmion / bimeron, is the charge (topological) Hall compensated to zero while the orbital Hall stays finite — the paper's 'pure orbital Hall effect' claim (C4) — and how large is the residual spin Hall?
+  - *Basis:* Only the FM Néel skyrmion was run in this fast pass; C4 (AFM/bimeron compensated charge Hall, finite/pure orbital Hall) was not tested.
+  - *Next step:* Build the checkerboard AFM texture (reverse every 2nd moment) with 2nd-neighbor hopping t2=-1 eV per Methods; compute σ_xy, σ^Sz, σ^Lz with FM/AFM-background subtraction; check σ_xy→0 by sublattice compensation while σ^Lz stays finite.
+
+**Q4.** How sensitive is the extracted area-scaling exponent to the CHOICE of orbital operator — center-of-mass 1/2(r×v) vs modern M_orb (Berry-phase) vs the anticommutator current 1/2{v_x, L_z}?
+  - *Basis:* The C2 partial result is attributed to operator choice. Quantifying the exponent as a function of operator would isolate whether the discrepancy is purely operator-driven or also geometry-driven (finite cell vs supercell).
+  - *Next step:* Run all three operators on the identical eigenbasis and λ sweep; tabulate exponent(operator); if only the modern operator gives ~2.0, operator choice is the sole cause; if all fall short, geometry (Q2) also contributes.
+
+**Q5.** Is the texture-induced σ^Lz converged with respect to lattice size L and k-mesh, and does the FM-subtracted signal remain stable as L→∞ at fixed λ/L?
+  - *Basis:* All results used a single L=28 real-space cell with one k-point (Γ, real-space ED). The FM background is ~10^5 and must be subtracted; convergence of the small texture-induced residual vs L was not established.
+  - *Next step:* Repeat λ=5 at L=20,28,36,44 (and, in supercell form, with a k-mesh) holding λ/L fixed; plot FM-subtracted σ^Lz vs 1/L; confirm a finite, stable extrapolant and bound the finite-size error on the reported numbers.
+
+### göbel2025  (5 Q)
+
+**Q1.** Does replacing the itinerant L_z = 0.5(X v_y - Y v_x) operator with the modern-theory-of-orbital-magnetization current operator drive the uniform-FM reference conductivity to ~0, yielding a clean topological residual?
+  - *Basis:* The current 275 [e/2pi] residual is a difference of two large numbers (4330 - 4055). A non-zero FM reference proves the operator carries a spurious PBC trivial contribution, so the isolated 'topological' number is not trustworthy quantitatively.
+  - *Next step:* Implement the k-space modern-theory OAM operator (Wannier/Bloch derivative form) and re-evaluate sigma^Lz_xy for the uniform FM; verify it vanishes by symmetry before trusting the hopfion residual.
+
+**Q2.** How does sigma^Lz_topological converge with reciprocal-space k-mesh density (paper uses ~40x40x40) versus the single Gamma-point real-space supercell used here?
+  - *Basis:* The real-space Gamma-only cell samples one k-point; the paper's energy-resolved sigma(E) curves require dense BZ integration. Convergence controls whether the sign and magnitude of the Hall response are physical.
+  - *Next step:* Port the Hamiltonian to a Bloch/reciprocal-space form and sweep n_k = 4, 8, 16, 32, 40; check sigma^Lz_xy(mu) for a plateau.
+
+**Q3.** Are the in-plane orbital Hall tensor elements (sigma^Lx and sigma^Ly, e.g. sigma^Lz_yz-type) finite and consistent with the paper's Fig. 3, which is the distinguishing 3D signature versus a 2D skyrmionium?
+  - *Basis:* The paper's central novelty is that a hopfion produces BOTH out-of-plane and in-plane orbital Hall conductivities; only sigma^Lz_xy was computed here, so the uniquely-3D part of the claim is untested.
+  - *Next step:* Extend the Kubo kernel to build L_x, L_y operators and compute the full sigma^{L_alpha}_{beta gamma} tensor; compare the in-plane components against the hopfion Hopf-index expectation.
+
+**Q4.** Does the topological orbital Hall residual scale with the Hopf index (e.g. multi-twist or H=2 hopfions) rather than with lattice-specific artifacts?
+  - *Basis:* The paper's headline is that the 3D orbital Hall effect is the electronic manifestation of the Hopf index. Demonstrating proportionality to H (and vanishing for a trivial texture) is what separates topology from a numerical accident.
+  - *Next step:* Construct textures with Hopf index H=0,1,2 (varying the helical z-twist number) and check whether the topological residual scales linearly with H.
+
+**Q5.** How robust is the effect to finite temperature, disorder, and finite quasiparticle lifetime (broadening eta), i.e. is it observable in a real device?
+  - *Basis:* The paper motivates hopfion detection in spintronic devices; the T=0, clean, DC calculation says nothing about whether the orbital Hall signal survives room-temperature broadening and impurity scattering.
+  - *Next step:* Add a Fermi-Dirac occupation factor and a finite eta in the Kubo-Bastin denominator; sweep T and eta and report the degradation of sigma^Lz_xy(mu).
+
+### jia2026  (5 Q)
+
+**Q1.** Does implementing the full Hermitian-connection geometric sector (Eqs. 4-6, 8, 9) recover the paper's orbital approximately 3x spin ratio?
+  - *Basis:* This compute pass implemented only the conventional matrix-element 'od' term of the intrinsic NOME. The od-only orbital/spin magnitude ratio came out ~10-100x (near-conduction-edge median ~11.6, peak ~-115.6) instead of the claimed 3x. The paper states the 3x is a property of the TOTAL od+geometric response, dominated by the geometric d+ic / Hermitian-connection terms that were not coded.
+  - *Next step:* Code the geometric d and ic contributions with correct, gauge-invariant covariant derivatives (Hermitian connection C^{a;ab}_nm, positional-shift/covariant-derivative tensors N, L, D). Recompute the total orbital and spin chi_z;xx vs mu and re-measure the orbital/spin ratio near the band edge; check whether the total-response ratio converges to ~3x.
+
+**Q2.** Is the machine-precision lambda_R-evenness of chi_z;xx a property of the total response, or only of the 'od' sector we computed?
+  - *Basis:* We verified chi^{(0,od)}_{z;xx}(+lambda_R) = chi^{(0,od)}_{z;xx}(-lambda_R) to relative error ~9e-16 across lambda_R = 10, 20, 30 meV, with a nonzero value (raw ~13.94) at lambda_R=0. This cleanly reproduces the P-even statement for the od term, but the geometric sector was absent, so it is untested whether the full response preserves the evenness at the same precision.
+  - *Next step:* After adding the geometric terms (Q1), repeat the even-symmetry check on the TOTAL chi_z;xx across a range of lambda_R. Confirm the evenness holds to machine precision for the full response; a break would indicate either a coding error or a subtler symmetry structure than the od-only test reveals.
+
+**Q3.** What dimensional convention fixes the absolute mu_B/V^2 prefactor (C6)?
+  - *Basis:* The response was computed in raw/internal geometric units. Converting to mu_B/V^2 (and to ~1e-5 mu_B/nm^2 at E=1e5 V/m) requires the full dimensional prefactor of Eq. (1): electron charge, lattice length, hbar, unit-cell area, and the E-field length convention. Without this, the claimed ~10 mu_B/V^2 order-of-magnitude is neither confirmed nor refuted.
+  - *Next step:* Reconstruct the complete dimensional bookkeeping of Eq. (1) from the paper/Supplemental Material, apply the honeycomb lattice constant and cell area, and multiply the raw chi by the derived prefactor. Compare the resulting absolute magnitude at lambda_R=0 against the claimed ~10 mu_B/V^2 and the ~1e-5 mu_B/nm^2 field-magnetization estimate.
+
+**Q4.** How does the extrinsic CuMnAs Model 2 (Eq. 12, PT-symmetric) compare, and does it reproduce more cleanly than the intrinsic 3x claim?
+  - *Basis:* Model 2 was not attempted in this pass (time budget). It is a tractable 4-band, tau-linear Fermi-surface model with only chi^{(1)}_{z;xy} allowed, dominated by the Hermitian connection with a peak from the Dirac points. Its parameters (t'=0.08t, J_n=0.6t, lambda=0.8t, T=100 K, tau=10 fs) are fully specified in method_extract.md.
+  - *Next step:* Implement the CuMnAs Bloch Hamiltonian and the extrinsic (tau-linear) response terms. Verify only chi^{(1)}_{z;xy} is finite, locate the Dirac-point peak, and test whether the Hermitian-connection dominance and magnitude (~1e-6 mu_B/nm^2) reproduce. Contrast reproducibility against the intrinsic model's failed 3x.
+
+**Q5.** How sensitive is the 3x ratio and the chi(mu) profile to temperature T, chemical potential mu, and BZ-mesh density near the Dirac points?
+  - *Basis:* The chi-vs-lambda_R curve at fixed mu=50 meV was non-monotonic/noisy because the Fermi level crosses band edges as lambda_R varies on a fixed 120x120 mesh; method_extract.md recommends 200x200+ for geometric-integrand convergence near K/K'. The even symmetry was exact regardless, but the fine shape (and any ratio measurement) is mesh- and Fermi-occupation-sensitive.
+  - *Next step:* Run a convergence study with adaptive/denser meshes (>=200x200, refined near K/K'), sweep T and mu, and track the orbital/spin ratio and chi(mu) peak positions. Determine the mesh and temperature at which the (total-response) ratio stabilizes, and quantify residual mesh noise in the lambda_R sweep.
+
+### lux2017  (5 Q)
+
+**Q1.** Can the absolute 1/4*chi_LP coefficient (Eq. 12) be recovered by replacing the itinerant 1/2(r x v) operator with the modern-theory-of-orbital-magnetization (Berry-phase) L_z operator?
+  - *Basis:* The headline is a quantitative prefactor (1/4 for TOM vs 1/2 for COM). Our lattice itinerant operator confirms linearity in chirality and the sign, but its normalization does not map onto the continuum Landau-Peierls susceptibility, so the absolute 1/4 is untested. This is the same limit that caps gobel2024/2025 to qualitative agreement.
+  - *Next step:* Implement the Bianco-Resta / modern-theory M_orb = (e/2 hbar c) Im Tr[P r Q H Q r P] (Q=1-P) on the same lattice, extract M_tom/chi in physical units, and compare to (1/4)(-e^2/12 pi m_e)*(hbar/2e).
+
+**Q2.** Does the clean mu-parabola (1 - 3 mu^2/Delta^2) emerge in the near-band-edge continuum limit of the lattice model?
+  - *Basis:* H2 only reproduced a qualitative sign change; the paper's clean parabola is a band-edge result. Confirming it would close the second structural claim.
+  - *Next step:* Restrict the mu-sweep to a narrow window just above the lower band bottom (parabolic regime), increase L to reduce finite-size van Hove structure, and fit M_tom(mu) to a+b*mu^2; check b<0 and the sqrt(3) sign-change location |mu|=Delta/sqrt3.
+
+**Q3.** Is the COM branch (Eq. 8/11), linear in alpha_R and in the 1D spiral gradient, reproducible with a Rashba SOC term added to the lattice s-d model?
+  - *Basis:* The paper's second half is the SOC-driven chiral orbital magnetization; the 1/2 prefactor (vs TOM's 1/4) is the companion claim. We only built the zero-SOC TOM branch.
+  - *Next step:* Add alpha_R (sigma x p)_z hopping phases to build_H_custom, use a 1D Neel spiral n=(sin qx,0,cos qx), and verify M_com ~ alpha_R and M_com vanishes as alpha_R -> 0 (Eq. 8).
+
+**Q4.** Can the full Fig. 2 (alpha_R, Delta_xc) TOM phase diagram, including the |alpha_R|>|Delta_xc| enhancement region, be mapped?
+  - *Basis:* The paper's headline figure shows both the stability of Eq. 12 for Delta>>alpha and a strong non-linear enhancement where alpha>Delta. Reproducing the enhancement region tests the physics beyond the perturbative gauge-field picture.
+  - *Next step:* Sweep (alpha_R, Delta_xc) on a grid at mu=0 for the Neel skyrmion, evaluate TOM at the core, and look for the enhancement lobe where alpha_R exceeds Delta_xc.
+
+**Q5.** How faithfully does the direct lattice diagonalization reproduce the semiclassical Green-function gradient expansion order-by-order (COM=1st, TOM=2nd order in gradients)?
+  - *Basis:* The paper's method IS the gradient expansion; a from-scratch replication that instead diagonalizes the model does not directly verify the diagrammatic order counting. Bridging the two would validate the expansion itself.
+  - *Next step:* Compute M_orb as a function of a texture-gradient scaling parameter lambda^{-1} (skyrmion size) and fit the leading powers; TOM should scale as (gradient)^2 while COM (with SOC) scales linearly.
+
+### malashevich2010  (5 Q)
+
+**Q1.** Can the paper-level PBC-vs-bounded agreement (differences ~1e-7 e^2/hc) be reproduced with the full L=4..7 + 1/L,1/L^2,1/L^3 extrapolation?
+  - *Basis:* This quantitative cross-method agreement IS the headline validation of the k-space OMP formula; our L<=5 clusters leave alpha at the noise floor.
+  - *Next step:* Build open clusters L=4,5,6,7 (up to ~2925 sites -> sparse eigensolver), fit M(L) to the cubic-in-1/L form, and compare to the smooth-gauge PBC value at matched phi.
+
+**Q2.** Does the non-Abelian Chern-Simons integral (47a) converge to a gauge-invariant theta_CS on a fine, globally smooth k-mesh?
+  - *Basis:* The CS 3-form is only locally gauge-invariant; a one-shot delta-projection on an 8^3 grid can leave large gauge-noise, which we observed (theta_CS ~ 1e-4 scatter).
+  - *Next step:* Implement a max-localized-Wannier / twisted-parallel-transport smooth gauge on a 40^3+ mesh and check theta_CS convergence vs mesh density.
+
+**Q3.** What are the actual magnitudes and phi-dependence of alpha_zz and alpha_zy reported in the paper's Fig. 1/Fig. 3?
+  - *Basis:* The corpus text (pdftotext) did not preserve the numerical y-axis values, so we lack a hard target number for a quantitative agreement score.
+  - *Next step:* Digitize Fig. 1 (alpha_zz, alpha_zy vs phi) and Fig. 3 (theta_CS, theta_LC, theta_IC vs phi) from the PDF and store as reference curves.
+
+**Q4.** Do the Kubo-like terms alpha_LC (47b) and alpha_IC (47c) contribute significantly to the trace for this ordinary insulator?
+  - *Basis:* The paper's key conceptual result is that theta = theta_CS + theta_Kubo (unlike Z2 TIs where only CS survives); we only implemented the CS term.
+  - *Next step:* Implement eqs (47b)-(47c) using the covariant field-derivative (50) and compare theta_CS/theta_LC/theta_IC decomposition against Fig. 3.
+
+**Q5.** Is the diagonal-r (convention II) Bloch Hamiltonian consistent with the paper's finite-field r.E coupling on the bounded sample?
+  - *Basis:* Gauge/convention mismatch between PBC Bloch phases and open-BC position operator can shift alpha; must be pinned before trusting cross-method agreement.
+  - *Next step:* Cross-check by computing M(E=0) orbital magnetization both ways (k-space eq 6b-6d vs bounded Tr[P rxv]) and confirm they match before differentiating.
+
+### malashevich2012  (5 Q)
+
+**Q1.** What are the numerical spin-lattice (0.77 ps/m) and spin-electronic (0.26 ps/m) contributions to alpha_perp when computed from scratch with SOC DFT+U?
+  - *Basis:* These two terms are ~98% of the 1.04 ps/m headline; the entire absolute agreement with experiment rests on them, yet they were out of scope for the fast tight-binding run.
+  - *Next step:* Run Quantum ESPRESSO SOC LSDA+U (U=2.0, J=0.8 eV) on the corundum cell: finite-E-field magnetization for spin-electronic, plus phonons + Born charges for spin-lattice.
+
+**Q2.** Does an explicit ab-initio Z2/parity evaluation of Cr2O3 confirm theta=0 (topologically trivial), justifying the tiny 0.0012 ps/m Chern-Simons term?
+  - *Basis:* Our Wilson-Dirac model assumes Cr2O3 is a trivial insulator to get theta=0; verifying this from the real band structure closes the loop between the toy CS calculation and the material.
+  - *Next step:* Compute inversion parities at the 8 TRIM from the QE Bloch states (Cr2O3 has inversion+TRS center) and evaluate the Chern-Simons theta via the Wannier-based EMV formula.
+
+**Q3.** Why does the calculated longitudinal alpha_parallel (0.002 ps/m) fall two orders of magnitude below the measured 0.2-0.3 ps/m?
+  - *Basis:* This is the paper's own acknowledged failure; understanding it tests whether thermal spin fluctuations or beyond-DFT correlation drive the low-T longitudinal response.
+  - *Next step:* Add finite-temperature spin-fluctuation corrections (e.g. via magnetic susceptibility from spin-dynamics or DMFT) and recompute alpha_parallel.
+
+**Q4.** How sensitive is the orbital ME decomposition (LC vs IC vs CS) to the exchange-correlation functional (LSDA vs GGA)?
+  - *Basis:* The paper notes the CS term changed by ~an order of magnitude between LDA and the present work; XC choice may dominate the small orbital terms.
+  - *Next step:* Repeat the orbital-electronic decomposition with PBE and PBEsol and compare LC/IC/CS subtotals against Table III.
+
+**Q5.** Can the itinerant-circulation orbital ME contribution be reproduced quantitatively (not just qualitatively) from a Wannier-interpolated Cr2O3 model?
+  - *Basis:* We showed the IC operator is active (finite Lz) but did not reproduce the -0.0084 ps/m magnitude; a Wannier model would bridge toy operator to material value.
+  - *Next step:* Build Wannier90 tight-binding Hamiltonian of Cr2O3 with SOC, apply the modern orbital-magnetization + finite-E-field formalism to extract IC and LC contributions.
+
+### oh2026  (5 Q)
+
+**Q1.** Does the FULL FPLO DFT + MLWF band structure of (TaSe4)2I reproduce the p-wave Lx texture with the SAME sign convention tied to a fixed structural enantiomer, and does the -0.25 eV constant-energy contour place the OAM nodes at the measured kx = +/-0.2 A^-1?
+  - *Basis:* Our model reproduces the SYMMETRY-dictated texture but not the material-specific band energies or node positions. Only a real DFT run pins the texture to the actual (TaSe4)2I bands and validates the quantitative CD-ARPES node locations, closing the gap between 'symmetry-allowed' and 'realized in this material'.
+  - *Next step:* Run FPLO GGA-PBE (12^3 mesh) on the Materials Project relaxed (TaSe4)2I structure for both enantiomers, Wannierize onto Ta-5d/6s/Se-4p/I-5p, and evaluate <L_x> on the -0.25 eV contour; compare node kx to 0.2 A^-1. Route to the crux compute host (recipe compute_target).
+
+**Q2.** Is the p-wave OAM texture quantitatively captured by the Ta-dx2-ONLY toy Wannier model (the paper's Wannier90 minimal model), where dx2 carries no local OAM and all Lx must come from Se-p tails, or does it require the explicit multi-orbital {py,pz} basis we used?
+  - *Basis:* The paper makes a subtle claim: the dx2 Wannier function is OAM-inert but 'inherits substantial p-like contributions from Se' so its TAILS carry the OAM. Whether a single-Wannier model reproduces finite Lx (via off-site/gauge OAM) versus needing an explicit p-doublet is a real conceptual question about where lattice OAM lives (atomic-center vs modern-theory-of-orbital-magnetization).
+  - *Next step:* Build both: (a) our explicit {px,py,pz} model (done), and (b) a single dx2 Wannier model with Se-p hybridization folded in, computing OAM with the modern itinerant operator L=(1/2)(r x v) as in the gobel2024 kernel; check whether (b) also yields the p-wave texture.
+
+**Q3.** How does the OAM/SAM ratio evolve as SOC strength xi is swept from the weak (TaSe4)2I regime into a strong-SOC regime, and is there a crossover where SAM texture becomes non-negligible (the paper's proposed route to p-wave SAM texture)?
+  - *Basis:* The paper proposes that structural chirality + STRONG SOC would convert the p-wave OAM texture into a p-wave SAM texture (the CISS/CIOS connection, analogy to NiI2). Our model has this knob (xi) but we only checked the weak-SOC limit. Mapping the OAM->SAM conversion vs xi would directly test the paper's central mechanistic proposal for engineering p-wave SAM textures.
+  - *Next step:* Sweep xi in [0, 1] in the 6-band spinful model; track net SAM polarization, band splitting, and whether Sx develops the same odd-parity kx structure; identify the xi at which p-wave SAM emerges.
+
+**Q4.** Can the CD-ARPES intensity (not just the intrinsic Lx) be forward-modeled from the tight-binding wavefunctions including photoemission matrix elements, and does the resulting I_RCP - I_LCP reproduce the observed odd-parity map AND the extrinsic-vs-intrinsic separation (no sign flip across ky, photon-energy dependence)?
+  - *Basis:* The experiment measures CD intensity, not Lx directly; the inference Lx <- CD relies on I_CD ~ L.q_photon. Forward-modeling the matrix elements (final-state, interference) would test whether the intrinsic-vs-extrinsic CD argument (the paper's key control experiment) holds, and whether photon-energy sign reversals are reproduced.
+  - *Next step:* Add a one-step photoemission model (plane-wave or free-electron final state) on top of the TB eigenstates, compute I_RCP/I_LCP at 75 eV, and reproduce Fig. 2(d,e) CD maps including the ky-symmetry test.
+
+**Q5.** Does extending the chiral model to higher angular harmonics (adding sin(2kx)*L or d-wave form factors) predict experimentally accessible d-, f-, g-wave OAM textures, and what lattice/orbital ingredients select the harmonic order?
+  - *Basis:* The paper's outlook explicitly targets multipolar OAM textures beyond p-wave (d, f, g, i). Understanding which model terms promote higher harmonics turns the qualitative outlook into a concrete design rule for the next generation of orbitronics materials.
+  - *Next step:* Add controlled higher-harmonic chiral couplings to H(k), decompose the resulting OAM texture on constant-|k| loops, and map which orbital multiplets + hopping ranges yield m=2,3,4 dominant harmonics.
+
+### peng2022  (5 Q)
+
+**Q1.** What beam waist w (in units of the harmonic-oscillator length a_ho) and radial-Rabi normalization does the paper actually use, so that Omega_R/hbar_omega = 100 and 250 place the l_z=+/-1 -> l_z=0 transition between them rather than at the ~O(10) value we find?
+  - *Basis:* Our diagonalization reproduces the qualitative sequence and first-order jump exactly, but the absolute transition coupling in our HO units is ~8.5 hbar_omega, roughly an order of magnitude below the paper's window. The peak of Omega(r)=Omega_R(r/w)^p exp(-2r^2/w^2) is w-independent (~0.3*Omega_R), so the mismatch must come from an unpublished length/energy normalization or a different definition of Omega_R (e.g. peak vs prefactor, or Omega_R quoted relative to recoil energy E_R rather than hbar_omega).
+  - *Next step:* Re-derive Omega(r) with explicit E_recoil and a_ho scaling; test whether quoting Omega_R in E_R (with hbar_omega << E_R) reconciles the axis. Contact-check against the primary source Ref.[60]/[46] figures the review adapts, which should list w and trap frequency numerically.
+
+**Q2.** Is the l_z=+/-1 -> l_z=0 ground-state transition strictly first-order (level crossing) for all detunings delta, or does an avoided crossing / continuous crossover emerge for the radial (r-dependent) Rabi profile as opposed to a spatially uniform coupling?
+  - *Basis:* We observe a sharp crossing of discrete-QAM lowest levels (no intermediate ground-state QAM), consistent with the paper's claim of first-order character contrasted with the continuous SLM case. But QAM is a good quantum number here, so crossings between different-l_z sectors cannot hybridize; whether the *energetic* transition is genuinely discontinuous in observables (population, <L_z>) at finite delta was not quantified.
+  - *Next step:* Compute d<L_z>/dOmega_R and the spin population imbalance across the transition at several delta; look for a jump vs a kink. Compare uniform-Omega vs radial-Omega(r) profiles to test whether the radial structure changes the transition order.
+
+**Q3.** How do the mean-field interacting ground states (angular-stripe / vortex / coreless phases, claim C2 of the review) modify the single-particle transition we reproduced, and where do the interaction-driven phase boundaries sit relative to Omega_R ~ 8.5 (our units)?
+  - *Basis:* We replicated only the single-particle physics (Sec. III.A). The review's headline phase diagram requires the two-component Gross-Pitaevskii equation with g_uu, g_dd, g_ud; the single-particle degeneracy at l_z=+/-1 is exactly the seed for the angular-stripe superposition, but interactions can shift or split the transition.
+  - *Next step:* Extend the code to 2D imaginary-time GPE on an (r,phi) grid with 87Rb scattering lengths; map the angular-stripe -> vortex boundary and overlay the single-particle transition line.
+
+**Q4.** Do the higher radial bands (n>=1) exhibit their own QAM-changing crossings as Omega_R increases, and could these produce metastable-branch or excited-state SOAM textures not discussed in the review's single-particle section?
+  - *Basis:* We tracked three bands but only analyzed the lowest for the ground-state transition. The dispersion tables (work/results.json) show band n=1,2 shifting substantially with Omega_R; the paper's Fig.2 shows multiple bands but the review text focuses on the lowest.
+  - *Next step:* Extract per-band argmin(l_z) as a function of Omega_R for n=0,1,2; identify excited-band crossings and compute the corresponding excited-state spin textures / skyrmion numbers.
+
+**Q5.** How sensitive is the reproduced spectrum (and the transition coupling) to the finite-difference radial discretization near r=0, given the 1/r^2 centrifugal terms with effective angular momenta l_z+/-n up to |l_eff|~5?
+  - *Basis:* We used a cell-centered grid (NR=600, R_max=8 a_ho) with a symmetrized Hermitian FD Laplacian to avoid the r=0 singularity; HO-limit energies matched analytic (|l_eff|+1) to <1e-4. But the large-|l_eff| centrifugal barrier and the sharply peaked Rabi profile could introduce grid-dependent shifts in the transition estimate.
+  - *Next step:* Run a convergence study in NR and R_max; compare the FD spectrum against a spectral (Laguerre / DVR) basis for the radial equation to bound the discretization error on the transition Omega_R.
+
+### urazhdin2023  (5 Q)
+
+**Q1.** Which normalization convention for the V20 (m=0) Slater-Koster orbital hopping element is physically correct for predicting orbital Hall accumulation magnitude, given the paper's quoted -0.36 V_ddsigma matches the unnormalized real E(x2-y2,3z2-r2) = -5*sqrt(3)/24 rather than the normalized complex-basis element -0.255?
+  - *Basis:* Our reproduction gives V20 = -5*sqrt(3)/24 = -0.3608 (unnormalized real convention, matches paper) vs -0.2551 (normalized complex |2,m> basis). The paper does not state its normalization explicitly; the two differ by a factor 1/sqrt(2). This ~40% difference propagates directly into any predicted OHE accumulation amplitude.
+  - *Next step:* Derive both conventions symbolically from the Wigner-eckart / Gaunt-coefficient reduction, then cross-check against a first-principles Wannier-derived d-d hopping matrix for a real t2g oxide (e.g. SrTiO3) to determine which convention reproduces the ab-initio inter-orbital hopping ratios.
+
+**Q2.** Does the ~1-lattice-constant relaxation length of the orbital moment normal to the hopping direction survive when hopping beyond nearest neighbors and realistic multi-orbital (t2g+eg) mixing from DFT are included, or is it an artifact of the minimal nearest-neighbor Slater-Koster model?
+  - *Basis:* C5 (relaxation over ~1 a) follows analytically from the nearest-neighbor reversal-dominance in C4. Real materials have longer-range hopping and t2g-eg hybridization that the paper's minimal model omits.
+  - *Next step:* Build a Wannier90 tight-binding model from a converged DFT calculation of a candidate oxide interface, propagate an orbital-polarized wavepacket, and measure the actual decay length; compare to the analytic 1-a estimate.
+
+**Q3.** How robust is the coherent ~1.9e14 Hz inter-orbital <Lz> oscillation to temperature, electron-phonon coupling, and disorder, and does any observable orbital-current signature survive dephasing at experimentally relevant temperatures?
+  - *Basis:* C3 predicts a clean two-level oscillation at frequency (eps2-eps1)/h with V=0.2 eV. The paper treats it coherently; real systems dephase. Whether the effect is observable depends entirely on the coherence time vs the ~5 fs oscillation period.
+  - *Next step:* Add a Lindblad/Redfield dephasing term with realistic e-ph rates and compute the surviving time-integrated orbital polarization as a function of temperature; identify the crossover T above which the signal is quenched.
+
+**Q4.** Can the symmetry-based crystal-field orbital-torque continuity relation (C1) be extended from the t2g manifold to eg orbitals and to non-cubic (trigonal/tetragonal) crystal fields, and does the qualitative reversal-dominance conclusion change?
+  - *Basis:* C1-C4 are worked out for the cubic t2g case. The Noether argument in C1 is general, but the specific hopping ratios (and hence reversal-vs-conservation dominance) are t2g- and cubic-specific.
+  - *Next step:* Repeat the Slater-Koster reduction for eg orbitals and for lower-symmetry crystal fields; tabulate the reversal ratios and identify whether any orbital manifold / symmetry favors moment conservation (which would enable longer OHE accumulation lengths).
+
+**Q5.** What quantitative orbital-Hall accumulation length does the paper's model predict for a specific real interface, and is that prediction testable against existing orbital-torque / MOKE experiments?
+  - *Basis:* The paper argues OHE accumulation is limited to a few atomic spacings from interfaces, but stops at the qualitative ~1-a relaxation. A quantitative, material-specific length would be directly falsifiable.
+  - *Next step:* Combine the reproduced hopping model with a drift-diffusion treatment parameterized by DFT hopping for a specific heavy-metal/oxide interface; predict an accumulation length in nm and compare to published orbital-torque penetration-depth measurements.
+
+### urazhdin2024  (5 Q)
+
+**Q1.** Does the qualitatively-invoked inter-atomic Berry curvature Omega_xy = 2 Im(<d_Qy psi | d_Qx psi>) actually integrate to a moment consistent with Eq.(18), when computed non-perturbatively over the 2D ionic-displacement manifold Q=(Qx,Qy)?
+
+**Q2.** Beyond first-order TDPT, does a full time-dependent (non-perturbative) propagation of the 6-state MO wavefunction under Q(t)=Q0(cos wt, c sin wt) reproduce the same transient moment and the Eq.(9) ~6e-5 residual population, and how does it behave as hbar*omega -> Delta (resonance)?
+
+**Q3.** What is the induced orbital moment when the minimal single-Ti-plaquette MO model is embedded in a periodic k-space band structure of cubic STO (full Ti t2g + O 2p manifold), and does the k-integrated orbital magnetization recover the real-space MO estimate?
+
+**Q4.** The paper's absolute moment is smaller than the observed MOKE signal and it conjectures additional constructive contributions (plaquette currents through Ti vortices; dxy, px, py orbitals and their bonds). How large are these omitted channels, and do they actually add constructively by the angular-momentum-conservation argument?
+
+**Q5.** How sensitive are the atomic (Eq.8) and inter-atomic (Eq.18) moments to first-principles-corrected values of a_t, a_l (i.e. replacing the semi-empirical r^{-7/2} Koster-Slater scaling with DFT-derived Ti-O hopping derivatives), and does the ~1.6x atomic:inter-atomic ratio survive?
+
+### wang2024  (5 Q)
+
+**Q1.** What exactly fixes the absolute e^2/h normalization constant (orbital e/2pi vs spin e/4pi conventions) so the reproduced spin Hall plateau reads the canonical 2 e^2/h instead of ~2.85?
+  - *Basis:* COMPUTE_NOTES: sigma uses a generic Chern-integral normalization; spin plateau reads 2.85 not exactly 2. Plateau flatness and orbital>>spin ratio are robust, but the overall prefactor is unpinned.
+  - *Next step:* Carefully track the Kubo prefactor (BZ area, 2*pi, e^2/hbar factors) and the spin/orbital current operator normalization; calibrate against the known QSH result sigma^S = 2 e^2/h in the pristine Kane-Mele topological phase, then apply the same fixed constant to the orbital channel.
+
+**Q2.** Does a full multi-orbital (s, p_x, p_y, p_z) germanene tight-binding model (Liu-Jiang-Yao PRB 84,195430, ref [42]) preserve the EXACT plateau quantization value, or only its flatness?
+  - *Basis:* This reproduction used the minimal 4-band Kane-Mele model. The paper's POAM analysis is built on the richer 4-orbital-per-site TB. The universal claim (flat quantized plateau) reproduced, but the exact value in the full model is untested.
+  - *Next step:* Implement the ref [42] germanene 16-band TB (4 orbital x 2 spin x 2 sublattice), recompute the Kubo orbital Hall plateau, and compare the plateau value and flatness to the minimal-model result.
+
+**Q3.** Does a direct computation of the POAM Chern number via Wannier-charge-center winding reproduce the plateau value obtained from the Kubo sum?
+  - *Basis:* The paper attributes the plateau directly to the Chern number carried by the POAM spectrum. Our reproduction obtained the plateau from the Kubo response only; the WCC-winding topological invariant was not independently computed.
+  - *Next step:* Build the valence-band projector P, form <P L_z P>, partition into POAM sectors, run Yu-Qi-Bernevig-Fang-Dai WCC tracking per sector (or Fukui-Hatsugai feature-Berry-curvature integral), and check that the resulting Chern number matches the Kubo plateau.
+
+**Q4.** How robust is the quantized plateau to Rashba SOC (lambda_R) and substrate-induced staggered sublattice potential (Delta)?
+  - *Basis:* The reproduction set lambda_R=0 and Delta=0. Real germanene on a substrate has finite Rashba coupling and can acquire a staggered potential that competes with the intrinsic SOC gap.
+  - *Next step:* Sweep lambda_R and Delta; track whether the in-gap orbital Hall plateau survives (and remains flat/quantized) up to the topological-to-trivial transition at Delta ~ 3*sqrt(3)*lambda_SO.
+
+**Q5.** What is the temperature and disorder robustness of the quantized orbital Hall conductivity plateau?
+  - *Basis:* The Kubo calculation is T=0 and clean (no vertex/self-energy corrections). Experimental relevance (orbitronics devices, ARPES-verifiable edge textures) requires finite-T and disorder resilience.
+  - *Next step:* Add finite-temperature Fermi-Dirac smearing to the chemical-potential sweep; introduce onsite/hopping disorder (or a phenomenological broadening eta) and measure plateau degradation vs disorder strength.
+
+### wang2026  (5 Q)
+
+**Q1.** Run SOC-DFT (Quantum ESPRESSO) + Wannier90 for orthorhombic CuMnAs (Pnma, n||[001]) to obtain a realistic tight-binding Hamiltonian and recover absolute chi in (h/e) Ohm^-1 V^-1.
+
+**Q2.** Refine k-mesh convergence around the SOC-gapped nodal line near X (adaptive/tetrahedron integration) since the OBD weight is sharply peaked there.
+
+**Q3.** Add the chemical-potential scan (-0.1 to 0.1 eV) to reproduce Fig. 1(d) chi_zzyy(mu) shape, not just the single Fermi-level value.
+
+**Q4.** Compute the angular dependence chi_zzyy(phi) under Neel-vector rotation to reproduce the 2-pi periodicity / sign reversal (Figs. 2d, 3c).
+
+**Q5.** Cross-check the orbital-magnetization operator (modern theory) against the itinerant Eq.(3) L_z used here to quantify operator-choice sensitivity.
+
+
+---
+
+# POLAR
+
+### agarwal2024  (5 Q)
+
+**Q1.** Does the vortex<->meron correspondence survive in the full four-band SU(4) moire model, where sigma(r) also acquires contributions from the non-Abelian (interband) Berry connection and the QGT, not just the in-plane d-offset?
+  - *Basis:* Paper Fig.2 shows sigma from both the QGT and diagonal non-Abelian A_nn(k); our reduced 2-band model collapses these into a single in-plane offset, which is why our cos-angle is an idealized 1.0.
+  - *Next step:* Implement the 4-band TB model (paper Methods) with genuine non-Abelian connections; recompute sigma(r) and measure the realistic |cos(sigma,P)| < 1.
+
+**Q2.** What sets the quantitative resonance omega_M ~ 6 eV (and omega_K ~ 5 eV) at which the antiparallel locking is sharpest, and how wide is the frequency window?
+  - *Basis:* Paper attributes omega_M to M-point BZ-edge transitions between trivial bands; our reduced model only shows the SIGN is a lower/upper-branch (frequency-window) property, not the absolute energies.
+  - *Next step:* Add realistic hBN hopping parameters and band energies; compute the frequency-resolved sigma^{a,bc}(omega) and locate the antiparallel window quantitatively.
+
+**Q3.** How do the individual shift-conductivity tensor components (sigma_{y,yy}, sigma_{y,xx}, sigma_{y,xy}, sigma_{x,xy}) and their stacking-dependence (AA/AB/DW) reproduce paper Fig.3?
+  - *Basis:* We compute only the net vector direction of sigma(r); the paper resolves the full third-rank tensor per stacking with symmetry relations (sigma_{y,xx} = sigma_{x,xy} for AA/AB).
+  - *Next step:* Compute the full sigma^{a,bc} tensor from the two-band model first (analytic), then the four-band, and check the symmetry-enforced component equalities.
+
+**Q4.** Is the topological meron charge robust to a realistic (non-idealized) polarization profile f(rho), and to a full moire NETWORK of merons+antimerons rather than a single core?
+  - *Basis:* We verified quantization for an isolated meron and an isolated antimeron; the paper's MPD network tiles many of each with domain-wall solitons between AB/BA domains.
+  - *Next step:* Build a periodic multi-meron tiling on the moire lattice; verify total charge and per-core windings, and that sigma vortices appear at every core.
+
+**Q5.** Can the predicted antiparallel sigma-P optical fingerprint be connected to an experimentally measurable observable (photocurrent map vs. polarization map), including realistic dephasing/lifetime broadening eta?
+  - *Basis:* The paper proposes this as a 'sought-after strategy' for experimental detection; our Lorentzian eta is a placeholder, and we do not model measurement resolution.
+  - *Next step:* Parametrize eta from measured linewidths, convolve sigma(r) with a realistic optical spot, and estimate the current magnitude/SNR needed to resolve a single vortex.
+
+### berloff2008  (5 Q)
+
+**Q1.** Does the macroscopic vortex split require 3D vortex RINGS, or can a 2D straight vortex split macroscopically under the right forcing?
+
+**Q2.** What is the linear growth rate of the s=2 -> 2x(s=1) instability, and how does it depend on xi relative to xi_crit?
+
+**Q3.** Can we reproduce the paper's core-energy parameter l(t) (Eq 42) and the vortex-ring energy/impulse/velocity curves quantitatively?
+
+**Q4.** Under periodic pressure, how many daughter rings form as a function of (eps, eta), and does the count match the paper's elucidated conditions?
+
+**Q5.** How sensitive are xi_crit and the split dynamics to the nonlinearity exponent gamma (beyond the cubic-quintic gamma=1 case)?
+
+### brazovskii2003  (5 Q)
+
+**Q1.** Compute the quantum breather bound-state spectrum in the spectral window between the collective-mode edge omega_t and the photoconductivity gap 2*Delta. The paper states this region is 'filled by a sequence of quantum breathers, bound states of two solitons' but gives NO closed form.
+
+**Q2.** Derive the quantum renormalization U -> U* microscopically and fix the prefactor C in Delta ~ C*U^{1/(2-2gamma)}. The paper treats gamma as a phenomenological Luttinger parameter and leaves C undetermined.
+
+**Q3.** Predict the temperature laws omega_t(T) and omega_cr(T) (hence Z(T)) from a Landau-Ginzburg free energy for the CD order parameter, replacing the 'reasonable suggestions' the paper invokes to obtain the Curie singularity at omega=0.
+
+**Q4.** Resolve the reported factor-of-~3 (triple for TMTTF) divergence in the metallic plasma frequency omega_p by reparametrizing published optical data with the correct dielectric form Eq.(2) at the scale omega_0t, which the paper states 'was never exploited'.
+
+**Q5.** Model the alpha-soliton (FE domain-wall) dynamics that the paper says produce the observed frequency dispersion of epsilon below T0, including the aggregation of alpha-solitons into walls and their pinned/creep motion.
+
+### chatterjee2019  (5 Q)
+
+**Q1.** What are the microscopic values of the spin stiffness rho_s, the easy-axis anisotropy K, and the effective Zeeman-to-b conversion for hBN-aligned magic-angle tBLG at nu=2?
+  - *Basis:* Our replication normalizes rho_s=1 and treats K and b as effective, dimensionless parameters. The paper's absolute activation gaps (meV) and the field scale of the R(B) peak (Tesla) require these numbers, which come from the self-consistent Hartree-Fock of the continuum flat bands (out of our scope).
+  - *Next step:* Run a self-consistent Hartree-Fock of the BM continuum model at nu=2 with realistic interaction parameters; extract rho_s from the spin-wave dispersion, K from the sublattice/valley anisotropy, and map the physical Zeeman energy g*mu_B*B onto b. Then convert our dimensionless Delta(b) to meV vs Tesla and compare to the measured non-monotonic MR field scale.
+
+**Q2.** Is the transport-relevant object a single skyrmion, a skyrmion-antiskyrmion pair, or a bound charge-2 skyrmion? The observable activation gap and its field dependence differ across these.
+  - *Basis:* We modeled a single winding-1 skyrmion carrying unit charge (Chern binding). The paper also discusses skyrmion PAIRING as a route to superconductivity on doping, implying multi-skyrmion physics matters for the gap.
+  - *Next step:* Relax two-skyrmion and skyrmion-antiskyrmion configurations (2D, not radial) including the inter-skyrmion interaction and the charge-2 binding energy; compare the pair-creation activation to the single-skyrmion channel used here to see which sets the measured gap.
+
+**Q3.** How does the CP^1 (spin+valley/sublattice) structure change the answer relative to the reduced O(3) spin-only model we used?
+  - *Basis:* The order parameter in tBLG lives on a larger manifold (spin AND valley/Chern pseudospin, CP^1 / U(4) structure). We reduced to the O(3) spin sector. The valley/Chern sector carries the Chern-number charge binding and additional anisotropies.
+  - *Next step:* Implement the CP^1 sigma model with the full flavor manifold and the Chern-number-linked charge coupling; check whether the valley anisotropy modifies the non-monotonic feature location and whether the charge quantization is exactly one electron per skyrmion.
+
+**Q4.** Does a full 2D (non-radial) relaxation and finite-temperature / entropic treatment preserve the non-monotonic Delta(B), or does thermal population of skyrmion sizes wash it out?
+  - *Basis:* We used a radially symmetric ansatz and a fixed-T Arrhenius law R~exp(Delta/2T). Real skyrmions fluctuate in size/shape; the transport prefactor and entropy could shift or smear the peak.
+  - *Next step:* Monte Carlo / Langevin sampling of the 2D sigma model at finite T to get the free-energy activation (not just the saddle energy), including the size-fluctuation entropy, and recompute R(B).
+
+**Q5.** What is the quantitative field scale and magnitude of the predicted R(B) peak, and does it match the experimental non-monotonic magnetoresistance in aligned tBLG devices?
+  - *Basis:* We reproduced the non-monotonic TREND (interior peak in R(B)) but not absolute units. The paper frames Delta(B) as a concrete experimental test.
+  - *Next step:* Combine the HF-derived parameters (open question 1) with measured device R(B) curves; fit the single free scale and check whether the peak field and activation magnitude fall in the experimentally observed range (a few Tesla, sub-meV to few-meV gaps).
+
+### dahl2002  (5 Q)
+
+**Q1.** Can Dahl's 'static-friction bistability' be distinguished experimentally from elastic-barrier bistability by its field-history (rate-independent vs rate-dependent) switching signature?
+  - *Basis:* Dahl (p.35) proposes static friction as an alternative/complement to an elastic double-well; our C5 shows both give memory, but a Coulomb-friction model predicts a rate-INDEPENDENT threshold field while an elastic-barrier + viscous model predicts a rate-DEPENDENT coercive field.
+  - *Next step:* Extend the C5 dynamical model to include BOTH a tunable elastic barrier and a Coulomb friction term; sweep field ramp-rate and extract coercive field vs rate; identify the regime where the two mechanisms are separable in a P-E hysteresis loop.
+
+**Q2.** Does the 2-theta optic-axis rotation (C1) survive relaxation of the rigid-cone (fixed-theta) constraint near the plates, where the tilt angle may be surface-reduced?
+  - *Basis:* C1 is exact only under the fixed-cone assumption; the paper itself notes surface molecules may reorient differently (p.35 questions about anchoring), which would make theta position-dependent theta(z).
+  - *Next step:* Add a Landau-de Gennes tilt-magnitude field theta(z) with surface suppression; solve the coupled (theta, phi) Euler-Lagrange equations and measure the effective optic-axis rotation vs surface tilt reduction.
+
+**Q3.** What is the true unwinding critical thickness d_c for a chiral smectic-C* cell, and how sensitive is it to the anchoring functional form g(phi)?
+  - *Basis:* C3 confirms K-scaling invariance of the criterion but uses a simplified energy-balance (helix twist vs point anchoring); the real d_c requires solving the sine-Gordon-like Euler-Lagrange BVP.
+  - *Next step:* Solve the 1D twist BVP (K phi'' = anchoring torque, chiral q0) with a finite-element or shooting method for varying d; locate the wound->unwound bifurcation and map d_c(W_s/K, q0).
+
+**Q4.** Do the dielectric-anisotropy (Delta-epsilon E^2) and ferroelectric (P_s E) couplings produce competing switching pathways (V-shaped vs threshold) at high field, as seen in some AFLC/FLC materials?
+  - *Basis:* The C2 model includes both terms; the prefactor drift at high E (3.58 -> 3.91) is the dielectric term becoming non-negligible, hinting at a crossover the paper's simple tau=gamma/(P_s E) law omits.
+  - *Next step:* Map switch time and final state vs (E, Delta-epsilon) on a 2D grid; identify the P_s-dominated vs dielectric-dominated regimes and any V-shaped-switching boundary.
+
+**Q5.** Is the 'chevron' internal-interface bistability (mentioned p.42+) governed by a volume disclination-line energy distinct from the surface-disclination bistability, and can a line-tension model reproduce the observed domain-wall widths (~2 um)?
+  - *Basis:* The paper distinguishes surface-disclination vs volume-disclination bistability and cites ~2 um Bloch/Neel wall thicknesses (p.13, p.42); our model treats only uniform azimuthal states and cannot resolve wall structure.
+  - *Next step:* Build a 1D-in-plane phi(x) domain-wall solver (sine-Gordon soliton) with layer-normal and chevron boundary conditions; compute wall width from K and the effective potential, compare to the cited ~2 um.
+
+### gao2025  (5 Q)
+
+**Q1.** What is the exact 2theta transition boundary between the equatorial vortex (Q=0) and the integer antiskyrmion (Q=-1) for a real PbTiO3 dipole radial profile?
+  - *Basis:* Our Berg-Luscher metric jumps from Q=0 to Q=-1 immediately below 2theta=90 deg, while the FD integral shows a smooth crossover. The true boundary is set by the material's radial polarization profile P(r), which we modeled with a generic skyrmion ansatz rather than the paper's second-principles dipole field.
+  - *Next step:* Extract the actual radial dipole profile from the paper's effective-Hamiltonian MD snapshots (or refit an ansatz to Fig. panels) and recompute Q(2theta) to locate the physical transition; compare to the paper's reported boundary.
+
+**Q2.** Does the OAM pair (l1=+1, l2=-1) intrinsically select the antiskyrmion winding, or can the same PS point yield either skyrmion or antiskyrmion depending on the ferroelectric's Dzyaloshinskii-Moriya-like anisotropy?
+  - *Basis:* We imposed the winding sense by hand (chi=-phi for antiskyrmion, chi=+phi for skyrmion). The physical selection should emerge from the coupling between the light polarization handedness and the polar anisotropy, which our geometric model does not contain.
+  - *Next step:* Run the light-polarization-to-dipole coupling term in a minimal effective Hamiltonian and check which winding minimizes energy at fixed PS point; verify handedness locking to circular polarization.
+
+**Q3.** Is the reported hybrid state a spatially-split skyrmion-antiskyrmion pair (as we modeled) or a temporally-alternating single texture?
+  - *Basis:* The paper title emphasizes 'dynamical' solitons and temporally-hybrid states. Our static field can only realize the spatial split (Q_left=+1, Q_right=-1, net 0). The temporal hybrid requires time-dependent OAM driving.
+  - *Next step:* Add a time-dependent 2theta(t) sweep to the drive and track Q(t) of a single evolving texture under damped MD; determine whether the hybrid is a transient in time vs a static spatial coexistence.
+
+**Q4.** What sets the net topological charge of the hybrid regime -- is it always net-zero, or can intermediate 2theta produce a genuinely fractional total Q?
+  - *Basis:* Our spatially-split construction gives net Q=0 by symmetric placement of +1 and -1 cores. The task hypothesis (Claim 4) allowed for 'mixed/fractional or spatially-split Q'. Whether fractional totals occur depends on incomplete sphere coverage in the true dynamical field.
+  - *Next step:* Compute Q over the full field for asymmetric core amplitudes / partial coverage and check for stable non-integer totals; test grid/boundary sensitivity of any fractional value.
+
+**Q5.** How robust is the antiskyrmion to thermal fluctuations and finite domain size in the actual ferroelectric, i.e. is it a metastable soliton or only a driven transient?
+  - *Basis:* Our topological classification is purely geometric and says nothing about stability. The paper claims 'dynamic' antiskyrmions, implying they may exist only while the light drive is on.
+  - *Next step:* Perform finite-temperature effective-Hamiltonian MD with the drive switched off after creation and measure the antiskyrmion lifetime vs temperature and system size.
+
+### hayashi2005  (5 Q)
+
+**Q1.** Does a fully self-consistent solution of the gap equations for Psi(r) and Delta(r) change the magnetization texture shape or the LDOS core-peak height?
+  - *Basis:* We imposed a fixed tanh profile for both order-parameter components; the paper solves Psi(r), Delta(r) self-consistently from the gap equations (Refs. [6,8,9]). Self-consistency lets the line-node sheet II soften differently in the core, potentially reshaping g_I - g_II and hence |M(r)|.
+  - *Next step:* Iterate the coupled gap equations Psi(r), Delta(r) = (couplings) * T sum_n < basis-weighted f_{I,II}(r) > to convergence, feed updated profiles back into the Riccati integration, and compare |M(r)|, |j(r)|, and the core LDOS peak before/after convergence.
+
+**Q2.** Is the computed M truly purely radial with a vanishing azimuthal component, as the paper states numerically?
+  - *Basis:* The paper reports M is aligned radially (azimuthal component ~0) via M_x ~ (-k~_y)(g_I-g_II), M_y ~ (k~_x)(g_I-g_II). We computed the radial magnitude |M(r)| from g_I-g_II but did not separately verify the azimuthal cancellation from the full k~-weighted angular integral.
+  - *Next step:* Retain the full trajectory direction k~=(cos a, sin a); accumulate M_x, M_y with the exact (-k~_y, k~_x) weights and confirm the azimuthal component averages to zero while the radial component matches |M(r)|.
+
+**Q3.** How does the sign of M (paper: minus = pointing toward the vortex center) depend on the singlet/triplet ratio Psi/Delta and on temperature?
+  - *Basis:* The paper's Fig.5 shows M is negative (radially inward) and grows in magnitude toward low T. Our reduced model tracks |M|; the sign and its T-evolution are set by the detailed g_I - g_II low-energy weight, which depends on |Delta|>|Psi| and the node structure of sheet II.
+  - *Next step:* Sweep Psi/Delta across and through the |Delta|=|Psi| boundary (where sheet II gap just closes) and T in [0.1,0.9] Tc; extract the signed radial M(r) and reproduce the paper's monotonic |M| growth as T decreases.
+
+**Q4.** Does the ~1/r far-field decay of both |j| and |M| emerge quantitatively from the quasiclassical solution?
+  - *Basis:* The paper confirms numerically that both |j| and |M| decay as ~1/r far from the core. Our radial grid extends to 6 xi0 with modest binning; the tail exponent was not fit.
+  - *Next step:* Extend the radial grid and trajectory range, fit log|M| and log|j| vs log r in the far region, and check the 1/r slope; verify the sheet-sum (j) and sheet-difference (M) tails share the same power but differ in prefactor/microscopic origin.
+
+**Q5.** How sensitive are the core LDOS peak and the magnetization texture to smearing eta, temperature, and Matsubara truncation, and does the equal-sheet control stay exactly zero under all of them?
+  - *Basis:* The zero-bias core-peak height depends on eta and radial binning (we obtained a modest core/far ratio 1.60 at eta=0.05, coarse bins), while |M| depends on T and nmats (12 used). The control (Delta=0) gave exactly 0, but robustness across parameters was not mapped.
+  - *Next step:* Convergence study: eta in [0.01,0.1], finer radial bins, T in [0.05,0.4] Tc, nmats in [8,64]; confirm the core/far LDOS ratio rises with smaller eta/finer bins, |M(r)| shape is stable, and the equal-sheet control remains identically zero throughout.
+
+### hong2025  (5 Q)
+
+**Q1.** Why is our stabilized vortex period (~5 nm) smaller than the paper's reported ~14 nm trilayer periodicity?
+  - *Basis:* The absolute period is set by the ratio of gradient stiffness to electric/elastic energy and the film thickness; matching it quantitatively is what turns a mechanism-level replication into a full quantitative one and validates the coefficient set.
+  - *Next step:* Sweep gradient stiffness g and film thickness (film_frac) and calibrate the g/eps ratio against a known PTO domain-wall width (~0.5-1 nm) so the Kittel-like period lands at ~14 nm; compare period-vs-thickness scaling to the paper's trilayer-vs-superlattice (14 vs 10 nm) contrast.
+
+**Q2.** Does adding an explicit anisotropic elastic (strain) energy reproduce the mixed vortex + a1/a2 twin-domain phase of the [PTO16/STO12]10 superlattice?
+  - *Basis:* The paper's second half of the claim is that the SAME free-energy functional yields a pure vortex phase in the trilayer but a mixed phase in the superlattice; capturing the switch is the discriminating test of the model.
+  - *Next step:* Add a Landau-elastic coupling (a1/a2 in-plane tetragonal variants) and a superlattice stacking mask, then check whether twin domains coexist with vortices at superlattice periodicity.
+
+**Q3.** Is the vortex array the true global energy minimum or a long-lived metastable state?
+  - *Basis:* TDGL from random noise can trap metastable textures; the paper claims an equilibrium vortex phase, so robustness to initial conditions and annealing matters.
+  - *Next step:* Run multiple seeds + simulated-annealing (noise ramp) and compare final free energies of vortex vs uniform vs stripe states.
+
+**Q4.** How does the full 3D flux-closure structure (swirling in-plane + out-of-plane rotation) compare to our 2D cross-section?
+  - *Basis:* The paper emphasizes a 3D swirling polarization; a 2D (x,z) cross-section captures the winding but not the full toroidal moment / in-plane [100]-[001] orientation reported from DF-TEM.
+  - *Next step:* Extend to a 3D (x,y,z) grid with 3-component P and measure the toroidal moment G = <r x P> per vortex tube.
+
+**Q5.** Can the model reproduce the paper's dynamical headline - vortex-boundary motion via zigzag-core switching under a trailing bias field?
+  - *Basis:* The paper's main experimental result is field-driven, reversible vortex-boundary motion; the phase-field vortex phase is the substrate on which that dynamics is claimed to occur.
+  - *Next step:* Add a localized/trailing E-field term coupling to Pz and track lateral displacement of the vortex-boundary and the zigzag-pattern switching of cores over time.
+
+### hong2026  (5 Q)
+
+**Q1.** Does the 2pi-skyrmion's wide stability window survive in a full 3D BFO/STO superlattice with realistic temperature-dependent Landau coefficients, or is the widest-window ordering an artifact of the reduced single-layer model?
+  - *Basis:* The paper's central device claim (room-temperature 2pi storage after Sm doping) rests on 2pi being uniquely robust. Our minimal TDGL reproduces the ordering, but only 3D + real coefficients settle whether the margin is physical.
+  - *Next step:* Port the seed + Langevin machinery to a 3D multilayer grid using published BFO/STO Landau coefficients and depolarization boundary conditions; recompute stability windows.
+
+**Q2.** Is the thermal-hysteresis / path-dependence (at 600 K, cooling bypasses 1pi and jumps solitons->2pi) reproducible as a genuine first-order transition with an energy barrier?
+  - *Basis:* Reversibility with hysteresis is the paper's evidence that these are distinct metastable topological phases, not a smooth crossover. Our survival metric does not yet resolve hysteresis.
+  - *Next step:* Run closed heating-cooling loops (ramp T up then down) tracking Q and ring count, and look for a hysteresis loop / discontinuous order switching.
+
+**Q3.** How does the stability window depend on the gradient stiffness g and easy-axis anisotropy K_z relative to the Landau well depth?
+  - *Basis:* The 2pi advantage may come from a specific balance of exchange vs anisotropy; identifying it would give a design rule for which materials host wide 2pi windows.
+  - *Next step:* Sweep (g, K_z) on a coarse grid and map the region where 2pi remains the widest-window order.
+
+**Q4.** Does 2% Sm doping act, as the paper claims, primarily by lowering transition temperatures (shifting T0 / a(T)), and can a simple T0 shift in our model reproduce room-temperature 2pi stabilization?
+  - *Basis:* This is the practical route to device operation; distinguishing a T0 shift from a change in barrier heights matters for materials selection.
+  - *Next step:* Lower T0 in the Landau term to emulate Sm doping and check whether the 2pi survival window slides down to 300 K.
+
+**Q5.** Is our structural-survival overlap S(T) a faithful proxy for the paper's Pontryagin-density-based identification of skyrmion order, especially near the paraelectric onset?
+  - *Basis:* If S(T) and Q(T) diverge near high T, the measured window widths could be biased; the comparison to the paper needs a topological, not just structural, survival criterion.
+  - *Next step:* Add a Q(T)-based survival criterion (Berg-Luscher per annealed frame) and compare window widths to the S(T)-based ones.
+
+### huang2022  (5 Q)
+
+**Q1.** What is the paper's actual exchange stiffness A (only shown in Fig.4), and does using it collapse our ~40 nm diameter onto the reported ~12 nm?
+
+**Q2.** Does rebuilding on the true Fe honeycomb lattice (rather than the square-lattice approximation) change the geometric DMI prefactor enough to shift D_c relative to the paper's D values?
+
+**Q3.** Can we reproduce the DFT-computed FE-switchable DMI values (0.28 vs 0.06 mJ/m^2 bilayer; 0.22 vs -0.24 trilayer) from first principles, rather than taking them as inputs?
+
+**Q4.** Are the trilayer skyrmions (D=0.22, |D|=0.24 mJ/m^2), which sit just below our analytic D_c=0.255, thermodynamically stable or merely metastable from the seed?
+
+**Q5.** Does a full atomistic spin-dynamics run with the paper's true anisotropy caveat (DFT MAE 8.57 MJ/m^3 vs adopted 0.04 MJ/m^3) reproduce the ~0.03 nm 'no skyrmion' regime and the ~100 nm experimental regime as the paper's Eq.6 predicts?
+
+### jankowski2024  (5 Q)
+
+**Q1.** Does a full HWCC/SHP tight-binding calculation of the super-Haldane model (N=51, VSL=10) reproduce the exact discontinuous polarization jump in units of the polarization quantum, not just its sign and non-vanishing?
+  - *Basis:* Our TDGL surrogate reproduces the QUALITATIVE magnitude drop (~30%) and winding survival, but not the quantized SHP value the paper reports. A direct Wilson-loop implementation would turn a mechanism-level match into a quantitative one.
+  - *Next step:* Implement the super-Haldane Hamiltonian (Eq. 9) + hybrid Wannier charge centers via Wilson loops, evaluate Eq. 5 for P(r_j) and Eq. 8 for quantized DeltaC on both sides of the TPT.
+
+**Q2.** Is the meron winding Q genuinely +-1/2 over the triangular AA-AB-BA domain, or does the true SHP field give integer skyrmion charge over the full moire cell?
+  - *Basis:* The paper claims half-integer merons per triangular domain that sum to integer topology over the cell. Our single-meron relaxation gives |Q|~1/2 but does not tile the moire triangulation.
+  - *Next step:* Build the full moire supercell polarization field from the twisted-Haldanium continuum model (Eq. 11) and integrate Eq. 12 per triangular domain and over the whole cell.
+
+**Q3.** How robust is winding preservation to thermal/Langevin noise near the TPT critical (metallic) point?
+  - *Basis:* The paper notes the TPT crosses an intermediate metallic state; near criticality fluctuations could unwind the texture. We relaxed noise-free.
+  - *Next step:* Re-run relax_branch with kT_noise>0 sweeping through the effective critical well depth and track Q(t) for unwinding events.
+
+**Q4.** Does the local Chern marker C(r_j) (Fig 2d/e) spatially correlate with the polarization-magnitude drop as the paper reports?
+  - *Basis:* The paper links trivialization of SHP (quantized DeltaC) to the magnitude reduction. We did not compute a spatially-resolved Chern marker.
+  - *Next step:* Add a real-space Chern-marker calculation C(r_j)=-4pi Im<r_j|P x_hat Q y_hat|r_j> to the super-Haldane replication and overlay on |P|(r).
+
+**Q5.** Does the effect generalize beyond Haldane to a generic Chern insulator with a superlattice length scale and local inversion breaking, as the paper conjectures?
+  - *Basis:* Generality is a stated conclusion; confirming it in a second model (e.g. QWZ + superlattice) would strengthen the claim's materials relevance.
+  - *Next step:* Repeat the SHP/winding pipeline on a QWZ Chern model with an added superlattice potential and check for the same discontinuous-but-nonvanishing polar texture.
+
+### kesharpu2023  (5 Q)
+
+**Q1.** Do the paper's exact analytic weight factors w_n, g_n, w'_n, g'_n (Eq. 2) reproduce the same phase diagram as our reconstructed weights, and does the fragmented OCR of Eq. (2) hide prefactors that shift phase boundaries?
+  - *Basis:* The marker.md OCR of Eq. (2) is fragmented; we reconstructed w_n/g_n as symmetric cos(q2.b_n) combinations modulated by cos(q1.b_n). The topology (sign of the Haldane mass) is insensitive to these prefactors, so our replication of the SIGN structure is robust, but the precise phase-boundary VALUES (e.g., exact q2x of gap closing, Eq. 10) may differ.
+  - *Next step:* Transcribe Eq. (2) and Appendix B/C/E from the original PDF (not OCR), implement the exact Fourier-coefficient p(k') sum from Eq. (3)/(B9), and compare gap-closing q2x from Eq. (10) against our numeric band-gap scan.
+
+**Q2.** Is the term p(k') (Fourier coefficient of the arctan real-space function, Eq. 3/B9), which the paper approximates as ~0 over the BZ, ever large enough to change the Chern number for large S where 2*S*eps*cos(S q2x) competes with sin(S q2x)?
+  - *Basis:* The paper introduces eps = sum p(k') sin(pi/2 + k'.b1) and states eps << 1 but keeps it in Eq. (7) 'because for large S the term 2 S eps cos(S q2x) might be larger than sin(S q2x)'. We set eps=0, so we cannot see the narrow phase-space regions where eps tips the sign.
+  - *Next step:* Compute p(k') explicitly by Fourier-transforming the h(r) = arctan[...] real-space texture function of Eq. (B3), then re-evaluate Eq. (7) with the true eps(q1x,q2x) and look for the narrow sign-flip regions the paper mentions.
+
+**Q3.** How does the Chern number behave for half-integer spins (S = 1/2, 3/2, ...), where the paper can only find the Fourier transform in four limiting cases of g_n/g'_n (Table I, App. D)?
+  - *Basis:* The paper handles half-integer S only in extreme limits and argues the resulting Hamiltonians are 'analogous to Eq. (4)/(6)' so the Chern number is again given by Eq. (5)/(7). Our model uses continuous S and reproduces the sgn[sin(S q2x)] structure for any S, but does not implement the four discrete limiting-case Hamiltonians.
+  - *Next step:* Implement the four limiting-case Hamiltonians of Table I (Eqs. D4, D10, D11, D12) and verify each reduces to the Eq. (5) sign structure, confirming the paper's continuity argument across integer/half-integer S.
+
+**Q4.** Does the full Haldane-analog phase diagram in the (M/t2, q2x) plane (Eq. 11, Fig. 9) reproduce quantitatively, including the location of the c=+1 / c=-1 / c=0 lobes, not just the topological-to-trivial transition we verified?
+  - *Basis:* We verified the qualitative Eq.(11) structure (small |M| => |c|=1, large |M| => c=0) at one (S,q1x,q2x) point. We did not map the full two-lobe (+1 and -1) Haldane diamond as a function of M/t2 and q2x.
+  - *Next step:* Sweep M/t2 in [-6,6] and q2x in [-pi,pi] at fixed S=3, q1x=pi/4, compute FHS Chern on each point, and overlay against the analytic Eq. (11) boundaries M = +/- 2 t2 (1 + S g2/2 cos 2q1x)(sin S q2x - 2 S eps cos S q2x).
+
+**Q5.** Is the effective-magnetic-field scaling claim -- that the flux threading three lattice points B_eff = S_i.(S_j x S_k) grows as S^3 -- reproducible from the numeric Berry curvature integrated near the Dirac points?
+  - *Basis:* The paper states (Sec. III A) that the effective field, and hence the topological response magnitude, scales as S^3 with spin. We only computed the QUANTIZED Chern number (which is +/-1 regardless of S); we did not extract the continuous Berry-curvature concentration / effective-flux magnitude that would show the S^3 trend.
+  - *Next step:* Compute the local Berry curvature F(k) near K/K' on a fine mesh for S=1,2,3, integrate |F| in a fixed window around the Dirac point, and check whether the peak curvature / effective flux scales ~ S^3 as claimed.
+
+### lohani2019  (5 Q)
+
+**Q1.** Does the quantum skyrmion's exponentially small bandwidth, arising from skyrmion<->antiskyrmion tunneling, reproduce in an independent ED build?
+
+**Q2.** Do the angular-momentum quantum numbers l_z lock to the spin quantum number N_f as the paper claims ('locking of angular momentum and spin quantum numbers characteristic for skyrmions')?
+
+**Q3.** What is the full J2-B (and J2-K) phase diagram, and where exactly is the skyrmion-stable region boundary (paper Fig. 4, J2 >~ 0.45)?
+
+**Q4.** Does the winding-number correlation (paper Eq. 12, the arctan of transverse spin-spin correlations) yield the expected quantized-in-the-classical-limit winding for the bound state?
+
+**Q5.** Do the finite-flake results converge to the thermodynamic-limit skyrmion as flake size grows (7 -> 19 -> 31 -> larger), i.e. is the bound state a genuine localized object rather than a finite-size artifact?
+
+### morozovska2021  (5 Q)
+
+**Q1.** Does the full 3D cylindrical core-shell flexon geometry (two diffuse axial P3-domains near the cylinder ends separated by a P3~0 region, with an azimuthal XY vortex/meron core) emerge from the same Lifshitz-invariant coupling, or does it additionally require the depolarizing-field boundary conditions at the cylinder ends?
+
+**Q2.** What is the topological index of the flexon at the cylinder ends, and is it exactly +/-1/2 (meron) as the paper claims, robust to shell permittivity and cylinder aspect ratio?
+
+**Q3.** How does the FULL flexoelectric tensor F_ijkl anisotropy (not a single scalar F) reshape the domain morphology? The paper stresses that flexoelectric ANISOTROPY 'critically influences' the texture.
+
+**Q4.** Can the absolute transverse polarization (in uC/cm^2) be matched to the paper, i.e. does a dimensionalized version with the real BaTiO3 material tensors and self-consistent electrostriction/electrostatics reproduce the paper's quantitative magnitudes, not just the sign/scaling?
+
+**Q5.** Where exactly is the Bloch-to-Ising wall transition (as a function of K/|a| and F), and does the net chiral moment saturation we observe at |F|~1 map onto a real physical saturation of the flexon chirality, or is it an artifact of the finite anisotropy K?
+
+### pendse2016  (5 Q)
+
+**Q1.** Is the thin vortex a genuine local minimum of the full non-local GP energy, or only a variational stationary point of the chosen piecewise ansatz?
+  - *Basis:* The thin-vortex profile is constructed as a two-piece variational ansatz (f=R^|s| inside, f=1-lambda*exp(-delta*R) outside) with alpha chosen to minimize the leading-order energy. Scale selection beta=1/(2 sqrt(g2)) comes from a near-origin subleading balance, not from a full BVP solve of the non-local ODE.
+  - *Next step:* Solve the non-local radial GP ODE (Eq.5/Eq.10 with the g2 term) as a full BVP/relaxation problem, seeded with the thin ansatz, and check that a self-consistent stationary profile with core ~a exists and is dynamically/energetically stable (e.g. compute the second variation or do imaginary-time propagation of the 2D non-local GP).
+
+**Q2.** How sensitive is the thin-vortex existence to the FORM of the non-local kernel (Gaussian soft-potential vs other flat symmetric repulsive potentials)?
+  - *Basis:* The paper argues the scaling beta~1/a is robust and only the |s|-dependent coefficients change for a different potential; we implemented only the Gaussian Veff Taylor expansion (g2 = a^3 - a*re^2, g2~a^2).
+  - *Next step:* Repeat the scale-selection and profile construction for at least one alternative kernel (e.g. a top-hat or Yukawa-type soft potential), extract the modified coefficients, and confirm beta~1/a persists while alpha,lambda,delta shift only quantitatively.
+
+**Q3.** Does the diluteness assumption a^3 n << 1 (used to drop the (an) terms relative to beta^2 in the energy) remain valid across the whole xi0 ~ D observation window?
+  - *Basis:* The energy expression E_v (Eq.11) is obtained by keeping beta^2 terms over (an) terms, valid only deep in the dilute limit. The observation window is engineered via Feshbach tuning of a or dense vortex packing (small D), both of which push toward the boundaries of that limit.
+  - *Next step:* Map the (a^3 n, D/xi0) parameter plane, retain the (an) corrections numerically, and quantify where the leading-order energy comparison E_xi0 vs E_a starts to receive O(1) corrections that could alter which branch is favoured.
+
+**Q4.** What is the true core-size ratio thin/thick under realistic BEC numbers, and is the thin vortex resolvable experimentally?
+  - *Basis:* We demonstrated scale INDEPENDENCE (core_thin~1.41a, core_thick~1.30 xi0) but in unit-normalized variables. In real dilute BECs a ~ few nm while xi0 ~ 100 nm-1 um, so the thin core is ~1-2 orders of magnitude smaller.
+  - *Next step:* Plug in physical parameters for a candidate species (e.g. Rb-87, Na-23 with tunable a via Feshbach), compute both core widths in nm, and compare against imaging resolution / expansion-imaging magnification to assess detectability.
+
+**Q5.** How does the harmonic-trap case (paper Sec.V, Fig.2, off-center vortex at d/a=12) modify the thin-vortex profile and its energy relative to the uniform-BEC result we reproduced?
+  - *Basis:* We reproduced the uniform-BEC (untrapped) analysis fully; the trapped analysis (Collin et al. model with mw^2 r^2/2, Thomas-Fermi background) was read but not numerically solved in this replication.
+  - *Next step:* Extend the solver to include the harmonic potential and a Thomas-Fermi background density, place the vortex off-center at d/a~12, and reproduce the trapped thin-vortex density profile (paper Fig.2), checking that the core scale stays ~a despite the inhomogeneous background.
+
+### romaguera2010  (5 Q)
+
+**Q1.** Does a true 3D GL relaxation (coupling adjacent z-layers via the z-kinetic term ∂z) reproduce a single continuous curved vortex LINE that enters the top and exits the lateral surface, rather than the layer-decoupled winding profile our reduced stack produces?
+  - *Basis:* Our reduced model solves each z-layer independently (fixed-A, no ∂z coupling), so it captures the depth-dependence of the winding (6→1→0 top-to-bottom) but not the literal connected 3D vortex line. The paper's headline 'curved vortices exiting the lateral surface' is an inherently 3D object.
+  - *Next step:* Extend to a 3D mesh (r,φ,z) with the full covariant Laplacian including the z-direction Peierls links; relax Ψ(r,φ,z) globally; extract the |Ψ|² isosurface and trace the vortex line's 3D path to confirm top-to-side exit.
+
+**Q2.** Is the D=4ξ boundary between 'thin/giant' and 'thick/N-fold' behaviour (paper: rods thinner than 4ξ act as disks; thicker show N-fold) reproducible as a sharp crossover in the reduced model?
+  - *Basis:* Paper Conclusions state D<4ξ → only giant vortex states; D>4ξ → N-fold top-to-side. We only ran D=2ξ and D=6ξ (the two extremes) and confirmed the qualitative difference, but did not locate the crossover thickness.
+  - *Next step:* Run a D-sweep (D = 2,3,4,5,6,7,8 ξ) tracking the top-layer winding spread (core_rms_r) and the depth at which winding→0; identify where the giant→multivortex character changes and compare to the paper's ~4ξ.
+
+**Q3.** Does the model reproduce the REENTRANT Meissner state at HIGH magnetic moment (paper: for large μ a normal region grows under the dot, the remaining SC behaves like a thin rod, and Meissner is retrieved before the normal state)?
+  - *Basis:* We saw the top layer go normal (mean|Ψ|²≈0) at μ=25 while the bottom stayed superconducting — the seed of the reentrance mechanism — but we did not perform the full μ-sweep to see the second Meissner state appear at higher μ (Table 1's 'second Meissner').
+  - *Next step:* Sweep μ = 0…100 for the thick rod, plot free energy and total vorticity vs μ, and look for the vorticity returning to 0 (reentrant Meissner) before global collapse to the normal state.
+
+**Q4.** How sensitive is the giant-vs-multivortex assignment to the fixed-A (no back-reaction / no magnetic shielding) approximation versus a self-consistent A that includes screening currents?
+  - *Basis:* The paper explicitly works 'in the limit of no magnetic shielding', which justifies our fixed external A. But in mesoscopic samples screening can shift vortex positions and the giant→multivortex transition; we did not test self-consistency.
+  - *Next step:* Add the second GL equation (current + Maxwell) to solve A self-consistently at finite GL parameter κ, and compare vortex core positions and winding to the fixed-A result.
+
+**Q5.** Can we quantitatively match Table 1's ground-state sequences (e.g. R=4ξ,D=2ξ giving 1→5 GVS over specific μ ranges; R=4ξ,D=6ξ giving 3→7-fold) rather than only the qualitative giant/multivortex distinction?
+  - *Basis:* Our reduced units and softened point dipole are calibrated by enclosed flux, not to the paper's absolute μ/μ0 scale, so our winding numbers (thin W=2 at μ=25) are illustrative, not matched to Table 1's exact μ windows.
+  - *Next step:* Fix the dimensionless unit mapping precisely (ξ, Hc2, μ0 as defined in the paper), reproduce the exact dipole (no softening, adaptive mesh near the dot), and sweep μ to compare state boundaries against Table 1 numerically.
+
+### schütte2014  (5 Q)
+
+**Q1.** What is the exact quantitative mapping between our dimensionless bound-state frequencies (breathing 0.158, quadrupolar 0.318 at B=0.4) and the paper's frequencies in units of the DMI gap? Our model reproduces the mode structure and ordering but the absolute values depend on the Hessian calibration factor LAM.
+  - *Basis:* The breathing and quadrupolar modes emerged below the continuum gap with the correct ordering, but we introduced a phenomenological factor LAM=1.4 to deepen the binding well. The paper derives the exact operator coefficients from the full linearized LLG.
+  - *Next step:* Derive the full magnon Hessian directly by second-variation of E[n] about the numerically relaxed skyrmion (the complete BdG operator with all DMI cross-terms) instead of the reduced Zeeman+texture potential, eliminating the LAM knob, then re-extract frequencies vs field B.
+
+**Q2.** How do the bound-state frequencies evolve as a function of the applied field B across the full skyrmion stability window, and where exactly does the quadrupolar mode enter/leave the sub-gap region?
+  - *Basis:* Our field scan showed the binding well vanishes at high B (bound states merge into continuum) and deepens at low B, matching the paper's claim that the quadrupolar mode appears only at intermediate field, but we characterized only a few B values.
+  - *Next step:* Run a dense B-sweep (0.2-0.9) tracking each channel's lowest eigenvalue vs the gap Delta=B, producing the paper's mode-frequency-vs-field figure and locating the critical fields for mode entry.
+
+**Q3.** Does the sign of the skew asymmetry / transverse cross section (we found A<0, hall_proxy=-0.34) match the sign predicted by the skyrmion's topological charge and emergent-flux direction in the paper?
+  - *Basis:* We obtained a robustly nonzero skew asymmetry from the linear-in-m gauge term -2mW/r^2, confirming skew scattering, but the sign depends on the convention (skyrmion winding, DMI sign, gauge orientation).
+  - *Next step:* Fix all sign conventions to match the paper (winding number, DMI chirality, emergent-field direction) and verify that the skew/Hall sign follows the topological charge, then compare to the paper's reported deflection direction.
+
+**Q4.** Are the 'rainbow' scattering features (multiple angular peaks in dsigma/dtheta) at the correct angular positions and do they shift with incident magnon energy as the paper predicts?
+  - *Basis:* Our dsigma/dtheta shows multiple peaks and clear left-right asymmetry at a single k=0.7, but we did not map the rainbow-angle dispersion with energy.
+  - *Next step:* Compute dsigma/dtheta over a range of incident wavenumbers k, track the rainbow peak angles vs k, and compare to the semiclassical deflection-function analysis in the paper.
+
+**Q5.** What is the quantitative magnitude of the Thiele momentum-transfer force and resulting skyrmion Hall angle under a realistic magnon current, and how does it compare to the paper's numerical estimate?
+  - *Basis:* We computed a qualitative transverse cross section sigma_perp and a Hall-angle proxy (-0.34), confirming a sideways force, but did not close the Thiele-equation loop to a physical velocity/Hall angle.
+  - *Next step:* Assemble the full Thiele equation with the gyrovector and dissipation tensor for the relaxed skyrmion, feed in the computed momentum-transfer cross section for a thermal/driven magnon distribution, and solve for skyrmion drift velocity and Hall angle.
+
+### sinha2016  (5 Q)
+
+**Q1.** What is the correct microscopic value of a = 4*alpha*beta/(hbar^2 omega v), and hence the Fermi velocity v, that the paper implicitly used to obtain a=0.17/0.55 nm?
+  - *Next step:* Plug measured Bi2Te3 v and lambda into the microscopic a-formula with the paper's evA0/hbar*omega and compare to the tabulated a; quantify the residual and whether an O(1) convention factor (e.g. factor of 2 in alpha,beta) closes it.
+
+**Q2.** Do the full 2D spin-texture colormaps (Figs. 1, 2, 4) reproduce quantitatively, including the C3v streamline topology and the snowflake Fermi-surface evolution?
+  - *Next step:* Generate (Sx,Sy) quiver + Sz colormap on a dense kx-ky grid for both gapless (a=0) and gapped (a=0.55, Dw=0.10) cases; overlay against Figs. 1-2-4 and compare node lines and sign domains pixel-wise.
+
+**Q3.** How large are higher-order Floquet-Magnus / van Vleck corrections at hbar*omega = 8 eV with evA0 up to 0.9 eV, and do they shift the gap or deviation angle measurably?
+  - *Next step:* Build the exact Floquet Hamiltonian (Sambe/extended zone, multiple photon sidebands), diagonalize, and compare its low-energy gap and spin texture to the van Vleck 2x2 result as a function of hbar*omega.
+
+**Q4.** Does the higher-order warping perturbation Hhw = i*xi*(k+^5 sigma+ - k-^5 sigma-) leave the light-induced deviation-angle fingerprint (delta=0 only along Gamma-K) unchanged, as the paper claims?
+  - *Next step:* Add Hhw to Heff, recompute delta_omega(theta) at fixed k, and check whether the Gamma-K-only node survives across a range of xi.
+
+**Q5.** What is the experimental observability window — light intensity, frequency, and temperature — for the induced gap 2*Dw and the broken locking to be resolvable by spin-ARPES?
+  - *Next step:* Invert evA0 and hbar*omega=8 eV to the physical E0 and intensity (W/cm^2) for a Bi2Te3 surface; compare to pump-probe damage limits and spin-ARPES energy resolution to assess detectability.
+
+### stier2017  (5 Q)
+
+**Q1.** Can current-amplified fluctuations nucleate a Sk-ASk pair de novo in the DMI-stabilised regime, rather than requiring an explicitly seeded pair?
+  - *Basis:* The paper's mechanism starts from magnetization fluctuations promoted by the in-plane current. In our stable regime (D=0.75, B=0.25) a seeded Gaussian fluctuation is re-absorbed; pairs only appeared as transient multi-pair turbulence when the film was over-driven (vs and/or D near the helical instability), which was too noisy for clean Q-counting. We therefore initialised the pair directly.
+  - *Next step:* Add a stochastic (Langevin) thermal field sqrt(2*alpha*kB*T/dt)*eta to B_eff and scan (D, B, vs, T) near the uniform-to-helical instability boundary to find a window where a single clean pair nucleates from noise; measure the nucleation rate vs current density to compare with the paper's predicted current threshold.
+
+**Q2.** Does the in-plane current fully UNBIND a bound Sk-ASk pair (separate them into two isolated objects), not merely drive + Hall-deflect them?
+  - *Basis:* EXP-A shows the current drives both textures (~12.7 lattice units of motion) with the correct opposite transverse (skyrmion-Hall) deflection, but the net along-axis centroid distance did not grow in the minimal 140x140 bound-pair geometry within budget.
+  - *Next step:* Use a larger domain, a spatially graded or pulsed current, and a genuinely non-adiabatic (beta != alpha) drive tuned to the Thiele gyrovector of each partner; track the inter-partner distance over longer times and confirm a monotonic increase that overcomes the attractive Sk-ASk interaction.
+
+**Q3.** How does the net delta-Q per unit time scale with current density j_c and with the DMI strength D?
+  - *Basis:* The paper derives a skyrmion equation of motion predicting a current-controlled rate of topological-charge change. We demonstrated a single delta-Q = -1 event but did not map the rate law.
+  - *Next step:* Run ensembles at several (j_c, D) values, count net delta-Q events over a fixed time window, and fit dQ/dt vs j_c and vs D; compare the threshold/scaling against the analytic EOM (their generalised Thiele result).
+
+**Q4.** Is the asymmetric decay (ASk annihilates, Sk survives) robust to the D-vector convention and to bulk vs interfacial DMI?
+  - *Basis:* With our interfacial (Neel) D-vector convention the DMI-stable winding is Q=-1, so the Q=+1 antiskyrmion decays. Bulk (Bloch) DMI or the opposite sign would swap which partner is stabilised.
+  - *Next step:* Repeat EXP-B for bulk-DMI effective field and for flipped D sign; verify that in every case exactly one partner (the non-stabilised one) decays and the net |delta-Q| = 1, confirming the mechanism is convention-independent.
+
+**Q5.** What is the correct SI mapping (material parameters, real current density, timescale) so the reduced-unit results become quantitatively comparable to the paper's micromagnetic simulation?
+  - *Basis:* We worked in dimensionless units (A=1, D=0.75, B=0.25, gamma=1) and reproduced the mechanism/topology, not the paper's specific j_c thresholds or nanosecond timescales.
+  - *Next step:* Fix a materials set (Ms, exchange A_SI, DMI D_SI, anisotropy/field), nondimensionalise with the exchange length and gamma, and re-express vs = p a^3 j_c/(2e); then report the critical j_c for pair creation and the annihilation time in ns for direct comparison.
+
+### tian2026  (6 Q)
+
+**Q1.** Does the full DFT band structure of monolayer Mg2Mo2(PO5)2 place the {|dxz,up>2, |dyz,down>1} ridge states near the Fermi level with the projected orbital character claimed in Fig. 2(f)/S2?
+  - *Basis:* The TB model is a schematic; the paper's material claim rests on DFT showing that the green-box ridge states are genuinely dxz/dyz-derived and dominate transport at E_F. Without it, the material realization (not just the toy model) is unverified.
+  - *Next step:* Run a magnetic (Neel, out-of-plane) DFT+U calculation of monolayer Mg2Mo2(PO5)2 (P4, a=6.56 A, Mo on 2g), project onto Mo t2g orbitals, and confirm the ridge dispersion + spin/orbital labels along Gamma-X-M and Gamma-Y-M.
+
+**Q2.** Is the layer polarization P(k) of the two ridges genuinely opposite (top vs bottom Mo layer), as required for the 'layer' in RSLC and for electric-field control?
+  - *Basis:* Our TB model captures ridge-spin locking but has no explicit layer degree of freedom; the RSLC mechanism and the electric Hall effect depend on opposite layer polarization enabling Ez to split R1/R2.
+  - *Next step:* Extend the TB basis to include the two Mo sublayers explicitly (4-band model with {C2||S4z} enforced), compute layer projection P(k) of each ridge, and add an on-site Ez potential to verify degeneracy lifting.
+
+**Q3.** How much orthogonal-channel leakage (finite delta) is present in the real material, i.e. what is the effective delta/pi0 that sets the quasi-1D SP ceiling below 100%?
+  - *Basis:* The paper claims '100%' but any real ridge has small curvature; our sweep shows SP=0.997 at delta=0.05 and 0.956 at delta=0.2. Quantifying the material's delta sets how close to ideal the experimental SP can be.
+  - *Next step:* Fit the DFT ridge dispersion along Delta(0,v,0) to pi0 cos + delta cos, extract delta/pi0, and propagate it through the Boltzmann SP formula to predict the achievable spin polarization.
+
+**Q4.** Does the relativistic (spin-orbit) calculation reproduce the electric Hall effect coefficient chi_xy that switches sign under +/-Ez, with S4z*T forbidding sigma_xy at Ez=0?
+  - *Basis:* The layer-dependent electric Hall effect is the paper's second headline device concept; it requires SOC and is entirely outside the nonrelativistic TB scope replicated here.
+  - *Next step:* Add atomic SOC (lambda L.S) to the multi-orbital, multi-layer TB model, compute the Berry-curvature/Kubo anomalous Hall sigma_xy vs Ez, and verify sigma_xy(Ez=0)=0 and sign reversal for +/-Ez.
+
+**Q5.** Are the symmetry criteria (8 SLGs, RSLC only for 2 SSGs with 2e/2f/2g Wyckoff) reproducible from an independent spin-layer-group enumeration, and do they correctly single out the three candidate materials?
+  - *Basis:* The materials-discovery claim (Table I) is the paper's route from concept to real compounds; independent symmetry verification would confirm the search is complete and correct, not cherry-picked.
+  - *Next step:* Use a spin-space-group / spin-layer-group tool (e.g. SpinSpaceGroup, or the FindSym-style analysis) to enumerate 2D square-lattice altermagnetic SLGs, apply the ridge (1D band rep along Delta) + {C2||OL} filters, and check the 8-SLG / 3-material result.
+
+**Q6.** 
+
+### tikhonov2022  (5 Q)
+
+**Q1.** Does the branching-vs-stripes advantage survive when the local (dP/dz)^2 depolarization proxy is replaced by a full Poisson solve for phi(r) with real long-range 1/r Coulomb tails?
+  - *Basis:* We used a local penalty on (dP/dz)^2 that approximates a short-circuit depolarization energy to leading order. The paper's H-H/T-T entwining is fundamentally driven by long-range electrostatics; a local proxy can miss non-local screening physics (e.g. the network geometry could be quantitatively different when nearby branches see each other's phi).
+  - *Next step:* Solve Poisson div(eps grad phi) = -div(P) each TDGL step (FFT-based on periodic-in-x, Dirichlet-in-z boundaries), add -integral(P . grad phi)/2 to the free energy, and rerun the same three cases (network, stripes, H-H). Check whether the network/H-H F_es ratio changes.
+
+**Q2.** Is the intertwined pattern topologically protected in 3D (single multiconnected wall surface) or only geometrically frustrated in 2D (branching wall lines)?
+  - *Basis:* The paper's central topological statement is about a single multiconnected surface in 3D. Our 2D scalar model can only see the mechanism's shadow: branching lines. Whether those lines lift to a genuinely non-trivial 3D wall surface (nonzero genus, single connected component) is not resolvable here.
+  - *Next step:* Extend to 3D (48^3 or 64^3 grid) with a slab geometry, then compute connected components and Euler characteristic of the domain-wall surface via marching cubes + skimage; compare to a naive stacked-H-H reference.
+
+**Q3.** How sensitive is the branching/entwining regime to the anisotropy ratio kz/kx and the depolarization strength lambda_es?
+  - *Basis:* We hand-tuned kz=1.5, kx=0.3, lambda_es=1.5 to hit the frustrated regime where branching survives coarsening. It is not clear how wide this window is or where the phase boundaries sit; too little anisotropy -> isotropic Ising coarsening; too much -> pinned stripes; too little lambda -> single big domain; too much -> uniform P.
+  - *Next step:* Sweep a 2D grid over kz/kx (in {1,3,5,8}) x lambda_es (in {0.5,1,2,4,8}), for each seed measure (n_junctions_skel, F_es network/H-H ratio, n_components) and draw a phase diagram.
+
+**Q4.** How does the branching persist under coarsening -- is the network a true (meta)stable state or just a slow transient?
+  - *Basis:* In our runs the network junction count monotonically decreased with TDGL time; at very large N we expect coarsening toward simpler structures. The paper does not resolve whether the observed networks are equilibrium or long-lived transients pinned by disorder.
+  - *Next step:* Run to N=100000 steps at the tuned parameters, log n_junctions_skel(t) and F_es(t), and fit a power-law/exponential decay; add quenched disorder (spatial-random a(r)) and check whether the network becomes truly stable.
+
+**Q5.** Does the same mechanism yield HIGHER-order (3+) polarization branches, matching PGO's three-fold polar axis?
+  - *Basis:* PGO's polar axis is three-fold, so vector-order-parameter branching could support 3-way vertices with topological charge, not just 4-way (Ising) crossings. Our scalar Ising-like Pz model can only make even-valency junctions.
+  - *Next step:* Promote P to a 3-component vector, keep uniaxial anisotropy along z but allow small in-plane components, and re-run; count the valency histogram of skeleton branch points to see whether the 3-fold PGO symmetry favors 3-valent vertices.
+
+### verga2014  (5 Q)
+
+**Q1.** Does the full coupled Schrodinger (electrons) + Landau-Lifshitz (spins) time integrator reproduce the collapse snapshots of Fig. 2 (t = 5912-5960 t0) and the collapse time t* ~ lambda/(s0 a)?
+  - *Next step:* Implement the coupled stepper (Crank-Nicolson or Chebyshev for Schrodinger; Heun/RK4 for LL with the STT torque term), seed with the relaxed BP skyrmion, measure t* vs lambda and compare the ~5900 t0 figure.
+
+**Q2.** Is the topological-charge collapse Q(t): 1 -> 0 correlated with the nucleation of an intense electron b-field vortex carrying its own topological charge, as claimed in Sec. III (lines 304-330, 520)?
+  - *Next step:* After Q1, compute Q_S(t) and Q_b(t) = Berg-Luscher charge of s(r,t); test the anti-correlation / conservation-transfer claim at the collapse instant.
+
+**Q3.** How does the exchange-dissipation term d smooth the skyrmion->ferromagnet transition, and what is the quantitative d-dependence of the Q(t) curves in Fig. 3?
+  - *Next step:* Add the exchange-dissipation operator to the LL RHS, run a d-scan, reproduce the smoothing trend and the dissipation-dependent transition sharpness of Fig. 3.
+
+**Q4.** Does the exact self-similar solution (Eqs. 24-25) of the driven LL equation quantitatively match the collapsing core profile f(X) from the full numerical run, beyond the exponent (alpha,beta) match?
+  - *Next step:* Solve the self-similar ODE (Eq. ~22-23) for f(X) with the stated boundary conditions; overlay rescaled numerical cores from Q1 to test data collapse.
+
+**Q5.** How sensitive is the collapse (existence of a finite-time singularity vs. a smooth crossover) to lattice cutoff a, initial size lambda_0, current polarization Bp, and electron density ne?
+  - *Next step:* Grid (lambda_0, Bp, ne) at fixed a, run the Q1 solver at each, fit beta and t*, and map where the self-similar collapse survives vs. where dissipation dominates.
+
+### wang2026  (5 Q)
+
+**Q1.** Does the interlayer correlation-length also grow monotonically with cooling, or does it saturate once the two-layer core-density correlation coefficient reaches ~1?
+  - *Basis:* Our Pearson correlation C(T) saturates at ~0.97 by T=1.05 and then plateaus. The paper's stronger claim is about a growing CORRELATION LENGTH, which we cannot resolve on a 32x32 lattice with only ~3-5 cores per layer.
+  - *Next step:* Move to a larger lattice (e.g., 128x128) with dozens of cores; compute the true 2-point correlation function of the core-density fluctuations between layers and fit an exponential to extract xi(T).
+
+**Q2.** Is the broad chi(T) peak really the fingerprint of correlation-enhanced response, or is it dominated by the Landau soft-mode divergence near T0?
+  - *Basis:* Our peak sits at T=0.95, essentially at T0=0.9 (the sign-change of the Landau coefficient a(T)). This is where any ferroelectric model would show a soft-mode peak, correlations or not.
+  - *Next step:* Ablation: set J=0 (no interlayer coupling) and rerun. If the peak persists at ~T0 with the same height, the observed peak is Landau-driven, not correlation-driven. The paper's mechanism requires the peak to strengthen/broaden WHEN correlations turn on.
+
+**Q3.** Why does the AC chi'(T) peak sit at the upper edge of our temperature window for all three omegas?
+  - *Basis:* chi'(T) monotonically decreases from T=1.3 down to T=0.45 for every omega tested. We never see the peak, so we cannot measure a shift.
+  - *Next step:* Extend the AC sweep to higher T (e.g., 1.6, 1.8, 2.0) to bracket the peak from above. If the true peak lies above T0 in the paraelectric-fluctuation regime, this is expected physics; if it lies below T0, the anisotropy/coupling parameters need retuning.
+
+**Q4.** Are the observed 'skyrmion cores' true topological objects (unit skyrmion number) or just Pz-down dimples?
+  - *Basis:* We count cores by NMS on a smoothed |P_xy|*max(-Pz,0) field. We never compute the winding number density (1/4pi) P . (dP x dP), so we cannot distinguish a true skyrmion from a bubble domain.
+  - *Next step:* Add a skyrmion-number density estimator on the unit-normalized polarization; assert integer winding per core; use N_sk(T) as an additional order parameter.
+
+**Q5.** Is the mean-field depolarization term (0.5*eps*<Pz>^2 per layer) an acceptable proxy for the paper's full 3D electrostatic solve, or does it kill the very mechanism it is meant to model?
+  - *Basis:* We penalize only the k=0 mode of Pz per layer. The paper uses a full Poisson solver over the superlattice, which produces long-range dipolar interactions between all k modes and drives skyrmion formation as a stripe/bubble instability.
+  - *Next step:* Replace f_E with a proper 1/k^2-style depolarization kernel acting on Pz(k), or use a slab electrostatic Green's function; then recheck whether skyrmions self-organize without seeding.
+
+### yuan2023  (5 Q)
+
+**Q1.** Does a hexagonal close-packed polar SkX emerge SPONTANEOUSLY from a labyrinth/stripe domain state under increasing Ez, without seeding pre-formed skyrmions?
+  - *Basis:* The paper's central claim is field-INDUCED emergence (L -> Sk&L -> SkX). Our reduced 2D LGD reproduced SkX stability and its field-driven destruction, but the SkX had to be seeded; spontaneous nucleation is the harder, unproven half of the headline.
+  - *Next step:* Add the full 3D depolarization field (open-circuit boundary with screening theta) and a Landau expansion with the paper's Haun PbTiO3 coefficients [Ref 56], then quench from a random state at fixed Ez to test whether SkX nucleates without seeds.
+
+**Q2.** Is the simulated SkX genuinely Neel-type with center-convergent/divergent top/bottom planes and a purely out-of-plane middle plane, as the paper reports?
+  - *Basis:* The paper distinguishes its Neel-type SkX from the Bloch-walled skyrmion bubbles of PTO/STO superlattices [Ref 33]; the wall type is a physical fingerprint of the strain/electrostatic balance.
+  - *Next step:* Extend to a 3D slab (Nz ~ 6 cells) and inspect the through-thickness rotation of P at a single core; verify Ising-type (out-of-plane) connecting wall vs Bloch-type.
+
+**Q3.** Does the hexagonal lattice constant w obey Kittel scaling, w^2 proportional to film thickness h, over 5 nm < h < 13 nm?
+  - *Basis:* This quantitative scaling law (w=13.6 nm at h=6 nm, w=20.5 nm at h=11.2 nm) is a second, independent testable prediction distinct from the field-collapse headline.
+  - *Next step:* Run 3D simulations at h = 6, 8, 11 nm, extract nearest-core distance from the SkX autocorrelation, and regress w^2 vs h.
+
+**Q4.** Where exactly do the S->SkX and L->SkX transition boundaries sit in the T-E phase diagram, and is the low-T-L / high-T-S inverse transition reproduced?
+  - *Basis:* The paper reports SkX only between 300-500 K and an unusual inverse L->S transition on heating; the phase-boundary topology is a strong test of the free-energy balance.
+  - *Next step:* Add a temperature-dependent Landau coefficient a(T)=a0(T-T0) and a thermal-noise TDGL sweep to map n_sky and |Q| over a (T, Ez) grid.
+
+**Q5.** How sensitive is the SkX stability window to the screening factor theta and misfit strain, which the paper fixes at theta=0.6 and eps=-1.0%?
+  - *Basis:* These two boundary-condition parameters set the depolarization/anisotropy balance; the whole SkX-existence region may shrink or vanish outside a narrow range, affecting experimental realizability.
+  - *Next step:* Sweep theta in {0.4,0.6,0.8} and eps in {-0.5%,-1.0%,-2.0%} in the depolarization kernel amplitude and anisotropy K_z, and record the Ez-width of the |Q|>0 window.
+
+### zhang2012  (5 Q)
+
+**Q1.** What is the exact origin of the factor-2 prefactor gap in the total in-plane orbital spin magnitude, and does it disappear when the atom/orbital sum over alpha (the |Phi> expansion cross-terms) is retained rather than collapsed to a single effective orbital?
+
+**Q2.** Does an independent ab-initio (DFT+SOC) calculation of a Bi2Se3 slab reproduce the same p-orbital-resolved spin-orbital texture (p_z helical, p_x/p_y 2-theta, tangential-upper/radial-lower) that the effective k.p model predicts, and do the fitted u0,v0,u1,v1,w1 come out with the signs the texture requires?
+
+**Q3.** What spin-resolved, photon-polarization-dependent ARPES intensity would actually be measured for P_{p_x}, once dipole matrix elements and photon-energy/geometry dependence are folded in on top of the bare Eq.10 polarization?
+
+**Q4.** How does the spin-orbital texture evolve when a hexagonal-warping (Fu C3v k^3) term is ADDED to Eq.1 -- i.e., bridging arXiv:1211.0762 (isotropic) to the warped-Dirac model of the sibling paper the task framing conflated it with?
+
+**Q5.** Is the right-handed net in-plane orbital spin for BOTH Dirac cones (the paper's headline qualitative surprise) robust to the parameter set, or does it require a specific sign/magnitude ordering of u1 vs w1 -- and where in (u1,w1) space does the tangential-dominant vs radial-dominant character invert?
+
+### zhao2025  (5 Q)
+
+**Q1.** Does the graph-coupling classification stay stable when the free-energy invariants are extracted from real DFT-derived coupling coefficients rather than symmetry-only edges?
+  - *Basis:* We used symmetry-allowed edges without DFT coupling magnitudes; the eta mixing ratios came from the paper's reported coefficients.
+  - *Next step:* Compute trilinear/biquadratic coefficients via DFT frozen-phonon fits for LaGaO3/SrTiO3 superlattices and re-derive eta.
+
+**Q2.** Is the mixing metric eta = min/max of the two coupling channels the paper's exact definition, or an approximation that happens to match at ~21% and ~56%?
+  - *Basis:* eta reproduced the paper values to <1% but the paper's precise metric definition was reconstructed from context.
+  - *Next step:* Locate the paper's explicit eta definition and confirm the two matched cases are not coincidental.
+
+**Q3.** How does the classification behave for materials with THREE or more competing primary modes (beyond the (q2,q3) improper pair)?
+  - *Basis:* All worked examples reduced to a polar mode induced by one dominant coupling path.
+  - *Next step:* Apply the graph framework to a multi-order-parameter system (e.g. a hybrid improper ferroelectric with rotation+tilt+polar) and check for triggered vs mixed verdicts.
+
+**Q4.** Does the HfO2 Pca2_1 'no proper component' result survive when the parent is taken as the tetragonal P4_2/nmc phase rather than cubic Fm-3m?
+  - *Basis:* We used Fm-3m as parent; HfO2's polar phase is often referenced to a tetragonal parent.
+  - *Next step:* Redo the irrep compatibility with P4_2/nmc as parent and compare the proper-component verdict.
+
+**Q5.** Can the graph representation predict switching-barrier or coercive-field trends, or is it purely a static character classifier?
+  - *Basis:* The method classifies distortion character but was not connected to dynamics.
+  - *Next step:* Correlate graph coupling-path length/strength with computed NEB switching barriers across the example set.
+
+### zhou2021  (5 Q)
+
+**Q1.** In the reduced 2D model the small-field recovery OVERSHOOTS the initial topological charge (recover_frac ~ 1.34) via nucleation of extra skyrmions. Does the paper's full 3D model also transiently overshoot the initial net skyrmion number during recovery, or does the substrate-clamped elastic energy cap nucleation so it saturates exactly at the original count?
+  - *Basis:* Our exp2/exp4 show total Q recovering ABOVE Q0 because the down-background readily re-nucleates up-core Neel bubbles with no elastic penalty. The paper's Fig 3i curve appears to saturate near the original value, suggesting the real elastic/depolarization energetics limit over-nucleation.
+  - *Next step:* Add an elastic/electrostrictive penalty term (eigenstrain e0=Q_ijkl P_k P_l) to the reduced free energy and re-run recovery; check whether the overshoot is suppressed. Compare saturation count vs elastic stiffness.
+
+**Q2.** The +1->0 topological transition 'before destruction' produced a bubble with two nearly-equal-magnitude opposite Pontryagin lobes (mixing 0.97, net Q~0). Is this alternating +/- lobe structure a genuine metastable state with a finite lifetime, or only a transient snapshot on the way to a stripe?
+  - *Basis:* We captured it at an intermediate timestep (ns=500) under high field. The paper (Fig 3e) shows it as a distinct observed topological feature but does not report a lifetime.
+  - *Next step:* Freeze the field at the moment net-Q crosses 0 and relax; measure whether the alternating-lobe bubble persists (metastable) or decays. Map the field window in which it is stable.
+
+**Q3.** Does the sign of the fringing in-plane field (Ex pointing away from the electrode) UNIQUELY determine the asymmetric-skyrmion polarity (dark near electrode / bright away), or can the opposite fringing sign produce the mirror-image asymmetric bubble with the same protected Q=+1?
+  - *Basis:* Our electrode_field hard-codes Ex ~ sign(x) pointing away. The paper reports in-plane polarization 'pointing away from the planar electrode' but the model assumption was not tested for sign-robustness.
+  - *Next step:* Flip Ex_gain sign and re-run exp2; verify the asymmetric bubble mirrors and local Q remains +1, isolating whether asymmetry direction is field-driven or spontaneous.
+
+**Q4.** How does the erasure threshold voltage scale with electrode width d0 in the reduced model, and does it match the paper's implied trade-off (wider electrode -> more surviving skyrmion area at the same nominal field)?
+  - *Basis:* Paper states 'under the same nominal field, the remaining skyrmion density/area is much larger for a wider electrode.' We only ran two widths (12, 36) at fixed fields; the scaling law is unmeasured.
+  - *Next step:* Sweep d0 in {8,12,20,28,36} at fixed V and record surviving skyrmion area and erasure fraction; fit area(d0) and compare the monotonic trend to Fig S4a/b.
+
+**Q5.** Is the labyrinthine 'lock-in' (large-field non-recovery) a true global-minimum switch or a kinetically trapped state that a -6 V reverse bias would melt back to skyrmions via the Rayleigh-Plateau mechanism the paper reports (Fig 4)?
+  - *Basis:* Our exp4 shows large-field recovery stuck at 37% with only 10 bubbles. The paper's cycling test (Fig 4) claims a -6 V reverse bias melts labyrinthine -> skyrmions, implying reversibility with the RIGHT stimulus, not permanence.
+  - *Next step:* Take exp4's locked labyrinthine state, apply a reverse-sign electrode field (-V), relax, then remove; check whether skyrmion count and total Q are restored (Rayleigh-Plateau melting) to close the cycling claim.
+
+
+---
+
+# SPIN
+
+### chakraborty2023  (5 Q)
+
+**Q1.** Does the FF superconducting gap survive up to t_am = 0.56 (the paper's upper window edge) on a finer k-grid?
+  - *Basis:* Our coarse 24x24 run collapses the gap to zero by t_am=0.50, giving an FF window of only [0.44, ~0.48) instead of the reported [0.44, 0.56]. Confirming the upper edge is needed to move Agreement from 7/10 toward full replication.
+  - *Next step:* Run the existing script's 'coarse' (N=96) or 'medium' (N=160) mode, which already resolves FF up to 0.55 in prior logs, and cross-check against a converged N=1000 run offline.
+
+**Q2.** Is the finite pair momentum Q* = 0.24 the true energetic minimum, or is it pinned by the 11-point Q-grid spacing (0.06)?
+  - *Basis:* The FF diagnostic hinges on argmin_Q e(Q) > 0; a grid-pinned Q* could either fake or hide the FF state. Q* magnitude also encodes the altermagnetic band geometry.
+  - *Next step:* Add a local parabolic refinement of e(Q) around the discrete minimum, or densify the Q-grid to 21+ points near the winning Q, and verify Q* stability.
+
+**Q3.** Why does the extended-s-wave channel show a spurious FF response at t_am=0.40-0.44 while d-wave does not?
+  - *Basis:* The paper argues node-matched d-wave is the favorable FF channel; an s-wave FF artifact suggests coarse-grid noise in the near-degenerate e(Q) landscape rather than real physics.
+  - *Next step:* Repeat the s-wave scan at higher N and lower Fermi smearing T; confirm the s-wave FF signal disappears or is energetically subdominant to d-wave.
+
+**Q4.** How sensitive is the BCS->FF onset t_am to the density rho and interaction strength V?
+  - *Basis:* The paper fixes rho=0.6, V=2; the FF window edges depend on Fermi-surface geometry and pairing scale. Robustness across (rho, V) tests whether the mechanism is generic or fine-tuned.
+  - *Next step:* Scan rho in {0.5,0.6,0.7} and V in {1.5,2,2.5} at fixed coarse grid; map how the onset t_am shifts.
+
+**Q5.** Does including self-consistent coupling between Delta_d and Delta_s (rather than fixing Delta_s=0) change the FF onset?
+  - *Basis:* We minimized over Delta_d with Delta_s~0 for speed. If the two channels mix near the transition, the true ground-state energy and FF window could shift.
+  - *Next step:* Perform a 2D minimization over (Delta_d, Delta_s) at a few representative t_am values and compare the FF onset to the Delta_s=0 result.
+
+### chatterjee2023  (5 Q)
+
+**Q1.** How robust are the four Majorana corner modes to disorder in the noncollinear texture and to an incommensurate spiral pitch g that is not a rational fraction of 2*pi, as would occur in a real proximitized spin spiral?
+  - *Basis:* The paper uses a perfectly commensurate, clean spiral phi_ij = g(x+y) with a single pitch. Real magnetic textures have pinning disorder, domain walls, and incommensurate pitches. Our replication (and the paper) only tests the clean commensurate case; whether the quantized Qxy=1/2 and the 4 MCMs survive realistic texture disorder is untested.
+  - *Next step:* Add site-resolved random phase noise delta_phi_ij and/or an incommensurate g to the real-space BdG Hamiltonian, sweep disorder strength, and track (i) the number of sub-gap zero modes, (ii) the many-body Qxy, and (iii) the corner localization length, to map the disorder threshold at which the SOTSC phase is destroyed.
+
+**Q2.** Does an independent nested Wilson-loop / Wannier-band computation of the quadrupole reproduce the Qxy = 1/2 obtained here from the many-body Resta-type formula, and are the two definitions gauge-consistent for this BdG (particle-hole-symmetric) Hamiltonian?
+  - *Basis:* We computed Qxy from the many-body (Kang-Fang-Fu / Wheeler) formula and got clean 0.5 vs 0. The paper cites both the many-body formula and nested-Wilson-loop literature. BdG systems have subtleties (doubled Nambu space, particle-hole redundancy) that can shift quadrupole normalization; a single method is not a cross-check.
+  - *Next step:* Implement the nested Wilson-loop (Benalcazar-Bernevig-Hughes) Wannier-sector polarization on the same Hamiltonian under PBC, compare the resulting quadrupole to the many-body value across the phase diagram, and document any BdG-specific factor-of-2 or particle-hole normalization.
+
+**Q3.** Can the full 2D topological phase diagrams in the lambda-g and Jex-g planes (paper Figs. 3a,b) be reproduced numerically, and does the numerically extracted phase boundary coincide with the analytic edge-theory boundary (the white lines) the paper draws?
+  - *Basis:* We tested only a 1D cut in g at fixed lambda, Jex. The paper's central quantitative figure is the 2D phase map with an analytically computed boundary. Reproducing the full boundary and comparing to the analytic prediction from the effective model (Eq. 4) would validate the effective-theory claim we did NOT test.
+  - *Next step:* Grid-scan Qxy over (lambda, g) and (Jex, g), extract the topological/trivial boundary, then derive the analytic boundary from the effective Eq.(4) gap-closing condition and overlay the two; quantify agreement and identify where the low-energy effective theory fails.
+
+**Q4.** What is the finite-size scaling of the Majorana corner-mode energy splitting toward the thermodynamic limit, and does it decay exponentially in L with a length scale set by the SC coherence length / bulk gap?
+  - *Basis:* We observe zero-mode energy ~1e-4 at L=24 vs the paper's ~1e-7 (at L=30), consistent with exponential finite-size splitting, but neither we nor the paper report a systematic L-scaling. This is important for claiming a genuine thermodynamic-limit zero mode rather than a finite-size accident.
+  - *Next step:* Compute the mean |E| of the four corner modes for L = 12, 16, 20, 24, 28, 32 (sparse shift-invert), fit E(L) ~ exp(-L/xi), and relate the extracted xi to the bulk gap and Delta_0; confirm E -> 0 exponentially.
+
+**Q5.** What experimentally accessible transport or spectroscopic signature most cleanly distinguishes these texture-induced Majorana CORNER modes (second-order) from the first-order Majorana EDGE modes that the same heterostructure family can host, given both appear at E=0?
+  - *Basis:* The paper motivates the SOTSC as distinct from first-order TSC edge modes, but both produce zero-bias features. A concrete, angle- or position-resolved discriminator computable from the model would strengthen the experimental case (STM is mentioned as the probe).
+  - *Next step:* Compute the local density of states / zero-bias tunneling conductance map (Landauer or LDOS-based) for both the second-order (corner) and a first-order (edge) parameter regime of the model, and identify a corner-vs-edge spatial fingerprint and its evolution with g that STM could resolve.
+
+### chen2023  (5 Q)
+
+**Q1.** In the full 18-band TmX (triple-meron crystal) magnon spectrum, how many SUCCESSIVE topological transitions occur as the field is swept, and what is the sequence of Chern-number changes across the multiple gaps (our 2-band model captures only one C:-1<->0 transition)?
+  - *Basis:* The paper's headline is SUCCESSIVE transitions with multiple Chern changes in the 18-band spectrum; our minimal model reproduces only a single transition. The full multi-gap Chern sequence is the paper's specific result and is not reproduced.
+  - *Next step:* Build the full 18-sublattice Kitaev-Gamma LSWT (Bogoliubov-de-Gennes bosonic Hamiltonian), diagonalize on a k-grid vs field, and compute the Chern number of every band across all gaps to enumerate the transition sequence.
+
+**Q2.** Does the magnon thermal Hall conductivity kappa_xy(T) exhibit MULTIPLE sign changes (one per topological transition) as observed in the paper, and how does its temperature dependence distinguish the different topological phases?
+  - *Basis:* We reproduce a single kappa_xy reversal tied to one Chern transition. The paper reports sign changes across successive transitions; the multi-reversal structure and its T-dependence are unresolved in the reduced model.
+  - *Next step:* Compute kappa_xy(T, field) for the full 18-band model with the proper c2(rho) weighting over all bands, and map the sign-change loci against the Chern-transition fields.
+
+**Q3.** What is the role of the bond-dependent Kitaev and Gamma interactions (vs a simple DMI) in stabilizing the noncollinear TmX and in generating the magnon Berry curvature - i.e. is the topology Kitaev-Gamma-specific or generic to any gap-opening TRS-breaking term?
+  - *Basis:* Our model uses a generic Haldane/DMI mass to open the topological gap; the paper emphasizes that Kitaev-Gamma (not DMI) is the distinctive source. Whether the resulting topology differs qualitatively is a genuine open question.
+  - *Next step:* Compare the magnon Berry curvature and Chern structure generated by (a) DMI and (b) Kitaev-Gamma anisotropic exchange in the same noncollinear background, and identify any topology unique to the latter.
+
+**Q4.** Do the predicted chiral magnon edge modes in a TmX nanoribbon match the bulk Chern numbers (bulk-boundary correspondence) across each topological phase, and how many edge branches appear in each phase?
+  - *Basis:* The paper verifies topology via nanoribbon edge modes; we did not compute any edge spectrum (claim C4 not attempted). Bulk-boundary correspondence for the multi-band case is a concrete unaddressed check.
+  - *Next step:* Construct a TmX nanoribbon (open in one direction), diagonalize the LSWT, and count in-gap chiral edge branches per phase, comparing to the summed bulk Chern numbers below each gap.
+
+**Q5.** How robust are the nonreciprocal magnons and the topological transitions to thermal fluctuations and magnon-magnon interactions beyond linear spin-wave theory, given the TmX is stabilized only in a finite field window?
+  - *Basis:* The entire analysis is LSWT (non-interacting magnons) in a field-stabilized TmX. Interactions and finite-T could renormalize the gaps and shift or wash out the transitions, which the paper does not address.
+  - *Next step:* Add leading magnon-magnon interaction corrections (1/S) and finite-T self-energy to the gap sizes, and assess whether the topological transition fields survive.
+
+### chen2026  (5 Q)
+
+**Q1.** What is the absolute anomalous Hall conductivity sigma_xy (paper: ~+/-400 S/cm, Fig 3b), and does its magnitude and +/- oscillation reproduce quantitatively?
+  - *Next step:* Run rt-TDDFT (or at least a Wannier-interpolated DFT+SOC band structure) on the crux compute host for the distorted 2x2x2 KNiF3 supercell at 410 fs, then evaluate sigma_xy with the gobel2024 Kubo-Bastin kernel on the real Bloch Hamiltonian.
+
+**Q2.** Does the real fs time trajectory eta_alpha(t) (Fig 4d-f) reproduce the observed sequence: eta_z~1 (a0b0c-, g-wave) at ~400 fs, then eta_y~1 (a0b-c-, d-wave) at ~900 fs?
+  - *Next step:* Perform rt-TDDFT with Ehrenfest/nuclear dynamics on crux (laser 4.96 eV, [111] polarization, L||[100]); extract theta_alpha^{u,l}(t), form eta_alpha(t), and correlate with the d/g-wave decomposition of Delta(k,t).
+
+**Q3.** Is the out-of-phase (eta=1) distortion genuinely lower in energy on the EXCITED-state PES than the in-phase (eta=0) mode, as the paper asserts (SM Section IV)?
+  - *Next step:* Compute constrained-occupation DFT total energies vs octahedral rotation angle for in-phase and out-of-phase modes on the excited PES (crux), verify the out-of-phase minimum is deeper.
+
+**Q4.** Does the group-theory selection rule (only transverse E_g allowed; light-induced altermagnetism requires laser polarization NOT parallel to L) hold across the proposed family SrMnO3, PbCrO3, RbMnF3, KCoF3?
+  - *Next step:* For each material: compute the zone-folded phonon irreps under its magnetic little co-group, decompose Sym2(Gamma_laser), and confirm the out-of-phase rotation lands in the allowed E_g channel; then rt-TDDFT spot-check one.
+
+**Q5.** What is the lifetime/persistence of the nonequilibrium altermagnetic state, and does the spin splitting truly persist for the full ~1 ps photoexcited-carrier lifetime?
+  - *Next step:* Extend the rt-TDDFT run to 1 ps with dephasing/relaxation, track the photoexcited population and Delta(k,t) amplitude decay, and estimate the tr-MOKE / THz-emission signal window.
+
+### cheon2018  (5 Q)
+
+**Q1.** What is the correct symmetry-odd operator projection needed to isolate the EXTRA interband Berry-phase SOT that turns on with noncollinearity, given that a naive off-diagonal Kubo sum of delta_S sits at numerical noise while the paper predicts a finite, m-linear contribution?
+  - *Basis:* Our replication cleanly reproduces the enabling mechanism (degeneracy lifting) but not the absolute extra-Berry-SOT magnitude — the paper's central quantitative result — because the symmetry-allowed and symmetry-forbidden pieces are not separated in the raw Kubo sum.
+  - *Next step:* Decompose delta_S into components even/odd under the m=0 antiunitary symmetry using the symmetry operator explicitly, evaluate only the odd (forbidden-at-m=0) part with a proper clean-limit interband weighting (e.g. the constant-Gamma Bastin/Streda formula), and confirm it scales linearly with m.
+
+**Q2.** How does the threshold FM component m* (separating the 'weak' regime where m barely affects SOT from the 'strong' regime where it dominates) depend quantitatively on the disorder broadening Sigma and temperature, and can it be pushed to experimentally accessible values?
+  - *Basis:* The paper states a threshold exists and depends on level broadening and temperature, and estimates it at room temperature for clean AFMs, but we did not compute the threshold phase boundary.
+  - *Next step:* Sweep (m, Sigma, T) and locate where the extra-Berry SOT equals the collinear SOT, mapping the weak/strong boundary m*(Sigma,T).
+
+**Q3.** Does the 2D bipartite AFM model (Eq. 9, with the same-sign inversion breaking on both sublattices) show the SAME noncollinearity-unlocked Berry SOT as the layered model, or does its distinct inversion-symmetry structure change the selection rules?
+  - *Basis:* The paper analyzes a second (2D bipartite) model with different inversion-breaking structure; we implemented only the layered Eq.1 model. Whether the mechanism is model-universal is unresolved here.
+  - *Next step:* Implement the Eq.9 bipartite Hamiltonian, repeat the degeneracy/SOT analysis, and compare the symmetry selection rules and m-scaling to the layered case.
+
+**Q4.** How large is the resulting antiferromagnetic domain-wall velocity enhancement from the noncollinearity-unlocked SOT, and does it exceed ferromagnetic DW speeds under realistic current densities?
+  - *Basis:* The paper motivates the effect via 'fast antiferromagnetic domain wall motion' but provides only an estimate; a dynamical simulation coupling the extra SOT to the Neel-field equations of motion is not done.
+  - *Next step:* Feed the computed extra SOT into the coupled sublattice LLG / Neel-vector equations for a DW and extract velocity vs current, comparing to FM DW mobility.
+
+**Q5.** Since the dynamically generated noncollinearity m is itself produced by the SOT-driven dynamics, is there a self-consistent feedback (SOT -> canting -> extra Berry SOT -> more canting) that could qualitatively alter the switching dynamics?
+  - *Basis:* The paper notes noncollinearity arises spontaneously during magnetization dynamics, but treats m as an external parameter. A self-consistent treatment where m is generated by the very torque it modifies is a genuinely open, potentially nonlinear problem.
+  - *Next step:* Couple the SOT expression (m-dependent) back into the dynamics that generate m and solve self-consistently to test for feedback-driven acceleration or instability.
+
+### ding2021  (5 Q)
+
+**Q1.** What is the microscopic value of the interface orbital mixing conductance G_orb that sets the OREMR magnitude in Py/CuOx, and how does it compare to the spin mixing conductance G_spin that sets ordinary SMR in Py/Pt?
+  - *Basis:* Our model uses a phenomenological D_SMR coefficient; the paper attributes the effect to the orbital Rashba-Edelstein effect at the interface but does not compute G_orb from first principles. The relative size of orbital vs spin channels is the key open microscopic question.
+  - *Next step:* Build an interface Rashba model with both spin- and orbital-Rashba couplings, compute the current-induced orbital accumulation and the resulting orbital mixing conductance, and predict the OREMR/SMR ratio.
+
+**Q2.** The paper finds Py spin diffusion and dephasing lengths ~2x and ~4x larger in Py/CuOx than in Py/Pt. Is this genuinely because OAM dephases more slowly than spin in Py, and what sets the orbital dephasing length?
+  - *Basis:* The enhanced effective lengths are the paper's evidence for an OAM (not spin) channel, but the microscopic reason OAM survives longer is not established. This is a central unresolved physics point.
+  - *Next step:* Model coupled spin+orbital diffusion in Py with distinct spin-orbit correlation and orbital-quenching lengths, fit to the measured thickness dependences, and extract the orbital dephasing length.
+
+**Q3.** How can the OREMR be cleanly separated from any residual spin-based SMR and from the AMR contribution that also appears in the alpha scan, so that the orbital origin is unambiguous?
+  - *Basis:* The paper notes the alpha scan contains both AMR and the SMR-like contribution; disentangling orbital vs spin vs AMR requires careful subtraction. Our model separates them by construction but the experimental separation is nontrivial.
+  - *Next step:* Design a measurement/analysis protocol (e.g. temperature or oxidation tuning that affects orbital and spin channels differently) and simulate the expected angular-scan decomposition.
+
+**Q4.** Does the monotonic decrease of OREMR for Cu* thickness >5nm arise from current shunting through unoxidized Cu, from intrinsic OAM quenching, or both, and can these be distinguished?
+  - *Basis:* The paper explicitly leaves this ambiguous ('may be attributed to shunting... could also be due to intrinsic quenching'). Our model lumps both into a single decay; distinguishing them is important for interpreting the orbital channel.
+  - *Next step:* Model a two-resistor (oxidized interface + conducting bulk) shunt network AND an intrinsic OAM-decay length separately, and identify a thickness/temperature signature that separates them.
+
+**Q5.** Is the OREMR generic to light-metal-oxide interfaces (Al, Ti, Ta oxides) or specific to CuOx, and what interface chemistry maximizes the orbital Rashba effect for device use?
+  - *Basis:* The paper demonstrates a single material system; the generality and optimization of heavy-element-free orbital torques is the key applied question the work opens.
+  - *Next step:* Compute the orbital Rashba splitting at a series of light-metal/oxide interfaces from a tight-binding/DFT interface model and rank them by predicted OREMR.
+
+### fernandes2026  (5 Q)
+
+**Q1.** Does the intrinsically-3D hexagonal g-wave altermagnet (D_6h, CrSb/MnTe/Co1/4NbSe2) reproduce the eta^H_xxxz = -eta^H_yyxz = -eta^H_xyyz tensor structure and the Lifshitz-transition-driven jumps in eta^H(mu) (Fig. 4d/4e)?
+
+**Q2.** Can the analytic Dirac-theory prefactor C_0 = 8 hbar^2 g^{B2g} g_3^{A1g} / (v_uc t_1 t_d) and the single-Dirac-point mapping eta^H = C_0 sigma_xy^H (Eq. 12) be independently derived and shown to quantitatively track the full tight-binding eta^H(mu) as in Fig. 3b?
+
+**Q3.** What is the definitive resolution of the shear-coupling factor-of-2 convention (gamma^xy = gamma^{B2g} vs 2*gamma^{B2g}), which changes eta^H by 4x (8.4 vs 16.8 hbar/v_uc)?
+
+**Q4.** Does the full-frequency (non-quasi-adiabatic) Hall viscosity derived in the SM (Ref. [55]) reduce to the Eq. (6) adiabatic form at low frequency, and how large are the finite-frequency corrections in the magneto-acoustic regime relevant to experiment?
+
+**Q5.** Is the predicted eta^H ~ 8 uPa*s quantitatively comparable to the alpha-RuCl3 acoustic-Faraday value [Ref. 49] under realistic material parameters, and what SOC strength / gap size is required for a given real altermagnet candidate (R2Mn2Se2O3, AV2Te2O, Fe2X2O)?
+
+### fukami2026  (5 Q)
+
+**Q1.** How does the threshold plateau map onto absolute current densities and nanosecond pulse widths of the real Mn3Sn device?
+  - *Basis:* Our model is fully dimensionless (energies in anisotropy units, time in units where alpha_eff=1). The paper reports a plateau over an experimentally measured pulse-duration window. We reproduce the mechanism but not calibrated numbers.
+  - *Next step:* Fit K6, alpha_eff, spin-Hall efficiency and the uncompensated-moment magnitude to reported Mn3Sn parameters, convert tau_SOT to a current density via the spin-Hall angle and film thickness, and check that the plateau lies in the same j-t_p decade as the experiment.
+
+**Q2.** Is the residual downward drift of the AFM threshold at long pulses (thermal foot) physical, or an artifact of the overdamped single-angle reduction?
+  - *Basis:* The AFM P>=0.5 threshold falls modestly (rel range 0.60) rather than being perfectly flat, due to thermally assisted escape at low current / long duration.
+  - *Next step:* Repeat at several kBT (e.g. 0.05, 0.10, 0.20) to map the thermal-foot slope vs temperature; if the drift scales with kBT and vanishes as T->0 it is genuine thermal activation, and its magnitude can be compared to the paper's temperature dependence.
+
+**Q3.** Does retaining the full two-sublattice (Neel + net moment) AFM dynamics with inertia change the plateau, versus our overdamped order-parameter reduction?
+  - *Basis:* We used the overdamped, single-collective-angle limit. Real AFM dynamics have an exchange-enhanced inertial (second-derivative) term that can support ultrafast precession and modify the depinning condition.
+  - *Next step:* Extend to the coupled Neel-vector equation with the d^2/dt^2 inertial term (antiferromagnetic resonance frequency) and re-derive j_dep; check whether inertia sharpens or shifts the plateau, especially at short pulses.
+
+**Q4.** How sensitive is the final selected state (and the 'switch-back' statistics) to the field direction phi_H and the Zeeman strength h_z?
+  - *Basis:* We fixed phi_H=0, h_z=0.1. The paper's third ingredient is field-induced reorientation of the uncompensated moment selecting the final state; switch-back events depend on this bias.
+  - *Next step:* Scan h_z and phi_H, measure the distribution of final six-fold wells and the fraction of 'switch-back' (net-zero-rotation) events, and compare to the paper's reported switch/switch-back phase diagram.
+
+**Q5.** Does a genuinely deterministic (T=0) simulation give a perfectly duration-independent plateau, confirming depinning as the sole origin?
+  - *Basis:* Above j_dep our finite-T runs already give P=1 at every duration, but the P=0.5 threshold is set by the sub-depinning thermal foot.
+  - *Next step:* Run kBT->0: the switching probability should become a step at exactly j_dep=6K6 for all t_p (perfectly flat plateau), isolating deterministic depinning from thermal activation and validating the analytic j_dep.
+
+### gurung2023  (5 Q)
+
+**Q1.** Does the full DFT Fermi surface of antiperovskite Mn3GaN reproduce the nearly-100% p_k|| over a broad 2DBZ area, as opposed to the illustrative 2D kagome surrogate?
+  - *Basis:* The headline material claim rests on the real Mn3GaN (001) band structure with 5 Fermi-surface bands; the kagome model only demonstrates the mechanism, not the material-specific breadth.
+  - *Next step:* Run a noncollinear DFT (e.g. VASP/QE + Wannier90) for Gamma_5g Mn3GaN, downfold to a tight-binding Hamiltonian, and recompute p_k|| on the (001) 2DBZ.
+
+**Q2.** How does the 'broad area' fraction of p>=90% scale with exchange splitting Delta/t and with the chirality/orientation of the 120-degree Neel vector?
+  - *Basis:* The paper notes polarization is reduced only at small Delta; quantifying the Delta-dependence tests robustness and the symmetry origin of the effect.
+  - *Next step:* Sweep Delta/t in [0.3, 3.0] and both chiralities on the kagome model; map frac(p>=0.90) vs Delta and compare to Supplementary Fig. S1.
+
+**Q3.** Does adding spin-orbit coupling (SOC) preserve or degrade the near-100% spin polarization?
+  - *Basis:* Real Mn3GaN has finite SOC; the effect is defined without SOC, and SOC can mix spin channels and cap p_k||.
+  - *Next step:* Add an on-site/bond SOC term to the kagome Hamiltonian and recompute p_k|| vs SOC strength.
+
+**Q4.** Does matching the near-100% conduction channels to SrTiO3 low-decay evanescent states actually yield ETMR ~10^4%?
+  - *Basis:* ETMR is the device-level payoff of the spin-polarization claim; spin polarization alone does not prove the transport magnitude.
+  - *Next step:* Build a ballistic (NEGF or transfer-matrix) AFMTJ model with a SrTiO3-like barrier, compute k||-resolved T_P and T_AP, and evaluate ETMR=(T_P-T_AP)/T_AP.
+
+**Q5.** Is the 'persistent spin texture' region (spins aligned over a broad 2DBZ patch) reproducible in the surrogate, and is it symmetry-enforced or interaction-specific?
+  - *Basis:* The paper explicitly flags this as not symmetry-enforced; distinguishing the two matters for generalizing to other Mn3XN antiperovskites.
+  - *Next step:* Map the spin-direction field s_k|| across the 2DBZ in the kagome model and test for extended constant-direction patches vs symmetry predictions.
+
+### jaubert2016  (5 Q)
+
+**Q1.** Does the divergence-free residual fragment actually reproduce quantitative pinch points (sharp singular structure at Brillouin-zone centers) rather than merely finite diffuse scattering?
+  - *Basis:* The paper's Fig. 10 shows genuine pinch points persisting to the ordering transition; our L=3 lattice is too small to resolve the pinch-point singularity, so we only demonstrated Bragg+diffuse coexistence, not the singular pinch shape.
+  - *Next step:* Rerun on L=6-8 with dense q-sampling around (0,0,2) and (1,1,1), fit the transverse S(q) to the dipolar Coulomb-phase form 1 - q_perp^2/q^2 to confirm the pinch singularity.
+
+**Q2.** What is the correct bracketed coefficient of Eq. (12) that yields dE_hh = -4.73 D, and can we derive it from first principles instead of trusting garbled OCR?
+  - *Basis:* dE_hh is one of the two dumbbell energy-cost predictions; our Madelung construction reproduces dE_mm=19.75 exactly but gives -3.13 for dE_hh, indicating an OCR/sign/factor ambiguity in Eq. (12) we could not resolve from text alone.
+  - *Next step:* Re-derive dE_hh = -2p_h + V_nn - 2 V_M analytically with V_nn=-(8/3)sqrt(2/3)D and V_M=-(8/3)sqrt(2/3) D * Mzb, checking the Helmholtz half-divergence factor; cross-check against the MC value -4.34 D.
+
+**Q3.** Do dipolar interactions actually order the FCSL into the R-states (quantum-dimer ground state) at very low T, maximizing flippable plaquettes?
+  - *Basis:* Section VI's conclusion — the dipolar degeneracy lift selecting R-states — is the paper's low-energy punchline and we did not attempt it (we imposed the FCSL constraint rather than deriving its stability/selection).
+  - *Next step:* Add the real long-range dipolar energy (Ewald) as a weak perturbation on the FCSL ensemble and measure whether the lowest-energy configs correspond to maximal flippable-plaquette (R-state) order.
+
+**Q4.** Is the monopole-hole / monopole (2-in-2-out vs 4-in/4-out) distinction and their non-confining Coulomb interaction reproducible via direct defect-pair energetics in MC?
+  - *Basis:* The semiconductor analogy (valence=order, conduction=Coulomb liquid) rests on the two defect species interacting via a non-confining 1/r potential; we validated the analytic prefactor but not the numerically extracted V(r) curves of Fig. 5.
+  - *Next step:* Insert defect pairs at controlled separations into FCSL backgrounds, compute averaged dipolar energy vs r with Ewald summation, and fit to V/D = -2.177 (r_d/r) to reproduce Fig. 5.
+
+**Q5.** How robust is the FCSL to thermal/quantum excitation density, i.e. where is the T/D window in which fragmentation (rho~1/2) survives?
+  - *Basis:* The paper reports pinch points persisting to T/D~2 and up to the transition; we only sampled ground-state (E=0) FCSL configs, so we have no thermodynamic phase boundary.
+  - *Next step:* Run finite-T Metropolis with the four-body H = J_sq sum_nu (sum S.S)^2 plus dipolar term, sweep T/D and track rho, defect density, and pinch-point intensity to map the FCSL stability window.
+
+### jungwirth2024  (5 Q)
+
+**Q1.** Does the g-wave altermagnet realized in the actual materials MnTe and CrSb reproduce the same M=0 + protected-sign-structure claim in a minimal tight-binding model, or does the higher-order (g-wave) form factor introduce qualitatively new nodal geometry?
+  - *Basis:* The paper's headline experimental candidates are g-wave, not d-wave. Our replication covers only the d-wave prototype; the central claim is asserted for d/g/i-wave collectively but only demonstrated here for d.
+  - *Next step:* Extend the 2-sublattice model to a 4-sublattice (or hexagonal) lattice whose C6/C3 symmetry forces a g-wave (cos2k-type) form factor; verify diagonal/axial node count matches the g-wave harmonic.
+
+**Q2.** How large is the non-relativistic altermagnetic spin splitting predicted for real materials by ab-initio DFT, and does the toy-model magnitude (0.56 t_nn) map onto the ~eV-scale splittings reported for MnTe/CrSb?
+  - *Basis:* The Perspective cites DFT-predicted splittings; a toy model gives only a dimensionless number. Connecting to a material scale is what makes the claim experimentally falsifiable.
+  - *Next step:* Run a spin-polarized DFT (VASP/QE) calculation of MnTe or CrSb, extract the momentum-resolved spin splitting along a symmetry line, and compare its k-dependence to the model form factor.
+
+**Q3.** What is the precise symmetry (spin-group) operation that protects the sign structure, and can it be verified as an explicit anti-commutation/commutation relation on the Bloch Hamiltonian rather than only as a numerical antisymmetry residual?
+  - *Basis:* The paper's whole framing is spin-group symmetry classification. A machine-checkable spin-group operator would upgrade our numerical C4-antisymmetry residual to a first-principles symmetry proof.
+  - *Next step:* Construct the spin-group element [C2||C4] (spin C2 combined with real-space C4) as an explicit unitary and assert U H(k) U^dagger = H(C4 k) over the BZ.
+
+**Q4.** How does the altermagnet's momentum-space spin texture relate quantitatively to the superfluid-3He / higher-partial-wave Pomeranchuk order-parameter texture that the Perspective uses as its central analogy?
+  - *Basis:* The intellectual contribution of the paper is the analogy/distinction to Fermi-liquid Pomeranchuk instabilities and 3He; our replication captures the crystal altermagnet but not this analogy, which is where the paper's novelty lies.
+  - *Next step:* Build a continuum Fermi-liquid l=2 spin-channel Pomeranchuk order parameter and compare its M=0 + d-wave spin texture to the lattice altermagnet, identifying which features are lattice-specific.
+
+**Q5.** Under an applied SOC term, does the conserved-S_z picture break down in the way the paper's relativistic-spin-splitting section describes, and does a small net magnetization or anomalous Hall response then appear?
+  - *Basis:* The paper distinguishes non-relativistic (S_z-conserving) and relativistic altermagnetic effects; our model is strictly non-relativistic, so the SOC-induced phenomena (weak ferromagnetism, AHE) are untested.
+  - *Next step:* Add a Rashba/atomic SOC term to the model, recompute the net moment and a Kubo anomalous Hall conductivity, and check whether a symmetry-allowed finite response emerges.
+
+### jungwirth2025  (5 Q)
+
+**Q1.** What is the quantitative magnitude of the non-relativistic tunneling magnetoresistance (TMR) ratio achievable in a d-wave altermagnet tunnel junction, and how does it compare band-structure-realistically to ferromagnetic MTJs (which reach >200%)?
+  - *Basis:* The review motivates altermagnetic MRAM via a strong non-relativistic TMR readout, but our constant-tau Boltzmann model computes bulk conductivity polarization (up to 93%), not a junction TMR. The device figure of merit is left as a survey number.
+  - *Next step:* Build a two-lead altermagnet/barrier/altermagnet Landauer-Buttiker junction with matched/anti-matched Neel orientations and compute TMR = (G_P - G_AP)/G_AP vs barrier height and crystal orientation.
+
+**Q2.** How is the spin-splitter transverse pure spin current degraded by disorder and finite temperature, and does it survive as a measurable signal in a realistic sample (the SSE was demonstrated in our clean-limit model with tau=const)?
+  - *Basis:* Our transverse spin current is computed in the constant-tau clean limit. The review claims the SSE is a robust non-relativistic analog of the SHE, but scattering (especially spin-conserving vs spin-flip) and thermal smearing could suppress the deflection asymmetry.
+  - *Next step:* Add momentum-dependent and spin-dependent scattering rates to the Boltzmann solver, and compute the spin-splitter angle vs disorder strength and temperature.
+
+**Q3.** The review highlights THz-range spin dynamics as a key advantage. What sets the intrinsic resonance frequency of a d-wave altermagnet, and how does it scale with the altermagnetic order parameter vs the (weak) SOC-induced anisotropy?
+  - *Basis:* The THz dynamics claim (ps switching) is central to the memory-technology pitch but rests on cited experiments/surveys; our electronic-structure replication does not touch dynamics.
+  - *Next step:* Set up the coupled sublattice Landau-Lifshitz equations for the altermagnet with the exchange and anisotropy fields, linearize, and extract the resonance frequency vs order-parameter and anisotropy.
+
+**Q4.** For which crystal symmetries does the current-polarization-vs-bias-angle curve deviate from the ideal cos(2theta) d-wave form (e.g. g-wave altermagnets with cos(4theta)), and can this angular fingerprint be used to experimentally classify an altermagnet's wave order?
+  - *Basis:* Our model gives a clean d-wave polarization reversal (zero at 45 deg). Higher-wave altermagnets should show more nodes; the review catalogs g- and i-wave materials but does not give the transport angular signature.
+  - *Next step:* Extend the transport model to g-wave (cos2kx-cos2ky) hopping and map the number and location of polarization nodes vs bias angle, giving a transport-based wave-order classifier.
+
+**Q5.** Can altermagnetic spintronics be combined with ferroelectricity or superconductivity (the review's outlook) to give an electrically switchable spin-current source, and what is the minimal model that couples the Neel/altermagnetic order to a ferroelectric polarization?
+  - *Basis:* The review flags interplay with ferroelectricity/superconductivity as a frontier but provides no concrete coupled model. This is a genuinely open design question.
+  - *Next step:* Construct a minimal free energy coupling the altermagnetic order parameter to a polar mode, identify the symmetry-allowed magnetoelectric coupling, and test whether an applied E-field can switch the sign of the current polarization.
+
+### lee2025  (5 Q)
+
+**Q1.** The paper states a single-unit-cell (110) film of RuO2 loses altermagnet symmetry yet the microscopic picture still predicts spin-split bands. Does the minimal 4-band model reproduce this residual splitting when translational symmetry between A/B is explicitly broken?
+  - *Basis:* Resolves whether spin splitting is fundamentally a local (bond-anisotropy) effect vs a global crystal-symmetry effect - decisive for 2D altermagnet spintronics.
+  - *Next step:* Add an on-site A/B energy offset (delta_AB * tau_z) breaking PT, re-diagonalize, and check whether momentum-dependent splitting survives with delta_t=0.
+
+**Q2.** How does the d-wave nodal spin structure evolve into Weyl/nodal-loop topology when a small SOC (lambda * L.S) term is added to the minimal model?
+  - *Basis:* The intro links altermagnet nodes to Weyl physics and anomalous Hall readout; the SOC-free model cannot show this directly.
+  - *Next step:* Add Rashba/atomic SOC to the 4-band H, compute Berry curvature via the Kubo-Bastin routine from the gobel2024 kernel, and locate gapped nodes / Chern contributions.
+
+**Q3.** The claimed eV-scale spin splitting assumes h_eff ~ few eV for transition-metal d orbitals. What delta_t magnitude does the actual MnF2 non-magnetic-cage distortion produce?
+  - *Basis:* Sets whether the minimal model is quantitatively (not just qualitatively) predictive for real MnF2.
+  - *Next step:* Fit delta_t and t1,t2,t3 to the DFT-GGA MnF2 bands in Fig 5(a) via Wannier downfolding; compare fitted splitting to measured/DFT values.
+
+**Q4.** Does the anomalous Hall coefficient predicted from the accidental + symmetry nodal degeneracies remain finite in the SOC-free limit, or does it require SOC?
+  - *Basis:* AHE is the stated electrical readout mechanism for altermagnetic order; its origin (crystal vs relativistic) is physically important.
+  - *Next step:* Compute intrinsic sigma_xy via Kubo-Bastin over occupied bands as a function of mu with and without an SOC term.
+
+**Q5.** How robust is the 'both delta_t and h_eff required' result to longer-range or multi-orbital hopping (the paper notes multi-orbital band structure is recoverable by extending the Hilbert space)?
+  - *Basis:* Determines whether the two-ingredient rule is a strict theorem of the minimal model or an artifact of the single-orbital truncation.
+  - *Next step:* Extend to a 2-orbital (X2-Y2 and Z2) 8-band model with orbital-dependent delta_t and re-test the necessity condition.
+
+### li2019  (5 Q)
+
+**Q1.** Why does the ordinary Berry curvature fail to integrate to the paper's clean Chern numbers (-3, 1, 2) in our from-scratch build?
+  - *Basis:* The Chern numbers are the topological fingerprint of the magnon bands and underlie the intrinsic (dissipationless) nature of the spin Nernst response. A wrong Chern count signals either a subtle sign/convention error in the BdG blocks or an ill-conditioned Berry curvature near the AFM Goldstone mode.
+  - *Next step:* Compute Chern numbers with the gauge-invariant Fukui-Hatsuda-Suzuki plaquette method (link variables) on a dense grid, which is robust to the near-degeneracy, instead of the m-sum curvature formula.
+
+**Q2.** Is the strong grid sensitivity of the alpha^y_yx peak (2.7 at nk=24 vs ~0.4 at nk=36) purely a Goldstone-mode artifact, or a genuine convergence issue in the spin Berry curvature?
+  - *Basis:* The paper's headline number is alpha^y_yx/kB ~ 3.5; if our value is not converged we cannot claim quantitative agreement, only sign/order-of-magnitude.
+  - *Next step:* Introduce a small physical anisotropy gap (or finite magnon mass) as in the paper's material, and perform an adaptive/tetrahedron BZ integration that resolves the hot spots at the avoided crossings without oversampling Gamma.
+
+**Q3.** Does our reconstructed in-plane DMI orientation (radial n_hat plus chirality-staggered Dz) exactly match the paper's Fig. 1 DMI pattern and the Mx mirror plane?
+  - *Basis:* The spin Nernst tensor shape (Eq. 18) and the vanishing of the torque/source term follow from the DMI-imposed magnetic space group. A mis-oriented DMI would still give a finite response but with the wrong tensor symmetry.
+  - *Next step:* Explicitly verify the numerically obtained alpha tensor against the symmetry-allowed form of Eq. (18) (antisymmetric x/y blocks, specific z block) component by component.
+
+**Q4.** How large is the orbital-magnetization / bound-current (M) term that the paper cancels analytically, and is our c1-weighted formula fully equivalent to their Eq. 8 + Eq. 14 combination?
+  - *Basis:* The paper's key step is that the nonequilibrium (S) and equilibrium orbital-magnetization (M) parts combine into the compact c1 formula (Eq. 15). If our direct c1 implementation silently drops a piece, the magnitude would be off by a T-dependent factor.
+  - *Next step:* Independently evaluate the S-term (Eq. 8, with g and energy weighting) and the M-term (Eq. 14, energy integral of g) and confirm their sum reproduces the c1-weighted result numerically.
+
+**Q5.** Does the predicted response survive with J2 = 0 (the alternative fit mentioned in the paper where the flat band is broadened by fluctuations)?
+  - *Basis:* The paper notes the dispersion can also be fit with J2 = 0. If the spin Nernst effect is qualitatively unchanged, it strengthens the material prediction; if it collapses, the effect is J2-sensitive and less robust experimentally.
+  - *Next step:* Re-run the kernel with J2 = 0 and compare the alpha^y_yx(T) curve and band structure to the J2 = 0.11 meV case.
+
+### lund2021  (5 Q)
+
+**Q1.** Does the k=0 uniform-precession picture survive at finite k, i.e. do the three magnon bands retain distinct, well-separated polarization character across the Brillouin zone?
+  - *Basis:* The orthogonal-polarization spin-pumping claim is derived only at k=0. A real driven film excites a finite-k envelope; band mixing away from Gamma could contaminate the pumped-current polarization.
+  - *Next step:* Extend the LSWT kernel to compute the full k-resolved eigenvectors and project them onto x/y/z; quantify polarization purity vs |k|.
+
+**Q2.** How does the Heisenberg zero-energy flat band (reproduced here) shift once the paper's Kz, K anisotropies and DMI are switched on?
+  - *Basis:* The flat band is the hallmark of kagome AFM frustration; anisotropy gaps it and sets the low-frequency pumping response. Its fate controls the density of pumping-active modes.
+  - *Next step:* Add on-site anisotropy and (if present) DMI terms to the BdG matrix and track the lowest band gap vs Kz/J and K/J on a coarse grid.
+
+**Q3.** What is the quantitative magnitude of the pumped ac spin current (Eq. 17) for a realistic kagome jarosite (e.g. KFe3(OH)6(SO4)2) and drive field?
+  - *Basis:* The paper gives functional forms but no absolute numbers; experimental feasibility (ISHE voltage) depends on plugging in real J, K, lambda, spin Hall angle.
+  - *Next step:* Parameterize a1,a2,K1,K2 from measured J and anisotropy, evaluate g1,g2 at resonance, and estimate the ISHE electric field from Eq. 18.
+
+**Q4.** Is the exact xy-degeneracy / z-splitting of the three resonance modes robust to symmetry-lowering perturbations (strain, interfacial DMI, off-diagonal K)?
+  - *Basis:* Mutual orthogonality of polarizations relies on K being diagonal. Off-diagonal anisotropy would rotate/mix the polarization axes and blur the frequency-selective control.
+  - *Next step:* Introduce off-diagonal K elements and recompute the eigenvectors; measure orthogonality error vs perturbation strength.
+
+**Q5.** How does thermal magnon population (finite T) and Gilbert-like damping alpha_tilde broaden the three resonances and reduce polarization selectivity?
+  - *Basis:* Room-temperature operation is the practical target; overlapping damped resonances would prevent clean single-band excitation and mixed polarizations.
+  - *Next step:* Include the damping term (Delta_omega = 2 a2 alpha_tilde / a1^2) in a Lorentzian lineshape model and compute resonance overlap vs alpha_tilde and T.
+
+### martinelli2025  (5 Q)
+
+**Q1.** For a real altermagnet where several magnetic multipoles are symmetry-allowed, what is the correct RELATIVE weighting of each multipole in the multi-component order parameter, and is it material-transferable or does each compound require its own calibration?
+  - *Basis:* The paper's central conclusion is that the NRSS is a superposition of multipoles of comparable strength, but it does not provide a universal weighting rule; our model imposes the weights by hand. Transferability across materials is the practical question for using multipoles as order parameters.
+  - *Next step:* Compute the k-resolved spin splitting and the full set of local multipoles for a set of d- and g-wave altermagnets (from published DFT), regress the BZ-RMS splitting on all multipoles, and test whether the fitted coefficients cluster (transferable) or scatter (material-specific).
+
+**Q2.** The paper varies multipoles either by density constraints (SrCrO3) or structural distortion modes (LaVO3). Do these two routes produce the SAME multipole-to-splitting relation, or does lattice distortion introduce additional (non-magnetic, charge-multipole) channels that a purely electronic constraint does not?
+  - *Basis:* SrCrO3 uses a purely electronic symmetry breaking while LaVO3 uses GdFeO3-type distortion. Whether the resulting NRSS-vs-multipole curves coincide tests whether the multipole order parameter is route-independent (a true state function).
+  - *Next step:* Model both routes: an electronic exchange-field constraint vs a hopping-anisotropy distortion, extract the multipole spectrum and splitting for each, and compare the NRSS(multipole) mapping.
+
+**Q3.** Is the BZ-RMS of |Delta(k)| the optimal band-independent NRSS measure, or does a Fermi-surface-weighted / transport-weighted measure correlate better with experimentally observable altermagnetic responses (spin currents, anomalous Hall)?
+  - *Basis:* The paper discusses different measures to quantify overall spin-splitting; we use BZ-RMS. But transport is dominated by states near EF, so a Fermi-surface-weighted measure may be more physically relevant, and the choice affects the multipole-splitting relation.
+  - *Next step:* Define both BZ-RMS and an EF-window-weighted NRSS measure, compute both for the model, and test which better predicts the Kubo spin conductivity.
+
+**Q4.** At what point does the higher-multipole (triakontadipole) contribution become DOMINANT rather than merely comparable, and does this signal a crossover from d-wave to g-wave altermagnet character within a single material under tuning (strain, doping)?
+  - *Basis:* The paper finds 'comparable' contributions in some cases and dominant higher-order in others. A tuning-induced d->g crossover would be a striking, testable prediction not quantified in the paper.
+  - *Next step:* Sweep the octupole/triakontadipole ratio in the model, compute the angular harmonic decomposition of Delta(k), and identify the ratio at which the g-wave (cos2kx-cos2ky) harmonic overtakes the d-wave one.
+
+**Q5.** Can the multi-component multipolar order parameter be measured directly (e.g. via resonant x-ray scattering, NMR, or spin-resolved ARPES) so that the quantitative multipole-splitting relation the paper establishes theoretically can be validated experimentally?
+  - *Basis:* The paper's relation is DFT-based; the multipoles are computed, not measured. Establishing an experimental probe of the specific multipole magnitudes is necessary to use them as order parameters for phase transitions/domains, which the paper motivates but does not address.
+  - *Next step:* Identify which multipole components couple to which scattering channel/selection rule, and estimate the signal magnitude for a candidate altermagnet to assess experimental feasibility.
+
+### mestral2025  (5 Q)
+
+**Q1.** Why does the soft-mode frequency omega(disp) collapse far more steeply (2.0->1.0 THz over 0.466%->0.425%) than a simple quartic Landau double-well predicts?
+  - *Basis:* r51 ~ 1/omega^2, so the exact omega(off-centering) law controls how sharply r51 can be enhanced and how sensitive it is to structure. Our Landau model missed omega by ~33%.
+  - *Next step:* Build a real frozen-phonon curvature calculation of the Ti <110> soft mode vs displacement (finite-difference Hessian on a tight-binding or shell-model BTO), or fit a higher-order (6th) Landau expansion to the three paper points.
+
+**Q2.** Why does PBEsol underestimate the ground-state r51 by 46% (391 vs 730 pm/V) while its soft-mode frequency (1.80 THz) is closer to experiment (1.14 THz) than PBEsol+U+V (3.16 THz)?
+  - *Basis:* It signals the r51 error is not purely a soft-mode-frequency error but also involves Raman susceptibility / mode-polarity (eigenvector) accuracy.
+  - *Next step:* Decompose r51 into alpha_m, p_m, and 1/omega^2 factors per mode for PBEsol and check which factor carries the residual error against experiment.
+
+**Q3.** Does the extended Hubbard (U+V) correction genuinely improve the electronic structure while degrading r51 only through the phonon eigenvectors, as the paper claims?
+  - *Basis:* Distinguishes an electronic-structure improvement from a vibrational artifact; central to whether functional-independence actually helps EO prediction.
+  - *Next step:* Reproduce the r_el vs r_ion split (paper Fig. 5) and compare eigenvector 'Slater character' overlaps between PBEsol and PBEsol+U+V.
+
+**Q4.** How does mode 14 produce a positive contribution to nu_max that flips the sign of r13, violating the symmetry expectation that r13, r33, r51 share sign?
+  - *Basis:* The anomalous r13 sign suggests a missing physical contribution and undermines confidence in the smallest coefficient.
+  - *Next step:* Isolate mode 14's alpha/p contribution across the displacement series and test whether including strain/piezo-optic terms restores the correct r13 sign.
+
+**Q5.** Is the r51 enhancement at reduced off-centering a real thin-film-clamping effect or an artifact of choosing a structure off the P4bm ground state?
+  - *Basis:* Determines whether 0.45% (near-experimental r51) is physically realizable in clamped BTO films or just a convenient tuning knob.
+  - *Next step:* Compare against XRD-measured Ti displacements in clamped BTO thin films and compute the clamped ground-state under epitaxial strain boundary conditions.
+
+### raabe2008  (5 Q)
+
+**Q1.** What are the actual DFT (GGA-PBE96) T=0 formation-energy curves Ef_bcc(x) and Ef_hcp(x) for Ti-Nb and Ti-Mo across the full composition range?
+  - *Basis:* The paper's central Figs. 1a/1b are only summarized in text by two anchor points each (Ti-Nb bcc root ~93 at%, Ti-Mo bcc root ~25 at%). Our thermo.py had to surrogate the energy shape; with a symmetric parabola the entropy term reproduces the Ti-Mo finite-T threshold (16.6 vs 14 at%) but badly under-shifts Ti-Nb (79 vs 25 at%).
+  - *Next step:* Run VASP/QE GGA-PBE96 on ordered bcc/hcp Ti-X supercells (as in the paper) or digitize Figs. 1a-d from the published version, fit the real <Ef(x)> polynomial, and re-run Eq.(3) to test the 25 at% Ti-Nb finite-T claim quantitatively.
+
+**Q2.** Does using the physically-correct POSITIVE mixing entropy (-kB[x ln x + (1-x)ln(1-x)]) rather than the sign-as-printed Eq.(2) change the paper's Fig. 1c/1d conclusions?
+  - *Basis:* Eq.(2) is printed without a leading minus, which would make Sconfig<=0 and RAISE Ff with T, contradicting the paper's own claim that finite-T lowers Ef. We verified S(0.5)=kB*ln2 with the positive form, indicating the printed equation is a typo.
+  - *Next step:* Confirm against the journal (Adv. Eng. Mater.) version of Eq.(2); check whether the plotted Fig.1c/1d curves used the positive form (they must have, given the stated direction of the shift).
+
+**Q3.** How large is the neglected vibrational entropy contribution, and does it explain the poorer theory-experiment agreement for Ti-Mo beta volume fractions?
+  - *Basis:* The paper explicitly neglects vibrational entropy and notes the Ti-Mo agreement is 'less satisfactory,' hypothesizing (i) neglected vibrational entropy or (ii) an unmodeled phase (likely omega).
+  - *Next step:* Add a Debye/phonon vibrational free-energy term to Eq.(3) for Ti-Mo and re-run the Gibbs construction; compare the shifted beta volume-fraction curve against Table 2 experimental points.
+
+**Q4.** Why does the experimental Ti-Nb polycrystalline modulus DECREASE with Nb (91.2->75.8->72.1) while the simulated [001] modulus increases nearly linearly?
+  - *Basis:* elastic.py found the exptl Ti-Nb series is monotone-DECREASING (slope -0.96 GPa/at%, R^2=0.889), opposite the simulated trend. The paper attributes low-solute (10 at%) samples to alpha/omega contamination but does not quantify it.
+  - *Next step:* Digitize Fig. 6 simulated blue-square points to compare simulated vs experimental slopes directly, and weight the polycrystal average over alpha/beta/omega phase fractions from Table 2 to test the contamination explanation.
+
+**Q5.** Do the reported single-phase-bcc thresholds (~39 at% Nb, ~36 at% Mo) from the Gibbs construction depend on the 3rd-order polynomial fit choice for <Ef(x)>?
+  - *Basis:* The paper states the averaged formation energy was fit by a least-squares 3rd-order polynomial before the Gibbs (common-tangent) construction; the sensitivity of the ~39/~36 at% thresholds to polynomial order is not reported.
+  - *Next step:* Once the real Ef(x) data are available, repeat the Gibbs common-tangent construction with polynomial orders 2-5 and report the threshold spread as an uncertainty band.
+
+### sasioglu2026  (5 Q)
+
+**Q1.** Does the cos(2theta) law survive beyond the small-k (parabolic) approximation, i.e. when the tube Fermi level sits away from the band edge where higher-harmonic (cos 4theta, etc.) corrections from the full lattice dispersion can appear?
+  - *Basis:* Our axial observable uses the curvature of Delta near Gamma, which is exactly cos(2theta). At finite k_F the full (cos kx - cos ky) form can mix in higher angular harmonics; the paper claims robustness 'across a broad class of tubes' but the harmonic content at realistic doping is untested here.
+  - *Next step:* Evaluate the spin splitting at a fixed finite Fermi energy on each folded subband (rather than band-edge curvature), Fourier-decompose the theta dependence, and quantify the cos(2theta) weight vs. higher harmonics as a function of EF and t_AM/t.
+
+**Q2.** How does a realistic circumferential quantization (true chiral index (n,m) with commensurate lattice vectors and finite tube radius) modify the continuum zone-folding result, especially for small-radius tubes with strong curvature?
+  - *Basis:* We used an idealized continuum zone folding (k_c = 2 pi m / N along an arbitrary chiral direction) and picked the band-edge mode. Real nanotubes have discrete commensurate (n,m) indices and curvature-induced hopping renormalization not in the flat-sheet TB.
+  - *Next step:* Construct explicit (n,m) rolled lattices, build the true 1D unit-cell Bloch Hamiltonian with curvature-corrected hoppings, and compare the extracted spin-splitting-vs-theta to the continuum cos(2theta).
+
+**Q3.** Is the zero-net-magnetization altermagnet condition preserved once the sheet is rolled, or does curvature/finite size induce a small residual net moment that would break the ideal cos(2theta) symmetry?
+  - *Basis:* In the flat model net M = 0 by C4-plus-spin symmetry. Rolling breaks the in-plane C4 explicitly, so the symmetry protecting M=0 may be reduced; the paper treats the tube as inheriting the altermagnet property but curvature effects on M were not examined here.
+  - *Next step:* Compute the sublattice-resolved occupation on the rolled lattice at fixed filling and check for a net induced moment vs. tube radius and theta.
+
+**Q4.** What is the quantitative magnitude of the spin splitting in physical units (meV) for a candidate material, and does it match the DFT confirmation in the paper?
+  - *Basis:* We work in units t=1, t_AM=0.30 and report dimensionless coefficients. The paper's DFT provides absolute meV-scale splittings for specific compounds; we did not attempt first-principles calibration (out of scope, cluster-only).
+  - *Next step:* Fit t and t_AM to the paper's reported bulk DFT band splitting for the specific altermagnet, then convert the cos(2theta) amplitude to meV and compare to the DFT nanotube values in the paper's figures.
+
+**Q5.** How robust is the cos(2theta) law to disorder, and does it survive as a measurable transport/spin-injection signature rather than just a band-structure feature?
+  - *Basis:* The replication is a clean single-particle band-structure statement. Experimental observability (e.g. spin-polarized conductance oscillating as cos(2theta)) depends on scattering, contacts, and finite temperature, none of which are modeled.
+  - *Next step:* Add on-site disorder / a simple Landauer transport model on the rolled lattice and test whether the angle-resolved spin conductance retains the cos(2theta) envelope.
+
+### schiff2024  (5 Q)
+
+**Q1.** The paper reduces all Q=0 collinear altermagnets to 54 distinct Landau theories. Which of these host MORE than one symmetry-allowed secondary multipole at comparable order, and does the competition/coexistence between multipoles of different rank (quadrupole vs hexadecapole) change the sign structure of the band spin splitting?
+  - *Basis:* We reproduced only the canonical tetragonal d-wave case with a single secondary quadrupole. The paper's central taxonomy (54 theories) implies richer cases where several multipoles couple; the interplay is not explored here and could produce mixed-wave (d+g) splitting.
+  - *Next step:* Enumerate the point groups admitting two independent secondary invariants, write the coupled Landau free energy F(N, M1, M2), minimize, and map the resulting angular harmonic content of Delta(k) as the relative coupling ratio is varied.
+
+**Q2.** How does weak but finite SOC (Sec IV) modify the secondary-multipole/spin-splitting locking, and at what SOC strength does the Neel-vector orientation begin to control the spin-splitting axis (the device-relevant regime)?
+  - *Basis:* Our replication is strictly zero-SOC where M is locked to N^2 and the splitting axis is fixed by the crystal. The paper devotes Sec IV + appendices to finite-SOC Neel coupling tables; the crossover scale is a genuine open, materials-relevant question.
+  - *Next step:* Add a symmetry-allowed SOC term g_soc (N . L)-type coupling to the free energy and to the TB model, and compute the rotation of the spin-splitting anisotropy vs Neel-vector angle as a function of g_soc/g.
+
+**Q3.** Is the transition genuinely second order for real altermagnet candidates, or do the secondary multipolar couplings drive it weakly first order (as the paper hedges 'second-order or weakly first-order')?
+  - *Basis:* We assumed a4>0 giving a clean beta=1/2. The bilinear coupling -g M N^2 with a soft multipole stiffness r can renormalize the quartic term and, if r is small enough, produce a negative effective quartic coefficient => first order. This possibility is stated but not quantified.
+  - *Next step:* Integrate out M exactly (M=gN^2/r) to get an effective potential a2 N^2 + (a4 - g^2/2r) N^4, find the r_c below which the effective quartic goes negative, and add a sixth-order term to characterize the resulting first-order transition.
+
+**Q4.** The paper connects multipolar order parameters to observable response functions under SOC. Which single response function most sharply discriminates between two Landau theories that share the same primary Neel symmetry but differ in secondary multipole, and how large is the predicted magnitude?
+  - *Basis:* Distinguishing the 54 theories experimentally is the practical payoff of the classification, but the paper stops at symmetry-allowedness. Quantitative discriminating power is unaddressed.
+  - *Next step:* For a pair of candidate theories, compute the anomalous Hall tensor and magneto-optical Kerr angle from the SOC-coupled TB model and identify the component whose sign/magnitude differs, giving an experimental fingerprint.
+
+**Q5.** Does the momentum-space multipole extracted from the Landau order parameter agree quantitatively with the real-space atomic multipole (the ederer/martinelli-style local multipole) for the same material, or are these two 'multipole' languages only loosely related?
+  - *Basis:* Schiff et al use momentum-space multipoles as secondary order parameters; other work (martinelli2025) uses local real-space atomic multipoles. Whether they are the same quantity or merely symmetry-cousins is a deep, unresolved conceptual link surfaced by comparing these papers.
+  - *Next step:* For the tetragonal d-wave model, compute both the k-space multipole (from the spin-split bands) and the site-resolved real-space magnetic multipole, and test for a proportionality relation vs the coupling strength.
+
+### smejkal2022  (5 Q)
+
+**Q1.** How well does the minimal single-orbital d-wave tight-binding model capture the multi-orbital, multi-sublattice band structure of real altermagnet candidates (RuO2, MnTe, Mn5Si3, CrSb), and where does the simple cos kx - cos ky form break down for the g-wave and i-wave candidates the Perspective catalogs?
+  - *Basis:* The Perspective (Sec II.A, II.D) rests on ab initio band structures across a wide material zoo, including higher even-parity (g-, i-wave) altermagnets. Our replication reproduces only the representative d-wave case analytically; higher-wave symmetries and multi-orbital hybridization are not captured.
+  - *Next step:* Build Wannier-downfolded multi-orbital TB models for one d-wave (RuO2) and one g-wave (CrSb) candidate from published hoppings, and quantify the angular harmonic content (cos2theta vs cos4theta vs cos6theta) of the spin splitting on the Fermi surface.
+
+**Q2.** What is the quantitative role of weak spin-orbit coupling in lifting the ideal spin-group nodal lines, and how large is the residual anomalous Hall / magneto-optical response the Perspective attributes to altermagnets once SOC is turned on?
+  - *Basis:* Our model is strictly SOC-free (nodes exact). The Perspective (Sec III.D) emphasizes Berry-phase transport and a spontaneous Hall effect that require SOC to gap the nodal lines. This is not modeled here.
+  - *Next step:* Add a Rashba/atomic SOC term to the TB model, compute the Berry curvature and intrinsic anomalous Hall conductivity vs SOC strength, and compare the scaling to the paper's cited DFT Hall values.
+
+**Q3.** Can the altermagnetic spin splitting be self-consistently generated from an interacting model (Hubbard-type) rather than imposed by hand via t_AM, and does the compensated d-wave order emerge as the mean-field ground state over competing ferromagnetic/AFM phases?
+  - *Basis:* We impose the altermagnetic hopping t_AM as an input parameter. The Perspective (Sec III.B, Fermi-liquid instabilities) frames altermagnetism as an emergent ordered phase; whether it wins energetically is a genuine open many-body question.
+  - *Next step:* Set up a two-sublattice Hubbard model with the appropriate crystal anisotropy, do a mean-field/Hartree-Fock phase diagram in (U, filling), and check whether a compensated d-wave spin-split state is stabilized.
+
+**Q4.** How do altermagnetic magnons split (chiral magnon branches) in the same minimal model, and does the magnon spin splitting mirror the electronic d-wave anisotropy the Perspective predicts?
+  - *Basis:* The Perspective (Sec III.C) highlights electron AND magnon quasiparticles with lifted degeneracy. Our replication addresses only the electronic bands; the magnon sector is untouched.
+  - *Next step:* Construct the linear spin-wave (Holstein-Primakoff) Hamiltonian on the two-sublattice altermagnet, diagonalize, and test for a momentum-dependent chiral magnon splitting with the same nodal structure as the electrons.
+
+**Q5.** What experimentally accessible transport signature most cleanly distinguishes an altermagnet from a conventional collinear AFM with the same net-zero moment, and can the minimal model predict its magnitude/temperature dependence?
+  - *Basis:* The Perspective's central motivation is the FM-AFM dichotomy; distinguishing altermagnet from AFM experimentally is nontrivial since both have M_net=0. Our model reproduces the band-structure difference but not an observable.
+  - *Next step:* Compute the spin-splitter (tunneling/injection) conductance vs crystallographic angle in a Landauer setup on the rolled/oriented lattice and identify the angle-resolved spin-current signature unique to the altermagnet.
+
+### sobral2024  (5 Q)
+
+**Q1.** How does the spin-symmetric band splitting evolve when the chargon dispersion is convolved with the actual spinon Green's function (the full electron spectral function of Fig. 3), i.e. does the spinon broadening wash out the split Fermi surfaces or leave sharp spin-symmetric branches?
+  - *Basis:* We implemented only the bare chargon dispersion (Eqs C19-C21). The paper's actual observable is the ELECTRON spectral function = chargon (x) spinon convolution; the spinon contribution (dispersion, gap) determines whether the split FS survives as a sharp feature.
+  - *Next step:* Compute the spinon Green's function from the SB mean-field dispersion (e.g. Eq2 = 2J^2(2-cos qx - cos qy)+Delta^2), convolve with the chargon G, and extract the electron spectral function A(k,omega); check the sharpness of the spin-symmetric split Fermi surfaces vs the spinon gap Delta.
+
+**Q2.** Which of the enumerated neighboring spin liquids (U(1) vs the several Z2 states A1,B1,B2,A3) is energetically selected by the self-consistent Schwinger-boson mean field for realistic Kitaev/Heisenberg couplings, and does the 'altermagnetic spin liquid' win in a physically relevant parameter window?
+  - *Basis:* The paper classifies multiple SB ansaetze but the energetic selection requires solving the self-consistent mean-field equations (A_ij, B_ij, mu), which we did not do. Which fractionalized phase is realized is the central many-body question.
+  - *Next step:* Set up and solve the self-consistent SB gap equations for A_ij, B_ij and the Lagrange multiplier mu on the square lattice, compute the mean-field energy of each ansatz, and map the phase diagram.
+
+**Q3.** Is the 'orbital altermagnet' (non-coplanar order with altermagnetic symmetry only in spin-rotation-invariant observables) stable against quantum fluctuations, and at what fluctuation strength does it melt into the altermagnetic spin liquid?
+  - *Basis:* The paper argues the orbital altermagnet becomes an altermagnetic spin liquid when fluctuations destroy long-range order, but the critical fluctuation strength / condensation point is set by the SB condensation (mu -> mu_c), which we approached only schematically.
+  - *Next step:* Track the SB condensate as mu -> mu_c for the relevant ansatz and locate the order-to-spin-liquid transition, characterizing the residual altermagnetic discrete-symmetry breaking on the spin-liquid side.
+
+**Q4.** What experimental probe can detect a SPIN-SYMMETRIC band splitting (split Fermi surfaces with no spin polarization), distinguishing a fractionalized altermagnet from both an ordinary altermagnet (spin-split) and a trivial two-band metal?
+  - *Basis:* The distinctive signature is a splitting WITHOUT spin polarization, which spin-resolved ARPES alone cannot see (it would look spin-degenerate). A dedicated probe is needed and not proposed quantitatively in the paper.
+  - *Next step:* Model the expected signatures in (spin-integrated) ARPES, quantum oscillations (two frequencies, no Zeeman splitting), and thermal/transport, and identify the combination that uniquely fingerprints spin-symmetric splitting.
+
+**Q5.** Does the fractionalized altermagnet support any anomalous transport (e.g. a spin-rotation-invariant analog of the crystal Hall effect) despite the absence of net spin polarization, given the altermagnetic symmetry survives in SR-invariant observables?
+  - *Basis:* Ordinary altermagnets show a crystal/anomalous Hall effect tied to the spin splitting. Whether a spin-symmetric fractionalized version has an analogous SR-invariant response is an intriguing open question the paper's framework raises but does not resolve.
+  - *Next step:* Compute the Berry curvature and anomalous transport coefficients of the chargon bands (and, with the gauge field, of the physical electrons), checking for a nonzero SR-invariant Hall-type response with the d-wave symmetry.
+
+### wernert2024  (6 Q)
+
+**Q1.** Can the full linearized-LLG FM/noncollinear-AFM bilayer strip (100x1 kagome, JFM=-1, JAFM=1, compensated interface via Jnnn=JFM) be rebuilt to reproduce the numerical d.c. Hall spin current magnitudes in Fig.2, not just the sign structure?
+  - *Basis:* Our replication confirmed the analytic headline exactly and the Fig.2 sign flip, but did not reproduce the absolute magnitudes/profiles that require the interface boundary condition, anisotropies (K=0.01, Kz=0.00125), and boundary damping sinks (alpha=100). Matching magnitudes would upgrade coverage from 8 to ~10.
+  - *Next step:* Implement the Gaussian-driven a.c. field (Eq.15, sigma=2, omega=1), linearized LLG on the strip with edge damping, and the End-Matter Sec.IV lattice spin-current formulas; compare Jyy(direct) vs Jyy(inverse) profiles to Fig.2 (a)/(b).
+
+**Q2.** Does the exact velocity assignment of Eq.(13) [c_I=sqrt(g0/rho), c_{II,III}=sqrt((g0+gH)/rho)] emerge when the n_alpha x (spin-rotation) projection of the LLG EOM (Eq.4) is retained, rather than the naive elastic dynamical matrix we used?
+  - *Basis:* Our T5 verified the splitting magnitude (2 gH/rho) exactly but not the specific branch labeling of Eq.(13); resolving the projection would make T5 a strict rather than qualitative match.
+  - *Next step:* Linearize Eq.(4) around the isotropic polycrystal ground state with Gamma-bar, keep the cross-product (Berry/gauge) term, and diagonalize the resulting non-symmetric dynamical matrix to recover the exact c_I, c_II, c_III.
+
+**Q3.** How large is gH relative to g0 for real cubic and hexagonal Mn3X computed from Eq.(11) with realistic (beyond nearest-neighbor) exchange couplings from inelastic neutron data?
+  - *Basis:* The paper states off-diagonal Gamma components are 'of the same order' as diagonal ones for Mn3X, implying an experimentally observable Hall spin current. Quantifying gH/g0 for specific materials sets detection feasibility.
+  - *Next step:* Feed measured Heisenberg parameters for Mn3Sn/Mn3Ge/Mn3Ir into Eq.(11), angular-average per Eq.(12) to extract gH, g0, and tabulate gH/g0 and the predicted magnon velocity split.
+
+**Q4.** Is the transverse (Hall) Noether spin current experimentally distinguishable from ordinary spin-Hall / spin-swapping backgrounds via ISHE in a low-symmetry detector, as the Discussion proposes?
+  - *Basis:* The Hall mass is claimed to be a generic, symmetry-protected classifier of ALL noncollinear AFMs. Establishing a clean experimental signature (radial Jyy detectable by ISHE) is the path from theory to a measurable classifier.
+  - *Next step:* Model an ISHE detector stack on the noncollinear AFM, compute the converted charge voltage from the circularly-polarized-magnon-driven radial spin current, and estimate signal vs thermal/spin-pumping background.
+
+**Q5.** Does the itinerant-electron topological Hall response (gobel2024 s-d Kubo/Berry kernel) applied to the SAME kagome noncollinear texture give a consistent, complementary Hall signal to the magnonic Noether current derived here?
+  - *Basis:* The two mechanisms (electronic Berry-curvature AHE vs magnonic Noether spin current) share the noncollinear-texture origin. Cross-checking with the sibling gobel2024 kernel would tie the electronic and magnonic Hall responses of the same texture together.
+  - *Next step:* Adapt gobel2024_sd_skyrmion_kubo_Lz_kernel.py to a kagome lattice with a 120-degree coplanar spin texture (direct/inverse triangular), compute sigma_xy^spin/orbital, and compare its sign/symmetry to the Noether Jyy sign flip found in T4.
+
+**Q6.** 
+
+### zhang2025  (5 Q)
+
+**Q1.** Why does the altermagnetic spin splitting SATURATE (62.8->209.2->256.3->275.5 meV) faster than the Os moment grows (0.002->0.028->0.349->0.468 muB) on the rising strain branch, i.e. what sets the sub-linear moment->splitting response that our minimal linear TB does not capture?
+  - *Basis:* Table I shows splitting already at 62.8 meV for a tiny 0.002 muB moment (Ets=1%) while the moment then grows 200x with only ~4x more splitting. A strictly linear t_AM ∝ m model (our C3) cannot reproduce this saturation; the paper's DFT captures it but does not analyze the nonlinearity.
+  - *Next step:* Build a two-orbital strain-dependent TB where the anisotropic (altermagnetic) hopping and the on-site exchange are independent strain functions, fit both to Table I, and identify whether saturation comes from band-filling, Fermi-surface reconstruction, or exchange-vs-hopping competition.
+
+**Q2.** What microscopically drives the COLLAPSE of both moment and splitting at Ets=6% (moment 0.500->0.150 muB, splitting 110->0.11 meV), and is it a Lifshitz/Fermi-surface topology transition or a Stoner de-stabilization from c-axis (Poisson) compression?
+  - *Basis:* The paper notes magnetism weakens at 6% and attributes it loosely to c-axis compression, but does not pin the mechanism. Our Stoner dome imposes the collapse phenomenologically.
+  - *Next step:* Compute the DOS at EF and Fermi-surface topology vs Ets in a strain-dependent TB/DFT and correlate the collapse strain with a van Hove crossing or Stoner-criterion violation.
+
+**Q3.** Is the reported theta_AS ~7% robust to the constant-Gamma (scattering-rate) approximation used in the Kubo/Wannier linear response, and how sensitive is it to the assumed Gamma and to U (the paper picks U=2.0 eV to force intrinsic altermagnetism)?
+  - *Basis:* theta_AS ~7% is the headline device number but rests on a constant-Gamma Kubo calculation and a chosen Hubbard U (the paper admits OsO2 is non-magnetic at its linear-response U=1.13 eV, and uses U=2.0 eV to simulate intrinsic altermagnetism). This is a significant assumption we could not test.
+  - *Next step:* Reproduce the constant-Gamma Kubo spin conductivity on a model band structure and sweep Gamma and the exchange splitting to bound theta_AS's sensitivity; assess whether 7% survives realistic disorder.
+
+**Q4.** Does RuO2 (claimed to show 'analogous phenomena') actually cross into the altermagnetic regime under achievable strain, given the ongoing muSR/experimental controversy over whether RuO2 is magnetic at all?
+  - *Basis:* The paper claims strain resolves the RuO2 controversy, but RuO2's very magnetism is disputed (cited muSR points to non-magnetism). Whether strain-induced altermagnetism in RuO2 is real or an artifact of the chosen U is unresolved.
+  - *Next step:* Perform U- and strain-resolved magnetic-stability calculations for RuO2 and compare the predicted onset strain to what epitaxial substrates can deliver; cross-check against experimental strained-RuO2 data.
+
+**Q5.** Can the strain-induced altermagnet be distinguished from a conventional strain-induced weak ferromagnet by a spin-splitting anisotropy measurement, given both would show a small moment and band spin splitting?
+  - *Basis:* The defining altermagnet signature is the d-wave (sign-alternating, node-bearing) anisotropy of the splitting, not just its presence. Table I reports only |Splitting|max, not the full angular structure, so the altermagnetic (vs FM) character rests on Fermi-surface figures.
+  - *Next step:* Compute the full k-resolved spin splitting Delta(k) at each strain and quantify its cos(2theta) (d-wave) weight vs an isotropic (FM) component, providing a strain-dependent altermagnet order parameter.
